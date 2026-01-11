@@ -59,7 +59,7 @@ export function ContentList({ content, creator }: ContentListProps) {
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => window.open(`/${creator.username}/content/${item.id}`, '_blank')}
+                  onClick={() => window.open(`/creator/${creator.username}/content/${item.id}`, '_blank')}
                 >
                   View
                 </Button>

@@ -7,7 +7,8 @@ import {
   LayoutDashboard,
   Video,
   FileText,
-  Calendar,
+  Calendar as CalendarIcon,
+  Clock,
   Wallet,
   Settings,
   ExternalLink,
@@ -34,14 +35,19 @@ const navItems = [
     icon: Video,
   },
   {
-    label: 'Price List',
-    href: '/price-list',
-    icon: FileText,
-  },
-  {
     label: 'Bookings',
     href: '/bookings',
-    icon: Calendar,
+    icon: CalendarIcon,
+  },
+  {
+    label: 'Availability',
+    href: '/availability',
+    icon: Clock,
+  },
+  {
+    label: 'Services',
+    href: '/price-list',
+    icon: FileText,
   },
   {
     label: 'Payouts',

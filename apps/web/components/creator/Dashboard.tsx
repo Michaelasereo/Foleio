@@ -34,32 +34,40 @@ export function CreatorDashboard({
 }: CreatorDashboardProps) {
   const router = useRouter();
 
+  // Format percentage change with proper styling
+  const formatChange = (change: string | null | undefined) => {
+    if (!change) return '—';
+    const isPositive = change.startsWith('+');
+    const color = isPositive ? 'text-green-600' : change.startsWith('-') ? 'text-red-600' : 'text-gray-500';
+    return <span className={color}>{change}</span>;
+  };
+
   const stats = [
     {
       title: 'Total Earnings',
       value: formatNaira(Number(creator.totalEarnings) / 100),
-      change: '+12.5%',
+      change: analytics?.percentageChanges?.earnings || null,
       icon: DollarSign,
       color: 'text-green-600',
     },
     {
       title: 'Subscribers',
       value: creator.subscriberCount.toLocaleString(),
-      change: '+8.2%',
+      change: analytics?.percentageChanges?.subscribers || null,
       icon: Users,
       color: 'text-blue-600',
     },
     {
       title: 'Content Views',
       value: (analytics?.totalViews || 0).toLocaleString(),
-      change: '+23.1%',
+      change: analytics?.percentageChanges?.views || null,
       icon: Video,
       color: 'text-purple-600',
     },
     {
       title: 'Engagement Rate',
-      value: '4.3%',
-      change: '+4.3%',
+      value: `${analytics?.engagementRate || '0.0'}%`,
+      change: analytics?.percentageChanges?.engagement || null,
       icon: TrendingUp,
       color: 'text-orange-600',
     },
@@ -109,8 +117,7 @@ export function CreatorDashboard({
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-600">{stat.change}</span> from last
-                month
+                {formatChange(stat.change)} from last month
               </p>
             </CardContent>
           </Card>

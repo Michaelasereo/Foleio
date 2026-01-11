@@ -52,25 +52,36 @@ export async function GET(
         assetData = await assetResponse.json();
         console.log('🎬 Asset status:', assetData.data.status);
 
-        if (assetData.data.status === 'ready' && assetData.data.playback_ids?.[0]) {
-          playbackId = assetData.data.playback_ids[0].id;
-          playbackUrl = `https://stream.mux.com/${playbackId}.m3u8`;
+        if (assetData.data.status === 'ready') {
+          console.log('🎬 Asset playback IDs:', assetData.data.playback_ids);
 
-          console.log('✅ Video ready! Playback URL:', playbackUrl);
+          if (assetData.data.playback_ids?.[0]?.id) {
+            playbackId = assetData.data.playback_ids[0].id;
+            playbackUrl = `https://stream.mux.com/${playbackId}.m3u8`;
+            console.log('✅ Video ready! Playback URL:', playbackUrl);
+          } else {
+            console.log('⚠️ Asset ready but no playback ID found');
+          }
 
           // Update database with completed status
           try {
             // Import prisma here to avoid circular dependencies
-            const { prisma } = await import('@/lib/supabase/server');
+            const { prisma } = await import('@odim/database');
 
-            await prisma.content.updateMany({
-              where: { muxUploadId: muxUploadId },
-              data: {
-                muxAssetId: uploadData.data.asset_id,
-                muxPlaybackId: playbackId,
-                status: 'READY' // Assuming your schema has this enum
-              }
+            // Find the upload record first to get the upload ID
+            const upload = await prisma.upload.findFirst({
+              where: { muxUploadId: muxUploadId }
             });
+
+            if (upload) {
+              await prisma.content.updateMany({
+                where: { uploadId: upload.id },
+                data: {
+                  muxAssetId: uploadData.data.asset_id,
+                  muxPlaybackId: playbackId,
+                }
+              });
+            }
 
             await prisma.upload.updateMany({
               where: { id: uploadData.data.id },

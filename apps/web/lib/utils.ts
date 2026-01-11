@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Deep clone and convert BigInt/Decimal values to strings/numbers for client serialization
+ * Deep clone and convert BigInt/Decimal/Date values to strings/numbers for client serialization
  */
 export function serializeForClient<T>(obj: T): T {
   if (obj === null || obj === undefined) {
@@ -15,6 +15,10 @@ export function serializeForClient<T>(obj: T): T {
 
   if (typeof obj === 'bigint') {
     return obj.toString() as T;
+  }
+
+  if (obj instanceof Date) {
+    return obj.toISOString() as T;
   }
 
   if (typeof obj === 'object' && 'toNumber' in obj && typeof obj.toNumber === 'function') {

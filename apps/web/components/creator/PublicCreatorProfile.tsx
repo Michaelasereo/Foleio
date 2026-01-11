@@ -213,7 +213,7 @@ export function PublicCreatorProfile({
     setPremiumAccessOpen(false);
     // Now play the content
     const content = [...regularContent, ...tutorials].find(c => c.id === contentId);
-    if (content?.type === 'video' && content?.videoId) {
+    if (content?.type === 'video' && content?.muxPlaybackId) {
       setPlayingVideoId(contentId);
     }
   };
@@ -280,10 +280,10 @@ export function PublicCreatorProfile({
       </div>
 
       {/* Profile Header */}
-      <div className="max-w-4xl mx-auto px-4 -mt-16 relative z-10">
-        <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
-          {/* Avatar */}
-          <div className="w-32 h-32 rounded-full border-4 border-background bg-muted overflow-hidden">
+      <div className="max-w-4xl mx-auto px-4 relative">
+        <div className="-mt-16 md:-mt-20 relative z-10">
+          {/* Avatar - Left aligned, overlapping banner */}
+          <div className="w-32 h-32 md:w-36 md:h-36 rounded-full border-4 border-background bg-muted overflow-hidden flex-shrink-0 mb-4">
             {creator.avatarUrl ? (
               <img
                 src={creator.avatarUrl}
@@ -297,46 +297,52 @@ export function PublicCreatorProfile({
             )}
           </div>
 
-          {/* Info */}
-          <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl font-bold">{creator.displayName}</h1>
-            <p className="text-muted-foreground">@{creator.username}</p>
-            {creator.bio && (
-              <p className="mt-2 text-sm max-w-xl">{creator.bio}</p>
-            )}
-            <div className="flex items-center gap-4 mt-2">
-              <Badge variant="secondary">{creator.category}</Badge>
-              <span className="text-sm text-muted-foreground">
-                {creator.creatorLinks.length} Linnks
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {creator.contentCount} content
-              </span>
-            </div>
-          </div>
+          {/* Info and Action Buttons Container */}
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            {/* Info */}
+            <div className="flex-1">
+              <div className="mb-3 flex items-center gap-3 flex-wrap">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold">{creator.displayName}</h1>
+                  <p className="text-muted-foreground text-base">@{creator.username}</p>
+                </div>
+                <Button variant="outline" onClick={() => setSubscribeOpen(true)} size="sm">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Subscribe
+                </Button>
+              </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-2">
-            {hasPriceList && hasAvailability && (
-              <Button onClick={() => setPriceListOpen(true)} size="lg">
-                <Calendar className="h-4 w-4 mr-2" />
-                Book Service
-              </Button>
-            )}
-            {hasPlans && (
-              <Button 
-                variant="default" 
-                onClick={() => setSubscriptionModalOpen(true)}
-                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                Paid Subscription
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setSubscribeOpen(true)}>
-              <Mail className="h-4 w-4 mr-2" />
-              Linnk
-            </Button>
+              {creator.bio && (
+                <p className="mb-4 text-base leading-relaxed">{creator.bio}</p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+                <Badge variant="secondary">{creator.category}</Badge>
+                <span>{creator.subscriberCount} Subscribers</span>
+                <span>{creator.contentCount} content</span>
+              </div>
+            </div>
+
+            {/* Action Buttons - Aligned at top with name */}
+            <div className="flex flex-wrap gap-2">
+              {hasPriceList && hasAvailability && (
+                <Button onClick={() => setPriceListOpen(true)} variant="outline" size="sm">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Book Service
+                </Button>
+              )}
+              {hasPlans && (
+                <Button
+                  variant="default"
+                  onClick={() => setSubscriptionModalOpen(true)}
+                  size="sm"
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Premium Subscription
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -577,11 +583,11 @@ export function PublicCreatorProfile({
         </DialogContent>
       </Dialog>
 
-      {/* Linnk Dialog (Email Newsletter) */}
+      {/* Subscribe Dialog (Email Newsletter) */}
       <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Linnk with {creator.displayName}</DialogTitle>
+            <DialogTitle>Subscribe to {creator.displayName}</DialogTitle>
             <DialogDescription>
               Get notified about new content and updates
             </DialogDescription>
@@ -591,7 +597,7 @@ export function PublicCreatorProfile({
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
                 <Mail className="h-8 w-8 text-green-600" />
               </div>
-              <p className="font-semibold">You&apos;re linnked!</p>
+              <p className="font-semibold">You&apos;re subscribed!</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Check your email for confirmation.
               </p>
@@ -607,7 +613,7 @@ export function PublicCreatorProfile({
               />
               <DialogFooter>
                 <Button type="submit" disabled={isSubscribing} className="w-full">
-                  {isSubscribing ? 'Linnking...' : 'Linnk'}
+                  {isSubscribing ? 'Subscribing...' : 'Subscribe'}
                 </Button>
               </DialogFooter>
             </form>

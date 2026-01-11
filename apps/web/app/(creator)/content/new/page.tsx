@@ -69,7 +69,13 @@ export default function NewContentPage() {
     uploadUrl?: string;
     thumbnail?: string;
     fileName?: string;
+    muxUploadId?: string;
+    status?: string;
+    estimatedReadyTime?: string;
   } | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
 
   const form = useForm<ContentFormValues>({
     resolver: zodResolver(contentSchema),
@@ -284,11 +290,18 @@ export default function NewContentPage() {
         const statusResponse = await fetch(`/api/upload/status/${muxUploadId}`);
         const statusData = await statusResponse.json();
 
-        console.log('📊 Video status:', statusData);
+        console.log('📊 Video status response:', statusResponse.status);
+        console.log('📊 Video status data:', JSON.stringify(statusData, null, 2));
 
-        if (statusData.ready && statusData.playbackUrl) {
+        // Check for successful processing
+        if (statusData.ready && statusData.playbackUrl && statusData.playbackId) {
           console.log('✅ Video processing complete!');
           console.log('🎬 Playback URL:', statusData.playbackUrl);
+
+          // Generate Mux thumbnail URL if available
+          const muxThumbnailUrl = statusData.playbackId 
+            ? `https://image.mux.com/${statusData.playbackId}/thumbnail.jpg`
+            : null;
 
           // Update the uploaded file with the real data
           setUploadedFile(prev => ({
@@ -296,6 +309,7 @@ export default function NewContentPage() {
             muxAssetId: statusData.assetId,
             muxPlaybackId: statusData.playbackId,
             uploadUrl: statusData.playbackUrl,
+            thumbnail: muxThumbnailUrl,
             status: 'ready',
           }));
 
@@ -334,6 +348,39 @@ export default function NewContentPage() {
     });
   }
 
+  async function handleThumbnailUpload(file: File) {
+    setIsUploadingThumbnail(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'thumbnail');
+
+      const response = await fetch('/api/upload/profile', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Thumbnail upload failed');
+      }
+
+      const data = await response.json();
+      setThumbnailPreview(data.data.url);
+      toast({
+        title: 'Success',
+        description: 'Thumbnail uploaded successfully',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to upload thumbnail',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingThumbnail(false);
+    }
+  }
+
   async function onSubmit(data: ContentFormValues) {
     if (!uploadedFile && contentType !== 'text') {
       toast({
@@ -346,6 +393,27 @@ export default function NewContentPage() {
 
     setIsLoading(true);
     try {
+      // Upload thumbnail if provided
+      let thumbnailUrl = null;
+      if (thumbnailFile) {
+        const formData = new FormData();
+        formData.append('file', thumbnailFile);
+        formData.append('type', 'thumbnail');
+
+        const thumbResponse = await fetch('/api/upload/profile', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (thumbResponse.ok) {
+          const thumbData = await thumbResponse.json();
+          thumbnailUrl = thumbData.data.url;
+        }
+      } else if (uploadedFile?.thumbnail && contentType === 'video') {
+        // Use Mux thumbnail if no custom thumbnail uploaded
+        thumbnailUrl = uploadedFile.thumbnail;
+      }
+
       // Parse tutorial price (convert from Naira to kobo)
       const tutorialPriceKobo = data.tutorialPrice 
         ? Math.round(parseFloat(data.tutorialPrice) * 100) 
@@ -358,6 +426,7 @@ export default function NewContentPage() {
         requiredPlanId: undefined,
         muxAssetId: uploadedFile?.muxAssetId,
         muxPlaybackId: uploadedFile?.muxPlaybackId,
+        thumbnailUrl: thumbnailUrl,
         contentCategory: data.contentCategory,
         collectionId: data.collectionId || undefined,
         tutorialPrice: tutorialPriceKobo,
@@ -695,6 +764,78 @@ export default function NewContentPage() {
                     )}
                   </div>
                 </FormItem>
+              )}
+
+              {/* Thumbnail Upload (for videos and images) */}
+              {(contentType === 'video' || contentType === 'image') && (
+                <div className="space-y-2">
+                  <Label>Thumbnail Image (Optional)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Upload a custom thumbnail. For videos, a default thumbnail will be generated from the video if not provided.
+                  </p>
+                  <div className="space-y-4">
+                    {thumbnailPreview ? (
+                      <div className="relative">
+                        <img
+                          src={thumbnailPreview}
+                          alt="Thumbnail preview"
+                          className="w-full max-w-md h-48 object-cover rounded-lg border"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => {
+                            setThumbnailPreview(null);
+                            setThumbnailFile(null);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 10 * 1024 * 1024) {
+                                toast({
+                                  title: 'File too large',
+                                  description: 'Thumbnail must be less than 10MB',
+                                  variant: 'destructive',
+                                });
+                                return;
+                              }
+                              setThumbnailFile(file);
+                              const reader = new FileReader();
+                              reader.onload = (e) => {
+                                setThumbnailPreview(e.target?.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                          id="thumbnail-upload"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('thumbnail-upload')?.click()}
+                          disabled={isUploadingThumbnail}
+                        >
+                          {isUploadingThumbnail ? 'Uploading...' : 'Upload Thumbnail'}
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          JPG, PNG, GIF (max 10MB)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Publish/Draft Toggle */}

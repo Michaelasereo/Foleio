@@ -31,10 +31,17 @@ export async function GET(request: Request) {
       };
     }
 
+    console.log('Fetching availability for user:', user.id, 'with filters:', where);
+
     const availability = await prisma.creatorAvailability.findMany({
       where,
       orderBy: { date: 'asc' }
     });
+
+    console.log(`Found ${availability.length} availability records:`, availability.map(a => ({
+      date: a.date.toISOString(),
+      isAvailable: a.isAvailable
+    })));
 
     // Serialize dates
     const serializedAvailability = availability.map(item => ({

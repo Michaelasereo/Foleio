@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { CreatorDashboard } from '@/components/creator/Dashboard';
 import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
 import { OnboardingFlow } from '@/components/creator/OnboardingFlow';
+import { getCreatorAnalytics, getRecentSubscriptions, getContentMetrics } from '@/lib/actions/analytics';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -103,17 +104,24 @@ export default async function DashboardPage() {
     );
   }
 
-  // Prepare analytics data (simplified for now)
-  const analytics = {
-    totalViews: creator.contentCount || 0,
-    contentCount: creator.contentCount || 0,
-    subscriberCount: creator.subscriberCount || 0,
-    totalRevenue: creator.totalEarnings || 0,
-    recentTransactions: []
+  // Fetch real analytics data
+  const analytics = await getCreatorAnalytics(creator.id) || {
+    totalViews: 0,
+    contentCount: 0,
+    subscriberCount: 0,
+    totalRevenue: 0,
+    recentTransactions: [],
+    percentageChanges: {
+      earnings: null,
+      subscribers: null,
+      views: null,
+      engagement: null,
+    },
+    engagementRate: '0.0',
   };
 
-  const recentSubscriptions = [];
-  const contentMetrics = { topContent: creator.content?.slice(0, 5) || [] };
+  const recentSubscriptions = await getRecentSubscriptions(creator.id) || [];
+  const contentMetrics = await getContentMetrics(creator.id) || { topContent: [] };
 
   return (
     <CreatorDashboard

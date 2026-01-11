@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@odim/database';
 import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile';
+import { serializeForClient } from '@/lib/utils';
 
 export default async function CreatorPublicPage({
   params,
@@ -79,12 +80,21 @@ export default async function CreatorPublicPage({
   // Group price list items by category
   const groupedPriceList = groupPriceListByCategory(creator.priceListItems);
 
+  // Serialize data for client component (especially dates)
+  const serializedCreator = serializeForClient({
+    ...creator,
+    availability: creator.availability.map(avail => ({
+      ...avail,
+      date: avail.date.toISOString(),
+    })),
+  });
+
   return (
     <PublicCreatorProfile
-      creator={creator}
-      regularContent={regularContent}
-      tutorials={tutorials}
-      groupedPriceList={groupedPriceList}
+      creator={serializedCreator}
+      regularContent={serializeForClient(regularContent)}
+      tutorials={serializeForClient(tutorials)}
+      groupedPriceList={serializeForClient(groupedPriceList)}
     />
   );
 }

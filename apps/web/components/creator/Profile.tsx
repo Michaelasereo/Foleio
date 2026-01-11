@@ -29,12 +29,12 @@ export function CreatorProfile({ creator }: CreatorProfileProps) {
               <p className="text-muted-foreground mb-4">{creator.bio}</p>
             )}
             <div className="flex gap-4 text-sm text-muted-foreground">
-              <span>{creator.creatorLinks?.length || 0} Linnks</span>
+              <span>{creator.creatorLinks?.length || 0} Links</span>
               <span>{creator.contentCount} content</span>
             </div>
           </div>
           <Button onClick={() => setShowCheckout(true)}>
-            Linnk
+            Subscribe
           </Button>
         </div>
       </div>

@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (!type || !['avatar', 'banner'].includes(type)) {
+    if (!type || !['avatar', 'banner', 'thumbnail'].includes(type)) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "avatar" or "banner"' },
+        { error: 'Invalid type. Must be "avatar", "banner", or "thumbnail"' },
         { status: 400 }
       );
     }
@@ -106,15 +106,17 @@ export async function POST(request: NextRequest) {
       maxSizeMB: type === 'avatar' ? 5 : 20, // 5MB for avatar, 20MB for banner
     });
 
-    // Update creator record
-    const updateData = type === 'avatar'
-      ? { avatarUrl: uploadResult.url }
-      : { bannerUrl: uploadResult.url };
+    // Update creator record (only for avatar/banner, thumbnails are for content)
+    if (type === 'avatar' || type === 'banner') {
+      const updateData = type === 'avatar'
+        ? { avatarUrl: uploadResult.url }
+        : { bannerUrl: uploadResult.url };
 
-    await prisma.creator.update({
-      where: { id: creator.id },
-      data: updateData
-    });
+      await prisma.creator.update({
+        where: { id: creator.id },
+        data: updateData
+      });
+    }
 
     console.log(`✅ Creator ${creator.id} updated with new ${type} URL: ${uploadResult.url}`);
 

@@ -645,6 +645,7 @@ model Upload {
   mimeType      String    @map("mime_type")
   size          BigInt    // File size in bytes
   status        UploadStatus @default(PENDING)
+  muxUploadId   String?   @map("mux_upload_id") // Mux upload ID
   muxAssetId    String?   @map("mux_asset_id")
   muxPlaybackId String?   @map("mux_playback_id")
   url           String?   // Final playback URL

@@ -14,6 +14,11 @@ const onboardingStep1Schema = z.object({
 });
 
 const profileUpdateSchema = z.object({
+  username: z.string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(30, 'Username must be less than 30 characters')
+    .regex(/^[a-z0-9_-]+$/, 'Username can only contain lowercase letters, numbers, hyphens, and underscores')
+    .optional(),
   displayName: z.string().min(2, 'Display name must be at least 2 characters').optional(),
   bio: z.string().optional(),
   instagramHandle: z.string().optional(),
@@ -150,13 +155,43 @@ export async function updateCreatorProfile(
   }
 
   try {
+    // Check if username is being changed and if it's unique
+    if (data.username) {
+      const existingCreator = await prisma.creator.findFirst({
+        where: {
+          username: data.username,
+          userId: { not: session.user.id }
+        }
+      });
+
+      if (existingCreator) {
+        return { success: false, error: 'Username is already taken' };
+      }
+    }
+
+    // Get current creator to check if username changed
+    const currentCreator = await prisma.creator.findUnique({
+      where: { id: creatorId, userId: session.user.id },
+      select: { username: true },
+    });
+
     const creator = await prisma.creator.update({
       where: { id: creatorId, userId: session.user.id },
       data,
     });
 
+    // Revalidate paths
     revalidatePath('/dashboard');
     revalidatePath('/settings');
+    
+    // If username changed, revalidate the old and new public profile routes
+    if (data.username && currentCreator && currentCreator.username !== data.username) {
+      revalidatePath(`/creator/${currentCreator.username}`);
+      revalidatePath(`/creator/${data.username}`);
+    } else if (currentCreator) {
+      revalidatePath(`/creator/${currentCreator.username}`);
+    }
+
     return { success: true, creator };
   } catch (error) {
     console.error('Error updating creator profile:', error);

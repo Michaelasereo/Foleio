@@ -244,6 +244,19 @@ export async function POST(request: Request) {
     console.log(`🎬 SERVER DEBUG: Asset ID: ${assetId} (null until processing complete)`);
     console.log(`🎬 SERVER DEBUG: Playback ID: ${playbackId} (null until processing complete)`);
 
+    // Update upload record with muxUploadId
+    try {
+      await prisma.upload.update({
+        where: { id: uploadId },
+        data: {
+          muxUploadId: muxUploadId
+        }
+      });
+      console.log('✅ SERVER DEBUG: Upload record updated with muxUploadId');
+    } catch (updateError) {
+      console.error('❌ SERVER DEBUG: Failed to update upload record with muxUploadId:', updateError);
+    }
+
     // 8. Upload file to Mux
     console.log('📤 SERVER DEBUG: Step 8 - Uploading file to Mux');
     console.log('📤 SERVER DEBUG: Converting file to buffer...');

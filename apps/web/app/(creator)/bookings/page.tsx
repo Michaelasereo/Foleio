@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@odim/database';
-import { BookingsDashboard } from '@/components/creator/BookingsDashboard';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AvailabilityTab } from '@/components/creator/AvailabilityTab';
+import { UnifiedBookingsManager } from '@/components/booking/UnifiedBookingsManager';
+import { serializeForClient } from '@/lib/utils';
 
 export default async function BookingsPage() {
   const supabase = await createClient();
@@ -23,65 +22,58 @@ export default async function BookingsPage() {
     redirect('/onboard');
   }
 
-  // Fetch bookings
-  const bookings = await prisma.booking.findMany({
-    where: { creatorId: creator.id },
-    include: {
-      priceListItem: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Fetch availability
-  const availability = await prisma.creatorAvailability.findMany({
-    where: {
-      creatorId: creator.id,
-      date: {
-        gte: new Date(),
+  // Fetch all data needed for the unified booking manager
+  const [bookings, recentBookings] = await Promise.all([
+    // All bookings with full details
+    prisma.booking.findMany({
+      where: { creatorId: creator.id },
+      include: {
+        priceListItem: true,
       },
-    },
-    orderBy: { date: 'asc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    }),
 
-  // Separate bookings by status
+    // Recent bookings for overview
+    prisma.booking.findMany({
+      where: { creatorId: creator.id },
+      include: {
+        priceListItem: {
+          select: {
+            name: true,
+            price: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    })
+  ]);
+
+  // Separate bookings by status for different tabs
   const upcomingBookings = bookings.filter(
-    (b: typeof bookings[0]) => ['paid', 'first_payout_done', 'service_day'].includes(b.status)
+    (b) => ['paid', 'first_payout_done', 'service_day'].includes(b.status)
   );
-  const disputedBookings = bookings.filter((b: typeof bookings[0]) => b.status === 'disputed');
+  const disputedBookings = bookings.filter((b) => b.status === 'disputed');
   const completedBookings = bookings.filter(
-    (b: typeof bookings[0]) => ['completed', 'refunded', 'cancelled'].includes(b.status)
+    (b) => ['completed', 'refunded', 'cancelled'].includes(b.status)
   );
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Bookings</h1>
+        <h1 className="text-3xl font-bold">Booking Management</h1>
         <p className="text-muted-foreground">
-          Manage your bookings and availability
+          Manage your services, availability, and customer bookings all in one place
         </p>
       </div>
 
-      <Tabs defaultValue="bookings" className="w-full">
-        <TabsList>
-          <TabsTrigger value="bookings">Bookings</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-        </TabsList>
-        <TabsContent value="bookings" className="mt-6">
-          <BookingsDashboard
-            upcomingBookings={upcomingBookings}
-            disputedBookings={disputedBookings}
-            completedBookings={completedBookings}
-            availability={availability}
-            creatorId={creator.id}
-          />
-        </TabsContent>
-        <TabsContent value="availability" className="mt-6">
-          <AvailabilityTab
-            creatorId={creator.id}
-            initialAvailability={availability}
-          />
-        </TabsContent>
-      </Tabs>
+      <UnifiedBookingsManager
+        creator={serializeForClient(creator)}
+        recentBookings={serializeForClient(recentBookings)}
+        upcomingBookings={serializeForClient(upcomingBookings)}
+        disputedBookings={serializeForClient(disputedBookings)}
+        completedBookings={serializeForClient(completedBookings)}
+      />
     </div>
   );
 }

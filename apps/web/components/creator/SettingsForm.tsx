@@ -28,6 +28,10 @@ import { useToast } from '@/components/ui/use-toast';
 import { Camera, ImageIcon, Loader2, X } from 'lucide-react';
 
 const profileSchema = z.object({
+  username: z.string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(30, 'Username must be less than 30 characters')
+    .regex(/^[a-z0-9_-]+$/, 'Username can only contain lowercase letters, numbers, hyphens, and underscores'),
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
   bio: z.string().optional(),
   instagramHandle: z.string().optional(),
@@ -67,6 +71,7 @@ export function SettingsForm({ creator, publicUrl }: SettingsFormProps) {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
+      username: creator.username,
       displayName: creator.displayName,
       bio: creator.bio || '',
       instagramHandle: creator.instagramHandle || '',
@@ -388,6 +393,31 @@ export function SettingsForm({ creator, publicUrl }: SettingsFormProps) {
                 </div>
               </div>
             </div>
+
+            <FormField
+              control={form.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="your-username" 
+                      {...field}
+                      onChange={(e) => {
+                        // Convert to lowercase and replace spaces with hyphens
+                        const value = e.target.value.toLowerCase().replace(/\s+/g, '-');
+                        field.onChange(value);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Your profile URL: {publicUrl ? publicUrl.split('/').slice(0, -1).join('/') : ''}/{field.value || 'username'}
+                  </p>
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
