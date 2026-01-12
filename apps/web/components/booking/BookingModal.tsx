@@ -39,6 +39,9 @@ interface AvailabilityDate {
   id: string;
   date: Date;
   isAvailable: boolean;
+  maxBookings: number | null;
+  bookingCount?: number;
+  isFullyBooked?: boolean;
 }
 
 interface BookingModalProps {
@@ -56,7 +59,7 @@ const bookingSchema = z.object({
   customerEmail: z.string().email('Valid email is required'),
   customerPhone: z.string().min(10, 'Phone number is required (for WhatsApp and calls)'),
   customerAddress: z.string().min(10, 'Address is required for service delivery'),
-  bookingDate: z.string().min(1, 'Please select a date'),
+  bookingDate: z.string().min(1, 'Please select at least one date'),
   notes: z.string().optional(),
 });
 
@@ -75,6 +78,8 @@ export function BookingModal({
 }: BookingModalProps) {
   const [step, setStep] = useState<Step>('service');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [allowMultipleDates, setAllowMultipleDates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingResult, setBookingResult] = useState<{
     trackingToken?: string;
@@ -117,15 +122,104 @@ export function BookingModal({
     success: 100,
   };
 
-  async function handleDateSelect(dateStr: string) {
-    setSelectedDate(dateStr);
-    form.setValue('bookingDate', dateStr);
+  function handleDateSelect(dateStr: string) {
+    const dateObj = availableDates.find(d => {
+      const dStr = new Date(d.date).toISOString().split('T')[0];
+      return dStr === dateStr;
+    });
+
+    // Check if date is fully booked
+    if (dateObj?.isFullyBooked) {
+      alert('This date is fully booked. Please select a different date.');
+      return;
+    }
+
+    // Check if date is in the past
+    const selectedDateObj = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selectedDateObj < today) {
+      alert('Cannot select a date in the past.');
+      return;
+    }
+
+    if (allowMultipleDates) {
+      // Multiple date selection
+      if (selectedDates.includes(dateStr)) {
+        setSelectedDates(selectedDates.filter(d => d !== dateStr));
+        if (selectedDates.length === 1) {
+          form.setValue('bookingDate', '');
+        } else {
+          form.setValue('bookingDate', selectedDates.filter(d => d !== dateStr).join(','));
+        }
+      } else {
+        const newDates = [...selectedDates, dateStr].sort();
+        setSelectedDates(newDates);
+        form.setValue('bookingDate', newDates.join(','));
+      }
+    } else {
+      // Single date selection
+      setSelectedDate(dateStr);
+      setSelectedDates([dateStr]);
+      form.setValue('bookingDate', dateStr);
+      setStep('details');
+    }
+  }
+
+  function handleContinueWithDates() {
+    if (selectedDates.length === 0) {
+      alert('Please select at least one date.');
+      return;
+    }
     setStep('details');
   }
 
   async function onSubmit(data: BookingInput) {
     setIsSubmitting(true);
     try {
+      // Parse dates (support both single and multiple)
+      const dateStrings = data.bookingDate.split(',').map(s => s.trim()).filter(Boolean);
+      
+      if (dateStrings.length === 0) {
+        throw new Error('Please select at least one date.');
+      }
+
+      // Validate all selected dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (const dateStr of dateStrings) {
+        const selectedDateObj = new Date(dateStr);
+        selectedDateObj.setHours(0, 0, 0, 0);
+
+        // Check if date is in the past
+        if (selectedDateObj < today) {
+          throw new Error('Cannot book dates in the past. Please select a future date.');
+        }
+
+        // Check if date has availability
+        const availableDate = availableDates.find(d => {
+          const dateObj = new Date(d.date);
+          dateObj.setHours(0, 0, 0, 0);
+          return dateObj.getTime() === selectedDateObj.getTime();
+        });
+
+        if (!availableDate) {
+          throw new Error(`Date ${formatDate(selectedDateObj)} is not available. Please choose a different date.`);
+        }
+
+        if (!availableDate.isAvailable) {
+          throw new Error(`Date ${formatDate(selectedDateObj)} is not available.`);
+        }
+
+        if (availableDate.isFullyBooked) {
+          throw new Error(`Date ${formatDate(selectedDateObj)} is fully booked. Please choose a different date.`);
+        }
+      }
+
+      // For now, create booking for the first date only (can be extended to support multiple)
+      const firstDate = dateStrings[0];
+
       // Create booking
       const response = await fetch('/api/bookings/create', {
         method: 'POST',
@@ -137,7 +231,7 @@ export function BookingModal({
           customerName: data.customerName,
           customerPhone: data.customerPhone,
           customerAddress: data.customerAddress,
-          bookingDate: data.bookingDate,
+          bookingDate: firstDate,
           notes: data.notes,
         }),
       });
@@ -169,9 +263,15 @@ export function BookingModal({
     // Initialize Paystack popup
     const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
     
+    console.log('🎯 Initializing payment...');
+    console.log('💳 Paystack Public Key:', paystackKey ? 'Found (' + paystackKey.substring(0, 15) + '...)' : 'NOT FOUND');
+    console.log('📦 Booking ID:', booking.id);
+    console.log('💰 Amount (kobo):', booking.totalAmount);
+    console.log('📧 Email:', customerData.customerEmail);
+    
     if (!paystackKey) {
       // For development/testing without Paystack
-      console.log('No Paystack key, simulating payment...');
+      console.log('⚠️ No Paystack key, simulating payment...');
       
       // Simulate successful payment
       setTimeout(async () => {
@@ -187,16 +287,54 @@ export function BookingModal({
           
           if (verifyResponse.ok) {
             setStep('success');
+          } else {
+            const errorData = await verifyResponse.json();
+            console.error('Payment verification failed:', errorData);
+            alert('Payment simulation failed: ' + (errorData.error || 'Unknown error'));
+            setStep('details');
           }
         } catch (e) {
           console.error('Payment verification error:', e);
+          alert('Payment simulation failed. Please try again.');
+          setStep('details');
         }
       }, 1000);
       return;
     }
 
+    // Check if Paystack script is loaded
+    // @ts-ignore
+    if (typeof window.PaystackPop === 'undefined') {
+      console.log('⏳ Waiting for Paystack script to load...');
+      // Wait for script to load
+      await new Promise<void>((resolve) => {
+        const checkPaystack = setInterval(() => {
+          // @ts-ignore
+          if (typeof window.PaystackPop !== 'undefined') {
+            clearInterval(checkPaystack);
+            resolve();
+          }
+        }, 100);
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkPaystack);
+          resolve();
+        }, 5000);
+      });
+    }
+
+    // @ts-ignore
+    if (typeof window.PaystackPop === 'undefined') {
+      console.error('❌ Paystack script failed to load');
+      alert('Payment system is not available. Please refresh the page and try again.');
+      setStep('details');
+      return;
+    }
+
+    console.log('✅ Paystack script loaded, opening payment popup...');
+
     // @ts-ignore - Paystack is loaded from script
-    const handler = window.PaystackPop?.setup({
+    const handler = window.PaystackPop.setup({
       key: paystackKey,
       email: customerData.customerEmail,
       amount: booking.totalAmount, // already in kobo
@@ -214,6 +352,8 @@ export function BookingModal({
         ],
       },
       callback: async (response: { reference: string }) => {
+        console.log('✅ Payment successful! Reference:', response.reference);
+        setIsSubmitting(true);
         try {
           const verifyResponse = await fetch('/api/bookings/verify-payment', {
             method: 'POST',
@@ -224,23 +364,35 @@ export function BookingModal({
             }),
           });
 
-          if (verifyResponse.ok) {
+          const verifyData = await verifyResponse.json();
+
+          if (verifyResponse.ok && verifyData.success) {
+            // Payment verified successfully
             setStep('success');
           } else {
-            alert('Payment verification failed. Please contact support.');
+            const errorMessage = verifyData.error || 'Payment verification failed';
+            console.error('Payment verification failed:', errorMessage);
+            alert(`Payment verification failed: ${errorMessage}\n\nYour payment was successful, but we couldn't verify it automatically. Please contact support with your payment reference: ${response.reference}`);
+            setStep('details');
           }
         } catch (e) {
           console.error('Payment verification error:', e);
-          alert('Payment verification failed. Please contact support.');
+          alert(`Payment verification error. Your payment was successful (Reference: ${response.reference}), but we couldn't verify it automatically. Please contact support.`);
+          setStep('details');
+        } finally {
+          setIsSubmitting(false);
         }
       },
       onClose: () => {
-        // User closed the payment modal
+        console.log('❌ Payment popup closed by user');
+        // User closed the payment modal - check if payment was actually made
+        // For now, just go back to details
+        setIsSubmitting(false);
         setStep('details');
       },
     });
 
-    handler?.openIframe();
+    handler.openIframe();
   }
 
   function handleClose() {
@@ -249,6 +401,8 @@ export function BookingModal({
       // Reset state
       setStep('service');
       setSelectedDate(null);
+      setSelectedDates([]);
+      setAllowMultipleDates(false);
       setBookingResult(null);
       form.reset();
     } else {
@@ -321,45 +475,112 @@ export function BookingModal({
         {/* Step: Date Selection */}
         {step === 'date' && (
           <div className="space-y-4 py-4">
-            <h4 className="font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Select Available Date
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Select Available Date{allowMultipleDates ? 's' : ''}
+              </h4>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAllowMultipleDates(!allowMultipleDates);
+                  if (!allowMultipleDates) {
+                    setSelectedDates(selectedDate ? [selectedDate] : []);
+                  } else {
+                    setSelectedDate(null);
+                    setSelectedDates([]);
+                    form.setValue('bookingDate', '');
+                  }
+                }}
+              >
+                {allowMultipleDates ? 'Single Date' : 'Multiple Dates'}
+              </Button>
+            </div>
 
             {availableDates.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 No available dates at the moment. Please check back later.
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
-                {availableDates.map((d) => {
-                  const dateStr = new Date(d.date).toISOString().split('T')[0];
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => handleDateSelect(dateStr)}
-                      className={`p-3 rounded-lg border text-left transition-all ${
-                        selectedDate === dateStr
-                          ? 'border-primary bg-primary/10'
-                          : 'hover:border-primary/50 hover:bg-muted/50'
-                      }`}
-                    >
-                      <div className="font-medium">
-                        {new Date(d.date).toLocaleDateString('en-NG', {
-                          weekday: 'short',
-                          day: 'numeric',
-                        })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(d.date).toLocaleDateString('en-NG', {
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+                  {availableDates.map((d) => {
+                    const dateStr = new Date(d.date).toISOString().split('T')[0];
+                    const isSelected = allowMultipleDates 
+                      ? selectedDates.includes(dateStr)
+                      : selectedDate === dateStr;
+                    const isFullyBooked = d.isFullyBooked || false;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const dateObj = new Date(d.date);
+                    dateObj.setHours(0, 0, 0, 0);
+                    const isPastDate = dateObj < today;
+                    const isDisabled = isFullyBooked || isPastDate;
+
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => !isDisabled && handleDateSelect(dateStr)}
+                        disabled={isDisabled}
+                        className={`p-3 rounded-lg border text-left transition-all relative ${
+                          isDisabled
+                            ? 'opacity-50 cursor-not-allowed bg-muted border-muted'
+                            : isSelected
+                            ? 'border-primary bg-primary/10'
+                            : 'hover:border-primary/50 hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="font-medium">
+                          {new Date(d.date).toLocaleDateString('en-NG', {
+                            weekday: 'short',
+                            day: 'numeric',
+                          })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(d.date).toLocaleDateString('en-NG', {
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </div>
+                        {d.maxBookings && (
+                          <div className="text-xs mt-1">
+                            {d.bookingCount || 0}/{d.maxBookings} booked
+                          </div>
+                        )}
+                        {isFullyBooked && (
+                          <div className="absolute top-1 right-1">
+                            <Badge variant="destructive" className="text-xs">Full</Badge>
+                          </div>
+                        )}
+                        {isPastDate && (
+                          <div className="absolute top-1 right-1">
+                            <Badge variant="secondary" className="text-xs">Past</Badge>
+                          </div>
+                        )}
+                        {isSelected && !isDisabled && (
+                          <div className="absolute top-1 right-1">
+                            <Check className="h-4 w-4 text-primary" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {allowMultipleDates && selectedDates.length > 0 && (
+                  <div className="bg-muted p-3 rounded-lg">
+                    <p className="text-sm font-medium mb-1">Selected Dates ({selectedDates.length}):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedDates.map(dateStr => (
+                        <Badge key={dateStr} variant="secondary">
+                          {formatDate(new Date(dateStr))}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex justify-between">
@@ -367,6 +588,14 @@ export function BookingModal({
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
+              {allowMultipleDates && (
+                <Button 
+                  onClick={handleContinueWithDates}
+                  disabled={selectedDates.length === 0}
+                >
+                  Continue ({selectedDates.length} selected)
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -375,11 +604,17 @@ export function BookingModal({
         {step === 'details' && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-              {/* Selected date summary */}
-              {selectedDate && (
+              {/* Selected date(s) summary */}
+              {(selectedDate || selectedDates.length > 0) && (
                 <div className="bg-muted p-3 rounded-lg text-sm">
-                  <span className="text-muted-foreground">Date: </span>
-                  <span className="font-medium">{formatDate(new Date(selectedDate))}</span>
+                  <span className="text-muted-foreground">Selected Date{selectedDates.length > 1 ? 's' : ''}: </span>
+                  <div className="font-medium mt-1">
+                    {selectedDates.length > 0 
+                      ? selectedDates.map(dateStr => formatDate(new Date(dateStr))).join(', ')
+                      : selectedDate 
+                      ? formatDate(new Date(selectedDate))
+                      : ''}
+                  </div>
                 </div>
               )}
 
@@ -529,6 +764,19 @@ export function BookingModal({
             <p className="text-sm text-muted-foreground">
               Please complete the payment in the popup window.
             </p>
+            <p className="text-xs text-muted-foreground mt-4">
+              If the payment window doesn't open, please check your popup blocker settings.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsSubmitting(false);
+                setStep('details');
+              }}
+              className="mt-4"
+            >
+              Cancel Payment
+            </Button>
           </div>
         )}
 
@@ -549,11 +797,21 @@ export function BookingModal({
                 <strong>Service:</strong> {selectedService.name}
               </p>
               <p>
-                <strong>Date:</strong> {selectedDate && formatDate(new Date(selectedDate))}
+                <strong>Date{selectedDates.length > 1 ? 's' : ''}:</strong>{' '}
+                {selectedDates.length > 0
+                  ? selectedDates.map(dateStr => formatDate(new Date(dateStr))).join(', ')
+                  : selectedDate
+                  ? formatDate(new Date(selectedDate))
+                  : 'N/A'}
               </p>
               <p>
                 <strong>Amount Paid:</strong> {formatPrice(selectedService.price)}
               </p>
+              {bookingResult?.trackingToken && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  <strong>Tracking Token:</strong> {bookingResult.trackingToken}
+                </p>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
               A confirmation email with your tracking link has been sent to your email address.

@@ -85,6 +85,9 @@ interface Availability {
   id: string;
   date: Date;
   isAvailable: boolean;
+  maxBookings: number | null;
+  bookingCount?: number;
+  isFullyBooked?: boolean;
 }
 
 interface CreatorPlan {
@@ -166,6 +169,12 @@ export function PublicCreatorProfile({
   };
 
   const handleServiceSelect = (item: PriceListItem) => {
+    // Validate that creator has availability before opening booking modal
+    if (creator.availability.length === 0) {
+      alert('This creator currently has no available dates for booking. Please check back later.');
+      return;
+    }
+
     setSelectedService(item);
     setPriceListOpen(false);
     setBookingOpen(true);

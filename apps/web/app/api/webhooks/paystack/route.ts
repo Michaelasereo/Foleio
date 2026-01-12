@@ -49,39 +49,16 @@ export async function POST(request: NextRequest) {
     const event = JSON.parse(body);
     console.log(`Webhook received: ${event.event}`, { reference: event.data?.reference });
 
-    // Add webhook processing job to queue (if available)
-    if (queues.redisConnected && webhookQueue) {
-      await webhookQueue.add(
-        `webhook-${event.event}`,
-        {
-          event: event.event,
-          data: event.data,
-          webhookId: event.data?.id || crypto.randomUUID(),
-          attempt: 1,
-          maxAttempts: 3,
-          receivedAt: new Date(),
-        },
-        {
-          priority: getEventPriority(event.event),
-          delay: 0, // Process immediately
-          removeOnComplete: 100,
-          removeOnFail: 50,
-        }
-      );
+    // Process webhook directly (simpler for development)
+    console.log(`Processing webhook directly: ${event.event}`);
 
-      console.log(`Webhook queued for processing: ${event.event}`);
-    } else {
-      // Fallback: Process webhook directly if Redis not available
-      console.log(`Redis not available, processing webhook directly: ${event.event}`);
-
-      try {
-        // Process webhook events directly
-        await processWebhookEvent(event.event, event.data);
-        console.log(`✅ Webhook processed successfully: ${event.event}`);
-      } catch (error) {
-        console.error(`❌ Webhook processing failed: ${event.event}`, error);
-        // Don't fail the webhook response, but log the error
-      }
+    try {
+      // Process webhook events directly
+      await processWebhookEvent(event.event, event.data);
+      console.log(`✅ Webhook processed successfully: ${event.event}`);
+    } catch (error) {
+      console.error(`❌ Webhook processing failed: ${event.event}`, error);
+      throw error; // Re-throw to return 500 status
     }
     return NextResponse.json(
       { received: true, queued: true },
@@ -130,6 +107,63 @@ async function handleChargeSuccess(eventData: any) {
   const { reference, amount, customer, metadata } = eventData;
 
   try {
+    // Handle booking payments specifically
+    if (metadata?.type === 'booking' && metadata?.bookingId) {
+      console.log(`🎯 Processing booking payment: ${reference} for booking ${metadata.bookingId}`);
+
+      try {
+        const booking = await prisma.booking.findUnique({
+          where: { id: metadata.bookingId },
+          include: { creator: true }
+        });
+
+        if (!booking) {
+          console.log(`⚠️ Booking not found: ${metadata.bookingId} - this might be a test webhook`);
+          return; // Don't fail for test webhooks
+        }
+
+        if (booking.status !== 'pending') {
+          console.log(`⚠️ Booking already processed: ${metadata.bookingId} status: ${booking.status}`);
+          return; // Already processed, don't fail
+        }
+
+        // Import booking actions
+        const { confirmBookingPayment, processFirstPayout } = await import('@/lib/actions/booking');
+        const { sendBookingConfirmationEmail } = await import('@/lib/actions/email');
+
+        // Confirm the booking payment
+        const confirmResult = await confirmBookingPayment(booking.id, reference);
+        if (confirmResult.error) {
+          throw new Error(`Payment confirmation failed: ${confirmResult.error}`);
+        }
+
+        // Process first payout (60% to creator)
+        const payoutResult = await processFirstPayout(booking.id);
+        if (payoutResult.error) {
+          console.error('First payout error:', payoutResult.error);
+          // Don't fail the webhook, but log the error
+        }
+
+        // Send confirmation email
+        try {
+          await sendBookingConfirmationEmail(booking.id);
+        } catch (emailError) {
+          console.error('Email sending error:', emailError);
+          // Don't fail the webhook for email errors
+        }
+
+        console.log(`✅ Booking payment processed: ${reference} for booking ${metadata.bookingId}`);
+      } catch (error) {
+        console.error(`❌ Error processing booking payment: ${error.message}`);
+        // For development, don't fail the webhook completely
+        if (process.env.NODE_ENV === 'production') {
+          throw error;
+        }
+      }
+      return;
+    }
+
+    // Handle other charge types (subscriptions, etc.)
     // Update transaction status
     const transaction = await prisma.transaction.findUnique({
       where: { reference },

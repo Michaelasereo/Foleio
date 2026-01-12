@@ -9,23 +9,33 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Video, Check, Upload, Loader2 } from 'lucide-react';
-import { setIntroVideo } from '@/lib/actions/creator';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Video, Check, Upload, Loader2, Play, Edit3 } from 'lucide-react';
+import { setIntroVideo, updateContentTitle } from '@/lib/actions/creator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
+import { MuxVideoPlayer } from '@/components/ui/mux-player';
+import { Input } from '@/components/ui/input';
 
 interface IntroVideoTabProps {
   creatorId: string;
   currentIntroVideo: {
     id: string;
     title: string;
-    videoId: string | null;
+    muxPlaybackId: string | null;
+    muxAssetId: string | null;
     thumbnailUrl: string | null;
   } | null;
   videoOptions: Array<{
     id: string;
     title: string;
-    videoId: string | null;
+    muxPlaybackId: string | null;
+    muxAssetId: string | null;
     thumbnailUrl: string | null;
   }>;
 }
@@ -42,7 +52,18 @@ export function IntroVideoTab({
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(
     currentIntroVideo?.id || null
   );
+  const [previewVideo, setPreviewVideo] = useState<{
+    id: string;
+    title: string;
+    muxPlaybackId: string;
+    muxAssetId: string | null;
+  } | null>(null);
+  const [renamingVideo, setRenamingVideo] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Get the selected video details for preview
+  const selectedVideo = videoOptions.find(v => v.id === selectedVideoId);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -70,6 +91,54 @@ export function IntroVideoTab({
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleStartRename = (videoId: string, currentTitle: string) => {
+    setRenamingVideo(videoId);
+    setRenameValue(currentTitle);
+  };
+
+  const handleCancelRename = () => {
+    setRenamingVideo(null);
+    setRenameValue('');
+  };
+
+  const handleConfirmRename = async (videoId: string) => {
+    if (!renameValue.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Title cannot be empty',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const result = await updateContentTitle(videoId, renameValue.trim());
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: 'Video title updated successfully',
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to update video title',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error renaming video:', error);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setRenamingVideo(null);
+      setRenameValue('');
     }
   };
 
@@ -113,14 +182,14 @@ export function IntroVideoTab({
       }
 
       const data = await response.json();
-      
+
       // Poll for video processing
-      if (data.muxUploadId) {
+      if (data.data?.muxUploadId) {
         let attempts = 0;
         const maxAttempts = 60;
         
         const pollStatus = async () => {
-          const statusResponse = await fetch(`/api/upload/status/${data.muxUploadId}`);
+          const statusResponse = await fetch(`/api/upload/status/${data.data.muxUploadId}`);
           const statusData = await statusResponse.json();
           
           if (statusData.ready && statusData.contentId) {
@@ -178,6 +247,32 @@ export function IntroVideoTab({
         </p>
       </div>
 
+      {/* Current Intro Video Preview */}
+      {currentIntroVideo && currentIntroVideo.muxPlaybackId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Video className="h-5 w-5" />
+              Current Intro Video
+            </CardTitle>
+            <CardDescription>
+              This video is currently displayed on your public profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+              <MuxVideoPlayer
+                playbackId={currentIntroVideo.muxPlaybackId}
+                assetId={currentIntroVideo.muxAssetId || undefined}
+                title={currentIntroVideo.title}
+                className="w-full h-full"
+              />
+            </div>
+            <h3 className="mt-4 font-semibold">{currentIntroVideo.title}</h3>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Upload Section */}
       <Card>
         <CardHeader>
@@ -203,7 +298,7 @@ export function IntroVideoTab({
             {isUploading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Uploading...
+                Uploading & Processing...
               </>
             ) : (
               <>
@@ -237,6 +332,7 @@ export function IntroVideoTab({
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {videoOptions.map((video) => {
               const isSelected = selectedVideoId === video.id;
+              const isCurrent = currentIntroVideo?.id === video.id;
               return (
                 <Card
                   key={video.id}
@@ -245,7 +341,7 @@ export function IntroVideoTab({
                   }`}
                   onClick={() => setSelectedVideoId(video.id)}
                 >
-                  <div className="aspect-video bg-muted relative">
+                  <div className="aspect-video bg-muted relative group">
                     {video.thumbnailUrl ? (
                       <img
                         src={video.thumbnailUrl}
@@ -257,21 +353,96 @@ export function IntroVideoTab({
                         <Video className="h-12 w-12 text-muted-foreground" />
                       </div>
                     )}
+                    {/* Play preview button */}
+                    {video.muxPlaybackId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewVideo({
+                            id: video.id,
+                            title: video.title,
+                            muxPlaybackId: video.muxPlaybackId!,
+                            muxAssetId: video.muxAssetId,
+                          });
+                        }}
+                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <div className="bg-white/90 rounded-full p-3">
+                          <Play className="h-8 w-8 text-primary" />
+                        </div>
+                      </button>
+                    )}
                     {isSelected && (
                       <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
                         <Check className="h-4 w-4" />
                       </div>
                     )}
+                    {isCurrent && !isSelected && (
+                      <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                        Current
+                      </div>
+                    )}
                   </div>
-                  <CardHeader>
-                    <CardTitle className="text-sm">{video.title}</CardTitle>
+                  <CardHeader className="p-3">
+                    {renamingVideo === video.id ? (
+                      <div className="space-y-2">
+                        <Input
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleConfirmRename(video.id);
+                            } else if (e.key === 'Escape') {
+                              handleCancelRename();
+                            }
+                          }}
+                          className="h-8 text-sm"
+                          autoFocus
+                        />
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleConfirmRename(video.id)}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleCancelRename}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm line-clamp-1">{video.title}</CardTitle>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartRename(video.id, video.title);
+                          }}
+                          className="ml-2 opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          title="Rename video"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    {!video.muxPlaybackId && (
+                      <p className="text-xs text-amber-600">Processing...</p>
+                    )}
                   </CardHeader>
                 </Card>
               );
             })}
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 mt-4">
             <Button
               variant="outline"
               onClick={() => setSelectedVideoId(null)}
@@ -286,6 +457,40 @@ export function IntroVideoTab({
         </>
         )}
       </div>
+
+      {/* Video Preview Modal */}
+      <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle>{previewVideo?.title}</DialogTitle>
+          </DialogHeader>
+          {previewVideo && (
+            <div className="p-4 pt-2">
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                <MuxVideoPlayer
+                  playbackId={previewVideo.muxPlaybackId}
+                  assetId={previewVideo.muxAssetId || undefined}
+                  title={previewVideo.title}
+                  className="w-full h-full"
+                />
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="outline" onClick={() => setPreviewVideo(null)}>
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSelectedVideoId(previewVideo.id);
+                    setPreviewVideo(null);
+                  }}
+                >
+                  Select This Video
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

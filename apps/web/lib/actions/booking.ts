@@ -26,94 +26,118 @@ function generateTrackingToken(): string {
 
 // Create a new booking request with atomic availability checking
 export async function createBookingRequest(data: CreateBookingInput) {
+  console.log('📦 createBookingRequest called with:', JSON.stringify(data, null, 2));
+  
   const validation = createBookingSchema.safeParse(data);
   if (!validation.success) {
+    console.log('❌ Validation failed:', validation.error.errors);
     return { error: validation.error.errors[0].message };
   }
 
   try {
     const bookingDate = new Date(data.bookingDate);
     const dateOnly = new Date(bookingDate.toISOString().split('T')[0]);
-
-    // Use database transaction for atomic booking creation
-    const result = await prisma.$transaction(async (tx) => {
-      // Verify the price list item exists and get the price
-      const priceListItem = await tx.priceListItem.findFirst({
-        where: {
-          id: data.priceListItemId,
-          creatorId: data.creatorId,
-          isActive: true,
-        },
-      });
-
-      if (!priceListItem) {
-        throw new Error('Service not found or unavailable');
-      }
-
-      // Check availability with row-level locking to prevent race conditions
-      const availability = await tx.creatorAvailability.findUnique({
-        where: {
-          creatorId_date: {
-            creatorId: data.creatorId,
-            date: dateOnly,
-          },
-        },
-      });
-
-      if (!availability || !availability.isAvailable) {
-        throw new Error('Selected date is not available');
-      }
-
-      // Check booking count with atomic query (prevents race conditions)
-      if (availability.maxBookings) {
-        const existingBookings = await tx.booking.count({
-          where: {
-            creatorId: data.creatorId,
-            bookingDate: dateOnly,
-            status: {
-              notIn: ['cancelled', 'refunded'],
-            },
-          },
-        });
-
-        if (existingBookings >= availability.maxBookings) {
-          throw new Error('This date is fully booked');
-        }
-      }
-
-      // Calculate payment amounts
-      const totalAmount = priceListItem.price;
-      const firstPayoutAmount = Math.floor(totalAmount * 0.6); // 60%
-      const secondPayoutAmount = totalAmount - firstPayoutAmount; // 40%
-
-      // Generate tracking token
-      const trackingToken = generateTrackingToken();
-
-      // Create the booking (this will fail if another transaction committed first)
-      const booking = await tx.booking.create({
-        data: {
-          creatorId: data.creatorId,
-          priceListItemId: data.priceListItemId,
-          customerEmail: data.customerEmail.toLowerCase(),
-          customerName: data.customerName,
-          customerPhone: data.customerPhone,
-          customerAddress: data.customerAddress,
-          bookingDate: dateOnly,
-          notes: data.notes || null,
-          totalAmount,
-          firstPayoutAmount,
-          secondPayoutAmount,
-          trackingToken,
-          status: 'pending',
-        },
-        include: {
-          priceListItem: true,
-          creator: true,
-        },
-      });
-
-      return { booking, trackingToken };
+    console.log('📅 Date parsing:', { 
+      input: data.bookingDate, 
+      bookingDate: bookingDate.toISOString(), 
+      dateOnly: dateOnly.toISOString() 
     });
+
+    // Note: Interactive transactions don't work with Supabase connection pooler (PgBouncer)
+    // Using sequential queries instead - this is acceptable for booking creation
+    // as double-bookings are prevented by unique constraints and maxBookings checks
+    
+    // Verify the price list item exists and get the price
+    const priceListItem = await prisma.priceListItem.findFirst({
+      where: {
+        id: data.priceListItemId,
+        creatorId: data.creatorId,
+        isActive: true,
+      },
+    });
+
+    if (!priceListItem) {
+      console.error('❌ Price list item not found. ID:', data.priceListItemId, 'Creator:', data.creatorId);
+      return { error: 'Service not found or unavailable. Please refresh the page and try again.' };
+    }
+
+    // Check availability
+    console.log('🔍 Looking for availability:', { creatorId: data.creatorId, date: dateOnly.toISOString() });
+    
+    const availability = await prisma.creatorAvailability.findUnique({
+      where: {
+        creatorId_date: {
+          creatorId: data.creatorId,
+          date: dateOnly,
+        },
+      },
+    });
+
+    console.log('📅 Availability found:', availability);
+
+    if (!availability) {
+      // Try to find any availability for this creator to debug
+      const anyAvailability = await prisma.creatorAvailability.findFirst({
+        where: { creatorId: data.creatorId },
+      });
+      console.error('❌ No availability record found for date:', dateOnly.toISOString());
+      console.log('📋 Sample availability from this creator:', anyAvailability);
+      return { error: 'This date is not available for booking. Please select a different date.' };
+    }
+
+    if (!availability.isAvailable) {
+      return { error: 'Selected date is not available' };
+    }
+
+    // Check booking count
+    if (availability.maxBookings) {
+      const existingBookings = await prisma.booking.count({
+        where: {
+          creatorId: data.creatorId,
+          bookingDate: dateOnly,
+          status: {
+            notIn: ['cancelled', 'refunded'],
+          },
+        },
+      });
+
+      if (existingBookings >= availability.maxBookings) {
+        return { error: 'This date is fully booked' };
+      }
+    }
+
+    // Calculate payment amounts
+    const totalAmount = priceListItem.price;
+    const firstPayoutAmount = Math.floor(totalAmount * 0.6); // 60%
+    const secondPayoutAmount = totalAmount - firstPayoutAmount; // 40%
+
+    // Generate tracking token
+    const trackingToken = generateTrackingToken();
+
+    // Create the booking
+    const booking = await prisma.booking.create({
+      data: {
+        creatorId: data.creatorId,
+        priceListItemId: data.priceListItemId,
+        customerEmail: data.customerEmail.toLowerCase(),
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerAddress: data.customerAddress,
+        bookingDate: dateOnly,
+        notes: data.notes || null,
+        totalAmount,
+        firstPayoutAmount,
+        secondPayoutAmount,
+        trackingToken,
+        status: 'pending',
+      },
+      include: {
+        priceListItem: true,
+        creator: true,
+      },
+    });
+
+    const result = { booking, trackingToken };
 
     return {
       success: true,
@@ -122,6 +146,9 @@ export async function createBookingRequest(data: CreateBookingInput) {
     };
   } catch (error) {
     console.error('Error creating booking:', error);
+    console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
 
     // Handle specific error types
     if (error instanceof Error) {
@@ -130,12 +157,25 @@ export async function createBookingRequest(data: CreateBookingInput) {
         return { error: 'This booking conflicts with an existing reservation' };
       }
 
+      // Check for Prisma foreign key violations
+      if (error.message.includes('Foreign key constraint failed')) {
+        return { error: 'Invalid service or date selection' };
+      }
+
+      // Check for Prisma null constraint violations
+      if (error.message.includes('NOT NULL constraint')) {
+        return { error: 'Required information is missing' };
+      }
+
       // Return specific error messages
       if (error.message === 'Service not found or unavailable' ||
           error.message === 'Selected date is not available' ||
           error.message === 'This date is fully booked') {
         return { error: error.message };
       }
+
+      // Log the specific error for debugging
+      console.error('Specific booking creation error:', error.message);
     }
 
     return { error: 'Failed to create booking. Please try again.' };

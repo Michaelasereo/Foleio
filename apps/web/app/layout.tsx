@@ -26,6 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Paystack Inline Script for Payment Processing */}
+        <script src="https://js.paystack.co/v1/inline.js" async />
+      </head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"

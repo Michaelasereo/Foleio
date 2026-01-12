@@ -252,6 +252,51 @@ export async function setIntroVideo(videoId: string | null) {
   }
 }
 
+export async function updateContentTitle(contentId: string, title: string) {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  try {
+    const creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+    });
+
+    if (!creator) {
+      return { success: false, error: 'Creator not found' };
+    }
+
+    // Verify the content belongs to this creator
+    const content = await prisma.content.findFirst({
+      where: { id: contentId, creatorId: creator.id },
+    });
+
+    if (!content) {
+      return { success: false, error: 'Content not found' };
+    }
+
+    const updatedContent = await prisma.content.update({
+      where: { id: contentId },
+      data: { title },
+    });
+
+    revalidatePath('/content');
+    revalidatePath(`/creator/${creator.username}`);
+    return { success: true, content: updatedContent };
+  } catch (error) {
+    console.error('Error updating content title:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update content title',
+    };
+  }
+}
+
 // Get creator profile with full details
 export async function getCreatorProfile() {
   const supabase = await createClient();

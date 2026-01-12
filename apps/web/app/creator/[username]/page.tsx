@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@odim/database';
 import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile';
 import { serializeForClient } from '@/lib/utils';
+import { getAvailabilityWithBookings } from '@/lib/actions/availability';
 
 export default async function CreatorPublicPage({
   params,
@@ -38,16 +39,7 @@ export default async function CreatorPublicPage({
           { orderIndex: 'asc' },
         ],
       },
-      availability: {
-        where: {
-          isAvailable: true,
-          date: {
-            gte: new Date(),
-          },
-        },
-        orderBy: { date: 'asc' },
-        take: 30,
-      },
+      // Availability will be fetched separately with booking counts
       content: {
         where: { isPublished: true },
         select: {
@@ -80,10 +72,19 @@ export default async function CreatorPublicPage({
   // Group price list items by category
   const groupedPriceList = groupPriceListByCategory(creator.priceListItems);
 
+  // Get availability with booking counts (for next 3 months)
+  const startDate = new Date();
+  const endDate = new Date();
+  endDate.setMonth(endDate.getMonth() + 3);
+  const availabilityResult = await getAvailabilityWithBookings(creator.id, startDate, endDate);
+  const availabilityWithCounts = availabilityResult.success && availabilityResult.data 
+    ? availabilityResult.data 
+    : [];
+
   // Serialize data for client component (especially dates)
   const serializedCreator = serializeForClient({
     ...creator,
-    availability: creator.availability.map(avail => ({
+    availability: availabilityWithCounts.map(avail => ({
       ...avail,
       date: avail.date.toISOString(),
     })),

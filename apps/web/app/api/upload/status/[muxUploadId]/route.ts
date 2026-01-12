@@ -37,6 +37,27 @@ export async function GET(
     let assetData = null;
     let playbackId = null;
     let playbackUrl = null;
+    let contentId = null;
+
+    // First, find the upload record and associated content
+    try {
+      const { prisma } = await import('@odim/database');
+      const upload = await prisma.upload.findFirst({
+        where: { muxUploadId: muxUploadId }
+      });
+
+      if (upload) {
+        const content = await prisma.content.findFirst({
+          where: { uploadId: upload.id }
+        });
+        if (content) {
+          contentId = content.id;
+          console.log('📝 Found content ID:', contentId);
+        }
+      }
+    } catch (dbError) {
+      console.error('❌ Error finding content:', dbError);
+    }
 
     // If upload has an asset_id, check asset status
     if (uploadData.data.asset_id) {
@@ -112,6 +133,7 @@ export async function GET(
       playbackUrl: playbackUrl,
       duration: assetData?.data?.duration || null,
       ready: assetData?.data?.status === 'ready' && !!playbackId,
+      contentId: contentId, // Include content ID for client to use
       error: uploadData.data.error?.message || assetData?.data?.errors?.[0]?.message || null,
       // Processing metadata
       createdAt: uploadData.data.created_at,
