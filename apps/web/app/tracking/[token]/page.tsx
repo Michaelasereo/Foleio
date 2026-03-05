@@ -263,6 +263,9 @@ export default function TrackingPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold">Booking Details</h1>
           <p className="text-muted-foreground">Track your booking status</p>
+          <a href="/fan/dashboard" className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline">
+            View all your bookings →
+          </a>
         </div>
 
         {/* Status Badge */}

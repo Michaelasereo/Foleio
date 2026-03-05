@@ -96,6 +96,11 @@ function PaymentCallbackContent() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
+            {status === 'success' && (
+              <Button onClick={() => router.push('/fan/dashboard')} variant="outline" className="w-full">
+                Go to your dashboard →
+              </Button>
+            )}
             
             {status === 'failed' && (
               <>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import NextLink from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -28,9 +29,10 @@ import {
   Instagram,
   Youtube,
   Twitter,
-  Link,
+  Link as LinkIcon,
   Mail,
   Play,
+  Eye,
   BookOpen,
   Star,
   CreditCard,
@@ -164,7 +166,7 @@ export function PublicCreatorProfile({
       case 'price_list':
         return <FileText className={iconSize} />;
       default:
-        return <Link className={iconSize} />;
+        return <LinkIcon className={iconSize} />;
     }
   };
 
@@ -261,10 +263,6 @@ export function PublicCreatorProfile({
   const hasAvailability = creator.availability.length > 0;
   const hasPlans = creator.creatorPlans.length > 0;
 
-  // Separate links - price list link is special (full width), social links are just icons
-  const priceListLink = creator.creatorLinks.find(l => l.linkType === 'price_list');
-  const socialLinks = creator.creatorLinks.filter(l => l.linkType !== 'price_list');
-
   // Separate tutorials by access type
   const freeTutorials = tutorials.filter(t => t.accessType === 'free');
   const paidTutorials = tutorials.filter(t => t.accessType !== 'free');
@@ -278,13 +276,15 @@ export function PublicCreatorProfile({
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
       {/* Banner */}
-      <div className="h-48 md:h-64 bg-gradient-to-r from-primary/20 to-primary/10 relative">
-        {creator.bannerUrl && (
+      <div className="relative h-48 md:h-64">
+        {creator.bannerUrl ? (
           <img
             src={creator.bannerUrl}
             alt={`${creator.displayName} banner`}
             className="w-full h-full object-cover"
           />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-r from-background via-card to-primary/20" />
         )}
       </div>
 
@@ -292,7 +292,7 @@ export function PublicCreatorProfile({
       <div className="max-w-4xl mx-auto px-4 relative">
         <div className="-mt-16 md:-mt-20 relative z-10">
           {/* Avatar - Left aligned, overlapping banner */}
-          <div className="w-32 h-32 md:w-36 md:h-36 rounded-full border-4 border-background bg-muted overflow-hidden flex-shrink-0 mb-4">
+          <div className="mb-4 h-32 w-32 flex-shrink-0 overflow-hidden rounded-full border-[3px] border-primary bg-muted md:h-36 md:w-36">
             {creator.avatarUrl ? (
               <img
                 src={creator.avatarUrl}
@@ -300,7 +300,7 @@ export function PublicCreatorProfile({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-muted-foreground">
+                <div className="flex h-full w-full items-center justify-center text-4xl font-bold text-muted-foreground">
                 {creator.displayName.charAt(0)}
               </div>
             )}
@@ -310,10 +310,10 @@ export function PublicCreatorProfile({
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             {/* Info */}
             <div className="flex-1">
-              <div className="mb-3 flex items-center gap-3 flex-wrap">
+              <div className="mb-3 flex flex-wrap items-center gap-3">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold">{creator.displayName}</h1>
-                  <p className="text-muted-foreground text-base">@{creator.username}</p>
+                  <h1 className="font-display text-3xl md:text-4xl">{creator.displayName}</h1>
+                  <p className="font-body text-base text-muted-foreground">@{creator.username}</p>
                 </div>
                 <Button variant="outline" onClick={() => setSubscribeOpen(true)} size="sm">
                   <Mail className="h-4 w-4 mr-2" />
@@ -325,8 +325,10 @@ export function PublicCreatorProfile({
                 <p className="mb-4 text-base leading-relaxed">{creator.bio}</p>
               )}
 
-              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
-                <Badge variant="secondary">{creator.category}</Badge>
+              <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/15">
+                  {creator.category}
+                </Badge>
                 <span>{creator.subscriberCount} Subscribers</span>
                 <span>{creator.contentCount} content</span>
               </div>
@@ -335,7 +337,12 @@ export function PublicCreatorProfile({
             {/* Action Buttons - Aligned at top with name */}
             <div className="flex flex-wrap gap-2">
               {hasPriceList && hasAvailability && (
-                <Button onClick={() => setPriceListOpen(true)} variant="outline" size="sm">
+                <Button
+                  onClick={() => setPriceListOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-accent text-accent hover:bg-accent/10"
+                >
                   <Calendar className="h-4 w-4 mr-2" />
                   Book Service
                 </Button>
@@ -345,7 +352,7 @@ export function PublicCreatorProfile({
                   variant="default"
                   onClick={() => setSubscriptionModalOpen(true)}
                   size="sm"
-                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <CreditCard className="h-4 w-4 mr-2" />
                   Premium Subscription
@@ -358,16 +365,22 @@ export function PublicCreatorProfile({
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        {/* Price List Link - Above Intro Video */}
-        {priceListLink && (
-          <button
-            onClick={() => setPriceListOpen(true)}
-            className="w-full p-4 rounded-lg border bg-card hover:bg-accent transition-colors flex items-center gap-3 text-foreground"
-          >
-            {getLinkIcon(priceListLink.linkType, 'md')}
-            <span className="font-medium flex-1 text-left">{priceListLink.label}</span>
-            <ExternalLink className="h-4 w-4 opacity-50" />
-          </button>
+        {/* Creator Links */}
+        {creator.creatorLinks.length > 0 && (
+          <section className="space-y-3">
+            {creator.creatorLinks.map((link) => (
+              <button
+                key={link.id}
+                onClick={() => handleLinkClick(link)}
+                className="group flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius)] border border-border/70 bg-card px-4 py-3 text-left text-foreground shadow-sm transition hover:bg-muted/40"
+              >
+                <span className="h-8 w-1 rounded-full bg-primary" />
+                <span className="text-primary">{getLinkIcon(link.linkType, 'sm')}</span>
+                <span className="flex-1 font-medium">{link.label}</span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-accent" />
+              </button>
+            ))}
+          </section>
         )}
 
         {/* Intro Video Section */}
@@ -400,28 +413,95 @@ export function PublicCreatorProfile({
           </Card>
         )}
 
-        {/* Social Links - After Intro Video, Center Aligned */}
-        {socialLinks.length > 0 && (
-          <div className="flex items-center justify-center gap-6">
-            {socialLinks.map((link) => (
-              <button
-                key={link.id}
-                onClick={() => handleLinkClick(link)}
-                className="text-foreground hover:text-primary transition-colors"
-                aria-label={link.label}
-                title={link.label}
-              >
-                {getLinkIcon(link.linkType, 'sm')}
-              </button>
-            ))}
-          </div>
+        {/* Subscription Plans */}
+        {hasPlans && (
+          <section className="space-y-4">
+            <h2 className="text-2xl">Subscribe to {creator.displayName}</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              {creator.creatorPlans.map((plan) => (
+                <Card key={plan.id} className="border-border/70 bg-card shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <CardDescription className="text-2xl font-semibold text-primary">
+                      {formatPrice(plan.price)}
+                      <span className="ml-1 text-sm font-normal text-muted-foreground">/month</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-start gap-2">
+                        <span className="mt-0.5 text-primary">✓</span>
+                        <span>{plan.description || 'Exclusive creator-only perks and premium access.'}</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="mt-0.5 text-primary">✓</span>
+                        <span>Priority updates and fresh content drops.</span>
+                      </li>
+                    </ul>
+                    <Button
+                      onClick={() => setSubscriptionModalOpen(true)}
+                      className="w-full border border-accent bg-accent text-accent-foreground hover:bg-accent/90"
+                    >
+                      Subscribe
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Services / Price List */}
+        {groupedPriceList.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-2xl">Book a Service</h2>
+            <Card className="border-border/70 bg-card shadow-sm">
+              <CardContent className="space-y-4 pt-6">
+                {groupedPriceList.map((group, index) => (
+                  <div key={`${group.category ?? 'general'}-${index}`} className="space-y-2">
+                    {group.category && (
+                      <h3 className="text-sm uppercase tracking-wide text-muted-foreground">
+                        {group.category}
+                      </h3>
+                    )}
+                    {group.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex flex-col gap-3 rounded-[var(--radius)] border border-border/60 p-4 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="space-y-1">
+                          <p className="font-medium text-foreground">{item.name}</p>
+                          {item.description && (
+                            <p className="text-sm text-muted-foreground">{item.description}</p>
+                          )}
+                          {item.durationMinutes && (
+                            <p className="text-xs text-muted-foreground">{item.durationMinutes} min</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-primary">{formatPrice(item.price)}</span>
+                          <Button
+                            size="sm"
+                            onClick={() => handleServiceSelect(item)}
+                            className="bg-accent text-accent-foreground hover:bg-accent/90"
+                          >
+                            Book
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </section>
         )}
 
         {/* Tutorials Section with Tabs */}
         {tutorials.length > 0 && (
-          <Card>
+          <Card className="border-border/70 bg-card shadow-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-2xl">
                 <BookOpen className="h-5 w-5" />
                 Tutorials
               </CardTitle>
@@ -496,7 +576,9 @@ export function PublicCreatorProfile({
 
         {/* Regular Content Section */}
         {regularContent.length > 0 && (
-          <Card>
+          <section className="space-y-4">
+            <h2 className="text-2xl">Content</h2>
+            <Card className="border-border/70 bg-card shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Star className="h-5 w-5" />
@@ -519,7 +601,8 @@ export function PublicCreatorProfile({
                 ))}
               </div>
             </CardContent>
-          </Card>
+            </Card>
+          </section>
         )}
       </div>
 
@@ -610,6 +693,14 @@ export function PublicCreatorProfile({
               <p className="text-sm text-muted-foreground mt-1">
                 Check your email for confirmation.
               </p>
+              <div className="mt-4">
+                <NextLink
+                  href="/fan/dashboard"
+                  className="text-sm font-medium text-accent hover:underline"
+                >
+                  View your fan dashboard →
+                </NextLink>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubscribe} className="space-y-4">
@@ -629,6 +720,18 @@ export function PublicCreatorProfile({
           )}
         </DialogContent>
       </Dialog>
+
+      <footer className="pb-8 text-center text-sm text-muted-foreground">
+        Powered by{' '}
+        <NextLink href="/" className="hover:text-foreground hover:underline">
+          Foleio
+        </NextLink>
+        <div className="mt-2">
+          <NextLink href="/fan/dashboard" className="text-accent hover:underline">
+            Fan? Access your dashboard →
+          </NextLink>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -657,30 +760,31 @@ function ContentCard({ content, onClick, isVerified, isPlaying }: ContentCardPro
 
   const isPremium = content.accessType !== 'free';
   const showLock = isPremium && !isVerified;
+  const showPlayIcon = content.type === 'video';
 
   return (
     <div className="group cursor-pointer" onClick={onClick}>
-      <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+      <div className="relative aspect-video overflow-hidden rounded-[var(--radius)] bg-muted shadow-sm">
         {content.thumbnailUrl ? (
           <img
             src={content.thumbnailUrl}
             alt={content.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="flex h-full w-full items-center justify-center">
             {getTypeIcon(content.type)}
           </div>
         )}
-        {content.type === 'video' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-            {showLock ? (
-              <Lock className="h-12 w-12 text-white" />
-            ) : (
-              <Play className="h-12 w-12 text-white" />
-            )}
-          </div>
-        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+          {showLock ? (
+            <Lock className="h-12 w-12 text-primary" />
+          ) : showPlayIcon ? (
+            <Play className="h-12 w-12 text-primary" />
+          ) : (
+            <Eye className="h-10 w-10 text-primary" />
+          )}
+        </div>
         <div className="absolute top-2 right-2">
           <Badge variant={content.accessType === 'free' ? 'secondary' : 'default'}>
             {content.accessType === 'free' ? 'Free' : 'Premium'}

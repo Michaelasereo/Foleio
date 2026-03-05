@@ -1,4 +1,4 @@
-// Prisma schema for Odim Platform
+// Prisma schema for Foleio Platform
 // This schema extends Supabase auth.users
 
 generator client {
@@ -411,7 +411,7 @@ model Payout {
   @@index([creatorId])
 }
 
-// Platform subscriptions (creators paying Odim)
+// Platform subscriptions (creators paying Foleio)
 model PlatformSubscription {
   id                    String   @id @default(uuid())
   creatorId             String   @unique @map("creator_id")
@@ -420,6 +420,8 @@ model PlatformSubscription {
   status                String   @default("active") // active, canceled, past_due
   currentPeriodStart    DateTime? @map("current_period_start")
   currentPeriodEnd      DateTime? @map("current_period_end")
+  trialEndsAt           DateTime? @map("trial_ends_at")
+  cancelAtPeriodEnd     Boolean  @default(false) @map("cancel_at_period_end")
   paystackSubscriptionId String? @map("paystack_subscription_id")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
@@ -702,5 +704,27 @@ model UsageRecord {
   @@map("usage_records")
   @@index([userId, type, createdAt])
   @@index([createdAt])
+}
+
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("waitlist_entries")
+}
+
+model FanOTPCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("fan_otp_codes")
+  @@index([email, code, used])
+  @@index([expiresAt])
 }
 

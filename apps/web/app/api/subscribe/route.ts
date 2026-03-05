@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { subscribeToCreator, unsubscribeFromCreator } from '@/lib/actions/email';
+import { prisma } from '@foleio/database';
+import { getFanSession } from '@/lib/fan-auth/session';
 import { z } from 'zod';
 
 const subscribeSchema = z.object({
@@ -46,8 +48,40 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
+    const session = getFanSession(request);
 
     if (!token) {
+      // Fan dashboard cancellation path
+      if (session) {
+        const body = await request.json().catch(() => ({}));
+        const creatorId = body?.creatorId as string | undefined;
+        if (!creatorId) {
+          return NextResponse.json(
+            { error: 'Missing creatorId' },
+            { status: 400 }
+          );
+        }
+
+        const fan = await prisma.user.findUnique({
+          where: { email: session.email.toLowerCase() },
+          select: { id: true },
+        });
+
+        if (!fan) {
+          return NextResponse.json({ error: 'Fan not found' }, { status: 404 });
+        }
+
+        await prisma.fanSubscription.updateMany({
+          where: { fanId: fan.id, creatorId },
+          data: {
+            status: 'canceled',
+            cancelAtPeriodEnd: true,
+          },
+        });
+
+        return NextResponse.json({ success: true });
+      }
+
       return NextResponse.json(
         { error: 'Missing unsubscribe token' },
         { status: 400 }
