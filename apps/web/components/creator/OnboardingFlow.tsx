@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, User, Palette, Link as LinkIcon, Upload, DollarSign } from 'lucide-react';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import { getCreatorPlan, type PlatformPlan } from '@/lib/utils/plan-limits';
 
 interface OnboardingFlowProps {
   onComplete?: () => void;
@@ -70,9 +73,25 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
+  const [currentPlan, setCurrentPlan] = useState<PlatformPlan>('STARTER');
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
 
   const currentStepData = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
+
+  useEffect(() => {
+    async function loadPlan() {
+      try {
+        const response = await fetch('/api/creator/me');
+        if (!response.ok) return;
+        const data = await response.json();
+        setCurrentPlan(getCreatorPlan(data.platformPlan ?? null));
+      } catch (error) {
+        console.error('Failed to load creator plan:', error);
+      }
+    }
+    void loadPlan();
+  }, []);
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -106,6 +125,12 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
         },
         body: JSON.stringify(formData)
       });
+
+      if (response.status === 403) {
+        const blocked = await response.json();
+        showUpgradeModal((blocked.limitType || 'maxSubscriptionPlans') as any);
+        return;
+      }
 
       if (response.ok) {
         // Clear onboarding step from localStorage
@@ -425,6 +450,15 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
             </div>
           </CardContent>
         </Card>
+
+        {limitType ? (
+          <UpgradeModal
+            isOpen={isOpen}
+            onClose={closeUpgradeModal}
+            limitType={limitType}
+            currentPlan={currentPlan}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -33,7 +33,15 @@ export default async function AvailabilityPage() {
   }
 
   if (!creator) {
-    redirect('/onboard');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Availability Calendar</h1>
+        <p className="text-muted-foreground">
+          Finish setting up your creator profile in Settings to manage
+          availability.
+        </p>
+      </div>
+    );
   }
 
   // Get availability for next 90 days for better planning

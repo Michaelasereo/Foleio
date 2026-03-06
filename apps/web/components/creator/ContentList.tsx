@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@foleio/utils';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import { getCreatorPlan, getPlanLimits } from '@/lib/utils/plan-limits';
 
 interface ContentListProps {
   content: any[];
@@ -13,6 +16,17 @@ interface ContentListProps {
 
 export function ContentList({ content, creator }: ContentListProps) {
   const router = useRouter();
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
+  const currentPlan = getCreatorPlan(creator.platformPlan ?? null);
+  const limits = getPlanLimits(creator.platformPlan ?? null);
+
+  function handleNewContent() {
+    if (content.length >= limits.maxContent) {
+      showUpgradeModal('maxContent');
+      return;
+    }
+    router.push('/content/new');
+  }
 
   return (
     <div className="space-y-6">
@@ -23,7 +37,7 @@ export function ContentList({ content, creator }: ContentListProps) {
             Manage your content and track performance
           </p>
         </div>
-        <Button onClick={() => router.push('/content/new')}>
+        <Button onClick={handleNewContent}>
           Create New Content
         </Button>
       </div>
@@ -83,12 +97,21 @@ export function ContentList({ content, creator }: ContentListProps) {
             <p className="text-muted-foreground mb-4">
               No content yet. Create your first piece of content!
             </p>
-            <Button onClick={() => router.push('/content/new')}>
+            <Button onClick={handleNewContent}>
               Create Content
             </Button>
           </CardContent>
         </Card>
       )}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
+      ) : null}
     </div>
   );
 }

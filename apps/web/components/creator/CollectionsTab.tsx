@@ -11,12 +11,28 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import { getCreatorPlan, getPlanLimits } from '@/lib/utils/plan-limits';
 
 interface CollectionsTabProps {
   collections: any[];
+  platformPlan: string | null;
 }
 
-export function CollectionsTab({ collections }: CollectionsTabProps) {
+export function CollectionsTab({ collections, platformPlan }: CollectionsTabProps) {
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
+  const currentPlan = getCreatorPlan(platformPlan);
+  const limits = getPlanLimits(platformPlan);
+
+  const openNewCollection = () => {
+    if (!limits.canCreateCollections) {
+      showUpgradeModal('canCreateCollections');
+      return;
+    }
+    window.location.href = '/collections/new';
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -26,12 +42,10 @@ export function CollectionsTab({ collections }: CollectionsTabProps) {
             Organize your content into courses and playlists with sections
           </p>
         </div>
-        <Link href="/collections/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Collection
-          </Button>
-        </Link>
+        <Button onClick={openNewCollection}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Collection
+        </Button>
       </div>
 
       {collections.length === 0 ? (
@@ -40,9 +54,7 @@ export function CollectionsTab({ collections }: CollectionsTabProps) {
             <p className="text-muted-foreground mb-4">
               No collections yet. Create your first collection to organize your content!
             </p>
-            <Link href="/collections/new">
-              <Button>Create Collection</Button>
-            </Link>
+            <Button onClick={openNewCollection}>Create Collection</Button>
           </CardContent>
         </Card>
       ) : (
@@ -93,6 +105,15 @@ export function CollectionsTab({ collections }: CollectionsTabProps) {
           })}
         </div>
       )}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -11,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus } from 'lucide-react';
+import { NewCollectionButton } from '@/components/creator/NewCollectionButton';
 
 export default async function CollectionsPage() {
   const supabase = await createClient();
@@ -42,7 +40,15 @@ export default async function CollectionsPage() {
   }
 
   if (!creator) {
-    redirect('/onboard');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collections</h1>
+        <p className="text-muted-foreground">
+          Finish setting up your creator profile in Settings to manage
+          collections.
+        </p>
+      </div>
+    );
   }
 
   let collections: Awaited<ReturnType<typeof prisma.collection.findMany>> = [];
@@ -84,12 +90,7 @@ export default async function CollectionsPage() {
             Organize your content into courses and playlists with sections
           </p>
         </div>
-        <Link href="/collections/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Collection
-          </Button>
-        </Link>
+        <NewCollectionButton platformPlan={creator.platformPlan ?? null} />
       </div>
 
       {collections.length === 0 ? (
@@ -98,9 +99,7 @@ export default async function CollectionsPage() {
             <p className="text-muted-foreground mb-4">
               No collections yet. Create your first collection to organize your content!
             </p>
-            <Link href="/collections/new">
-              <Button>Create Collection</Button>
-            </Link>
+            <NewCollectionButton platformPlan={creator.platformPlan ?? null} label="Create Collection" />
           </CardContent>
         </Card>
       ) : (

@@ -30,6 +30,7 @@ model User {
   transactions        Transaction[]
   usageRecords        UsageRecord[]
   uploads             Upload[]
+  nudgeLogs           NudgeLog[]
 
   @@map("users")
   @@index([email])
@@ -53,6 +54,21 @@ enum PayoutMethod {
   SCHEDULED_BULK     // Free, weekly (Selar Model)
   INSTANT            // 1% fee (Selar Model)
   DIRECT_SUBACCOUNT  // Automatic via subaccount
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+enum PayoutFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  MANUAL
 }
 
 // Creators table
@@ -110,6 +126,9 @@ model Creator {
   accountNumber          String? @map("account_number")
   accountName            String? @map("account_name")
   bvnVerified            Boolean @default(false) @map("bvn_verified")
+  identityVerifiedAt     DateTime? @map("identity_verified_at")
+  availableBalance       Int @default(0) @map("available_balance") // in kobo
+  totalEarned            Int @default(0) @map("total_earned") // in kobo lifetime
   currentBalance         BigInt @default(0) @map("current_balance") // Legacy
 
   // Stats
@@ -139,6 +158,9 @@ model Creator {
   bookings          Booking[]
   emailSubscriptions EmailSubscription[]
   uploads           Upload[]
+  milestoneLogs     MilestoneLog[]
+  bankAccount       BankAccount?
+  payoutSchedule    PayoutSchedule?
 
   @@map("creators")
   @@index([userId])
@@ -395,10 +417,13 @@ model Payout {
   id                  String   @id @default(uuid())
   creatorId           String   @map("creator_id")
   amount              Int      // in kobo
-  status              String   @default("pending") // pending, processing, success, failed
+  status              String   @default("PENDING") // PENDING, PROCESSING, SUCCESS, FAILED, REVERSED
   paystackTransferCode String? @map("paystack_transfer_code")
+  paystackReference   String?  @unique @map("paystack_reference")
+  reason              String?
   failureReason       String?  @map("failure_reason")
-  transactionIds      String[] @map("transaction_ids")
+  scheduledFor        DateTime? @map("scheduled_for")
+  transactionIds      String[] @default([]) @map("transaction_ids")
   metadata            Json     @default("{}")
   processedAt         DateTime? @map("processed_at")
   createdAt           DateTime @default(now()) @map("created_at")
@@ -409,6 +434,37 @@ model Payout {
 
   @@map("payouts")
   @@index([creatorId])
+}
+
+model BankAccount {
+  id             String   @id @default(cuid())
+  creatorId      String   @unique @map("creator_id")
+  bankCode       String   @map("bank_code")
+  bankName       String   @map("bank_name")
+  accountNumber  String   @map("account_number")
+  accountName    String   @map("account_name")
+  recipientCode  String?  @map("recipient_code")
+  isVerified     Boolean  @default(false) @map("is_verified")
+  bvnVerified    Boolean  @default(false) @map("bvn_verified")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  creator        Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("bank_accounts")
+}
+
+model PayoutSchedule {
+  id           String   @id @default(cuid())
+  creatorId    String   @unique @map("creator_id")
+  frequency    String
+  isActive     Boolean  @default(true) @map("is_active")
+  nextPayoutAt DateTime @map("next_payout_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  creator      Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("payout_schedules")
 }
 
 // Platform subscriptions (creators paying Foleio)
@@ -726,5 +782,28 @@ model FanOTPCode {
   @@map("fan_otp_codes")
   @@index([email, code, used])
   @@index([expiresAt])
+}
+
+model NudgeLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  nudgeType String   @map("nudge_type")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nudgeType])
+  @@map("nudge_logs")
+}
+
+model MilestoneLog {
+  id         String    @id @default(cuid())
+  creatorId  String    @map("creator_id")
+  milestone  String
+  achievedAt DateTime  @default(now()) @map("achieved_at")
+  seenAt     DateTime? @map("seen_at")
+  creator    Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, milestone])
+  @@map("milestone_logs")
 }
 

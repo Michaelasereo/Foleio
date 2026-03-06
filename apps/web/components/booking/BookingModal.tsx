@@ -85,6 +85,7 @@ export function BookingModal({
     trackingToken?: string;
     bookingId?: string;
   } | null>(null);
+  const [bookingLimitReached, setBookingLimitReached] = useState(false);
 
   const form = useForm<BookingInput>({
     resolver: zodResolver(bookingSchema),
@@ -237,6 +238,11 @@ export function BookingModal({
       });
 
       const result = await response.json();
+
+      if (response.status === 403 && result.limitType === 'maxBookingsPerMonth') {
+        setBookingLimitReached(true);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to create booking');
@@ -404,9 +410,11 @@ export function BookingModal({
       setSelectedDates([]);
       setAllowMultipleDates(false);
       setBookingResult(null);
+      setBookingLimitReached(false);
       form.reset();
     } else {
       onOpenChange(false);
+      setBookingLimitReached(false);
     }
   }
 
@@ -430,8 +438,19 @@ export function BookingModal({
         )}
 
         <div className="flex-1 overflow-y-auto min-h-0">
+        {bookingLimitReached ? (
+          <div className="py-8 text-center">
+            <p className="mb-2 font-semibold text-foreground">
+              Bookings unavailable this month
+            </p>
+            <p className="text-sm text-muted-foreground">
+              This creator has reached their booking limit for this month. Please check back next month or contact them directly.
+            </p>
+          </div>
+        ) : null}
+
         {/* Step: Service Summary */}
-        {step === 'service' && (
+        {step === 'service' && !bookingLimitReached && (
           <div className="space-y-4 py-4">
             <div className="bg-muted p-4 rounded-lg space-y-3">
               <div className="flex justify-between items-start">
@@ -473,7 +492,7 @@ export function BookingModal({
         )}
 
         {/* Step: Date Selection */}
-        {step === 'date' && (
+        {step === 'date' && !bookingLimitReached && (
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium flex items-center gap-2">
@@ -601,7 +620,7 @@ export function BookingModal({
         )}
 
         {/* Step: Customer Details */}
-        {step === 'details' && (
+        {step === 'details' && !bookingLimitReached && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
               {/* Selected date(s) summary */}
@@ -757,7 +776,7 @@ export function BookingModal({
         )}
 
         {/* Step: Payment Processing */}
-        {step === 'payment' && (
+        {step === 'payment' && !bookingLimitReached && (
           <div className="py-8 text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
             <p>Processing your payment...</p>
@@ -781,7 +800,7 @@ export function BookingModal({
         )}
 
         {/* Step: Success */}
-        {step === 'success' && bookingResult && (
+        {step === 'success' && bookingResult && !bookingLimitReached && (
           <div className="py-8 text-center space-y-6">
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
               <Check className="h-8 w-8 text-green-600" />

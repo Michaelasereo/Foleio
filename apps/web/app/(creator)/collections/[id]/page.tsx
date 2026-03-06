@@ -49,7 +49,15 @@ export default async function CollectionDetailPage({
   }
 
   if (!creator) {
-    redirect('/onboard');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collection</h1>
+        <p className="text-muted-foreground">
+          Finish setting up your creator profile in Settings to manage your
+          collection details.
+        </p>
+      </div>
+    );
   }
 
   let collection: Awaited<ReturnType<typeof prisma.collection.findFirst>> = null;

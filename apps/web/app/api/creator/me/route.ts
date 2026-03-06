@@ -1,10 +1,34 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import { serializePrismaObject, serializeCreator } from '@/lib/utils/serialization';
+import { serializeCreator } from '@/lib/utils/serialization';
 import { ensureDbUser } from '@/lib/auth/ensure-db-user';
 
 export const dynamic = 'force-dynamic';
+
+const creatorSafeSelect = {
+  id: true,
+  userId: true,
+  username: true,
+  displayName: true,
+  bio: true,
+  category: true,
+  instagramHandle: true,
+  tiktokHandle: true,
+  avatarUrl: true,
+  platformPlan: true,
+  balance: true,
+  pendingBalance: true,
+  totalEarnings: true,
+  payoutThreshold: true,
+  currentBalance: true,
+  chargebackRate: true,
+  trustScore: true,
+  isPublic: true,
+  subscriberCount: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export async function GET(request: Request) {
   console.log('🎯 Creator API called');
@@ -39,7 +63,8 @@ export async function GET(request: Request) {
 
     // 3. Find or create creator
     let creator = await prisma.creator.findUnique({
-      where: { userId: user.id }
+      where: { userId: user.id },
+      select: creatorSafeSelect,
     });
 
     if (!creator) {
@@ -51,7 +76,7 @@ export async function GET(request: Request) {
       let counter = 1;
 
       // Check if username exists
-      while (await prisma.creator.findUnique({ where: { username } })) {
+      while (await prisma.creator.findUnique({ where: { username }, select: { id: true } })) {
         username = `${baseUsername}${counter}`;
         counter++;
       }
@@ -68,7 +93,8 @@ export async function GET(request: Request) {
           currentBalance: 0,
           trustScore: 100,
           isPublic: true
-        }
+        },
+        select: creatorSafeSelect,
       });
 
       console.log(`✅ Creator created: ${creator.id}`);

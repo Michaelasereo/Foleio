@@ -19,7 +19,15 @@ export default async function PriceListPage() {
     });
 
     if (!creator) {
-      redirect('/onboard');
+      return (
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Price List</h1>
+          <p className="text-muted-foreground">
+            Finish setting up your creator profile in Settings to manage your
+            service price list.
+          </p>
+        </div>
+      );
     }
 
     const priceListItems = await prisma.priceListItem.findMany({

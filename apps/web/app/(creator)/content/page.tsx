@@ -49,7 +49,15 @@ export default async function ContentPage() {
   }
 
   if (!creator) {
-    redirect('/onboard');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Content</h1>
+        <p className="text-muted-foreground">
+          Finish setting up your creator profile in Settings to manage your
+          content library.
+        </p>
+      </div>
+    );
   }
 
   let content: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
@@ -135,7 +143,7 @@ export default async function ContentPage() {
           />
         </TabsContent>
         <TabsContent value="collections" className="mt-6">
-          <CollectionsTab collections={collections} />
+          <CollectionsTab collections={collections} platformPlan={creator.platformPlan ?? null} />
         </TabsContent>
         <TabsContent value="intro-video" className="mt-6">
           <IntroVideoTab

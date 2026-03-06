@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +35,7 @@ import {
   Minus,
 } from 'lucide-react';
 import { completeService, processRefund, rejectRefund } from '@/lib/actions/booking';
+import { AvailabilityManager } from '@/components/booking/AvailabilityManager';
 
 interface Creator {
   id: string;
@@ -69,6 +71,11 @@ interface UnifiedBookingsManagerProps {
   upcomingBookings: Booking[];
   disputedBookings: Booking[];
   completedBookings: Booking[];
+  availability: Array<{
+    id: string;
+    date: string;
+    isAvailable: boolean;
+  }>;
 }
 
 export function UnifiedBookingsManager({
@@ -77,7 +84,9 @@ export function UnifiedBookingsManager({
   upcomingBookings,
   disputedBookings,
   completedBookings,
+  availability,
 }: UnifiedBookingsManagerProps) {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -226,6 +235,9 @@ export function UnifiedBookingsManager({
 
   // Calculate completion rate
   const completionRate = totalBookings > 0 ? Math.round((completedBookingsCount / totalBookings) * 100) : 0;
+
+  const defaultBookingsTab =
+    searchParams.get('tab') === 'availability' ? 'availability' : 'upcoming';
 
   return (
     <div className="space-y-6">
@@ -377,11 +389,12 @@ export function UnifiedBookingsManager({
 
         {/* Bookings Management Tab */}
         <TabsContent value="bookings" className="mt-6">
-          <Tabs defaultValue="upcoming" className="w-full">
+          <Tabs defaultValue={defaultBookingsTab} className="w-full" key={defaultBookingsTab}>
             <TabsList>
               <TabsTrigger value="upcoming">Upcoming ({upcomingBookings.length})</TabsTrigger>
               <TabsTrigger value="disputed">Disputed ({disputedBookings.length})</TabsTrigger>
               <TabsTrigger value="completed">Completed ({completedBookings.length})</TabsTrigger>
+              <TabsTrigger value="availability">Availability</TabsTrigger>
             </TabsList>
 
             <TabsContent value="upcoming" className="mt-6">
@@ -545,6 +558,33 @@ export function UnifiedBookingsManager({
                   </Card>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="availability" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Availability Calendar</CardTitle>
+                  <CardDescription>
+                    Set your working hours and manage when clients can book with you
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="h-3 w-3 rounded-full bg-green-500" />
+                      <span>Available</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="h-3 w-3 rounded-full bg-red-500" />
+                      <span>Unavailable</span>
+                    </div>
+                  </div>
+                  <AvailabilityManager
+                    creatorId={creator.id}
+                    availability={availability as any}
+                  />
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </TabsContent>

@@ -1,10 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createContent } from '@/lib/actions/content';
 import { withCreatorSessionValidation } from '@/lib/auth/session-middleware';
+import { prisma } from '@foleio/database';
+import { getPlanLimits } from '@/lib/utils/plan-limits';
 
 export async function POST(request: NextRequest) {
   return withCreatorSessionValidation(request, async (session, user) => {
     try {
+      const creator = await prisma.creator.findUnique({
+        where: { userId: user.id },
+        select: { id: true, platformPlan: true },
+      });
+
+      if (!creator) {
+        return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+      }
+
+      const publishedCount = await prisma.content.count({
+        where: { creatorId: creator.id, isPublished: true },
+      });
+      const limits = getPlanLimits(creator.platformPlan ?? null);
+
+      if (publishedCount >= limits.maxContent) {
+        return NextResponse.json(
+          { error: 'Plan limit reached', limitType: 'maxContent' },
+          { status: 403 }
+        );
+      }
+
       const data = await request.json();
 
       const result = await createContent(data);
@@ -18,7 +41,8 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        contentId: result.contentId
+        contentId: result.contentId,
+        milestoneUnlocked: result.milestoneUnlocked ?? false,
       });
     } catch (error) {
       console.error('Content creation error:', error);

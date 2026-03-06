@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createCollection } from '@/lib/actions/collection';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -32,6 +31,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import { getCreatorPlan, getPlanLimits, type PlatformPlan } from '@/lib/utils/plan-limits';
 
 const collectionSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -47,6 +49,9 @@ export default function NewCollectionPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<PlatformPlan>('STARTER');
+  const [isHardBlocked, setIsHardBlocked] = useState(false);
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
 
   const form = useForm<CollectionFormValues>({
     resolver: zodResolver(collectionSchema),
@@ -61,17 +66,50 @@ export default function NewCollectionPage() {
 
   const accessType = form.watch('accessType');
 
+  useEffect(() => {
+    async function checkLimits() {
+      try {
+        const response = await fetch('/api/creator/me');
+        if (!response.ok) return;
+        const data = await response.json();
+        const plan = getCreatorPlan(data.platformPlan ?? null);
+        const limits = getPlanLimits(data.platformPlan ?? null);
+        setCurrentPlan(plan);
+        if (!limits.canCreateCollections) {
+          setIsHardBlocked(true);
+          showUpgradeModal('canCreateCollections');
+        }
+      } catch (error) {
+        console.error('Failed to load plan limits:', error);
+      }
+    }
+    void checkLimits();
+  }, []);
+
   async function onSubmit(data: CollectionFormValues) {
     setIsLoading(true);
     try {
-      const result = await createCollection({
-        ...data,
-        tags: [],
-        requiredPlanId: undefined,
-        thumbnailUrl: undefined,
+      const response = await fetch('/api/collections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          tags: [],
+          requiredPlanId: undefined,
+          thumbnailUrl: undefined,
+        }),
       });
 
-      if (!result.success) {
+      if (response.status === 403) {
+        const blockedData = await response.json();
+        setIsHardBlocked(true);
+        showUpgradeModal((blockedData.limitType || 'canCreateCollections') as any);
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
         toast({
           title: 'Error',
           description: result.error || 'Failed to create collection',
@@ -85,7 +123,7 @@ export default function NewCollectionPage() {
         description: 'Collection created successfully!',
       });
 
-      router.push(`/collections/${result.collectionId}`);
+      router.push(`/collections/${result.collection?.id}`);
     } catch (error) {
       toast({
         title: 'Error',
@@ -99,6 +137,21 @@ export default function NewCollectionPage() {
 
   return (
     <div className="container mx-auto py-8 max-w-2xl">
+      {isHardBlocked ? (
+        <Card className="border-orange-200 bg-orange-50/60">
+          <CardHeader>
+            <CardTitle>Collections are locked on your current plan</CardTitle>
+            <CardDescription>
+              Upgrade to Pro or Premium to create courses and collections.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => showUpgradeModal('canCreateCollections')} className="bg-orange-600 text-white hover:bg-orange-700">
+              Upgrade to unlock collections
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle>Create New Collection</CardTitle>
@@ -204,6 +257,16 @@ export default function NewCollectionPage() {
           </Form>
         </CardContent>
       </Card>
+      )}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
+      ) : null}
     </div>
   );
 }

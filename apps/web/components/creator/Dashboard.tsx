@@ -18,9 +18,13 @@ import {
   Download,
 } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import { getCreatorPlan, getPlanLimits } from '@/lib/utils/plan-limits';
 
 interface CreatorDashboardProps {
   creator: any;
+  profileIncomplete?: boolean;
   analytics: any;
   recentSubscriptions: any[];
   contentMetrics: any;
@@ -28,11 +32,16 @@ interface CreatorDashboardProps {
 
 export function CreatorDashboard({
   creator,
+  profileIncomplete = false,
   analytics,
   recentSubscriptions,
   contentMetrics,
 }: CreatorDashboardProps) {
   const router = useRouter();
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
+  const currentPlan = getCreatorPlan(creator.platformPlan ?? null);
+  const limits = getPlanLimits(creator.platformPlan ?? null);
+  const currentContentCount = Number(creator.contentCount || 0);
 
   // Format percentage change with proper styling
   const formatChange = (change: string | null | undefined) => {
@@ -92,7 +101,13 @@ export function CreatorDashboard({
         <div className="flex gap-2">
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => router.push('/content/new')}
+            onClick={() => {
+              if (currentContentCount >= limits.maxContent) {
+                showUpgradeModal('maxContent');
+                return;
+              }
+              router.push('/content/new');
+            }}
           >
             <Video className="mr-2 h-4 w-4" />
             New Content
@@ -100,7 +115,7 @@ export function CreatorDashboard({
           <Button
             variant="outline"
             className="border-accent text-accent hover:bg-accent/10 hover:text-accent"
-            onClick={() => router.push('/payouts')}
+            onClick={() => router.push('/earnings')}
             disabled={Number(creator.currentBalance) < 1000}
           >
             <Download className="mr-2 h-4 w-4" />
@@ -109,6 +124,28 @@ export function CreatorDashboard({
           </Button>
         </div>
       </div>
+
+      {profileIncomplete ? (
+        <Card className="border-amber-200 bg-amber-50 shadow-sm">
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">
+                Complete your profile to unlock the best creator experience.
+              </p>
+              <p className="text-sm text-amber-800/90">
+                Add your missing profile details in Settings. You can keep using your dashboard while you finish setup.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+              onClick={() => router.push('/settings')}
+            >
+              Complete Profile
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -196,6 +233,15 @@ export function CreatorDashboard({
           </CardContent>
         </Card>
       </div>
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
+      ) : null}
     </div>
   );
 }

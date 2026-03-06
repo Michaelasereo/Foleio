@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { getPlanLimits } from '@/lib/utils/plan-limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,6 +79,21 @@ export async function PUT(request: Request) {
       const existingPlan = await prisma.creatorPlan.findFirst({
         where: { creatorId: updatedCreator.id }
       });
+
+      if (!existingPlan) {
+        const limits = getPlanLimits(updatedCreator.platformPlan ?? null);
+        if (Number.isFinite(limits.maxSubscriptionPlans)) {
+          const planCount = await prisma.creatorPlan.count({
+            where: { creatorId: updatedCreator.id, isActive: true },
+          });
+          if (planCount >= limits.maxSubscriptionPlans) {
+            return NextResponse.json(
+              { error: 'Plan limit reached', limitType: 'maxSubscriptionPlans' },
+              { status: 403 }
+            );
+          }
+        }
+      }
 
       if (existingPlan) {
         // Update existing plan

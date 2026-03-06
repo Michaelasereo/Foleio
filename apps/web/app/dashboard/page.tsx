@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { CreatorDashboard } from '@/components/creator/Dashboard';
 import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
-import { OnboardingFlow } from '@/components/creator/OnboardingFlow';
 import { getCreatorAnalytics, getRecentSubscriptions, getContentMetrics } from '@/lib/actions/analytics';
 
 export default async function DashboardPage() {
@@ -88,22 +87,6 @@ export default async function DashboardPage() {
     creator.displayName &&
     creator.category; // Basic profile info is sufficient
 
-  // If onboarding not completed, show onboarding flow
-  if (!hasCompletedOnboarding) {
-    return (
-      <OnboardingFlow
-        initialData={{
-          username: creator.username,
-          displayName: creator.displayName,
-          bio: creator.bio,
-          category: creator.category,
-          instagramHandle: creator.instagramHandle,
-          tiktokHandle: creator.tiktokHandle
-        }}
-      />
-    );
-  }
-
   // Fetch real analytics data
   const analytics = await getCreatorAnalytics(creator.id) || {
     totalViews: 0,
@@ -126,6 +109,7 @@ export default async function DashboardPage() {
   return (
     <CreatorDashboard
       creator={creator}
+      profileIncomplete={!hasCompletedOnboarding}
       analytics={analytics}
       recentSubscriptions={recentSubscriptions}
       contentMetrics={contentMetrics}

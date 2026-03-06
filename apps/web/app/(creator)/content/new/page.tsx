@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createContent } from '@/lib/actions/content';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -36,6 +35,9 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Upload, X, BookOpen } from 'lucide-react';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import { getCreatorPlan, getPlanLimits, type PlatformPlan } from '@/lib/utils/plan-limits';
 
 const contentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -76,6 +78,9 @@ export default function NewContentPage() {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<PlatformPlan>('STARTER');
+  const [isHardBlocked, setIsHardBlocked] = useState(false);
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
 
   const form = useForm<ContentFormValues>({
     resolver: zodResolver(contentSchema),
@@ -103,6 +108,14 @@ export default function NewContentPage() {
         const response = await fetch('/api/creator/me');
         if (response.ok) {
           const data = await response.json();
+          const plan = getCreatorPlan(data.platformPlan ?? null);
+          const limits = getPlanLimits(data.platformPlan ?? null);
+          const publishedCount = Number(data.contentCount || 0);
+          setCurrentPlan(plan);
+          if (publishedCount >= limits.maxContent) {
+            setIsHardBlocked(true);
+            showUpgradeModal('maxContent');
+          }
           if (data.collections) {
             setCollections(data.collections);
           }
@@ -419,18 +432,40 @@ export default function NewContentPage() {
         ? Math.round(parseFloat(data.tutorialPrice) * 100) 
         : undefined;
 
-      const result = await createContent({
-        ...data,
-        isPublished: isPublished,
-        tags: [],
-        requiredPlanId: undefined,
-        muxAssetId: uploadedFile?.muxAssetId,
-        muxPlaybackId: uploadedFile?.muxPlaybackId,
-        thumbnailUrl: thumbnailUrl,
-        contentCategory: data.contentCategory,
-        collectionId: data.collectionId || undefined,
-        tutorialPrice: tutorialPriceKobo,
+      const response = await fetch('/api/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          isPublished: isPublished,
+          tags: [],
+          requiredPlanId: undefined,
+          muxAssetId: uploadedFile?.muxAssetId,
+          muxPlaybackId: uploadedFile?.muxPlaybackId,
+          thumbnailUrl: thumbnailUrl,
+          contentCategory: data.contentCategory,
+          collectionId: data.collectionId || undefined,
+          tutorialPrice: tutorialPriceKobo,
+        }),
       });
+
+      if (response.status === 403) {
+        const blockedData = await response.json();
+        showUpgradeModal((blockedData.limitType || 'maxContent') as any);
+        setIsHardBlocked(true);
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to create content',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       if (!result.success) {
         toast({
@@ -462,7 +497,22 @@ export default function NewContentPage() {
   const showPriceField = contentCategory === 'tutorial' && accessType !== 'free' && !collectionId;
 
   return (
-    <div className="container mx-auto py-8 max-w-2xl">
+    <div className="container mx-auto max-w-2xl py-8">
+      {isHardBlocked ? (
+        <Card className="border-orange-200 bg-orange-50/60">
+          <CardHeader>
+            <CardTitle>Content uploads are currently locked</CardTitle>
+            <CardDescription>
+              You have reached your plan limit. Upgrade to continue publishing new content.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => showUpgradeModal('maxContent')} className="bg-orange-600 text-white hover:bg-orange-700">
+              Upgrade to continue
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle>Create New Content</CardTitle>
@@ -882,6 +932,16 @@ export default function NewContentPage() {
           </Form>
         </CardContent>
       </Card>
+      )}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
+      ) : null}
     </div>
   );
 }

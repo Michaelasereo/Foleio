@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { webhookQueue, deadLetterQueue } from '@/lib/queue/queue-manager';
+import { isAdminAuthed } from '@/lib/admin/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check admin authentication
-    const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
+    if (!isAdminAuthed(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,6 +18,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the failed job in dead letter queue
+    if (!deadLetterQueue || !webhookQueue) {
+      return NextResponse.json(
+        { error: 'Queue system unavailable' },
+        { status: 503 }
+      );
+    }
+
     const failedJob = await deadLetterQueue.getJob(webhookId);
 
     if (!failedJob) {
@@ -39,7 +42,7 @@ export async function POST(request: NextRequest) {
         attempt: 1, // Reset attempts for manual retry
         maxAttempts: 3,
         retriedAt: new Date(),
-        retriedBy: session.user.id,
+        retriedBy: 'admin',
       },
       {
         priority: 9, // High priority for manual retries

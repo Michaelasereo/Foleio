@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createBookingRequest } from '@/lib/actions/booking';
+import { prisma } from '@foleio/database';
+import { getPlanLimits } from '@/lib/utils/plan-limits';
 import { z } from 'zod';
 
 const createBookingSchema = z.object({
@@ -23,6 +25,36 @@ export async function POST(request: NextRequest) {
         { error: validation.error.errors[0].message },
         { status: 400 }
       );
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { id: validation.data.creatorId },
+      select: { id: true, platformPlan: true },
+    });
+    if (!creator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    const limits = getPlanLimits(creator.platformPlan ?? null);
+    if (Number.isFinite(limits.maxBookingsPerMonth)) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const monthlyBookings = await prisma.booking.count({
+        where: {
+          creatorId: creator.id,
+          createdAt: { gte: startOfMonth },
+          status: { notIn: ['cancelled', 'canceled'] },
+        },
+      });
+
+      if (monthlyBookings >= limits.maxBookingsPerMonth) {
+        return NextResponse.json(
+          { error: 'Plan limit reached', limitType: 'maxBookingsPerMonth' },
+          { status: 403 }
+        );
+      }
     }
 
     const result = await createBookingRequest(validation.data);

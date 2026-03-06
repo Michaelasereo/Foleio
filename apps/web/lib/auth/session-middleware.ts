@@ -182,9 +182,11 @@ export function requiresAuth(pathname: string): boolean {
 export function requiresCreatorAccess(pathname: string): boolean {
   const creatorPaths = [
     '/dashboard',
+    '/analytics',
     '/content',
     '/collections',
     '/bookings',
+    '/earnings',
     '/payouts',
     '/settings',
     '/price-list',

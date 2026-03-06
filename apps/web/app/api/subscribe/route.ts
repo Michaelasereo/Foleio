@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { subscribeToCreator, unsubscribeFromCreator } from '@/lib/actions/email';
 import { prisma } from '@foleio/database';
 import { getFanSession } from '@/lib/fan-auth/session';
+import { isAdminAuthed } from '@/lib/admin/auth';
 import { z } from 'zod';
 
 const subscribeSchema = z.object({
@@ -46,6 +47,37 @@ export async function POST(request: NextRequest) {
 // Unsubscribe endpoint
 export async function DELETE(request: NextRequest) {
   try {
+    if (isAdminAuthed(request)) {
+      const body = await request.json().catch(() => ({}));
+      const subscriptionId = body?.subscriptionId as string | undefined;
+      if (!subscriptionId) {
+        return NextResponse.json({ error: 'Missing subscriptionId' }, { status: 400 });
+      }
+
+      const subscription = await prisma.fanSubscription.findUnique({
+        where: { id: subscriptionId },
+        select: { id: true, creatorId: true, status: true },
+      });
+
+      if (!subscription) {
+        return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+      }
+
+      await prisma.fanSubscription.update({
+        where: { id: subscription.id },
+        data: { status: 'canceled', cancelAtPeriodEnd: true },
+      });
+
+      if (subscription.status === 'active') {
+        await prisma.creator.update({
+          where: { id: subscription.creatorId },
+          data: { subscriberCount: { decrement: 1 } },
+        });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const session = getFanSession(request);

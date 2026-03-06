@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { getPlanLimits } from '@/lib/utils/plan-limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,6 +115,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Creator profile not found' },
         { status: 404 }
+      );
+    }
+
+    const limits = getPlanLimits(creator.platformPlan ?? null);
+    if (!limits.canCreateCollections) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'canCreateCollections' },
+        { status: 403 }
       );
     }
 

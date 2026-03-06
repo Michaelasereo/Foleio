@@ -24,7 +24,15 @@ export default async function CreatorBillingPage() {
     });
 
     if (!creator) {
-      redirect('/onboard');
+      return (
+        <div className="space-y-2">
+          <h1 className="font-display text-3xl font-bold">Billing</h1>
+          <p className="text-muted-foreground">
+            Complete your creator setup in Settings before managing billing and
+            upgrades.
+          </p>
+        </div>
+      );
     }
 
     const subscriptions = await prisma.platformSubscription.findMany({

@@ -158,6 +158,19 @@ export function BillingPage({
     router.replace(nextUrl);
   }, [searchParams, pathname, router, toast, currentPlan]);
 
+  useEffect(() => {
+    const upgrade = searchParams.get('upgrade');
+    if (upgrade !== 'pro' && upgrade !== 'premium') {
+      return;
+    }
+
+    setUpgradeTarget(upgrade);
+    const params = new URLSearchParams(window.location.search);
+    params.delete('upgrade');
+    const nextQuery = params.toString();
+    window.history.replaceState({}, '', nextQuery ? `/billing?${nextQuery}` : '/billing');
+  }, [searchParams]);
+
   async function handleUpgrade(plan: PlanKey) {
     setIsSubmitting(true);
     try {

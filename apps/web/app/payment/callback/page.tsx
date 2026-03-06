@@ -86,6 +86,14 @@ function PaymentCallbackContent() {
             <div className="text-center text-sm text-muted-foreground">
               <p>A verification code has been sent to your email.</p>
               <p>Use it to access your purchased content.</p>
+              <p className="text-sm text-muted-foreground mt-8 text-center">
+                Powered by{' '}
+                <a href="/" className="text-primary font-semibold">Foleio</a>
+                {' · '}
+                <a href="/signup" className="text-accent underline text-sm">
+                  Become a creator →
+                </a>
+              </p>
             </div>
           )}
           

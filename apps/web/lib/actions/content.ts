@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { mediaProcessingQueueInstance as mediaProcessingQueue } from '@/lib/queue/processing-queue';
 import { systemMonitor } from '@/lib/monitoring/system-monitor';
+import { checkAndLogMilestone } from '@/lib/utils/milestones';
 
 const createContentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -83,10 +84,15 @@ export async function createContent(
     systemMonitor.trackBilling(0, 'content_creation', creator.id);
     systemMonitor.increment('content.total');
 
+    let milestoneUnlocked = false;
+    if (data.isPublished) {
+      milestoneUnlocked = await checkAndLogMilestone(creator.id, 'first_content');
+    }
+
     revalidatePath('/content');
     revalidatePath('/content/tutorials');
     revalidatePath('/dashboard');
-    return { success: true, contentId: content.id };
+    return { success: true, contentId: content.id, milestoneUnlocked };
   } catch (error) {
     console.error('Error creating content:', error);
     return {

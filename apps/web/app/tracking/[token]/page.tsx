@@ -188,12 +188,37 @@ export default function TrackingPage() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const TrackingBrandingFooter = () => (
+    <div className="mt-8 border-t border-border pt-4 text-center">
+      <a
+        href="/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 group"
+      >
+        <span className="text-muted-foreground text-xs">Powered by</span>
+        <span className="font-display text-base font-bold text-primary group-hover:opacity-80 transition-opacity">
+          Foleio
+        </span>
+      </a>
+      <div className="mt-2">
+        <a
+          href="/signup"
+          className="text-xs font-medium text-accent underline underline-offset-2 hover:opacity-80 transition-opacity"
+        >
+          Are you a creator? Start your Foleio →
+        </a>
+      </div>
+    </div>
+  );
+
   if (isLoading) {
     return (
       <>
         <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+        <TrackingBrandingFooter />
         <FanSupportChat />
       </>
     );
@@ -211,6 +236,7 @@ export default function TrackingPage() {
             </CardContent>
           </Card>
         </div>
+        <TrackingBrandingFooter />
         <FanSupportChat />
       </>
     );
@@ -258,6 +284,7 @@ export default function TrackingPage() {
             </CardContent>
           </Card>
         </div>
+        <TrackingBrandingFooter />
         <FanSupportChat />
       </>
     );
@@ -478,6 +505,7 @@ export default function TrackingPage() {
           </DialogContent>
         </Dialog>
       </div>
+      <TrackingBrandingFooter />
       <FanSupportChat />
     </>
   );

@@ -42,7 +42,15 @@ export default async function TutorialsPage() {
   }
 
   if (!creator) {
-    redirect('/onboard');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Tutorials</h1>
+        <p className="text-muted-foreground">
+          Finish setting up your creator profile in Settings to manage
+          tutorials.
+        </p>
+      </div>
+    );
   }
 
   // Fetch only tutorial content

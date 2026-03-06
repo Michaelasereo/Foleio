@@ -7,6 +7,7 @@ import {
   sendContentPurchaseEmail,
   sendSubscriptionConfirmation,
 } from '@/lib/email/send';
+import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
 
 interface WebhookJobData {
   event: string;
@@ -140,7 +141,7 @@ async function handlePaymentSuccess(data: any) {
 
       // Update creator earnings and balance
       if (transaction.amount && transaction.creatorId) {
-        await tx.creator.update({
+        const updatedCreator = await tx.creator.update({
           where: { id: transaction.creatorId },
           data: {
             totalEarnings: {
@@ -153,7 +154,19 @@ async function handlePaymentSuccess(data: any) {
               increment: 1,
             },
           },
+          select: {
+            id: true,
+            subscriberCount: true,
+          },
         });
+
+        if (updatedCreator.subscriberCount === 1) {
+          await checkAndLogMilestone(updatedCreator.id, 'first_subscriber');
+        }
+        if (updatedCreator.subscriberCount === 10) {
+          await checkAndLogMilestone(updatedCreator.id, 'ten_subscribers');
+        }
+        await checkEarned10kMilestone(updatedCreator.id);
       }
 
       console.log(`Subscription created for user ${transaction.userId} with creator ${transaction.creatorId}`);
@@ -259,6 +272,7 @@ async function handleCollectionSubscription(tx: any, data: any, transaction: any
         },
       },
     });
+    await checkEarned10kMilestone(transaction.creatorId);
   }
 
   console.log(`Collection subscription created: ${collectionId} for ${email}`);
@@ -314,6 +328,7 @@ async function handleTutorialPurchase(tx: any, data: any, transaction: any, meta
         },
       },
     });
+    await checkEarned10kMilestone(transaction.creatorId);
   }
 
   console.log(`Tutorial purchase created: ${contentId} for ${email}`);

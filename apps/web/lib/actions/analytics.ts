@@ -17,6 +17,7 @@ export async function getCreatorAnalytics(creatorId: string) {
   try {
     const creator = await prisma.creator.findUnique({
       where: { id: creatorId, userId: session.user.id },
+      select: { id: true },
     });
 
     if (!creator) {

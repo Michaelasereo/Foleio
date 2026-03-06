@@ -123,6 +123,7 @@ interface Creator {
   priceListItems: PriceListItem[];
   availability: Availability[];
   creatorPlans: CreatorPlan[];
+  platformPlan?: string | null;
 }
 
 interface PublicCreatorProfileProps {
@@ -272,6 +273,8 @@ export function PublicCreatorProfile({
   const paidTutorialsDisplay = paidTutorials.slice(0, 6);
   const hasMoreFreeTutorials = freeTutorials.length > 6;
   const hasMorePaidTutorials = paidTutorials.length > 6;
+  const isStarterPlan =
+    !creator.platformPlan || creator.platformPlan.toUpperCase() === 'STARTER';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -721,17 +724,31 @@ export function PublicCreatorProfile({
         </DialogContent>
       </Dialog>
 
-      <footer className="pb-8 text-center text-sm text-muted-foreground">
-        Powered by{' '}
-        <NextLink href="/" className="hover:text-foreground hover:underline">
-          Foleio
-        </NextLink>
-        <div className="mt-2">
-          <NextLink href="/fan/dashboard" className="text-accent hover:underline">
-            Fan? Access your dashboard →
-          </NextLink>
+      {isStarterPlan && (
+        <div className="w-full border-t border-border mt-16 py-6 flex flex-col items-center gap-3">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 group"
+          >
+            <span className="text-muted-foreground text-sm">Powered by</span>
+            <span className="font-display text-lg font-bold text-primary group-hover:opacity-80 transition-opacity">
+              Foleio
+            </span>
+            <span className="text-primary text-lg">●</span>
+          </a>
+          <p className="text-xs text-muted-foreground text-center max-w-xs">
+            The home for Nigerian creators — sell content, offer services, and build your world.
+          </p>
+          <a
+            href="/signup"
+            className="text-xs font-medium text-accent underline underline-offset-2 hover:opacity-80 transition-opacity"
+          >
+            Are you a creator? Start your Foleio →
+          </a>
         </div>
-      </footer>
+      )}
     </div>
   );
 }

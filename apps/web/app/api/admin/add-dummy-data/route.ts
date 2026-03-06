@@ -1,20 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
-import { createClient } from '@/lib/supabase/server';
+import { isAdminAuthed } from '@/lib/admin/auth';
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
+    if (!isAdminAuthed(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Find the creator
-    const creator = await prisma.creator.findUnique({
-      where: { userId: session.user.id },
-    });
+    // Find a creator to seed data against
+    const creator = await prisma.creator.findFirst();
 
     if (!creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });

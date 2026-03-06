@@ -3,6 +3,7 @@ import { completeService } from '@/lib/actions/booking';
 import { sendCompletionEmail } from '@/lib/actions/email';
 import { sendBookingStatusUpdate } from '@/lib/email/send';
 import { prisma } from '@foleio/database';
+import { checkAndLogMilestone } from '@/lib/utils/milestones';
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
         status: 'completed',
         trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking/${booking.trackingToken}`,
       });
+
+      const completedCount = await prisma.booking.count({
+        where: { creatorId: booking.creatorId, status: 'completed' },
+      });
+      if (completedCount === 1) {
+        await checkAndLogMilestone(booking.creatorId, 'first_booking');
+      }
     }
 
     return NextResponse.json({

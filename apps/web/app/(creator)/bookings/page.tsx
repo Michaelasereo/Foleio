@@ -33,14 +33,26 @@ export default async function BookingsPage() {
   }
 
   if (!creator) {
-    redirect('/onboard');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Booking Management</h1>
+        <p className="text-muted-foreground">
+          Finish setting up your creator profile in Settings to manage bookings.
+        </p>
+      </div>
+    );
   }
 
   // Fetch all data needed for the unified booking manager
   let bookings: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
   let recentBookings: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
+  let availability: Awaited<ReturnType<typeof prisma.creatorAvailability.findMany>> =
+    [];
   try {
-    [bookings, recentBookings] = await Promise.all([
+    const ninetyDaysFromNow = new Date();
+    ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+
+    [bookings, recentBookings, availability] = await Promise.all([
       // All bookings with full details
       prisma.booking.findMany({
         where: { creatorId: creator.id },
@@ -63,6 +75,16 @@ export default async function BookingsPage() {
         },
         orderBy: { createdAt: 'desc' },
         take: 10,
+      }),
+      prisma.creatorAvailability.findMany({
+        where: {
+          creatorId: creator.id,
+          date: {
+            gte: new Date(),
+            lte: ninetyDaysFromNow,
+          },
+        },
+        orderBy: { date: 'asc' },
       }),
     ]);
   } catch {
@@ -102,6 +124,7 @@ export default async function BookingsPage() {
         upcomingBookings={serializeForClient(upcomingBookings) as any}
         disputedBookings={serializeForClient(disputedBookings) as any}
         completedBookings={serializeForClient(completedBookings) as any}
+        availability={serializeForClient(availability) as any}
       />
     </div>
   );

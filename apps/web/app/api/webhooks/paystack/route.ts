@@ -5,6 +5,12 @@ import { webhookQueue, queues } from '@/lib/queue/queue-manager';
 import { withRateLimit, rateLimiters } from '@/lib/rate-limit/rate-limiter';
 import { prisma } from '@foleio/database';
 import { sendSubscriptionConfirmation } from '@/lib/email/send';
+import { sendEmail } from '@/lib/email/resend';
+import { paymentFailedTemplate, payoutConfirmationTemplate } from '@/lib/email/templates/nudges';
+import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
+import { formatNaira } from '@foleio/utils';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,6 +89,10 @@ async function processWebhookEvent(eventType: string, eventData: any) {
       await handleChargeSuccess(eventData);
       break;
 
+    case 'charge.failed':
+      await handleChargeFailed(eventData);
+      break;
+
     case 'subscription.create':
     case 'subscription.disable':
     case 'subscription.enable':
@@ -91,6 +101,7 @@ async function processWebhookEvent(eventType: string, eventData: any) {
 
     case 'transfer.success':
     case 'transfer.failed':
+    case 'transfer.reversed':
       await handleTransferEvent(eventType, eventData);
       break;
 
@@ -250,6 +261,8 @@ async function handleChargeSuccess(eventData: any) {
           totalEarnings: { increment: creatorAmount },
         },
       });
+
+      await checkEarned10kMilestone(metadata.creator_id);
     }
 
     // If user_id exists, update user subscription status
@@ -266,10 +279,10 @@ async function handleChargeSuccess(eventData: any) {
 
     // Fan subscription confirmation email (non-blocking)
     if (metadata?.type === 'subscription' && metadata?.creator_id) {
-      const [creator, plan] = await Promise.all([
+      const [creator, plan, activeSubscriberCount] = await Promise.all([
         prisma.creator.findUnique({
           where: { id: metadata.creator_id },
-          select: { displayName: true, username: true },
+          select: { displayName: true, username: true, subscriberCount: true },
         }),
         metadata?.plan_id
           ? prisma.creatorPlan.findUnique({
@@ -277,6 +290,12 @@ async function handleChargeSuccess(eventData: any) {
               select: { name: true },
             })
           : Promise.resolve(null),
+        prisma.fanSubscription.count({
+          where: {
+            creatorId: metadata.creator_id,
+            status: 'active',
+          },
+        }),
       ]);
 
       if (creator) {
@@ -291,6 +310,18 @@ async function handleChargeSuccess(eventData: any) {
           amount: amount / 100,
           nextBillingDate,
         });
+      }
+
+      const milestoneSubscriberCount =
+        creator?.subscriberCount && creator.subscriberCount > 0
+          ? creator.subscriberCount
+          : activeSubscriberCount;
+
+      if (milestoneSubscriberCount === 1) {
+        await checkAndLogMilestone(metadata.creator_id, 'first_subscriber');
+      }
+      if (milestoneSubscriberCount === 10) {
+        await checkAndLogMilestone(metadata.creator_id, 'ten_subscribers');
       }
     }
 
@@ -337,25 +368,160 @@ async function handleSubscriptionEvent(eventType: string, eventData: any) {
 }
 
 async function handleTransferEvent(eventType: string, eventData: any) {
-  const { reference, transfer_code, amount } = eventData;
+  const { reference, transfer_code, amount, reason } = eventData;
 
   try {
-    // Update payout status
-    await prisma.payout.update({
-      where: { paystackTransferCode: transfer_code },
-      data: {
-        status: eventType === 'transfer.success' ? 'COMPLETED' : 'FAILED',
-        completedAt: eventType === 'transfer.success' ? new Date() : undefined,
-        failedAt: eventType === 'transfer.failed' ? new Date() : undefined,
-        gatewayResponse: eventData,
+    const payout = await prisma.payout.findFirst({
+      where: {
+        OR: [
+          { paystackReference: reference },
+          { paystackTransferCode: transfer_code },
+        ],
       },
+      include: {
+        creator: {
+          include: {
+            user: { select: { email: true } },
+            bankAccount: true as any,
+          } as any,
+        },
+      } as any,
     });
+    if (!payout) {
+      console.log(`ℹ️ payout not found for transfer event: ${reference || transfer_code}`);
+      return;
+    }
+
+    if (eventType === 'transfer.success') {
+      await prisma.payout.update({
+        where: { id: payout.id },
+        data: {
+          status: 'SUCCESS',
+          processedAt: new Date(),
+          paystackReference: reference || payout.paystackReference,
+        } as any,
+      });
+
+      if (payout.creator?.user?.email) {
+        await sendEmail({
+          to: payout.creator.user.email,
+          subject: 'Your Foleio payout is on the way',
+          html: payoutConfirmationTemplate({
+            name: payout.creator.displayName,
+            amount: formatNaira((amount || payout.amount) / 100),
+            bankName: payout.creator.bankAccount?.bankName || 'Your bank',
+            accountNumber: `****${String(
+              payout.creator.bankAccount?.accountNumber || ''
+            ).slice(-4)}`,
+            reference: reference || payout.paystackReference || payout.id,
+          }),
+        });
+      }
+    } else {
+      await prisma.payout.update({
+        where: { id: payout.id },
+        data: {
+          status: eventType === 'transfer.reversed' ? 'REVERSED' : 'FAILED',
+          failureReason: reason || eventData?.reason || 'Transfer failed',
+          processedAt: new Date(),
+          paystackReference: reference || payout.paystackReference,
+        } as any,
+      });
+
+      await prisma.creator.update({
+        where: { id: payout.creatorId },
+        data: { availableBalance: { increment: Number(amount || payout.amount) } } as any,
+      });
+    }
 
     console.log(`✅ Transfer ${eventType} processed: ${reference}`);
   } catch (error) {
     console.error(`❌ Failed to process transfer event: ${eventType}`, error);
     throw error;
   }
+}
+
+async function handleChargeFailed(eventData: any) {
+  try {
+    const metadata = eventData?.metadata;
+    if (metadata?.type !== 'subscription') {
+      console.log('ℹ️ charge.failed received for non-subscription payment');
+      return;
+    }
+
+    await handleSubscriptionPaymentFailure(eventData);
+    console.log(`✅ charge.failed subscription handled: ${eventData?.reference || 'no-ref'}`);
+  } catch (error) {
+    console.error('❌ Failed to process charge.failed event:', error);
+    throw error;
+  }
+}
+
+async function handleSubscriptionPaymentFailure(eventData: any) {
+  const subscriptionCode =
+    eventData?.subscription?.subscription_code ||
+    eventData?.data?.subscription?.subscription_code ||
+    eventData?.subscription_code ||
+    eventData?.metadata?.subscription_code;
+
+  const fanEmail = (
+    eventData?.customer?.email ||
+    eventData?.data?.customer?.email ||
+    eventData?.metadata?.subscriber_email ||
+    ''
+  )
+    .toString()
+    .toLowerCase();
+
+  const whereClause = subscriptionCode
+    ? { paystackSubscriptionId: subscriptionCode }
+    : fanEmail
+      ? { fan: { email: fanEmail } }
+      : null;
+
+  if (!whereClause) {
+    console.log('ℹ️ No subscription code or fan email found for failed subscription event');
+    return;
+  }
+
+  const subscription = await prisma.fanSubscription.findFirst({
+    where: whereClause,
+    include: {
+      creator: { select: { displayName: true, username: true } },
+      fan: { select: { email: true, fullName: true } },
+      plan: { select: { name: true } },
+    },
+  });
+
+  if (!subscription) {
+    console.log('ℹ️ No matching fan subscription found for failed subscription event');
+    return;
+  }
+
+  const shouldSendRecoveryEmail = subscription.status !== 'past_due';
+  if (shouldSendRecoveryEmail) {
+    await prisma.fanSubscription.update({
+      where: { id: subscription.id },
+      data: { status: 'past_due' },
+    });
+  }
+
+  if (!shouldSendRecoveryEmail) {
+    return;
+  }
+
+  const updateUrl = `${APP_URL}/fan/dashboard/subscriptions`;
+  await sendEmail({
+    to: subscription.fan.email,
+    subject: `Your subscription to ${subscription.creator.displayName} needs attention`,
+    html: paymentFailedTemplate({
+      fanName: subscription.fan.fullName?.split(' ')[0] || 'there',
+      creatorName: subscription.creator.displayName,
+      planName: subscription.plan?.name || 'Subscription',
+      updateUrl,
+      creatorUrl: `${APP_URL}/creator/${subscription.creator.username}`,
+    }),
+  });
 }
 
 async function handleInvoiceEvent(eventType: string, eventData: any) {
@@ -393,6 +559,12 @@ async function handleInvoiceEvent(eventType: string, eventData: any) {
           totalEarnings: { increment: creatorAmount },
         },
       });
+
+      await checkEarned10kMilestone(subscription.metadata.creator_id);
+    }
+
+    if (eventType === 'invoice.payment_failed') {
+      await handleSubscriptionPaymentFailure(eventData);
     }
 
     console.log(`✅ Invoice ${eventType} processed: ${eventData.reference}`);
