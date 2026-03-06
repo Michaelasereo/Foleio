@@ -60,7 +60,7 @@ export default async function CollectionDetailPage({
     );
   }
 
-  let collection: Awaited<ReturnType<typeof prisma.collection.findFirst>> = null;
+  let collection: any = null;
   try {
     collection = await prisma.collection.findFirst({
       where: {
@@ -153,7 +153,7 @@ export default async function CollectionDetailPage({
   }
 
   // Calculate stats
-  const activeSubscribers = collection.subscriptions.filter(s => s.status === 'active').length;
+  const activeSubscribers = collection.subscriptions.filter((s: any) => s.status === 'active').length;
   const totalTutorials = collection.tutorialContents.length;
 
   const formatPrice = (priceInKobo: number | null) => {

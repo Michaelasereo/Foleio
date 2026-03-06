@@ -224,6 +224,13 @@ export default function NewContentPage() {
           throw new Error('File is too large. Maximum size is 100MB.');
         } else if (responseData.error?.includes('Unsupported file type')) {
           throw new Error('Unsupported file type. Please use MP4, WebM, MOV, or MKV.');
+        } else if (
+          responseData.details?.includes('Video upload limit reached on the current Mux account') ||
+          responseData.details?.includes('Free plan is limited to 10 assets')
+        ) {
+          throw new Error(
+            'Video hosting limit reached (Mux free plan). Please upgrade Mux or remove old hosted videos, then retry.'
+          );
         } else if (responseData.error?.includes('Mux')) {
           throw new Error('Video processing service error. Please try again.');
         } else {
@@ -644,8 +651,8 @@ export default function NewContentPage() {
                         Add to Collection (Optional)
                       </FormLabel>
                       <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                        value={field.value || 'none'}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -653,7 +660,7 @@ export default function NewContentPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">None (Standalone Tutorial)</SelectItem>
+                          <SelectItem value="none">None (Standalone Tutorial)</SelectItem>
                           {collections.map((collection) => (
                             <SelectItem key={collection.id} value={collection.id}>
                               {collection.title}

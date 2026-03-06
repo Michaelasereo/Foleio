@@ -5,6 +5,27 @@ import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+const creatorCoreSelect = {
+  id: true,
+  userId: true,
+  username: true,
+  displayName: true,
+  bio: true,
+  category: true,
+  instagramHandle: true,
+  tiktokHandle: true,
+  avatarUrl: true,
+  bannerUrl: true,
+  isPublic: true,
+  introVideoId: true,
+  bankCode: true,
+  accountNumber: true,
+  accountName: true,
+  platformPlan: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 const onboardingStep1Schema = z.object({
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
   bio: z.string().optional(),
@@ -83,6 +104,7 @@ export async function createCreatorProfile(
     // Check if username exists
     const existingCreatorWithUsername = await prisma.creator.findUnique({
       where: { username },
+      select: { id: true },
     });
 
     const finalUsername = existingCreatorWithUsername
@@ -92,6 +114,7 @@ export async function createCreatorProfile(
     // Create or update creator profile (idempotent for repeated onboarding submits)
     const existingCreatorForUser = await prisma.creator.findUnique({
       where: { userId: session.user.id },
+      select: { id: true },
     });
 
     const creatorData = {
@@ -103,7 +126,6 @@ export async function createCreatorProfile(
       bankCode: step2Data.bankCode,
       accountNumber: step2Data.accountNumber,
       accountName: step2Data.accountName,
-      bvnVerified: !!step2Data.bvn,
       platformPlan: step4Data.platformPlan,
       platformSubscriptionActive: true,
       platformSubscriptionEndsAt: new Date(
@@ -115,6 +137,7 @@ export async function createCreatorProfile(
       ? await prisma.creator.update({
           where: { id: existingCreatorForUser.id },
           data: creatorData,
+          select: creatorCoreSelect,
         })
       : await prisma.creator.create({
           data: {
@@ -122,6 +145,7 @@ export async function createCreatorProfile(
             username: finalUsername,
             ...creatorData,
           },
+          select: creatorCoreSelect,
         });
 
     // Create or update default subscription plan
@@ -165,9 +189,22 @@ export async function createCreatorProfile(
     return { success: true, creatorId: creator.id, username: creator.username };
   } catch (error) {
     console.error('Error creating creator profile:', error);
+    const safeErrorMessage =
+      typeof error === 'string'
+        ? error
+        : error instanceof Error
+          ? error.message
+          : (() => {
+              try {
+                const serialized = JSON.stringify(error);
+                return serialized === '{}' ? 'Failed to create profile' : serialized;
+              } catch {
+                return 'Failed to create profile';
+              }
+            })();
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create profile',
+      error: safeErrorMessage,
     };
   }
 }
@@ -209,6 +246,7 @@ export async function updateCreatorProfile(
     const creator = await prisma.creator.update({
       where: { id: creatorId, userId: session.user.id },
       data,
+      select: creatorCoreSelect,
     });
 
     // Revalidate paths
@@ -247,6 +285,7 @@ export async function setIntroVideo(videoId: string | null) {
   try {
     const creator = await prisma.creator.findUnique({
       where: { userId: session.user.id },
+      select: { id: true, username: true },
     });
 
     if (!creator) {
@@ -269,6 +308,7 @@ export async function setIntroVideo(videoId: string | null) {
       data: {
         introVideoId: videoId,
       },
+      select: creatorCoreSelect,
     });
 
     revalidatePath('/settings');
@@ -296,6 +336,7 @@ export async function updateContentTitle(contentId: string, title: string) {
   try {
     const creator = await prisma.creator.findUnique({
       where: { userId: session.user.id },
+      select: { id: true, username: true },
     });
 
     if (!creator) {
@@ -342,7 +383,8 @@ export async function getCreatorProfile() {
   try {
     const creator = await prisma.creator.findUnique({
       where: { userId: session.user.id },
-      include: {
+      select: {
+        ...creatorCoreSelect,
         introVideo: {
           select: {
             id: true,
@@ -385,7 +427,8 @@ export async function getPublicCreatorProfile(username: string) {
   try {
     const creator = await prisma.creator.findUnique({
       where: { username },
-      include: {
+      select: {
+        ...creatorCoreSelect,
         introVideo: {
           select: {
             id: true,
@@ -408,7 +451,7 @@ export async function getPublicCreatorProfile(username: string) {
           ],
         },
         content: {
-          where: { 
+          where: {
             isPublished: true,
           },
           orderBy: { publishedAt: 'desc' },

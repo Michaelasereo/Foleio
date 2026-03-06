@@ -2,6 +2,7 @@ export const PILOT_EMAILS: string[] = [
   'your@email.com',
   'teammate@email.com',
   'asereope@gmail.com',
+  'Shosglam@gmail.com',
   // add more here
 ];
 

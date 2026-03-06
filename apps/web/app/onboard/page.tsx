@@ -192,8 +192,23 @@ export default function OnboardingPage() {
         data
       );
 
-      if (!result.success) {
-        const error = handleError(result.error, { operation: 'onboarding' });
+      if (!result || result.success !== true) {
+        const rawError =
+          typeof result?.error === 'string'
+            ? result.error
+            : result?.error
+              ? (() => {
+                  try {
+                    const serialized = JSON.stringify(result.error);
+                    return serialized && serialized !== '{}'
+                      ? serialized
+                      : 'Failed to complete setup';
+                  } catch {
+                    return 'Failed to complete setup';
+                  }
+                })()
+              : 'Failed to complete setup';
+        const error = handleError(rawError, { operation: 'onboarding' });
         toast({
           title: error.title,
           description: error.message,

@@ -39,12 +39,16 @@ export default async function CreatorBillingPage() {
       where: { creatorId: creator.id },
       orderBy: { createdAt: 'desc' },
     });
+    const serializedCurrentSubscription = serializeForClient(
+      subscriptions[0] || null
+    ) as any;
+    const serializedBillingHistory = serializeForClient(subscriptions) as any[];
 
     return (
       <BillingPage
         creator={serializeForClient(creator)}
-        currentSubscription={serializeForClient(subscriptions[0] || null)}
-        billingHistory={serializeForClient(subscriptions)}
+        currentSubscription={serializedCurrentSubscription}
+        billingHistory={serializedBillingHistory}
       />
     );
   } catch {

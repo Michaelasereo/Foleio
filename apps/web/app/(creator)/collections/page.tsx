@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import {
@@ -51,7 +52,7 @@ export default async function CollectionsPage() {
     );
   }
 
-  let collections: Awaited<ReturnType<typeof prisma.collection.findMany>> = [];
+  let collections: any[] = [];
   try {
     collections = await prisma.collection.findMany({
       where: { creatorId: creator.id },
@@ -104,9 +105,9 @@ export default async function CollectionsPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {collections.map((collection: typeof collections[0]) => {
+          {collections.map((collection: any) => {
             const totalContent = collection.sections.reduce(
-              (acc: number, section: typeof collection.sections[0]) => acc + section.sectionContents.length,
+              (acc: number, section: any) => acc + section.sectionContents.length,
               0
             );
 

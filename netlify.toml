@@ -13,9 +13,6 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-[[plugins]]
-  package = "@netlify/plugin-cron"
-
 [[crons]]
   schedule = "0 9 * * *"
   handler = "/.netlify/functions/nudge-cron"

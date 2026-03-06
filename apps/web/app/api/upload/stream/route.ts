@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   console.log('📤 SERVER DEBUG: User-Agent:', request.headers.get('user-agent'));
 
   let uploadId: string | undefined;
+  let createdContent: { id: string } | null = null;
 
   try {
     // 1. Initialize Supabase client
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
 
     // 6. Create upload record
     console.log('🗄️ SERVER DEBUG: Step 6 - Creating upload record');
-    const uploadId = `upl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    uploadId = `upl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log('🗄️ SERVER DEBUG: Generated upload ID:', uploadId);
 
     try {
@@ -224,6 +225,12 @@ export async function POST(request: Request) {
           failedAt: new Date()
         }
       });
+
+      if (errorText.includes('Free plan is limited to 10 assets')) {
+        throw new Error(
+          'Video upload limit reached on the current Mux account. Delete old Mux assets or upgrade Mux plan, then try again.'
+        );
+      }
 
       throw new Error(`Mux API error: ${muxResponse.status} - ${errorText}`);
     }
@@ -338,9 +345,6 @@ export async function POST(request: Request) {
     console.log('📝 SERVER DEBUG: Final content data to create:', JSON.stringify(contentData, (key, value) =>
       typeof value === 'bigint' ? value.toString() : value, 2
     ));
-
-    // DECLARE CONTENT VARIABLE OUTSIDE TRY BLOCK
-    let createdContent: { id: string } | null = null;
 
     try {
       createdContent = await prisma.content.create({

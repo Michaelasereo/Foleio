@@ -19,7 +19,7 @@ export default async function ContentPage() {
     redirect('/login');
   }
 
-  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  let creator: any = null;
   try {
     creator = await prisma.creator.findUnique({
       where: { userId: session.user.id },
@@ -62,7 +62,7 @@ export default async function ContentPage() {
 
   let content: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
   let collections: Awaited<ReturnType<typeof prisma.collection.findMany>> = [];
-  let videoContent: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  let videoContent: any[] = [];
   try {
     content = await prisma.content.findMany({
       where: { creatorId: creator.id },

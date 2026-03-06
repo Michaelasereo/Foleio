@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       // Process webhook events directly
       await processWebhookEvent(event.event, event.data);
       console.log(`✅ Webhook processed successfully: ${event.event}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ Webhook processing failed: ${event.event}`, error);
       throw error; // Re-throw to return 500 status
     }
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       { received: true, queued: true },
       { headers: rateLimitResult.headers }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Webhook queuing error:', error);
     return NextResponse.json(
       { error: 'Webhook queuing failed' },
@@ -206,7 +206,7 @@ async function handleChargeSuccess(eventData: any) {
         }
 
         console.log(`✅ Booking payment processed: ${reference} for booking ${metadata.bookingId}`);
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Error processing booking payment: ${error.message}`);
         // For development, don't fail the webhook completely
         if (process.env.NODE_ENV === 'production') {
@@ -228,13 +228,12 @@ async function handleChargeSuccess(eventData: any) {
         data: {
           status: 'success',
           gatewayResponse: eventData,
-          completedAt: new Date(),
         },
       });
     }
 
     // Create payment record
-    await prisma.payment.create({
+    await (prisma as any).payment.create({
       data: {
         reference,
         amount: amount / 100, // Convert from kobo
@@ -267,7 +266,7 @@ async function handleChargeSuccess(eventData: any) {
 
     // If user_id exists, update user subscription status
     if (metadata?.user_id) {
-      await prisma.user.update({
+      await (prisma as any).user.update({
         where: { id: metadata.user_id },
         data: {
           subscriptionStatus: 'ACTIVE',
@@ -326,7 +325,7 @@ async function handleChargeSuccess(eventData: any) {
     }
 
     console.log(`✅ Charge success processed: ${reference}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Failed to process charge success: ${reference}`, error);
     throw error;
   }
@@ -350,7 +349,7 @@ async function handleSubscriptionEvent(eventType: string, eventData: any) {
                   eventType === 'subscription.disable' ? 'INACTIVE' : 'ACTIVE';
 
     // Update user subscription
-    await prisma.user.update({
+    await (prisma as any).user.update({
       where: { email: customer.email },
       data: {
         subscriptionStatus: status,
@@ -361,7 +360,7 @@ async function handleSubscriptionEvent(eventType: string, eventData: any) {
     });
 
     console.log(`✅ Subscription ${eventType} processed for ${customer.email}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Failed to process subscription event: ${eventType}`, error);
     throw error;
   }
@@ -435,7 +434,7 @@ async function handleTransferEvent(eventType: string, eventData: any) {
     }
 
     console.log(`✅ Transfer ${eventType} processed: ${reference}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Failed to process transfer event: ${eventType}`, error);
     throw error;
   }
@@ -451,7 +450,7 @@ async function handleChargeFailed(eventData: any) {
 
     await handleSubscriptionPaymentFailure(eventData);
     console.log(`✅ charge.failed subscription handled: ${eventData?.reference || 'no-ref'}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Failed to process charge.failed event:', error);
     throw error;
   }
@@ -568,7 +567,7 @@ async function handleInvoiceEvent(eventType: string, eventData: any) {
     }
 
     console.log(`✅ Invoice ${eventType} processed: ${eventData.reference}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Failed to process invoice event: ${eventType}`, error);
     throw error;
   }

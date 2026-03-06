@@ -162,6 +162,16 @@ export class ErrorHandler {
     if (error?.message) return error.message;
     if (error?.error) return error.error;
     if (error?.response?.data?.message) return error.response.data.message;
+    if (error && typeof error === 'object') {
+      try {
+        const serialized = JSON.stringify(error);
+        if (serialized && serialized !== '{}') {
+          return serialized;
+        }
+      } catch {
+        // ignore serialization issues and fall through to unknown error
+      }
+    }
     return 'Unknown error';
   }
 
@@ -251,10 +261,22 @@ export class ErrorHandler {
 export function useErrorHandler() {
   const handleError = (error: any, context?: ErrorContext) => {
     const userFriendlyError = ErrorHandler.toUserFriendly(error, context);
+    const originalErrorForLog =
+      typeof error === 'object' && error !== null
+        ? (() => {
+            try {
+              const serialized = JSON.stringify(error);
+              return serialized === '{}' ? 'Unknown error payload' : error;
+            } catch {
+              return 'Unknown error payload';
+            }
+          })()
+        : error;
 
     // Log to monitoring service (Sentry, etc.)
     console.error('User Error:', {
-      originalError: error,
+      originalError: originalErrorForLog,
+      resolvedMessage: userFriendlyError.message,
       userFriendly: userFriendlyError,
       context,
       timestamp: new Date().toISOString(),
