@@ -117,13 +117,13 @@ export async function getCreatorAnalytics(creatorId: string) {
       },
     });
 
-    const currentMonthRevenue = currentMonthTransactions.reduce(
-      (sum: number, t: { netAmount: number | null }) => sum + Number(t.netAmount || 0),
+    const currentMonthRevenue = (currentMonthTransactions as any[]).reduce(
+      (sum: number, t: any) => sum + Number(t?.netAmount || 0),
       0
     );
 
-    const prevMonthRevenue = prevMonthTransactions.reduce(
-      (sum: number, t: { netAmount: number | null }) => sum + Number(t.netAmount || 0),
+    const prevMonthRevenue = (prevMonthTransactions as any[]).reduce(
+      (sum: number, t: any) => sum + Number(t?.netAmount || 0),
       0
     );
 
@@ -140,8 +140,8 @@ export async function getCreatorAnalytics(creatorId: string) {
       take: 10,
     });
 
-    const totalRevenue = recentTransactions.reduce(
-      (sum: number, t: { netAmount: number | null }) => sum + Number(t.netAmount || 0),
+    const totalRevenue = (recentTransactions as any[]).reduce(
+      (sum: number, t: any) => sum + Number(t?.netAmount || 0),
       0
     );
 

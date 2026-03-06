@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { mediaProcessingQueueInstance as mediaProcessingQueue } from '@/lib/queue/processing-queue';
 import { systemMonitor } from '@/lib/monitoring/system-monitor';
 import { checkAndLogMilestone } from '@/lib/utils/milestones';
 
@@ -153,7 +152,6 @@ export async function updateContent(
           isPublished: data.isPublished,
           publishedAt: data.isPublished && !existing.publishedAt ? new Date() : existing.publishedAt,
         }),
-        ...(data.videoId && { videoId: data.videoId }),
         ...(data.thumbnailUrl !== undefined && { thumbnailUrl: data.thumbnailUrl }),
         ...(data.contentCategory && { contentCategory: data.contentCategory }),
         ...(data.collectionId !== undefined && { collectionId: data.collectionId || null }),

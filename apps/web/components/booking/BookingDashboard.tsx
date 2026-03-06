@@ -270,7 +270,7 @@ export function BookingDashboard({
         </TabsContent>
 
         <TabsContent value="availability">
-          <AvailabilityManager availability={availability} />
+          <AvailabilityManager creatorId={creator.id} availability={availability} />
         </TabsContent>
 
         <TabsContent value="bookings">

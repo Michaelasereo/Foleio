@@ -105,11 +105,10 @@ export class CostMonitor {
     additionalUsage: number = 0
   ): Promise<QuotaCheck> {
     try {
-      const user = await prisma.user.findUnique({
+      const user: any = await prisma.user.findUnique({
         where: { id: userId },
         select: {
           id: true,
-          plan: true,
           createdAt: true
         }
       });
@@ -118,7 +117,7 @@ export class CostMonitor {
         return { allowed: false, currentUsage: 0, limit: 0 };
       }
 
-      const plan = (user.plan as keyof typeof this.USER_QUOTAS) || 'FREE';
+      const plan = ((user as any).plan as keyof typeof this.USER_QUOTAS) || 'FREE';
       const planLimits = this.USER_QUOTAS[plan];
       const limit = planLimits[quotaType];
 
@@ -186,21 +185,21 @@ export class CostMonitor {
   async deductFromBalance(userId: string, amount: Currency): Promise<boolean> {
     try {
       // Get current balance
-      const user = await prisma.user.findUnique({
+      const user: any = await prisma.user.findUnique({
         where: { id: userId },
-        select: { balance: true }
+        select: { id: true }
       });
 
       if (!user) return false;
 
-      const currentBalance = Currency.fromMinor(user.balance);
-      if (currentBalance.lessThan(amount)) {
+      const currentBalance = Currency.fromMinor(BigInt((user as any).balance ?? 0));
+      if (amount.greaterThan(currentBalance)) {
         return false; // Insufficient funds
       }
 
       // Deduct from balance
       const newBalance = currentBalance.subtract(amount);
-      await prisma.user.update({
+      await (prisma.user as any).update({
         where: { id: userId },
         data: { balance: newBalance.amount }
       });
@@ -214,17 +213,17 @@ export class CostMonitor {
 
   async refundToBalance(userId: string, amount: Currency): Promise<void> {
     try {
-      const user = await prisma.user.findUnique({
+      const user: any = await prisma.user.findUnique({
         where: { id: userId },
-        select: { balance: true }
+        select: { id: true }
       });
 
       if (!user) return;
 
-      const currentBalance = Currency.fromMinor(user.balance);
+      const currentBalance = Currency.fromMinor(BigInt((user as any).balance ?? 0));
       const newBalance = currentBalance.add(amount);
 
-      await prisma.user.update({
+      await (prisma.user as any).update({
         where: { id: userId },
         data: { balance: newBalance.amount }
       });

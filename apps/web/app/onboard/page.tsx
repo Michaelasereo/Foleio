@@ -95,7 +95,19 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
-  const { saveFormData, loadFormData, clearFormData, hasPersistedData } = useFormPersistence('creator-onboarding');
+  type OnboardingFormData = {
+    step1: z.infer<typeof step1Schema>;
+    step2: z.infer<typeof step2Schema>;
+    step3: z.infer<typeof step3Schema>;
+    step4: z.infer<typeof step4Schema>;
+  };
+  type OnboardingPersistedData = {
+    formData: OnboardingFormData;
+    step: number;
+    timestamp: number;
+  };
+  const { saveFormData, loadFormData, clearFormData, hasPersistedData } =
+    useFormPersistence<OnboardingPersistedData>('creator-onboarding');
 
   const [formData, setFormData] = useState({
     step1: {} as z.infer<typeof step1Schema>,
@@ -185,7 +197,7 @@ export default function OnboardingPage() {
   async function handleStep4Submit(data: z.infer<typeof step4Schema>) {
     setIsLoading(true);
     try {
-      const result = await createCreatorProfile(
+      const result: any = await createCreatorProfile(
         formData.step1,
         formData.step2,
         formData.step3,
