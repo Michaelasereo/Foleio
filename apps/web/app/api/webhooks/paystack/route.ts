@@ -528,7 +528,7 @@ async function handleInvoiceEvent(eventType: string, eventData: any) {
 
   try {
     // Create recurring payment record
-    await prisma.payment.create({
+    await (prisma as any).payment.create({
       data: {
         reference: eventData.reference || `invoice_${Date.now()}`,
         amount: amount / 100,
