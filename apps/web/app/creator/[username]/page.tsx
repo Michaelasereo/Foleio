@@ -92,7 +92,7 @@ export default async function CreatorPublicPage({
 
   return (
     <PublicCreatorProfile
-      creator={serializedCreator}
+      creator={serializedCreator as any}
       regularContent={serializeForClient(regularContent)}
       tutorials={serializeForClient(tutorials)}
       groupedPriceList={serializeForClient(groupedPriceList)}
