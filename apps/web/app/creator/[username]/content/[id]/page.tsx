@@ -156,9 +156,8 @@ async function checkContentAccess(content: any, session: any): Promise<boolean> 
   if (content.accessType === 'one_time') {
     const purchase = await prisma.tutorialPurchase.findFirst({
       where: {
-        userId: session.user.id,
         contentId: content.id,
-        status: 'completed',
+        email: (session.user.email || '').toLowerCase(),
       },
     });
 
