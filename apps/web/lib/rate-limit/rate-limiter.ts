@@ -1,6 +1,7 @@
 // Using in-memory rate limiting for development
 // Redis can be added later for production scaling
 console.log('ℹ️ Using in-memory rate limiting (Redis not configured)');
+const redis: any = null;
 
 // In-memory fallback for rate limiting when Redis is not available
 const inMemoryStore = new Map<string, { requests: number[]; resetTime: number }>();

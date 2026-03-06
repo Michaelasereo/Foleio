@@ -158,7 +158,7 @@ async function handleCollectionCode(collectionId: string, email: string) {
     contentTitle: collection.title,
     amount: (collection.subscriptionPrice || collection.price || 0) / 100,
     accessCode: code,
-    accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${collection.creator.username}/collections/${collection.id}`,
+    accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/creator/${collection.creator.username}/collections/${collection.id}`,
   });
 
   return NextResponse.json({
@@ -188,6 +188,16 @@ async function handleContentCode(contentId: string, email: string) {
     );
   }
 
+  if (content.collectionId) {
+    return NextResponse.json(
+      {
+        error: 'This content is part of a collection. Verify access at the collection level.',
+        collectionId: content.collectionId,
+      },
+      { status: 400 }
+    );
+  }
+
   // Check if content is free
   if (content.accessType === 'free') {
     return NextResponse.json(
@@ -196,25 +206,10 @@ async function handleContentCode(contentId: string, email: string) {
     );
   }
 
-  // Check for access - either through collection subscription or individual purchase
+  // Check for access - standalone tutorials only
   let hasAccess = false;
 
-  // Check collection subscription if content is in a collection
-  if (content.collectionId) {
-    const subscription = await prisma.collectionSubscription.findUnique({
-      where: {
-        collectionId_email: {
-          collectionId: content.collectionId,
-          email: email.toLowerCase(),
-        },
-      },
-    });
-    if (subscription && subscription.status === 'active') {
-      hasAccess = true;
-    }
-  }
-
-  // Check individual tutorial purchase
+  // Standalone tutorials: check individual purchase
   if (!hasAccess && content.contentCategory === 'tutorial') {
     const purchase = await prisma.tutorialPurchase.findUnique({
       where: {
@@ -295,7 +290,7 @@ async function handleContentCode(contentId: string, email: string) {
       contentTitle: content.title,
       amount: (content.tutorialPrice || 0) / 100,
       accessCode: code,
-      accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${content.creator.username}/content/${content.id}`,
+      accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/creator/${content.creator.username}/content/${content.id}`,
     });
   } else {
     await sendPremiumAccessCode(

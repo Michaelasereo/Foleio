@@ -125,7 +125,7 @@ async function main() {
 
   // Update NEXT_PUBLIC_APP_URL to production URL
   if (envVars.NEXT_PUBLIC_APP_URL === 'http://localhost:3000') {
-    envVars.NEXT_PUBLIC_APP_URL = 'https://foleio.ng';
+    envVars.NEXT_PUBLIC_APP_URL = 'https://foleio.com';
     console.log('⚠️  Updated NEXT_PUBLIC_APP_URL to production URL\n');
   }
 

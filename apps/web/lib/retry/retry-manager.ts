@@ -47,7 +47,7 @@ export class RetryManager {
       ...options,
     };
 
-    let lastError: Error;
+    let lastError: Error | null = null;
     let attempts = 0;
     let totalDelay = 0;
 
@@ -112,7 +112,7 @@ export class RetryManager {
 
     return {
       success: false,
-      error: lastError,
+      error: lastError ?? new Error('Operation failed without a captured error'),
       attempts,
       totalDelay,
     };

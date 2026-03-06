@@ -38,7 +38,7 @@ export class MuxService {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
-          cors_origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          cors_origin: process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com',
           new_asset_settings: {
             playback_policy: ['public'],
             mp4_support: 'standard',

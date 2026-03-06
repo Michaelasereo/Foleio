@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import {
   Heart,
   Crown
 } from 'lucide-react';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
 
 interface Creator {
   id: string;
@@ -90,7 +92,7 @@ export function CreatorsDiscovery() {
     fetchCreators();
   }, [selectedCategory, searchQuery]);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: FormEvent) => {
     e.preventDefault();
     fetchCreators(1);
   };
@@ -201,7 +203,10 @@ export function CreatorsDiscovery() {
               {/* Category and Social */}
               <div className="flex items-center justify-between mb-3">
                 <Badge variant="secondary" className="flex items-center gap-1">
-                  {React.createElement(getCategoryIcon(creator.category), { className: "w-3 h-3" })}
+                  {(() => {
+                    const CategoryIcon = getCategoryIcon(creator.category);
+                    return <CategoryIcon className="w-3 h-3" />;
+                  })()}
                   {creator.category}
                 </Badge>
                 <div className="flex space-x-2">
@@ -263,16 +268,14 @@ export function CreatorsDiscovery() {
                   <div className="grid grid-cols-3 gap-2">
                     {creator.recentContent.slice(0, 3).map((content) => (
                       <div key={content.id} className="relative aspect-square bg-gray-100 rounded overflow-hidden">
-                        {content.thumbnailUrl ? (
+                        {getThumbnailUrl(content) ? (
                           <img
-                            src={content.thumbnailUrl}
+                            src={getThumbnailUrl(content) || ''}
                             alt={content.title}
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            <Play className="w-6 h-6" />
-                          </div>
+                          <DefaultThumbnail title={content.title} aspectRatio="1/1" size="sm" />
                         )}
                         <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                           <Play className="w-8 h-8 text-white" />

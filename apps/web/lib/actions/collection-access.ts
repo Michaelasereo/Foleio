@@ -73,15 +73,13 @@ export async function checkTutorialAccess(
       return { hasAccess: true };
     }
 
-    // If tutorial is in a collection, check collection access first
+    // Collection tutorials inherit access from collection subscription only
     if (content.collectionId) {
       const collectionAccess = await checkCollectionAccess(email, content.collectionId);
-      if (collectionAccess.hasAccess) {
-        return { hasAccess: true };
-      }
+      return { hasAccess: collectionAccess.hasAccess };
     }
 
-    // Check for individual tutorial purchase
+    // Standalone tutorials: check for individual purchase
     const purchase = await prisma.tutorialPurchase.findUnique({
       where: {
         contentId_email: {
@@ -100,6 +98,44 @@ export async function checkTutorialAccess(
     console.error('Error checking tutorial access:', error);
     return { hasAccess: false };
   }
+}
+
+export async function canAccessContent(
+  contentId: string,
+  fanEmail: string
+): Promise<{ canAccess: boolean; reason: string }> {
+  const content = await prisma.content.findUnique({
+    where: { id: contentId },
+    include: { collection: true },
+  });
+
+  if (!content) return { canAccess: false, reason: 'not_found' };
+  if (content.accessType === 'free') return { canAccess: true, reason: 'free' };
+
+  if (content.collectionId) {
+    const subscription = await prisma.collectionSubscription.findFirst({
+      where: {
+        collectionId: content.collectionId,
+        email: fanEmail.toLowerCase(),
+        status: 'active',
+      },
+    });
+    return {
+      canAccess: Boolean(subscription),
+      reason: subscription ? 'collection_subscriber' : 'no_collection_access',
+    };
+  }
+
+  const purchased = await prisma.tutorialPurchase.findFirst({
+    where: {
+      contentId,
+      email: fanEmail.toLowerCase(),
+    },
+  });
+  return {
+    canAccess: Boolean(purchased),
+    reason: purchased ? 'purchased' : 'not_purchased',
+  };
 }
 
 // Send verification code for collection access
@@ -166,6 +202,13 @@ export async function sendTutorialAccessCode(
 
     if (!content) {
       return { success: false, error: 'Tutorial not found' };
+    }
+
+    if (content.collectionId) {
+      return {
+        success: false,
+        error: 'Collection tutorials use collection-level access only',
+      };
     }
 
     // Check if already has access
@@ -385,7 +428,7 @@ export async function createTutorialPurchase(data: {
         creatorName: content.creator.displayName,
         contentTitle: content.title,
         amount: (content.tutorialPrice || 0) / 100,
-        accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${content.creator.username}/content/${content.id}`,
+        accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/creator/${content.creator.username}/content/${content.id}`,
       });
     }
 
@@ -531,7 +574,7 @@ export async function getTutorialWithAccessInfo(
 
     // Check access via email
     if (email) {
-      // If tutorial is in a collection, check collection access first
+      // Collection tutorials inherit access from collection subscription
       if (tutorial.collectionId) {
         const collectionAccess = await checkCollectionAccess(email, tutorial.collectionId);
         if (collectionAccess.hasAccess) {
@@ -542,9 +585,15 @@ export async function getTutorialWithAccessInfo(
             collection: tutorial.collection,
           };
         }
+        return {
+          tutorial,
+          hasAccess: false,
+          accessType: 'purchase_required',
+          collection: tutorial.collection,
+        };
       }
 
-      // Check individual tutorial purchase
+      // Standalone tutorials: check individual purchase
       const tutorialAccess = await checkTutorialAccess(email, contentId);
       if (tutorialAccess.hasAccess) {
         return { tutorial, hasAccess: true, accessType: 'individual' };

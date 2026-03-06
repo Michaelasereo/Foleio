@@ -23,12 +23,12 @@ async function initializeRedis() {
 
     redis = new redisModule.default(redisUrl, {
       maxRetriesPerRequest: 3,
-      retryDelayOnFailover: 100,
       enableReadyCheck: false,
     });
 
     Queue = bullmqModule.Queue;
-    QueueScheduler = bullmqModule.QueueScheduler;
+    QueueScheduler =
+      'QueueScheduler' in bullmqModule ? (bullmqModule as any).QueueScheduler : null;
 
     // Test connection with timeout
     await Promise.race([

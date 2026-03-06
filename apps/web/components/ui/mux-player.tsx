@@ -201,7 +201,8 @@ export function MuxVideoPlayer({
         debug: false, // Disable debug to reduce console noise
         maxBufferLength: 30,
         maxMaxBufferLength: 600,
-        xhrSetup: (xhr, url) => {
+        xhrSetup: (xhr: any, url: string) => {
+          void url;
           // Ensure CORS is properly configured
           xhr.withCredentials = false;
           xhr.setRequestHeader('Accept', 'application/x-mpegURL,*/*');
@@ -275,7 +276,8 @@ export function MuxVideoPlayer({
         console.log('🔍 HLS fragment parsing data');
       });
 
-      hls.on(window.Hls.Events.ERROR, (event, data) => {
+      hls.on(window.Hls.Events.ERROR, (event: any, data: any) => {
+        void event;
         console.error('❌ HLS.js error:', data);
         console.error('❌ Error details:', {
           type: data.type,
@@ -559,11 +561,12 @@ export function MuxVideoPlayer({
         onLoadStart={handleLoadStart}
         onCanPlay={handleCanPlay}
         onError={(e) => {
+          const videoElement = e.currentTarget as HTMLVideoElement;
           console.error('🎥 Video element error event:', e);
-          console.error('🎥 Video element error code:', e.target?.error?.code);
-          console.error('🎥 Video element error message:', e.target?.error?.message);
-          console.error('🎥 Video network state:', e.target?.networkState);
-          console.error('🎥 Video ready state:', e.target?.readyState);
+          console.error('🎥 Video element error code:', videoElement.error?.code);
+          console.error('🎥 Video element error message:', videoElement.error?.message);
+          console.error('🎥 Video network state:', videoElement.networkState);
+          console.error('🎥 Video ready state:', videoElement.readyState);
           handleError(e);
         }}
         onPlay={handlePlay}

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { CollectionSubscriptionModal } from './CollectionSubscriptionModal';
 import { getStoredVerifiedAccess, storeVerifiedAccess } from '@/lib/utils/tutorial-access';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 interface Content {
   id: string;
@@ -368,6 +369,13 @@ function ContentRow({ content, index, hasAccess, onClick }: ContentRowProps) {
       }`}
       onClick={hasAccess ? onClick : undefined}
     >
+      <div className="h-12 w-20 flex-shrink-0 overflow-hidden rounded">
+        {content.thumbnailUrl ? (
+          <img src={content.thumbnailUrl} alt={content.title} className="h-full w-full object-cover" />
+        ) : (
+          <DefaultThumbnail title={content.title} size="sm" />
+        )}
+      </div>
       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
         {hasAccess ? (
           <Play className="h-4 w-4" />

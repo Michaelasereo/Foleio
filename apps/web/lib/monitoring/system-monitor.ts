@@ -219,7 +219,10 @@ export class SystemMonitor {
 
   // Track storage metrics
   trackStorage(usedGB: number, totalGB: number, userId?: string) {
-    const tags = userId ? { userId } : {};
+    const tags: Record<string, string> = {};
+    if (userId) {
+      tags.userId = userId;
+    }
     this.gauge('storage.used_gb', usedGB, tags);
     this.gauge('storage.limit_gb', totalGB, tags);
     this.gauge('storage.utilization_percent', (usedGB / totalGB) * 100, tags);

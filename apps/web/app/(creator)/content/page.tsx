@@ -66,7 +66,15 @@ export default async function ContentPage() {
   try {
     content = await prisma.content.findMany({
       where: { creatorId: creator.id },
-      orderBy: { createdAt: 'desc' },
+      include: {
+        collection: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
 
     collections = await prisma.collection.findMany({
@@ -140,6 +148,10 @@ export default async function ContentPage() {
           <ContentList
             content={content}
             creator={serializeForClient(creator)}
+            collections={collections.map((collection) => ({
+              id: collection.id,
+              title: collection.title,
+            }))}
           />
         </TabsContent>
         <TabsContent value="collections" className="mt-6">

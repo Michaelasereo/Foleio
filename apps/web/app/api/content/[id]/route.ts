@@ -1,8 +1,66 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import MuxService from '@/lib/mux';
 
 export const dynamic = 'force-dynamic';
+
+function normalizeContentPricing(data: {
+  contentCategory: 'content' | 'tutorial';
+  collectionId?: string | null;
+  accessType: 'free' | 'subscription' | 'one_time';
+  tutorialPrice?: number | null;
+}) {
+  const isInCollection = Boolean(data.collectionId);
+
+  if (data.contentCategory !== 'tutorial') {
+    return {
+      accessType: data.accessType,
+      tutorialPrice: data.tutorialPrice ?? null,
+      collectionId: data.collectionId ?? null,
+      isStandalone: !isInCollection,
+      error: null as string | null,
+    };
+  }
+
+  if (isInCollection) {
+    return {
+      accessType: 'subscription' as const,
+      tutorialPrice: 0,
+      collectionId: data.collectionId ?? null,
+      isStandalone: false,
+      error: null as string | null,
+    };
+  }
+
+  if (data.accessType === 'free') {
+    return {
+      accessType: 'free' as const,
+      tutorialPrice: 0,
+      collectionId: null,
+      isStandalone: true,
+      error: null as string | null,
+    };
+  }
+
+  if (!data.tutorialPrice || data.tutorialPrice <= 0) {
+    return {
+      accessType: data.accessType,
+      tutorialPrice: null,
+      collectionId: null,
+      isStandalone: true,
+      error: 'This content is now standalone — please set a price.',
+    };
+  }
+
+  return {
+    accessType: data.accessType,
+    tutorialPrice: data.tutorialPrice,
+    collectionId: null,
+    isStandalone: true,
+    error: null as string | null,
+  };
+}
 
 export async function GET(
   request: Request,
@@ -41,7 +99,7 @@ export async function GET(
     if (content.creator.userId !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
-        { status: 403 }
+        { status: 401 }
       );
     }
 
@@ -61,6 +119,7 @@ export async function GET(
       contentCategory: content.contentCategory,
       tutorialPrice: content.tutorialPrice,
       collectionId: content.collectionId,
+      isStandalone: content.isStandalone,
       isPublished: content.isPublished,
       tags: content.tags,
       createdAt: content.createdAt.toISOString(),
@@ -130,7 +189,8 @@ export async function PUT(
       isPublished,
       contentCategory,
       tutorialPrice,
-      collectionId
+      collectionId,
+      thumbnailUrl,
     } = body;
 
     // Validate required fields
@@ -141,20 +201,53 @@ export async function PUT(
       );
     }
 
+    const mergedContentCategory = (contentCategory || existingContent.contentCategory) as
+      | 'content'
+      | 'tutorial';
+    const mergedCollectionId =
+      collectionId !== undefined
+        ? collectionId || null
+        : existingContent.collectionId;
+    const mergedAccessType = (accessType || existingContent.accessType) as
+      | 'free'
+      | 'subscription'
+      | 'one_time';
+    const rawTutorialPrice =
+      tutorialPrice !== undefined
+        ? Number(tutorialPrice)
+        : existingContent.tutorialPrice;
+
+    const normalizedPricing = normalizeContentPricing({
+      contentCategory: mergedContentCategory,
+      collectionId: mergedCollectionId,
+      accessType: mergedAccessType,
+      tutorialPrice: Number.isNaN(rawTutorialPrice) ? null : rawTutorialPrice,
+    });
+
+    if (normalizedPricing.error) {
+      return NextResponse.json(
+        { error: normalizedPricing.error },
+        { status: 400 }
+      );
+    }
+
     // Update content
     const updatedContent = await prisma.content.update({
       where: { id: resolvedParams.id },
       data: {
         title: title.trim(),
         description: description?.trim(),
-        accessType,
+        accessType: normalizedPricing.accessType,
         requiredPlanId,
         tags,
         isPublished,
-        contentCategory,
-        tutorialPrice: tutorialPrice ? parseInt(tutorialPrice) : null,
-        collectionId,
-        publishedAt: isPublished && !existingContent.publishedAt ? new Date() : existingContent.publishedAt
+        ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
+        contentCategory: mergedContentCategory,
+        tutorialPrice: normalizedPricing.tutorialPrice,
+        collectionId: normalizedPricing.collectionId,
+        isStandalone: normalizedPricing.isStandalone,
+        publishedAt:
+          isPublished && !existingContent.publishedAt ? new Date() : existingContent.publishedAt,
       },
       include: {
         creator: {
@@ -174,6 +267,7 @@ export async function PUT(
       contentCategory: updatedContent.contentCategory,
       tutorialPrice: updatedContent.tutorialPrice,
       collectionId: updatedContent.collectionId,
+      isStandalone: updatedContent.isStandalone,
       isPublished: updatedContent.isPublished,
       tags: updatedContent.tags,
       updatedAt: updatedContent.updatedAt?.toISOString()
@@ -235,9 +329,21 @@ export async function DELETE(
       );
     }
 
-    // Delete content (cascade will handle related records)
+    if (content.muxAssetId) {
+      await MuxService.deleteAsset(content.muxAssetId);
+    }
+
     await prisma.content.delete({
       where: { id: resolvedParams.id }
+    });
+
+    await prisma.creator.update({
+      where: { id: content.creator.id },
+      data: {
+        contentCount: {
+          decrement: 1,
+        },
+      },
     });
 
     return NextResponse.json({

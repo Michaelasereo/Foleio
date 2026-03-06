@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
 import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { Input } from '@/components/ui/input';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 interface IntroVideoTabProps {
   creatorId: string;
@@ -349,9 +350,7 @@ export function IntroVideoTab({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Video className="h-12 w-12 text-muted-foreground" />
-                      </div>
+                      <DefaultThumbnail title={video.title} />
                     )}
                     {/* Play preview button */}
                     {video.muxPlaybackId && (

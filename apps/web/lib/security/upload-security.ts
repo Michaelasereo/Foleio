@@ -141,13 +141,6 @@ export class SecureUploadHandler {
       // Get user with their plan/tier
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: {
-          id: true,
-          plan: true,
-          // TODO: Add storage tracking fields to user model
-          // totalStorageUsed: true,
-          // monthlyUploadCount: true,
-        }
       });
 
       if (!user) {
@@ -155,7 +148,7 @@ export class SecureUploadHandler {
       }
 
       // Get plan limits (default to FREE if no plan)
-      const plan = user.plan || 'FREE';
+      const plan = ((user as any)?.plan as keyof typeof this.MAX_FILE_SIZES.video | undefined) || 'FREE';
       const maxSize = this.MAX_FILE_SIZES[contentType][plan as keyof typeof this.MAX_FILE_SIZES.video];
 
       if (fileSize > maxSize) {

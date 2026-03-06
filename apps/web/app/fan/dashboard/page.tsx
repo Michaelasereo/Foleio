@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getFanSessionFromCookieValue } from '@/lib/fan-auth/session';
 import { getFanDashboardData } from '@/lib/fan-auth/data';
 import { StatusBadge } from '@/components/fan/StatusBadge';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 export default async function FanDashboardPage() {
   const cookieStore = await cookies();
@@ -19,12 +20,14 @@ export default async function FanDashboardPage() {
     ...data.purchases.tutorials.map((item) => ({
       id: item.id,
       title: item.content.title,
+      thumbnailUrl: item.content.thumbnailUrl,
       creatorName: item.content.creator.displayName,
       href: `/creator/${item.content.creator.username}/content/${item.contentId}`,
     })),
     ...data.purchases.collections.map((item) => ({
       id: item.id,
       title: item.collection.title,
+      thumbnailUrl: item.collection.thumbnailUrl,
       creatorName: item.collection.creator.displayName,
       href: `/creator/${item.collection.creator.username}/collections/${item.collectionId}`,
     })),
@@ -116,13 +119,22 @@ export default async function FanDashboardPage() {
           </p>
         ) : (
           purchases.slice(0, 6).map((item) => (
-            <div key={item.id} className="rounded-xl border bg-card p-4">
+            <div key={item.id} className="rounded-xl border bg-card p-4 flex items-start gap-3">
+              <div className="w-24 overflow-hidden rounded-md">
+                {item.thumbnailUrl ? (
+                  <img src={item.thumbnailUrl} alt={item.title} className="aspect-video w-full object-cover" />
+                ) : (
+                  <DefaultThumbnail title={item.title} size="sm" />
+                )}
+              </div>
+              <div className="flex-1">
               <p className="font-medium">{item.title}</p>
               <p className="text-sm text-muted-foreground">{item.creatorName}</p>
               <div className="mt-2">
                 <Link href={item.href} className="text-sm font-medium text-accent hover:underline">
                   Access
                 </Link>
+              </div>
               </div>
             </div>
           ))

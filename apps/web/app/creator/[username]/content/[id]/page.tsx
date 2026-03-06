@@ -2,20 +2,9 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { ContentViewPage } from '@/components/content/ContentViewPage';
+import type { Metadata } from 'next';
 
-export default async function ContentPage({
-  params,
-}: {
-  params: Promise<{ username: string; id: string }>;
-}) {
-  const { username, id } = await params;
-
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  // Find the creator
+async function getPublicContent(username: string, id: string) {
   const creator = await prisma.creator.findUnique({
     where: { username, isPublic: true },
     select: {
@@ -29,16 +18,14 @@ export default async function ContentPage({
   });
 
   if (!creator) {
-    notFound();
+    return { creator: null, content: null };
   }
 
-  // Find the content
-  console.log('Fetching content:', { id, creatorId: creator.id, username });
   const content = await prisma.content.findUnique({
     where: {
       id,
       creatorId: creator.id,
-      isPublished: true, // Only show published content
+      isPublished: true,
     },
     include: {
       creator: {
@@ -60,6 +47,55 @@ export default async function ContentPage({
       },
     },
   });
+
+  return { creator, content };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string; id: string }>;
+}): Promise<Metadata> {
+  const { username, id } = await params;
+  const { content } = await getPublicContent(username, id);
+
+  if (!content) {
+    return {
+      title: 'Content | Foleio',
+    };
+  }
+
+  const fallbackOgImage = '/og-default.png';
+
+  return {
+    title: content.title,
+    openGraph: {
+      title: content.title,
+      images: content.thumbnailUrl ? [content.thumbnailUrl] : [fallbackOgImage],
+    },
+  };
+}
+
+export default async function ContentPage({
+  params,
+}: {
+  params: Promise<{ username: string; id: string }>;
+}) {
+  const { username, id } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Find creator and content
+  const { creator, content } = await getPublicContent(username, id);
+
+  if (!creator) {
+    notFound();
+  }
+
+  console.log('Fetching content:', { id, creatorId: creator.id, username });
 
   console.log('Content data from database:', {
     id: content?.id,
@@ -137,6 +173,25 @@ async function checkContentAccess(content: any, session: any): Promise<boolean> 
     return true;
   }
 
+  // Collection content inherits collection subscription access
+  if (content.collectionId) {
+    const userEmail = (session.user.email || '').toLowerCase();
+    if (!userEmail) {
+      return false;
+    }
+
+    const collectionSubscription = await prisma.collectionSubscription.findUnique({
+      where: {
+        collectionId_email: {
+          collectionId: content.collectionId,
+          email: userEmail,
+        },
+      },
+    });
+
+    return Boolean(collectionSubscription && collectionSubscription.status === 'active');
+  }
+
   // Check subscription access
   if (content.accessType === 'subscription') {
     const subscription = await prisma.fanSubscription.findFirst({
@@ -152,7 +207,7 @@ async function checkContentAccess(content: any, session: any): Promise<boolean> 
     }
   }
 
-  // Check one-time purchase access
+  // Check one-time purchase access for standalone tutorials
   if (content.accessType === 'one_time') {
     const purchase = await prisma.tutorialPurchase.findFirst({
       where: {
@@ -192,13 +247,19 @@ function PremiumContentGate({ content, creator }: { content: any; creator: any }
             </p>
 
             <div className="space-y-3">
-              {content.accessType === 'subscription' && (
+              {content.collectionId && content.collection ? (
+                <button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors">
+                  Subscribe to {content.collection.title} to Access
+                </button>
+              ) : null}
+
+              {!content.collectionId && content.accessType === 'subscription' && (
                 <button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors">
                   Subscribe to {creator.displayName}
                 </button>
               )}
 
-              {content.accessType === 'one_time' && (
+              {!content.collectionId && content.accessType === 'one_time' && (
                 <button className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
                   Purchase Content
                 </button>

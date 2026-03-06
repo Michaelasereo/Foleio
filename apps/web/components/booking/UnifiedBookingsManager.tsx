@@ -109,7 +109,7 @@ export function UnifiedBookingsManager({
 
     setLoading(selectedBooking.id);
     try {
-      await processRefund(selectedBooking.id, refundReason);
+      await processRefund(selectedBooking.id);
       setRefundDialogOpen(false);
       setRefundReason('');
       setSelectedBooking(null);

@@ -46,6 +46,8 @@ import { SubscriptionModal } from '@/components/creator/SubscriptionModal';
 import { PremiumAccessModal } from '@/components/creator/PremiumAccessModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
 
 interface Content {
   id: string;
@@ -59,6 +61,12 @@ interface Content {
   contentCategory: string;
   muxAssetId: string | null;
   muxPlaybackId: string | null;
+  tutorialPrice?: number | null;
+  collectionId?: string | null;
+  collection?: {
+    id: string;
+    title: string;
+  } | null;
 }
 
 interface CreatorLink {
@@ -200,6 +208,11 @@ export function PublicCreatorProfile({
   };
 
   const handleContentClick = (content: Content) => {
+    if (content.collectionId) {
+      router.push(`/creator/${creator.username}/tutorials?tab=paid`);
+      return;
+    }
+
     if (content.accessType === 'free') {
       // Free content - play directly
       if (content.type === 'video' && content.muxPlaybackId) {
@@ -778,20 +791,31 @@ function ContentCard({ content, onClick, isVerified, isPlaying }: ContentCardPro
   const isPremium = content.accessType !== 'free';
   const showLock = isPremium && !isVerified;
   const showPlayIcon = content.type === 'video';
+  const isCollectionContent = Boolean(content.collectionId && content.collection);
+  const thumbnailUrl = getThumbnailUrl({
+    id: content.id,
+    title: content.title,
+    thumbnailUrl: content.thumbnailUrl,
+  });
+
+  const formatPrice = (priceInKobo: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+    }).format(priceInKobo / 100);
+  };
 
   return (
     <div className="group cursor-pointer" onClick={onClick}>
       <div className="relative aspect-video overflow-hidden rounded-[var(--radius)] bg-muted shadow-sm">
-        {content.thumbnailUrl ? (
+        {thumbnailUrl ? (
           <img
-            src={content.thumbnailUrl}
+            src={thumbnailUrl}
             alt={content.title}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            {getTypeIcon(content.type)}
-          </div>
+          <DefaultThumbnail title={content.title} />
         )}
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
           {showLock ? (
@@ -803,9 +827,20 @@ function ContentCard({ content, onClick, isVerified, isPlaying }: ContentCardPro
           )}
         </div>
         <div className="absolute top-2 right-2">
-          <Badge variant={content.accessType === 'free' ? 'secondary' : 'default'}>
-            {content.accessType === 'free' ? 'Free' : 'Premium'}
-          </Badge>
+          {isCollectionContent ? (
+            <Badge variant="outline" className="bg-background/80">
+              <BookOpen className="h-3 w-3 mr-1" />
+              {content.collection?.title}
+            </Badge>
+          ) : (
+            <Badge variant={content.accessType === 'free' ? 'secondary' : 'default'}>
+              {content.accessType === 'free'
+                ? 'Free'
+                : content.tutorialPrice && content.tutorialPrice > 0
+                  ? formatPrice(content.tutorialPrice)
+                  : 'Premium'}
+            </Badge>
+          )}
         </div>
         {showLock && (
           <div className="absolute bottom-2 left-2">
@@ -815,6 +850,12 @@ function ContentCard({ content, onClick, isVerified, isPlaying }: ContentCardPro
       </div>
       <div className="mt-2">
         <h4 className="font-medium line-clamp-1">{content.title}</h4>
+        {isCollectionContent ? (
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+            <Lock className="h-3 w-3" />
+            Subscribe to {content.collection?.title} to access
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           {getTypeIcon(content.type)}
           {content.viewCount} views

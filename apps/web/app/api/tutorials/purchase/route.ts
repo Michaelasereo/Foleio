@@ -51,6 +51,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (tutorial.collectionId) {
+      return NextResponse.json(
+        { error: 'This tutorial is included in a collection subscription and cannot be purchased individually.' },
+        { status: 400 }
+      );
+    }
+
     // Check if tutorial has a price
     const price = tutorial.tutorialPrice;
     if (!price || price <= 0) {
@@ -113,7 +120,7 @@ export async function POST(request: NextRequest) {
         creatorName: tutorial.creator.displayName,
         contentTitle: tutorial.title,
         amount: price / 100,
-        accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${tutorial.creator.username}/content/${contentId}`,
+        accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/creator/${tutorial.creator.username}/content/${contentId}`,
       });
 
       // Send access code immediately

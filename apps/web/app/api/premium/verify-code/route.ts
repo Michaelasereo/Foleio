@@ -61,6 +61,21 @@ export async function POST(request: NextRequest) {
 
     // Handle content verification
     if (validatedData.contentId) {
+      const content = await prisma.content.findUnique({
+        where: { id: validatedData.contentId },
+        select: { collectionId: true },
+      });
+
+      if (content?.collectionId) {
+        return NextResponse.json(
+          {
+            error: 'Collection videos are unlocked via collection access only.',
+            collectionId: content.collectionId,
+          },
+          { status: 400 }
+        );
+      }
+
       // Increment view count for the content
       await prisma.content.update({
         where: { id: validatedData.contentId },

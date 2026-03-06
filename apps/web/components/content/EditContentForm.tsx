@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, Save, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 interface Content {
   id: string;
@@ -23,6 +24,8 @@ interface Content {
   contentCategory: string;
   tutorialPrice: number | null;
   collectionId: string | null;
+  isStandalone: boolean;
+  thumbnailUrl: string | null;
   isPublished: boolean;
   tags: string[];
 }
@@ -60,9 +63,34 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
     tags: content.tags.join(', ')
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(content.thumbnailUrl || null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const hasCollectionSelected =
+    formData.contentCategory === 'tutorial' && Boolean(formData.collectionId);
+  const wasCollectionLinked = Boolean(content.collectionId);
+  const wasRemovedFromCollection =
+    formData.contentCategory === 'tutorial' && wasCollectionLinked && !hasCollectionSelected;
 
   const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+
+      if (field === 'collectionId' && prev.contentCategory === 'tutorial') {
+        const hasCollection = Boolean(value);
+        if (hasCollection) {
+          next.accessType = 'subscription';
+          next.tutorialPrice = '0';
+        } else if (prev.tutorialPrice === '0') {
+          next.tutorialPrice = '';
+        }
+      }
+
+      if (field === 'contentCategory' && value !== 'tutorial') {
+        next.collectionId = '';
+      }
+
+      return next;
+    });
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -75,15 +103,57 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
       newErrors.title = 'Title is required';
     }
 
-    if (formData.contentCategory === 'tutorial' && formData.tutorialPrice) {
-      const price = parseInt(formData.tutorialPrice);
-      if (isNaN(price) || price < 1000) {
-        newErrors.tutorialPrice = 'Tutorial price must be at least ₦1,000';
+    if (formData.contentCategory === 'tutorial') {
+      const hasCollection = Boolean(formData.collectionId);
+      if (!hasCollection && formData.accessType !== 'free') {
+        const price = parseInt(formData.tutorialPrice || '', 10);
+        if (isNaN(price) || price <= 0) {
+          newErrors.tutorialPrice = 'This content is now standalone — please set a price.';
+        }
       }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const clearThumbnail = () => {
+    setThumbnailPreview(null);
+  };
+
+  const handleThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, submit: 'Thumbnail must be less than 10MB' }));
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'thumbnail');
+
+      const response = await fetch('/api/upload/profile', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Thumbnail upload failed');
+      }
+
+      const data = await response.json();
+      setThumbnailPreview(data?.data?.url || null);
+      setErrors((prev) => ({ ...prev, submit: '' }));
+    } catch (error: any) {
+      setErrors((prev) => ({
+        ...prev,
+        submit: error?.message || 'Failed to upload thumbnail',
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,13 +169,20 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
       const updateData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        accessType: formData.accessType,
+        accessType: hasCollectionSelected ? 'subscription' : formData.accessType,
         requiredPlanId: formData.requiredPlanId || null,
         contentCategory: formData.contentCategory,
-        tutorialPrice: formData.contentCategory === 'tutorial' && formData.tutorialPrice
-          ? parseInt(formData.tutorialPrice)
-          : null,
-        collectionId: formData.collectionId || null,
+        tutorialPrice:
+          formData.contentCategory === 'tutorial'
+            ? hasCollectionSelected
+              ? 0
+              : formData.accessType === 'free'
+                ? 0
+                : parseInt(formData.tutorialPrice || '0', 10)
+            : null,
+        collectionId: hasCollectionSelected ? formData.collectionId : null,
+        isStandalone: !hasCollectionSelected,
+        thumbnailUrl: thumbnailPreview,
         isPublished: formData.isPublished,
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
       };
@@ -221,44 +298,64 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
             <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
               <h4 className="font-medium text-blue-900">Tutorial Settings</h4>
 
-              {/* Tutorial Price */}
-              <div>
-                <Label htmlFor="tutorialPrice">Individual Purchase Price</Label>
-                <div className="flex">
-                  <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
-                    ₦
-                  </span>
-                  <Input
-                    id="tutorialPrice"
-                    type="number"
-                    value={formData.tutorialPrice}
-                    onChange={(e) => handleInputChange('tutorialPrice', e.target.value)}
-                    placeholder="5000"
-                    className={`rounded-l-none ${errors.tutorialPrice ? 'border-red-500' : ''}`}
-                    min="1000"
-                  />
+              {hasCollectionSelected && (
+                <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                  <Info className="h-4 w-4 flex-shrink-0 text-orange-600" />
+                  <p className="text-sm text-orange-800">
+                    This content is part of a collection - access is included automatically for collection subscribers. No individual price needed.
+                  </p>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  Allow fans to purchase this tutorial individually (optional)
-                </p>
-                {errors.tutorialPrice && (
-                  <p className="text-sm text-red-500 mt-1">{errors.tutorialPrice}</p>
-                )}
-              </div>
+              )}
+
+              {wasRemovedFromCollection && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    This content is now standalone - please set a price.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Tutorial Price */}
+              {!hasCollectionSelected && (
+                <div>
+                  <Label htmlFor="tutorialPrice">Individual Purchase Price</Label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
+                      ₦
+                    </span>
+                    <Input
+                      id="tutorialPrice"
+                      type="number"
+                      value={formData.tutorialPrice}
+                      onChange={(e) => handleInputChange('tutorialPrice', e.target.value)}
+                      placeholder="5000"
+                      className={`rounded-l-none ${errors.tutorialPrice ? 'border-red-500' : ''}`}
+                      min="1"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Set a price for individual purchase of this tutorial
+                  </p>
+                  {errors.tutorialPrice && (
+                    <p className="text-sm text-red-500 mt-1">{errors.tutorialPrice}</p>
+                  )}
+                </div>
+              )}
 
               {/* Collection */}
               {collections.length > 0 && (
                 <div>
                   <Label htmlFor="collectionId">Add to Collection (Optional)</Label>
                   <Select
-                    value={formData.collectionId}
-                    onValueChange={(value) => handleInputChange('collectionId', value)}
+                    value={formData.collectionId || 'none'}
+                    onValueChange={(value) => handleInputChange('collectionId', value === 'none' ? '' : value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a collection" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No collection</SelectItem>
+                      <SelectItem value="none">No collection</SelectItem>
                       {collections.map((collection) => (
                         <SelectItem key={collection.id} value={collection.id}>
                           {collection.title}
@@ -277,6 +374,7 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
             <Select
               value={formData.accessType}
               onValueChange={(value) => handleInputChange('accessType', value)}
+              disabled={hasCollectionSelected}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select access type" />
@@ -326,6 +424,62 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
               Separate tags with commas
             </p>
           </div>
+
+          {(content.type === 'video' || content.type === 'image') && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Thumbnail
+                <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <div className="w-full max-w-xs">
+                {thumbnailPreview ? (
+                  <div className="relative">
+                    <img
+                      src={thumbnailPreview}
+                      alt="Thumbnail preview"
+                      className="aspect-video w-full rounded-lg object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={clearThumbnail}
+                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <DefaultThumbnail title={formData.title || 'Your video title'} />
+                    <div
+                      className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/40 opacity-0 transition-opacity hover:opacity-100"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                    >
+                      <p className="text-sm font-medium text-white">Upload custom thumbnail</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={thumbnailInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleThumbnailUpload}
+              />
+              {!thumbnailPreview && (
+                <button
+                  type="button"
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  className="text-sm text-primary underline underline-offset-2 hover:opacity-80"
+                >
+                  Upload custom thumbnail
+                </button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Auto-generated from your video title if not uploaded. Recommended: 1280x720px, JPG or PNG.
+              </p>
+            </div>
+          )}
 
           {/* Publish Toggle */}
           <div className="flex items-center justify-between">

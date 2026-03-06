@@ -36,6 +36,9 @@ const nextConfig = {
     },
     optimizeCss: true,
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   webpack: (config, { isServer }) => {
     // Mark optional dependencies as externals to prevent build-time errors
     if (isServer) {

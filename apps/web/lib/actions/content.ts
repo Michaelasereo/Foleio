@@ -24,6 +24,64 @@ const createContentSchema = z.object({
   processingJobId: z.string().optional(), // Link to background processing job
 });
 
+function normalizeContentPricing(data: {
+  contentCategory: 'content' | 'tutorial';
+  collectionId?: string | null;
+  accessType: 'free' | 'subscription' | 'one_time';
+  tutorialPrice?: number | null;
+}) {
+  const isInCollection = Boolean(data.collectionId);
+  const isStandalone = !isInCollection;
+
+  if (data.contentCategory !== 'tutorial') {
+    return {
+      accessType: data.accessType,
+      tutorialPrice: data.tutorialPrice ?? null,
+      collectionId: data.collectionId ?? null,
+      isStandalone,
+      error: null as string | null,
+    };
+  }
+
+  if (isInCollection) {
+    return {
+      accessType: 'subscription' as const,
+      tutorialPrice: 0,
+      collectionId: data.collectionId ?? null,
+      isStandalone: false,
+      error: null as string | null,
+    };
+  }
+
+  if (data.accessType === 'free') {
+    return {
+      accessType: 'free' as const,
+      tutorialPrice: 0,
+      collectionId: null,
+      isStandalone: true,
+      error: null as string | null,
+    };
+  }
+
+  if (!data.tutorialPrice || data.tutorialPrice <= 0) {
+    return {
+      accessType: data.accessType,
+      tutorialPrice: null,
+      collectionId: null,
+      isStandalone: true,
+      error: 'Standalone tutorial must have a price or be marked as free',
+    };
+  }
+
+  return {
+    accessType: data.accessType,
+    tutorialPrice: data.tutorialPrice,
+    collectionId: null,
+    isStandalone: true,
+    error: null as string | null,
+  };
+}
+
 export async function createContent(
   data: z.infer<typeof createContentSchema>
 ) {
@@ -51,13 +109,33 @@ export async function createContent(
       };
     }
 
+    const lastContent = await prisma.content.findFirst({
+      where: { creatorId: creator.id },
+      orderBy: { sortOrder: 'desc' },
+      select: { sortOrder: true },
+    });
+
+    const normalizedPricing = normalizeContentPricing({
+      contentCategory: data.contentCategory || 'content',
+      collectionId: data.collectionId || null,
+      accessType: data.accessType,
+      tutorialPrice: data.tutorialPrice ?? null,
+    });
+
+    if (normalizedPricing.error) {
+      return {
+        success: false,
+        error: normalizedPricing.error,
+      };
+    }
+
     const content = await prisma.content.create({
       data: {
         creatorId: creator.id,
         title: data.title,
         description: data.description,
         type: data.type,
-        accessType: data.accessType,
+        accessType: normalizedPricing.accessType,
         requiredPlanId: data.requiredPlanId,
         tags: data.tags,
         isPublished: data.isPublished,
@@ -66,8 +144,10 @@ export async function createContent(
         muxPlaybackId: data.muxPlaybackId,
         thumbnailUrl: data.thumbnailUrl,
         contentCategory: data.contentCategory || 'content',
-        collectionId: data.collectionId || null,
-        tutorialPrice: data.tutorialPrice || null,
+        collectionId: normalizedPricing.collectionId,
+        tutorialPrice: normalizedPricing.tutorialPrice,
+        isStandalone: normalizedPricing.isStandalone,
+        sortOrder: (lastContent?.sortOrder ?? -1) + 1,
       },
     });
 
@@ -139,13 +219,31 @@ export async function updateContent(
       return { success: false, error: 'Content not found' };
     }
 
+    const mergedContentCategory = data.contentCategory || existing.contentCategory;
+    const mergedCollectionId =
+      data.collectionId !== undefined ? data.collectionId || null : existing.collectionId;
+    const mergedAccessType = data.accessType || existing.accessType;
+    const mergedTutorialPrice =
+      data.tutorialPrice !== undefined ? data.tutorialPrice ?? null : existing.tutorialPrice;
+
+    const normalizedPricing = normalizeContentPricing({
+      contentCategory: mergedContentCategory as 'content' | 'tutorial',
+      collectionId: mergedCollectionId,
+      accessType: mergedAccessType as 'free' | 'subscription' | 'one_time',
+      tutorialPrice: mergedTutorialPrice,
+    });
+
+    if (normalizedPricing.error) {
+      return { success: false, error: normalizedPricing.error };
+    }
+
     const content = await prisma.content.update({
       where: { id: contentId },
       data: {
         ...(data.title && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
         ...(data.type && { type: data.type }),
-        ...(data.accessType && { accessType: data.accessType }),
+        accessType: normalizedPricing.accessType,
         ...(data.requiredPlanId !== undefined && { requiredPlanId: data.requiredPlanId }),
         ...(data.tags && { tags: data.tags }),
         ...(data.isPublished !== undefined && { 
@@ -153,9 +251,10 @@ export async function updateContent(
           publishedAt: data.isPublished && !existing.publishedAt ? new Date() : existing.publishedAt,
         }),
         ...(data.thumbnailUrl !== undefined && { thumbnailUrl: data.thumbnailUrl }),
-        ...(data.contentCategory && { contentCategory: data.contentCategory }),
-        ...(data.collectionId !== undefined && { collectionId: data.collectionId || null }),
-        ...(data.tutorialPrice !== undefined && { tutorialPrice: data.tutorialPrice || null }),
+        contentCategory: mergedContentCategory,
+        collectionId: normalizedPricing.collectionId,
+        tutorialPrice: normalizedPricing.tutorialPrice,
+        isStandalone: normalizedPricing.isStandalone,
       },
     });
 

@@ -54,8 +54,17 @@ export default async function CreatorPublicPage({
           contentCategory: true,
           muxAssetId: true,
           muxPlaybackId: true,
+          tutorialPrice: true,
+          collectionId: true,
+          isStandalone: true,
+          collection: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         take: 24,
       },
     },

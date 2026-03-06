@@ -15,7 +15,8 @@ import {
   Clock,
   User,
   BookOpen,
-  Star
+  Star,
+  Lock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatDate } from '@foleio/utils';
@@ -30,6 +31,8 @@ interface Content {
   createdAt: Date;
   accessType: string;
   contentCategory: string;
+  tutorialPrice?: number | null;
+  collectionId?: string | null;
   muxAssetId: string | null;
   muxPlaybackId: string | null;
   collection?: {
@@ -268,6 +271,24 @@ export function ContentViewPage({ content, creator, hasAccess, isCreatorView = f
                 <Badge variant={content.accessType === 'free' ? 'secondary' : 'default'}>
                   {content.accessType === 'free' ? 'Free' : 'Premium'}
                 </Badge>
+                {content.collectionId && content.collection ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(`/creator/${creator.username}/collections/${content.collection!.id}`)
+                    }
+                    className="flex items-center gap-1 text-primary underline underline-offset-2"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    Subscribe to {content.collection.title} to access
+                  </button>
+                ) : content.contentCategory === 'tutorial' ? (
+                  <span className="font-semibold text-foreground">
+                    {content.accessType === 'free'
+                      ? 'Free'
+                      : formatPrice(content.tutorialPrice || 0)}
+                  </span>
+                ) : null}
               </div>
             </div>
 

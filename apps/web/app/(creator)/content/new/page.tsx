@@ -34,10 +34,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { Upload, X, BookOpen } from 'lucide-react';
+import { Upload, X, BookOpen, Info } from 'lucide-react';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, getPlanLimits, type PlatformPlan } from '@/lib/utils/plan-limits';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { useRef } from 'react';
 
 const contentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -77,7 +79,7 @@ export default function NewContentPage() {
   } | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
-  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [currentPlan, setCurrentPlan] = useState<PlatformPlan>('STARTER');
   const [isHardBlocked, setIsHardBlocked] = useState(false);
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
@@ -100,6 +102,8 @@ export default function NewContentPage() {
   const contentCategory = form.watch('contentCategory');
   const accessType = form.watch('accessType');
   const collectionId = form.watch('collectionId');
+  const contentTitle = form.watch('title');
+  const hasCollectionSelected = contentCategory === 'tutorial' && Boolean(collectionId);
 
   // Fetch collections when component mounts
   useEffect(() => {
@@ -126,6 +130,22 @@ export default function NewContentPage() {
     }
     fetchCollections();
   }, []);
+
+  useEffect(() => {
+    if (contentCategory !== 'tutorial') {
+      return;
+    }
+
+    if (collectionId) {
+      form.setValue('accessType', 'subscription');
+      form.setValue('tutorialPrice', '0');
+      return;
+    }
+
+    if (form.getValues('tutorialPrice') === '0') {
+      form.setValue('tutorialPrice', '');
+    }
+  }, [collectionId, contentCategory, form]);
 
   async function handleFileUpload(file: File) {
     console.log('🚀 VIDEO UPLOAD DEBUG - START');
@@ -368,37 +388,9 @@ export default function NewContentPage() {
     });
   }
 
-  async function handleThumbnailUpload(file: File) {
-    setIsUploadingThumbnail(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', 'thumbnail');
-
-      const response = await fetch('/api/upload/profile', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Thumbnail upload failed');
-      }
-
-      const data = await response.json();
-      setThumbnailPreview(data.data.url);
-      toast({
-        title: 'Success',
-        description: 'Thumbnail uploaded successfully',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to upload thumbnail',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUploadingThumbnail(false);
-    }
+  function clearThumbnail() {
+    setThumbnailPreview(null);
+    setThumbnailFile(null);
   }
 
   async function onSubmit(data: ContentFormValues) {
@@ -406,6 +398,21 @@ export default function NewContentPage() {
       toast({
         title: 'File required',
         description: 'Please upload a file before creating content',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const isTutorial = data.contentCategory === 'tutorial';
+    const isInCollection = isTutorial && Boolean(data.collectionId);
+    const parsedTutorialPrice = data.tutorialPrice
+      ? Math.round(parseFloat(data.tutorialPrice) * 100)
+      : 0;
+
+    if (isTutorial && !isInCollection && data.accessType !== 'free' && parsedTutorialPrice <= 0) {
+      toast({
+        title: 'Price required',
+        description: 'This content is now standalone — please set a price.',
         variant: 'destructive',
       });
       return;
@@ -434,10 +441,17 @@ export default function NewContentPage() {
         thumbnailUrl = uploadedFile.thumbnail;
       }
 
-      // Parse tutorial price (convert from Naira to kobo)
-      const tutorialPriceKobo = data.tutorialPrice 
-        ? Math.round(parseFloat(data.tutorialPrice) * 100) 
-        : undefined;
+      const normalizedAccessType =
+        isTutorial && isInCollection
+          ? 'subscription'
+          : data.accessType;
+
+      const tutorialPriceKobo =
+        isTutorial && isInCollection
+          ? 0
+          : isTutorial
+            ? parsedTutorialPrice
+            : undefined;
 
       const response = await fetch('/api/content', {
         method: 'POST',
@@ -451,8 +465,10 @@ export default function NewContentPage() {
           muxPlaybackId: uploadedFile?.muxPlaybackId,
           thumbnailUrl: thumbnailUrl,
           contentCategory: data.contentCategory,
+          accessType: normalizedAccessType,
           collectionId: data.collectionId || undefined,
           tutorialPrice: tutorialPriceKobo,
+          isStandalone: !isInCollection,
         }),
       });
 
@@ -501,7 +517,10 @@ export default function NewContentPage() {
   }
 
   const showCollectionField = contentCategory === 'tutorial';
-  const showPriceField = contentCategory === 'tutorial' && accessType !== 'free' && !collectionId;
+  const showPriceField =
+    contentCategory === 'tutorial' &&
+    !hasCollectionSelected &&
+    accessType !== 'free';
 
   return (
     <div className="container mx-auto max-w-2xl py-8">
@@ -679,6 +698,15 @@ export default function NewContentPage() {
                 />
               )}
 
+              {hasCollectionSelected && (
+                <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                  <Info className="h-4 w-4 flex-shrink-0 text-orange-600" />
+                  <p className="text-sm text-orange-800">
+                    This content is part of a collection - access is included automatically for collection subscribers. No individual price needed.
+                  </p>
+                </div>
+              )}
+
               {/* Individual Tutorial Price */}
               {showPriceField && (
                 <FormField
@@ -826,72 +854,75 @@ export default function NewContentPage() {
               {/* Thumbnail Upload (for videos and images) */}
               {(contentType === 'video' || contentType === 'image') && (
                 <div className="space-y-2">
-                  <Label>Thumbnail Image (Optional)</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Upload a custom thumbnail. For videos, a default thumbnail will be generated from the video if not provided.
-                  </p>
-                  <div className="space-y-4">
+                  <Label className="text-sm font-medium">
+                    Thumbnail
+                    <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <div className="w-full max-w-xs">
                     {thumbnailPreview ? (
                       <div className="relative">
                         <img
                           src={thumbnailPreview}
                           alt="Thumbnail preview"
-                          className="w-full max-w-md h-48 object-cover rounded-lg border"
+                          className="aspect-video w-full rounded-lg object-cover"
                         />
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2"
-                          onClick={() => {
-                            setThumbnailPreview(null);
-                            setThumbnailFile(null);
-                          }}
+                          onClick={clearThumbnail}
+                          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
                         >
-                          <X className="h-4 w-4" />
-                        </Button>
+                          ✕
+                        </button>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              if (file.size > 10 * 1024 * 1024) {
-                                toast({
-                                  title: 'File too large',
-                                  description: 'Thumbnail must be less than 10MB',
-                                  variant: 'destructive',
-                                });
-                                return;
-                              }
-                              setThumbnailFile(file);
-                              const reader = new FileReader();
-                              reader.onload = (e) => {
-                                setThumbnailPreview(e.target?.result as string);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="hidden"
-                          id="thumbnail-upload"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => document.getElementById('thumbnail-upload')?.click()}
-                          disabled={isUploadingThumbnail}
+                      <div className="relative">
+                        <DefaultThumbnail title={contentTitle || 'Your video title'} />
+                        <div
+                          className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/40 opacity-0 transition-opacity hover:opacity-100"
+                          onClick={() => thumbnailInputRef.current?.click()}
                         >
-                          {isUploadingThumbnail ? 'Uploading...' : 'Upload Thumbnail'}
-                        </Button>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          JPG, PNG, GIF (max 10MB)
-                        </p>
+                          <p className="text-sm font-medium text-white">Upload custom thumbnail</p>
+                        </div>
                       </div>
                     )}
                   </div>
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 10 * 1024 * 1024) {
+                          toast({
+                            title: 'File too large',
+                            description: 'Thumbnail must be less than 10MB',
+                            variant: 'destructive',
+                          });
+                          return;
+                        }
+                        setThumbnailFile(file);
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          setThumbnailPreview(evt.target?.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  {!thumbnailPreview && (
+                    <button
+                      type="button"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                      className="text-sm text-primary underline underline-offset-2 hover:opacity-80"
+                    >
+                      Upload custom thumbnail
+                    </button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Auto-generated from your video title if not uploaded. Recommended: 1280x720px, JPG or PNG.
+                  </p>
                 </div>
               )}
 

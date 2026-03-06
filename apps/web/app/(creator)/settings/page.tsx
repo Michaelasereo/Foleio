@@ -52,7 +52,12 @@ export default async function SettingsPage() {
     );
   }
 
-  const publicUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${creator.username}`;
+  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const appUrl =
+    envAppUrl && !/localhost|127\.0\.0\.1/i.test(envAppUrl)
+      ? envAppUrl.replace(/\/+$/, '')
+      : 'https://foleio.com';
+  const publicUrl = `${appUrl}/creator/${creator.username}`;
 
   return (
     <div className="space-y-6">

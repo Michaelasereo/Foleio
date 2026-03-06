@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       .map(cookie => `${cookie.name}=${cookie.value}`)
       .join('; ');
 
-    const creatorRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/creator/me`, {
+    const creatorRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/api/creator/me`, {
       headers: {
         Cookie: cookieString,
         'Content-Type': 'application/json'

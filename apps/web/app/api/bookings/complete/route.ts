@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         serviceName: booking.priceListItem.name,
         bookingDate: new Date(booking.bookingDate).toLocaleDateString(),
         status: 'completed',
-        trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking/${booking.trackingToken}`,
+        trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/tracking/${booking.trackingToken}`,
       });
 
       const completedCount = await prisma.booking.count({

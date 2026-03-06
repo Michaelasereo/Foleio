@@ -91,12 +91,16 @@ async function handlePaymentSuccess(data: any) {
 
     // Create subscription if this was a subscription payment
     if (transaction.type === 'subscription' && transaction.creatorId) {
+      if (!transaction.userId) {
+        throw new Error(`Subscription transaction missing userId: ${transaction.id}`);
+      }
       const metadata = transaction.metadata as any;
+      const fanId = transaction.userId;
 
       // Check for existing active subscription
       const existingSubscription = await tx.fanSubscription.findFirst({
         where: {
-          fanId: transaction.userId,
+          fanId,
           creatorId: transaction.creatorId,
           status: 'active',
         },
@@ -110,7 +114,7 @@ async function handlePaymentSuccess(data: any) {
       // Create new subscription
       await tx.fanSubscription.create({
         data: {
-          fanId: transaction.userId,
+          fanId,
           creatorId: transaction.creatorId,
           planId: metadata?.plan_id,
           paystackAuthorizationCode: data.authorization?.authorization_code,
@@ -134,7 +138,7 @@ async function handlePaymentSuccess(data: any) {
           creatorName,
           creatorUsername,
           planName,
-          amount: (transaction.amount || 0) / 100,
+          amount: Number(transaction.amount ?? 0) / 100,
           nextBillingDate,
         })
       );
@@ -195,7 +199,7 @@ async function handleTransferEvent(data: any, event: string) {
   // Use transaction for atomicity
   await prisma.$transaction(async (tx) => {
     // Find payout by transfer code
-    const payout = await tx.payout.findUnique({
+    const payout = await tx.payout.findFirst({
       where: { paystackTransferCode: transferCode },
     });
 
@@ -302,8 +306,8 @@ async function handleTutorialPurchase(tx: any, data: any, transaction: any, meta
       email: email.toLowerCase(),
       creatorName: content.creator.displayName,
       contentTitle: content.title,
-      amount: (transaction.amount || 0) / 100,
-      accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${content.creator.username}/content/${contentId}`,
+      amount: Number(transaction.amount ?? 0) / 100,
+      accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/creator/${content.creator.username}/content/${contentId}`,
     });
   }
 

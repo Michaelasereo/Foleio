@@ -12,7 +12,7 @@ import {
 // Note: This uses a placeholder email implementation
 // In production, integrate with Resend, SendGrid, or similar
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
 // Send booking confirmation email to customer
 export async function sendBookingConfirmationEmail(bookingId: string) {

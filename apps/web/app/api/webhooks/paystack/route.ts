@@ -10,7 +10,7 @@ import { paymentFailedTemplate, payoutConfirmationTemplate } from '@/lib/email/t
 import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
 import { formatNaira } from '@foleio/utils';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
 export async function POST(request: NextRequest) {
   try {

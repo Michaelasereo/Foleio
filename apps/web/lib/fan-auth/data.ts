@@ -55,6 +55,7 @@ export async function getFanDashboardData(email: string) {
           select: {
             id: true,
             title: true,
+            thumbnailUrl: true,
             creator: {
               select: {
                 username: true,
@@ -73,6 +74,7 @@ export async function getFanDashboardData(email: string) {
           select: {
             id: true,
             title: true,
+            thumbnailUrl: true,
             creator: {
               select: {
                 username: true,

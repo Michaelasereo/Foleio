@@ -6,7 +6,7 @@ import {
   nudge3_no_subscribers,
 } from './templates/nudges';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
 export async function sendOnboardingNudges() {
   const now = new Date();

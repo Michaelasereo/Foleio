@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Video, Eye, Calendar } from 'lucide-react';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 export default async function TutorialsPage() {
   const supabase = await createClient();
@@ -129,9 +130,7 @@ export default async function TutorialsPage() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Video className="h-10 w-10 text-muted-foreground" />
-                  </div>
+                  <DefaultThumbnail title={tutorial.title} />
                 )}
                 <div className="absolute top-2 right-2">
                   <Badge variant={tutorial.isPublished ? 'default' : 'secondary'}>

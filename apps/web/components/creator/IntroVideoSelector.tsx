@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Video, X } from 'lucide-react';
 import { setIntroVideo } from '@/lib/actions/creator';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 interface VideoOption {
   id: string;
@@ -116,8 +117,8 @@ export function IntroVideoSelector({
                     className="w-20 h-12 object-cover rounded"
                   />
                 ) : (
-                  <div className="w-20 h-12 bg-muted rounded flex items-center justify-center">
-                    <Video className="h-6 w-6 text-muted-foreground" />
+                  <div className="w-20 overflow-hidden rounded">
+                    <DefaultThumbnail title={currentVideo.title} size="sm" />
                   </div>
                 )}
                 <div className="flex-1">

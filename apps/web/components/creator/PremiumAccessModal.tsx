@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock, Mail, KeyRound, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 interface Content {
   id: string;
@@ -213,11 +214,12 @@ export function PremiumAccessModal({
             <div className="rounded-lg border bg-muted/50 p-4">
               <div className="flex items-start gap-3">
                 {content.thumbnailUrl && (
-                  <img
-                    src={content.thumbnailUrl}
-                    alt={content.title}
-                    className="w-16 h-12 object-cover rounded"
-                  />
+                  <img src={content.thumbnailUrl} alt={content.title} className="w-16 h-12 object-cover rounded" />
+                )}
+                {!content.thumbnailUrl && (
+                  <div className="w-16 overflow-hidden rounded">
+                    <DefaultThumbnail title={content.title} size="sm" />
+                  </div>
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm line-clamp-1">{content.title}</p>

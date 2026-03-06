@@ -4,6 +4,38 @@ import { withCreatorSessionValidation } from '@/lib/auth/session-middleware';
 import { prisma } from '@foleio/database';
 import { getPlanLimits } from '@/lib/utils/plan-limits';
 
+function normalizeContentPayload(data: Record<string, any>) {
+  const isTutorial = data.contentCategory === 'tutorial';
+  const isInCollection = Boolean(data.collectionId);
+
+  if (!isTutorial) {
+    return {
+      ...data,
+      isStandalone: !isInCollection,
+    };
+  }
+
+  if (isInCollection) {
+    return {
+      ...data,
+      accessType: 'subscription',
+      tutorialPrice: 0,
+      isStandalone: false,
+    };
+  }
+
+  const normalizedPrice = Number(data.tutorialPrice || 0);
+  if (data.accessType !== 'free' && normalizedPrice <= 0) {
+    return { error: 'Standalone tutorial must have a price or be marked as free' };
+  }
+
+  return {
+    ...data,
+    tutorialPrice: data.accessType === 'free' ? 0 : normalizedPrice,
+    isStandalone: true,
+  };
+}
+
 export async function POST(request: NextRequest) {
   return withCreatorSessionValidation(request, async (session, user) => {
     try {
@@ -29,8 +61,13 @@ export async function POST(request: NextRequest) {
       }
 
       const data = await request.json();
+      const normalizedData = normalizeContentPayload(data);
 
-      const result = await createContent(data);
+      if ('error' in normalizedData) {
+        return NextResponse.json({ error: normalizedData.error }, { status: 400 });
+      }
+
+      const result = await createContent(normalizedData);
 
       if (!result.success) {
         return NextResponse.json(

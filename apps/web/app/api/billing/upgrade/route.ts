@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         plan,
         ...(trialEligible ? { trial: true, trialDays: 3 } : {}),
       },
-      callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/billing?upgraded=true`,
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/billing?upgraded=true`,
     });
 
     await prisma.platformSubscription.upsert({

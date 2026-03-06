@@ -33,7 +33,7 @@ import {
 
 interface Availability {
   id: string;
-  date: string;
+  date: string | Date;
   isAvailable: boolean;
   maxBookings: number | null;
   notes?: string;
@@ -63,7 +63,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
   console.log('AvailabilityManager received availability data:', availability);
 
   // Convert serialized dates back to Date objects with validation
-  const initialProcessedAvailability = availability
+  const initialProcessedAvailability: Availability[] = availability
     .filter(item => item.date && typeof item.date === 'string')
     .map(item => {
       try {
@@ -82,9 +82,12 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
         return null;
       }
     })
-    .filter((item): item is Availability => item !== null);
+    .filter(Boolean) as Availability[];
 
   const [processedAvailability, setProcessedAvailability] = useState<Availability[]>(initialProcessedAvailability);
+  const normalizeDate = (value: string | Date): Date =>
+    value instanceof Date ? value : new Date(value);
+
 
   console.log('Initial processed availability:', initialProcessedAvailability);
 
@@ -99,7 +102,9 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
   useEffect(() => {
     if (selectionMode === 'single' && singleSelectedDate) {
       const dateStr = singleSelectedDate.toISOString().split('T')[0];
-      const existing = processedAvailability.find(a => a.date.toISOString().split('T')[0] === dateStr);
+      const existing = processedAvailability.find(
+        (a) => normalizeDate(a.date).toISOString().split('T')[0] === dateStr
+      );
       setCurrentAvailability(existing || null);
     } else if (selectionMode === 'multiple') {
       // For multiple selection, don't show individual date details
@@ -169,7 +174,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
             datesToUpdate.forEach(date => {
               const dateStr = date.toISOString().split('T')[0];
               const existingIndex = updated.findIndex(item =>
-                item.date.toISOString().split('T')[0] === dateStr
+                normalizeDate(item.date).toISOString().split('T')[0] === dateStr
               );
 
               if (existingIndex >= 0) {
@@ -215,7 +220,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
       const dateStr = date.toISOString().split('T')[0];
       const result = processedAvailability.find(a => {
         try {
-          const aDateStr = a.date.toISOString().split('T')[0];
+          const aDateStr = normalizeDate(a.date).toISOString().split('T')[0];
           const matches = aDateStr === dateStr;
           if (matches) {
             console.log('Found availability for date', dateStr, ':', a);
@@ -292,7 +297,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
                 <Calendar
                   mode="single"
                   selected={singleSelectedDate}
-                  onSelect={setSingleSelectedDate}
+                  onSelect={(date) => setSingleSelectedDate(date as Date | undefined)}
                   disabled={isDateInPast}
                   modifiers={{
                     available: (date) => {
@@ -307,7 +312,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
                     unavailable: (date) => {
                       try {
                         const avail = getAvailabilityForDate(date);
-                        return avail && !avail.isAvailable;
+                        return !!(avail && !avail.isAvailable);
                       } catch (error) {
                         console.warn('Error checking unavailability for date:', date, error);
                         return false;
@@ -353,7 +358,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
                 <Calendar
                   mode="multiple"
                   selected={selectedDates}
-                  onSelect={(dates) => setSelectedDates(dates || [])}
+                  onSelect={(dates) => setSelectedDates((dates as Date[] | undefined) || [])}
                   disabled={isDateInPast}
                     modifiers={{
                       available: (date) => {
@@ -368,7 +373,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
                       unavailable: (date) => {
                         try {
                           const avail = getAvailabilityForDate(date);
-                          return avail && !avail.isAvailable;
+                          return !!(avail && !avail.isAvailable);
                         } catch (error) {
                           console.warn('Error checking unavailability for date:', date, error);
                           return false;

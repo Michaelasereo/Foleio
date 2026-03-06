@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getFanSessionFromCookieValue } from '@/lib/fan-auth/session';
 import { getFanDashboardData } from '@/lib/fan-auth/data';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
 export default async function FanContentPage() {
   const cookieStore = await cookies();
@@ -14,6 +15,7 @@ export default async function FanContentPage() {
     ...data.purchases.tutorials.map((item) => ({
       id: item.id,
       title: item.content.title,
+      thumbnailUrl: item.content.thumbnailUrl,
       creatorName: item.content.creator.displayName,
       purchasedAt: item.createdAt,
       href: `/creator/${item.content.creator.username}/content/${item.contentId}`,
@@ -21,6 +23,7 @@ export default async function FanContentPage() {
     ...data.purchases.collections.map((item) => ({
       id: item.id,
       title: item.collection.title,
+      thumbnailUrl: item.collection.thumbnailUrl,
       creatorName: item.collection.creator.displayName,
       purchasedAt: item.createdAt,
       href: `/creator/${item.collection.creator.username}/collections/${item.collectionId}`,
@@ -40,12 +43,21 @@ export default async function FanContentPage() {
             key={item.id}
             className="flex flex-col gap-2 rounded-xl border bg-card p-4 md:flex-row md:items-center md:justify-between"
           >
-            <div>
+            <div className="flex items-start gap-3">
+              <div className="w-24 overflow-hidden rounded-md">
+                {item.thumbnailUrl ? (
+                  <img src={item.thumbnailUrl} alt={item.title} className="aspect-video w-full object-cover" />
+                ) : (
+                  <DefaultThumbnail title={item.title} size="sm" />
+                )}
+              </div>
+              <div>
               <p className="font-medium">{item.title}</p>
               <p className="text-sm text-muted-foreground">{item.creatorName}</p>
               <p className="text-xs text-muted-foreground">
                 Purchased {new Date(item.purchasedAt).toLocaleDateString()}
               </p>
+              </div>
             </div>
             <Link href={item.href} className="text-sm font-medium text-accent hover:underline">
               Access Content

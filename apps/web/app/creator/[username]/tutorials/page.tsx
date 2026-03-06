@@ -59,7 +59,7 @@ export default async function CreatorTutorialsPage({
         },
       },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
   });
 
   // Get all tutorial collections

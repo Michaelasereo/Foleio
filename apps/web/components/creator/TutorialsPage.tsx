@@ -22,6 +22,8 @@ import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { CollectionSubscriptionModal } from './CollectionSubscriptionModal';
 import { TutorialPurchaseModal } from './TutorialPurchaseModal';
 import { getStoredVerifiedAccess, storeVerifiedAccess } from '@/lib/utils/tutorial-access';
+import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
 
 interface Collection {
   id: string;
@@ -163,7 +165,7 @@ export function TutorialsPage({
     setPremiumAccessOpen(false);
     
     const content = [...freeTutorials, ...paidTutorials].find((c) => c.id === contentId);
-    if (content?.type === 'video' && content?.videoId) {
+    if (content?.type === 'video' && content?.muxPlaybackId) {
       setPlayingVideoId(contentId);
     }
   };
@@ -182,7 +184,7 @@ export function TutorialsPage({
       setVerifiedContentIds(prev => new Set([...prev, selectedTutorial.id]));
       storeVerifiedAccess('tutorial', selectedTutorial.id, '');
       
-      if (selectedTutorial.type === 'video' && selectedTutorial.videoId) {
+      if (selectedTutorial.type === 'video' && selectedTutorial.muxPlaybackId) {
         setPlayingVideoId(selectedTutorial.id);
       }
     }
@@ -321,6 +323,16 @@ export function TutorialsPage({
                         onClick={() => handleContentClick(content)}
                         isVerified={verifiedContentIds.has(content.id) || (content.collectionId ? verifiedCollectionIds.has(content.collectionId) : false)}
                         isPlaying={playingVideoId === content.id}
+                        collection={content.collection}
+                        onCollectionClick={() => {
+                          const targetCollection =
+                            content.collection ||
+                            collections.find((c) => c.id === content.collectionId);
+                          if (targetCollection) {
+                            setSelectedCollection(targetCollection);
+                            setCollectionModalOpen(true);
+                          }
+                        }}
                       />
                     ))}
                   </div>
@@ -342,6 +354,15 @@ export function TutorialsPage({
                         isVerified={verifiedContentIds.has(content.id) || (content.collectionId ? verifiedCollectionIds.has(content.collectionId) : false)}
                         isPlaying={playingVideoId === content.id}
                         collection={content.collection}
+                        onCollectionClick={() => {
+                          const targetCollection =
+                            content.collection ||
+                            collections.find((c) => c.id === content.collectionId);
+                          if (targetCollection) {
+                            setSelectedCollection(targetCollection);
+                            setCollectionModalOpen(true);
+                          }
+                        }}
                       />
                     ))}
                   </div>
@@ -432,11 +453,24 @@ interface TutorialCardProps {
   isVerified: boolean;
   isPlaying: boolean;
   collection?: Collection | null;
+  onCollectionClick?: () => void;
 }
 
-function TutorialCard({ content, onClick, isVerified, isPlaying, collection }: TutorialCardProps) {
+function TutorialCard({
+  content,
+  onClick,
+  isVerified,
+  isPlaying,
+  collection,
+  onCollectionClick,
+}: TutorialCardProps) {
   const isPremium = content.accessType !== 'free';
   const showLock = isPremium && !isVerified;
+  const thumbnailUrl = getThumbnailUrl({
+    id: content.id,
+    title: content.title,
+    thumbnailUrl: content.thumbnailUrl,
+  });
 
   const formatPrice = (priceInKobo: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -448,16 +482,14 @@ function TutorialCard({ content, onClick, isVerified, isPlaying, collection }: T
   return (
     <div className="group cursor-pointer" onClick={onClick}>
       <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-        {content.thumbnailUrl ? (
+        {thumbnailUrl ? (
           <img
-            src={content.thumbnailUrl}
+            src={thumbnailUrl}
             alt={content.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Video className="h-8 w-8 text-muted-foreground" />
-          </div>
+          <DefaultThumbnail title={content.title} />
         )}
         {content.type === 'video' && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -492,6 +524,25 @@ function TutorialCard({ content, onClick, isVerified, isPlaying, collection }: T
       </div>
       <div className="mt-2">
         <h4 className="font-medium line-clamp-2">{content.title}</h4>
+        {collection ? (
+          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <Lock className="h-3.5 w-3.5" />
+            <span>
+              Subscribe to{' '}
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCollectionClick?.();
+                }}
+                className="text-primary underline underline-offset-2"
+              >
+                {collection.title}
+              </button>{' '}
+              to access
+            </span>
+          </div>
+        ) : null}
         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
           <Video className="h-3 w-3" />
           {content.viewCount} views

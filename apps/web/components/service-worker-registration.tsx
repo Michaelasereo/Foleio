@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 export function ServiceWorkerRegistration() {
   const [isOnline, setIsOnline] = useState(true);
@@ -25,10 +26,11 @@ export function ServiceWorkerRegistration() {
                   toast({
                     title: 'Update Available',
                     description: 'A new version of the app is available. Refresh to update.',
-                    action: {
-                      label: 'Refresh',
-                      onClick: () => window.location.reload(),
-                    },
+                    action: (
+                      <ToastAction altText="Refresh app" onClick={() => window.location.reload()}>
+                        Refresh
+                      </ToastAction>
+                    ),
                   });
                 }
               });
