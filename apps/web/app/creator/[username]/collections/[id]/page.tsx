@@ -123,12 +123,12 @@ export default async function CollectionDetailPage({
 
   return (
     <PublicCollectionPage
-      creator={creator}
+      creator={creator as any}
       collection={{
         ...collection,
         tutorialCount,
         totalDuration,
-      }}
+      } as any}
     />
   );
 }
