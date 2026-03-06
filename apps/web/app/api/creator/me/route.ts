@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { serializePrismaObject, serializeCreator } from '@/lib/utils/serialization';
+import { ensureDbUser } from '@/lib/auth/ensure-db-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,9 @@ export async function GET(request: Request) {
 
     console.log(`✅ User authenticated: ${user.id} (${user.email})`);
 
+    // Ensure users row exists before creating related creator row
+    await ensureDbUser(user);
+
     // 3. Find or create creator
     let creator = await prisma.creator.findUnique({
       where: { userId: user.id }
@@ -57,7 +61,6 @@ export async function GET(request: Request) {
           userId: user.id,
           username,
           displayName: user.user_metadata?.full_name || username,
-          email: user.email || '',
           balance: 0,
           pendingBalance: 0,
           totalEarnings: 0,

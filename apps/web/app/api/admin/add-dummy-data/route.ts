@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST() {
@@ -109,7 +109,6 @@ export async function POST() {
         contentCategory: 'content',
         isPublished: true,
         publishedAt: new Date(),
-        videoId: '7249327200000000000', // Dummy Cloudflare Stream video ID
         thumbnailUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800',
         viewCount: 5420,
       },
@@ -133,7 +132,6 @@ export async function POST() {
           contentCategory: 'tutorial',
           isPublished: true,
           publishedAt: new Date(),
-          videoId: '7249327200000000001', // Dummy Cloudflare Stream video ID
           thumbnailUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800',
           viewCount: 1250,
         },
@@ -148,7 +146,6 @@ export async function POST() {
           contentCategory: 'tutorial',
           isPublished: true,
           publishedAt: new Date(),
-          videoId: '7249327200000000002', // Dummy Cloudflare Stream video ID
           thumbnailUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=800',
           viewCount: 890,
         },
@@ -163,7 +160,6 @@ export async function POST() {
           contentCategory: 'tutorial',
           isPublished: true,
           publishedAt: new Date(),
-          videoId: '7249327200000000003', // Dummy Cloudflare Stream video ID
           thumbnailUrl: 'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?w=800',
           viewCount: 2100,
         },
@@ -208,7 +204,6 @@ export async function POST() {
           contentCategory: 'content',
           isPublished: true,
           publishedAt: new Date(),
-          videoId: '7249327200000000004', // Dummy Cloudflare Stream video ID
           thumbnailUrl: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800',
           viewCount: 450,
         },
@@ -223,7 +218,6 @@ export async function POST() {
           contentCategory: 'content',
           isPublished: true,
           publishedAt: new Date(),
-          videoId: '7249327200000000005', // Dummy Cloudflare Stream video ID
           thumbnailUrl: 'https://images.unsplash.com/photo-1512495856098-3c377b3e9c28?w=800',
           viewCount: 320,
         },

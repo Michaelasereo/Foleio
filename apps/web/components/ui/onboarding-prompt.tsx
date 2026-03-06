@@ -31,7 +31,7 @@ export function OnboardingPrompt({
       {/* Welcome Header */}
       <div className="text-center py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Welcome to Odim! 🎉
+          Welcome to Foleio! 🎉
         </h1>
         <p className="text-lg text-gray-600">
           You're logged in as <span className="font-medium text-primary">{userEmail}</span>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { createCollectionSubscription, sendCollectionAccessCode } from '@/lib/actions/collection-access';
 import { sendCollectionSubscriptionConfirmation } from '@/lib/actions/email';
 

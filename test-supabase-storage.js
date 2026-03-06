@@ -141,7 +141,7 @@ async function testSupabaseStorage() {
     console.log('✅ Storage policies: CONFIGURED');
     console.log('');
     console.log('🎉 SUPABASE STORAGE IS READY!');
-    console.log('🚀 Your Odim platform has enterprise-grade storage!');
+    console.log('🚀 Your Foleio platform has enterprise-grade storage!');
 
   } catch (error) {
     console.log('❌ Test failed:', error.message);

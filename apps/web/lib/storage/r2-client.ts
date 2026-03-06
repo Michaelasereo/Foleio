@@ -114,7 +114,7 @@ export function getR2Client(): R2StorageClient {
       accountId: process.env.R2_ACCOUNT_ID,
       accessKeyId: process.env.R2_ACCESS_KEY_ID,
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-      bucketName: process.env.R2_BUCKET_NAME || 'odim-uploads',
+      bucketName: process.env.R2_BUCKET_NAME || 'foleio-uploads',
       publicUrl: process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`,
     });
   }

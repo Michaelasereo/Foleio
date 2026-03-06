@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { ContentViewPage } from '@/components/content/ContentViewPage';
 
 export default async function ContentPage({

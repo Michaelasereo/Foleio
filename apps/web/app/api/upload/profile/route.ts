@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { UploadService } from '@/lib/storage/upload-service';
 import { randomUUID } from 'crypto'; // ✅ FIXED: Add missing import
 
@@ -136,13 +136,14 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Profile image upload error:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    const err = error as Error;
+    console.error('Error details:', err.message);
+    console.error('Error stack:', err.stack);
 
     return NextResponse.json(
       {
         error: 'Failed to upload image',
-        details: error.message,
+        details: err.message,
         timestamp: new Date().toISOString()
       },
       { status: 500 }

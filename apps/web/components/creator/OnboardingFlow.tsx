@@ -148,7 +148,7 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
                 required
               />
               <p className="text-sm text-gray-500 mt-1">
-                This will be your unique URL: odim.com/{formData.username || 'username'}
+                This will be your unique URL: foleio.com/{formData.username || 'username'}
               </p>
             </div>
 
@@ -323,7 +323,7 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
       <div className="max-w-2xl mx-auto px-4">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome to Odim! 🎉
+            Welcome to Foleio! 🎉
           </h1>
           <p className="text-gray-600">
             Let's set up your creator profile in just a few steps
@@ -387,6 +387,20 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
               <div className={`p-4 rounded-lg mt-6 ${submitMessage.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
                 {submitMessage}
               </div>
+            )}
+
+            {currentStep === steps.length - 1 && (
+              <p className="text-sm text-muted-foreground mt-6">
+                By completing onboarding you agree to our{' '}
+                <a href="/legal/terms" target="_blank" rel="noreferrer" className="text-primary underline">
+                  Terms of Service
+                </a>
+                {' '}and{' '}
+                <a href="/legal/creator-agreement" target="_blank" rel="noreferrer" className="text-primary underline">
+                  Creator Agreement
+                </a>
+                .
+              </p>
             )}
 
             <div className="flex justify-between mt-8">

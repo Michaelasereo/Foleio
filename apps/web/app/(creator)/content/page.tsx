@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { serializeForClient } from '@/lib/utils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,62 +19,92 @@ export default async function ContentPage() {
     redirect('/login');
   }
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-    include: {
-      introVideo: {
-        select: {
-          id: true,
-          title: true,
-          muxAssetId: true,
-          muxPlaybackId: true,
-          thumbnailUrl: true,
+  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+      include: {
+        introVideo: {
+          select: {
+            id: true,
+            title: true,
+            muxAssetId: true,
+            muxPlaybackId: true,
+            thumbnailUrl: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch {
+    console.warn('Content page creator lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Content</h1>
+        <p className="text-muted-foreground">
+          We could not load your content right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   if (!creator) {
     redirect('/onboard');
   }
 
-  const content = await prisma.content.findMany({
-    where: { creatorId: creator.id },
-    orderBy: { createdAt: 'desc' },
-  });
+  let content: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  let collections: Awaited<ReturnType<typeof prisma.collection.findMany>> = [];
+  let videoContent: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  try {
+    content = await prisma.content.findMany({
+      where: { creatorId: creator.id },
+      orderBy: { createdAt: 'desc' },
+    });
 
-  const collections = await prisma.collection.findMany({
-    where: { creatorId: creator.id },
-    include: {
-      sections: {
-        include: {
-          sectionContents: {
-            include: {
-              content: true,
+    collections = await prisma.collection.findMany({
+      where: { creatorId: creator.id },
+      include: {
+        sections: {
+          include: {
+            sectionContents: {
+              include: {
+                content: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    });
 
-  // Get all video content for intro video selection
-  const videoContent = await prisma.content.findMany({
-    where: {
-      creatorId: creator.id,
-      type: 'video',
-      muxPlaybackId: { not: null },
-    },
-    select: {
-      id: true,
-      title: true,
-      muxAssetId: true,
-      muxPlaybackId: true,
-      thumbnailUrl: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+    // Get all video content for intro video selection
+    videoContent = await prisma.content.findMany({
+      where: {
+        creatorId: creator.id,
+        type: 'video',
+        muxPlaybackId: { not: null },
+      },
+      select: {
+        id: true,
+        title: true,
+        muxAssetId: true,
+        muxPlaybackId: true,
+        thumbnailUrl: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch {
+    console.warn('Content page data lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Content</h1>
+        <p className="text-muted-foreground">
+          We could not load your content right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

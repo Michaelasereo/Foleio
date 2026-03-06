@@ -1,4 +1,4 @@
-# Odim Platform - Setup Guide
+# Foleio Platform - Setup Guide
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ Create `apps/web/.env.local` with all your credentials:
 ```env
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_APP_NAME=Odim
+NEXT_PUBLIC_APP_NAME=Foleio
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://xdwocaugiyjtbbzwpbid.supabase.co
@@ -46,7 +46,7 @@ PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 
 # Resend
 RESEND_API_KEY=re_66rgwPZ1_93xPfReWa1KdYMGD5ckW7QVY
-RESEND_FROM_EMAIL=noreply@odim.ng
+RESEND_FROM_EMAIL=noreply@foleio.ng
 ```
 
 Create `packages/database/.env`:
@@ -75,7 +75,7 @@ For local development, you can use ngrok to expose your local server for webhook
 Your Resend API key:
 ```env
 RESEND_API_KEY=re_66rgwPZ1_93xPfReWa1KdYMGD5ckW7QVY
-RESEND_FROM_EMAIL=noreply@odim.ng
+RESEND_FROM_EMAIL=noreply@foleio.ng
 ```
 
 Add this to `apps/web/.env.local`.
@@ -88,7 +88,7 @@ CLOUDFLARE_ACCOUNT_ID=your-account-id
 CLOUDFLARE_API_TOKEN=your-api-token
 CLOUDFLARE_R2_ACCESS_KEY_ID=your-r2-access-key
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=your-r2-secret-key
-CLOUDFLARE_R2_BUCKET_NAME=odim-uploads
+CLOUDFLARE_R2_BUCKET_NAME=foleio-uploads
 NEXT_PUBLIC_CLOUDFLARE_STREAM_URL=your-stream-url
 ```
 
@@ -199,7 +199,7 @@ npm run build
 ## Project Structure
 
 ```
-odim-platform/
+foleio-platform/
 ├── apps/
 │   └── web/              # Next.js 16 application
 ├── packages/

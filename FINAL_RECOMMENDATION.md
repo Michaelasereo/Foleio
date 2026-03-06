@@ -58,7 +58,7 @@ pnpm install
 
 ### 5. Install Tailwind packages
 ```bash
-pnpm --filter @odim/web add -D \
+pnpm --filter @foleio/web add -D \
   tailwindcss@3.4.19 \
   tailwindcss-animate@1.0.7 \
   autoprefixer@10.4.23 \
@@ -69,8 +69,8 @@ pnpm --filter @odim/web add -D \
 ```json
 {
   "scripts": {
-    "dev": "pnpm --filter @odim/web dev",
-    "build": "pnpm --filter @odim/web build"
+    "dev": "pnpm --filter @foleio/web dev",
+    "build": "pnpm --filter @foleio/web build"
   }
 }
 ```

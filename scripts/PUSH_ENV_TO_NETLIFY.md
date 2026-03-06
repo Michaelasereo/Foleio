@@ -42,7 +42,7 @@ If your site is already linked, you can set variables individually:
 cd apps/web
 
 # Set each variable (replace with actual values)
-npx netlify-cli env:set NEXT_PUBLIC_APP_URL "https://odim.ng"
+npx netlify-cli env:set NEXT_PUBLIC_APP_URL "https://foleio.ng"
 npx netlify-cli env:set NEXT_PUBLIC_SUPABASE_URL "https://xdwocaugiyjtbbzwpbid.supabase.co"
 npx netlify-cli env:set SUPABASE_SERVICE_ROLE_KEY "your-key"
 # ... and so on for all variables
@@ -62,7 +62,7 @@ npx netlify-cli env:list
 
 ## Important Notes
 
-- Update `NEXT_PUBLIC_APP_URL` to your production URL (e.g., `https://odim.ng`)
+- Update `NEXT_PUBLIC_APP_URL` to your production URL (e.g., `https://foleio.ng`)
 - Don't set placeholder values (values containing "your-")
 - Some variables like `PAYSTACK_WEBHOOK_SECRET` need to be set in the Netlify dashboard
 - Cloudflare credentials should be set if you're using R2/Stream

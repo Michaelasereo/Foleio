@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,29 +23,57 @@ export default async function CollectionsPage() {
     redirect('/login');
   }
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
+  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+    });
+  } catch {
+    console.warn('Collections page creator lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collections</h1>
+        <p className="text-muted-foreground">
+          We could not load your collections right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   if (!creator) {
     redirect('/onboard');
   }
 
-  const collections = await prisma.collection.findMany({
-    where: { creatorId: creator.id },
-    include: {
-      sections: {
-        include: {
-          sectionContents: {
-            include: {
-              content: true,
+  let collections: Awaited<ReturnType<typeof prisma.collection.findMany>> = [];
+  try {
+    collections = await prisma.collection.findMany({
+      where: { creatorId: creator.id },
+      include: {
+        sections: {
+          include: {
+            sectionContents: {
+              include: {
+                content: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch {
+    console.warn('Collections page data lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collections</h1>
+        <p className="text-muted-foreground">
+          We could not load your collections right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

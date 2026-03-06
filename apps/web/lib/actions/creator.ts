@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -81,48 +81,79 @@ export async function createCreatorProfile(
       .replace(/^-|-$/g, '');
 
     // Check if username exists
-    const existingCreator = await prisma.creator.findUnique({
+    const existingCreatorWithUsername = await prisma.creator.findUnique({
       where: { username },
     });
 
-    const finalUsername = existingCreator
+    const finalUsername = existingCreatorWithUsername
       ? `${username}-${Date.now()}`
       : username;
 
-    // Create creator profile
-    const creator = await prisma.creator.create({
-      data: {
-        userId: session.user.id,
-        username: finalUsername,
-        displayName: step1Data.displayName,
-        bio: step1Data.bio,
-        category: step1Data.category,
-        instagramHandle: step1Data.instagramHandle,
-        tiktokHandle: step1Data.tiktokHandle,
-        bankCode: step2Data.bankCode,
-        accountNumber: step2Data.accountNumber,
-        accountName: step2Data.accountName,
-        bvnVerified: !!step2Data.bvn,
-        platformPlan: step4Data.platformPlan,
-        platformSubscriptionActive: true,
-        platformSubscriptionEndsAt: new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ), // 30 days trial
-      },
+    // Create or update creator profile (idempotent for repeated onboarding submits)
+    const existingCreatorForUser = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
     });
 
-    // Create default subscription plan
-    await prisma.creatorPlan.create({
-      data: {
-        creatorId: creator.id,
-        name: step3Data.planName,
-        price: step3Data.planPrice * 100, // Convert to kobo
-        description: step3Data.planDescription,
-        features: step3Data.planFeatures,
-        isActive: true,
-        orderIndex: 0,
-      },
+    const creatorData = {
+      displayName: step1Data.displayName,
+      bio: step1Data.bio,
+      category: step1Data.category,
+      instagramHandle: step1Data.instagramHandle,
+      tiktokHandle: step1Data.tiktokHandle,
+      bankCode: step2Data.bankCode,
+      accountNumber: step2Data.accountNumber,
+      accountName: step2Data.accountName,
+      bvnVerified: !!step2Data.bvn,
+      platformPlan: step4Data.platformPlan,
+      platformSubscriptionActive: true,
+      platformSubscriptionEndsAt: new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      ), // 30 days trial
+    };
+
+    const creator = existingCreatorForUser
+      ? await prisma.creator.update({
+          where: { id: existingCreatorForUser.id },
+          data: creatorData,
+        })
+      : await prisma.creator.create({
+          data: {
+            userId: session.user.id,
+            username: finalUsername,
+            ...creatorData,
+          },
+        });
+
+    // Create or update default subscription plan
+    const existingDefaultPlan = await prisma.creatorPlan.findFirst({
+      where: { creatorId: creator.id, orderIndex: 0 },
+      orderBy: { createdAt: 'asc' },
     });
+
+    if (existingDefaultPlan) {
+      await prisma.creatorPlan.update({
+        where: { id: existingDefaultPlan.id },
+        data: {
+          name: step3Data.planName,
+          price: step3Data.planPrice * 100, // Convert to kobo
+          description: step3Data.planDescription,
+          features: step3Data.planFeatures,
+          isActive: true,
+        },
+      });
+    } else {
+      await prisma.creatorPlan.create({
+        data: {
+          creatorId: creator.id,
+          name: step3Data.planName,
+          price: step3Data.planPrice * 100, // Convert to kobo
+          description: step3Data.planDescription,
+          features: step3Data.planFeatures,
+          isActive: true,
+          orderIndex: 0,
+        },
+      });
+    }
 
     // Update user to mark as creator
     await prisma.user.update({
@@ -131,7 +162,7 @@ export async function createCreatorProfile(
     });
 
     revalidatePath('/dashboard');
-    return { success: true, creatorId: creator.id, username: finalUsername };
+    return { success: true, creatorId: creator.id, username: creator.username };
   } catch (error) {
     console.error('Error creating creator profile:', error);
     return {

@@ -1,7 +1,13 @@
 'use server';
 
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { randomBytes } from 'crypto';
+import {
+  sendBookingConfirmation,
+  sendBookingStatusUpdate,
+  sendContentPurchaseEmail,
+  sendSubscriptionConfirmation,
+} from '@/lib/email/send';
 
 // Note: This uses a placeholder email implementation
 // In production, integrate with Resend, SendGrid, or similar
@@ -81,11 +87,16 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
       `,
     };
 
-    // TODO: Integrate with Resend
-    // const resend = new Resend(process.env.RESEND_API_KEY);
-    // await resend.emails.send(emailContent);
-
-    console.log('📧 Sending booking confirmation email:', emailContent);
+    await sendBookingConfirmation({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      creatorName: booking.creator.displayName,
+      serviceName: booking.priceListItem.name,
+      bookingDate: formattedDate,
+      amount: booking.totalAmount / 100,
+      trackingToken: booking.trackingToken,
+      trackingUrl,
+    });
 
     return { success: true, trackingUrl };
   } catch (error) {
@@ -187,8 +198,14 @@ export async function subscribeToCreator(creatorId: string, email: string) {
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending subscription confirmation email:', emailContent);
+    await sendSubscriptionConfirmation({
+      fanEmail: email,
+      creatorName: creator.displayName,
+      creatorUsername: creator.username,
+      planName: 'Email Updates',
+      amount: 0,
+      nextBillingDate: 'N/A',
+    });
 
     return { success: true, data: subscription };
   } catch (error) {
@@ -272,8 +289,15 @@ export async function sendServiceDayReminder(bookingId: string) {
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending service day reminder:', emailContent);
+    await sendBookingStatusUpdate({
+      customerEmail: booking.customerEmail,
+      customerName: booking.customerName,
+      creatorName: booking.creator.displayName,
+      serviceName: booking.priceListItem.name,
+      bookingDate: formattedDate,
+      status: 'service_day',
+      trackingUrl,
+    });
 
     return { success: true };
   } catch (error) {
@@ -324,11 +348,14 @@ export async function sendPremiumAccessCode(
       `,
     };
 
-    // TODO: Integrate with Resend
-    // const resend = new Resend(process.env.RESEND_API_KEY);
-    // await resend.emails.send(emailContent);
-
-    console.log('📧 Sending premium access code email:', emailContent);
+    await sendContentPurchaseEmail({
+      email,
+      creatorName,
+      contentTitle,
+      amount: 0,
+      accessCode: code,
+      accessUrl: `${APP_URL}`,
+    });
 
     return { success: true };
   } catch (error) {
@@ -386,8 +413,15 @@ export async function sendCompletionEmail(bookingId: string) {
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending completion email:', emailContent);
+    await sendBookingStatusUpdate({
+      customerEmail: booking.customerEmail,
+      customerName: booking.customerName,
+      creatorName: booking.creator.displayName,
+      serviceName: booking.priceListItem.name,
+      bookingDate: new Date(booking.bookingDate).toLocaleDateString('en-NG'),
+      status: 'completed',
+      trackingUrl,
+    });
 
     return { success: true };
   } catch (error) {
@@ -434,8 +468,14 @@ export async function sendCollectionAccessCodeEmail(
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending collection access code email:', emailContent);
+    await sendContentPurchaseEmail({
+      email,
+      creatorName,
+      contentTitle: collectionTitle,
+      amount: 0,
+      accessCode: code,
+      accessUrl: `${APP_URL}`,
+    });
 
     return { success: true };
   } catch (error) {
@@ -482,8 +522,14 @@ export async function sendTutorialAccessCodeEmail(
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending tutorial access code email:', emailContent);
+    await sendContentPurchaseEmail({
+      email,
+      creatorName,
+      contentTitle: tutorialTitle,
+      amount: 0,
+      accessCode: code,
+      accessUrl: `${APP_URL}`,
+    });
 
     return { success: true };
   } catch (error) {
@@ -539,8 +585,13 @@ export async function sendCollectionSubscriptionConfirmation(
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending collection subscription confirmation:', emailContent);
+    await sendContentPurchaseEmail({
+      email,
+      creatorName,
+      contentTitle: collectionTitle,
+      amount: amount / 100,
+      accessUrl: `${APP_URL}`,
+    });
 
     return { success: true };
   } catch (error) {
@@ -591,8 +642,13 @@ export async function sendTutorialPurchaseConfirmation(
       `,
     };
 
-    // TODO: Integrate with Resend
-    console.log('📧 Sending tutorial purchase confirmation:', emailContent);
+    await sendContentPurchaseEmail({
+      email,
+      creatorName,
+      contentTitle: tutorialTitle,
+      amount: amount / 100,
+      accessUrl: `${APP_URL}`,
+    });
 
     return { success: true };
   } catch (error) {

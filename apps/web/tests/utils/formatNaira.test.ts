@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNaira } from '@odim/utils';
+import { formatNaira } from '@foleio/utils';
 
 describe('formatNaira', () => {
   it('formats whole numbers correctly', () => {

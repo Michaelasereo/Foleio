@@ -21,7 +21,7 @@ DATABASE_URL=postgresql://postgres:Adenike2026#@db.xdwocaugiyjtbbzwpbid.supabase
 Your Resend API key:
 ```env
 RESEND_API_KEY=re_66rgwPZ1_93xPfReWa1KdYMGD5ckW7QVY
-RESEND_FROM_EMAIL=noreply@odim.ng
+RESEND_FROM_EMAIL=noreply@foleio.ng
 ```
 
 ## Paystack Credentials

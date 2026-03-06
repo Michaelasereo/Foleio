@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 // Verify email access for tracking page
 export async function verifyTrackingAccess(trackingToken: string, email: string) {

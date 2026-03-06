@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 export const dynamic = 'force-dynamic';
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -21,7 +22,7 @@ export async function PUT(
 
     // Check ownership
     const existingService = await prisma.priceListItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { creator: { select: { userId: true } } }
     });
 
@@ -66,7 +67,7 @@ export async function PUT(
 
     // Update service
     const updatedService = await prisma.priceListItem.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         category: category?.trim() || null,
         name: name.trim(),
@@ -118,9 +119,10 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -133,7 +135,7 @@ export async function DELETE(
 
     // Check ownership
     const service = await prisma.priceListItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { creator: { select: { userId: true } } }
     });
 
@@ -153,7 +155,7 @@ export async function DELETE(
 
     // Check if service has bookings
     const bookingCount = await prisma.booking.count({
-      where: { priceListItemId: params.id }
+      where: { priceListItemId: id }
     });
 
     if (bookingCount > 0) {
@@ -165,7 +167,7 @@ export async function DELETE(
 
     // Delete service
     await prisma.priceListItem.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({

@@ -1,4 +1,4 @@
-# Cloudflare R2 Setup for Odim Platform
+# Cloudflare R2 Setup for Foleio Platform
 
 ## Environment Variables Required
 
@@ -9,7 +9,7 @@ Add these to your `.env.local` file:
 R2_ACCOUNT_ID=your_account_id_here
 R2_ACCESS_KEY_ID=your_access_key_id_here
 R2_SECRET_ACCESS_KEY=your_secret_access_key_here
-R2_BUCKET_NAME=odim-uploads
+R2_BUCKET_NAME=foleio-uploads
 R2_PUBLIC_URL=https://pub-your_account_id.r2.dev
 ```
 
@@ -19,16 +19,16 @@ R2_PUBLIC_URL=https://pub-your_account_id.r2.dev
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com)
 2. Navigate to **R2 → Overview**
 3. Click **Create bucket**
-4. Name: `odim-uploads`
+4. Name: `foleio-uploads`
 5. Enable **Public access**
 
 ### Step 2: Generate API Token
 1. Go to **R2 → Manage R2 API Tokens**
 2. Click **Create API token**
 3. Configure:
-   - Token name: `odim-platform`
+   - Token name: `foleio-platform`
    - Permissions: **Read & Write**
-   - Resources: **Specific bucket** → `odim-uploads`
+   - Resources: **Specific bucket** → `foleio-uploads`
 4. **Copy the credentials:**
    - Access Key ID
    - Secret Access Key

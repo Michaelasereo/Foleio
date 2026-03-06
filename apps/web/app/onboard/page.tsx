@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { OnboardingAssistant } from '@/components/ai/OnboardingAssistant';
 
 const step1Schema = z.object({
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
@@ -223,9 +224,10 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-2xl py-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Welcome to Odim!</h1>
+    <>
+      <div className="container mx-auto max-w-2xl py-12">
+        <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Welcome to Foleio!</h1>
         <p className="text-muted-foreground">
           Let's set up your creator profile in a few simple steps
         </p>
@@ -238,31 +240,31 @@ export default function OnboardingPage() {
             </p>
           </div>
         )}
-      </div>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Step {step}:{' '}
-            {step === 1 && 'Business Information'}
-            {step === 2 && 'Bank Details'}
-            {step === 3 && 'Subscription Plan'}
-            {step === 4 && 'Platform Subscription'}
-          </CardTitle>
-          <CardDescription>
-            {step === 1 && 'Tell us about your business'}
-            {step === 2 && 'Add your bank account for payouts'}
-            {step === 3 && 'Create your first subscription plan'}
-            {step === 4 && 'Choose your platform plan'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {step === 1 && (
-            <Form {...step1Form}>
-              <form
-                onSubmit={step1Form.handleSubmit(handleStep1Submit)}
-                className="space-y-4"
-              >
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Step {step}:{' '}
+              {step === 1 && 'Business Information'}
+              {step === 2 && 'Bank Details'}
+              {step === 3 && 'Subscription Plan'}
+              {step === 4 && 'Platform Subscription'}
+            </CardTitle>
+            <CardDescription>
+              {step === 1 && 'Tell us about your business'}
+              {step === 2 && 'Add your bank account for payouts'}
+              {step === 3 && 'Create your first subscription plan'}
+              {step === 4 && 'Choose your platform plan'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {step === 1 && (
+              <Form {...step1Form}>
+                <form
+                  onSubmit={step1Form.handleSubmit(handleStep1Submit)}
+                  className="space-y-4"
+                >
                 <FormField
                   control={step1Form.control}
                   name="displayName"
@@ -349,16 +351,16 @@ export default function OnboardingPage() {
                 <Button type="submit" className="w-full">
                   Next
                 </Button>
-              </form>
-            </Form>
-          )}
+                </form>
+              </Form>
+            )}
 
-          {step === 2 && (
-            <Form {...step2Form}>
-              <form
-                onSubmit={step2Form.handleSubmit(handleStep2Submit)}
-                className="space-y-4"
-              >
+            {step === 2 && (
+              <Form {...step2Form}>
+                <form
+                  onSubmit={step2Form.handleSubmit(handleStep2Submit)}
+                  className="space-y-4"
+                >
                 <FormField
                   control={step2Form.control}
                   name="bankCode"
@@ -438,16 +440,16 @@ export default function OnboardingPage() {
                     Next
                   </Button>
                 </div>
-              </form>
-            </Form>
-          )}
+                </form>
+              </Form>
+            )}
 
-          {step === 3 && (
-            <Form {...step3Form}>
-              <form
-                onSubmit={step3Form.handleSubmit(handleStep3Submit)}
-                className="space-y-4"
-              >
+            {step === 3 && (
+              <Form {...step3Form}>
+                <form
+                  onSubmit={step3Form.handleSubmit(handleStep3Submit)}
+                  className="space-y-4"
+                >
                 <FormField
                   control={step3Form.control}
                   name="planName"
@@ -510,16 +512,16 @@ export default function OnboardingPage() {
                     Next
                   </Button>
                 </div>
-              </form>
-            </Form>
-          )}
+                </form>
+              </Form>
+            )}
 
-          {step === 4 && (
-            <Form {...step4Form}>
-              <form
-                onSubmit={step4Form.handleSubmit(handleStep4Submit)}
-                className="space-y-4"
-              >
+            {step === 4 && (
+              <Form {...step4Form}>
+                <form
+                  onSubmit={step4Form.handleSubmit(handleStep4Submit)}
+                  className="space-y-4"
+                >
                 <FormField
                   control={step4Form.control}
                   name="platformPlan"
@@ -562,12 +564,14 @@ export default function OnboardingPage() {
                     {isLoading ? 'Creating...' : 'Complete Setup'}
                   </Button>
                 </div>
-              </form>
-            </Form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                </form>
+              </Form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      <OnboardingAssistant />
+    </>
   );
 }
 

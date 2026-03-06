@@ -3,7 +3,7 @@
 // Copy this to browser console at http://localhost:3000
 
 (async () => {
-  console.log('🎯 FINAL ODIM UPLOAD VERIFICATION');
+  console.log('🎯 FINAL FOLEIO UPLOAD VERIFICATION');
   console.log('==================================');
   console.log('');
   
@@ -108,7 +108,7 @@
             console.log('');
             console.log('🎊 🎊 🎊 COMPLETE SUCCESS! 🎊 🎊 🎊');
             console.log('');
-            console.log('🏆 YOUR ODIM UPLOAD SYSTEM IS FULLY OPERATIONAL!');
+            console.log('🏆 YOUR FOLEIO UPLOAD SYSTEM IS FULLY OPERATIONAL!');
             console.log('');
             console.log('Features working:');
             console.log('✅ Supabase Storage integration');

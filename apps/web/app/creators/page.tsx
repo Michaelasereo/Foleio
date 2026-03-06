@@ -1,30 +1,34 @@
 import { Suspense } from 'react';
+import { FanSupportChat } from '@/components/ai/FanSupportChat';
 import { CreatorsDiscovery } from '@/components/creators/CreatorsDiscovery';
 
 export const metadata = {
-  title: 'Discover Creators | Odim',
-  description: 'Find and follow amazing creators on Odim'
+  title: 'Discover Creators | Foleio',
+  description: 'Foleio is the creative portfolio platform for Nigerian creators — monetize your content, offer services, and build your world.'
 };
 
 export default function CreatorsPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Discover Amazing Creators
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Find creators in makeup, fashion, fitness, cooking, and more.
-            Subscribe to get exclusive content and support your favorite creators.
-          </p>
-        </div>
+    <>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Discover Amazing Creators
+            </h1>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Find creators in makeup, fashion, fitness, cooking, and more.
+              Subscribe to get exclusive content and support your favorite creators.
+            </p>
+          </div>
 
-        <Suspense fallback={<CreatorsLoading />}>
-          <CreatorsDiscovery />
-        </Suspense>
+          <Suspense fallback={<CreatorsLoading />}>
+            <CreatorsDiscovery />
+          </Suspense>
+        </div>
       </div>
-    </div>
+      <FanSupportChat />
+    </>
   );
 }
 

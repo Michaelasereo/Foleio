@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getFanSessionFromCookieValue } from '@/lib/fan-auth/session';
 import { FanLogoutButton } from '@/components/fan/FanLogoutButton';
+import { FanSupportChat } from '@/components/ai/FanSupportChat';
 import { Home, CalendarCheck, Video, CreditCard } from 'lucide-react';
 
 const tabs = [
@@ -68,6 +69,7 @@ export default async function FanLayout({
           })}
         </div>
       </nav>
+      <FanSupportChat />
     </div>
   );
 }

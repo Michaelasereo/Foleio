@@ -85,7 +85,7 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Login to Odim</CardTitle>
+        <CardTitle>Login to Foleio</CardTitle>
         <CardDescription>
           Enter your credentials to access your account
         </CardDescription>

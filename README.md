@@ -1,8 +1,8 @@
-# Odim Platform
+# Foleio Platform
 
-**Odim** (Igbo: "Creator" / "Beautiful Creator") - Your Nigerian Creator Platform
+**Foleio** (Igbo: "Creator" / "Beautiful Creator") - Your work. Your world. Your Foleio.
 
-**Slogan:** "Create. Earn. Repeat."
+**Tagline:** "Your work. Your world. Your Foleio."
 
 ## Tech Stack
 
@@ -21,7 +21,7 @@
 ## Project Structure
 
 ```
-odim-platform/
+foleio-platform/
 ├── apps/
 │   └── web/              # Next.js 16 application
 ├── packages/

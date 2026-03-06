@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import { randomUUID } from 'crypto';
 import { webhookQueue, queues } from '@/lib/queue/queue-manager';
 import { withRateLimit, rateLimiters } from '@/lib/rate-limit/rate-limiter';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
+import { sendSubscriptionConfirmation } from '@/lib/email/send';
 
 export async function POST(request: NextRequest) {
   try {
@@ -107,6 +108,47 @@ async function handleChargeSuccess(eventData: any) {
   const { reference, amount, customer, metadata } = eventData;
 
   try {
+    // Handle creator -> Foleio platform subscription payments
+    if (metadata?.type === 'platform_subscription') {
+      const creatorId = metadata.creatorId || metadata.creator_id;
+      const plan = metadata.plan;
+      const trial = Boolean(metadata.trial);
+      const trialDays = Number(metadata.trialDays || 3);
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+      await prisma.platformSubscription.update({
+        where: { creatorId },
+        data: {
+          status: trial ? 'trialing' : 'active',
+          paystackSubscriptionId: eventData.subscription_code,
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          ...(trial
+            ? {
+                trialEndsAt: new Date(
+                  now.getTime() + trialDays * 24 * 60 * 60 * 1000
+                ),
+              }
+            : {}),
+        },
+      });
+
+      await prisma.creator.update({
+        where: { id: creatorId },
+        data: {
+          platformSubscriptionActive: true,
+          platformPlan: String(plan).toUpperCase(),
+        },
+      });
+
+      console.log(
+        `✅ Platform subscription payment processed for creator ${creatorId}`
+      );
+      return;
+    }
+
     // Handle booking payments specifically
     if (metadata?.type === 'booking' && metadata?.bookingId) {
       console.log(`🎯 Processing booking payment: ${reference} for booking ${metadata.bookingId}`);
@@ -222,6 +264,36 @@ async function handleChargeSuccess(eventData: any) {
       });
     }
 
+    // Fan subscription confirmation email (non-blocking)
+    if (metadata?.type === 'subscription' && metadata?.creator_id) {
+      const [creator, plan] = await Promise.all([
+        prisma.creator.findUnique({
+          where: { id: metadata.creator_id },
+          select: { displayName: true, username: true },
+        }),
+        metadata?.plan_id
+          ? prisma.creatorPlan.findUnique({
+              where: { id: metadata.plan_id },
+              select: { name: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      if (creator) {
+        const nextBillingDate = new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toLocaleDateString();
+        await sendSubscriptionConfirmation({
+          fanEmail: metadata?.subscriber_email || customer?.email || '',
+          creatorName: creator.displayName,
+          creatorUsername: creator.username,
+          planName: plan?.name || 'Subscription',
+          amount: amount / 100,
+          nextBillingDate,
+        });
+      }
+    }
+
     console.log(`✅ Charge success processed: ${reference}`);
   } catch (error) {
     console.error(`❌ Failed to process charge success: ${reference}`, error);
@@ -233,6 +305,16 @@ async function handleSubscriptionEvent(eventType: string, eventData: any) {
   const { customer, plan, subscription_code } = eventData;
 
   try {
+    if (eventType === 'subscription.disable') {
+      const subscriptionCode = eventData?.subscription_code;
+      if (subscriptionCode) {
+        await prisma.platformSubscription.updateMany({
+          where: { paystackSubscriptionId: subscriptionCode },
+          data: { status: 'cancelled', cancelAtPeriodEnd: true },
+        });
+      }
+    }
+
     const status = eventType === 'subscription.create' ? 'ACTIVE' :
                   eventType === 'subscription.disable' ? 'INACTIVE' : 'ACTIVE';
 

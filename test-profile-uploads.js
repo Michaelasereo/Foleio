@@ -2,7 +2,7 @@
 // Run this in your browser console on the Settings page
 
 (async () => {
-  console.log('🎯 ODIM PROFILE & BANNER UPLOAD TEST');
+  console.log('🎯 FOLEIO PROFILE & BANNER UPLOAD TEST');
   console.log('=====================================');
   console.log('');
 

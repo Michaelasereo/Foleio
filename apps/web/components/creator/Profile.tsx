@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatNaira } from '@odim/utils';
+import { formatNaira } from '@foleio/utils';
 import { SubscriptionCheckout } from '@/components/payment/SubscriptionCheckout';
 
 interface CreatorProfileProps {

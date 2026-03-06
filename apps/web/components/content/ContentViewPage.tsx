@@ -18,7 +18,7 @@ import {
   Star
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { formatDate } from '@odim/utils';
+import { formatDate } from '@foleio/utils';
 
 interface Content {
   id: string;

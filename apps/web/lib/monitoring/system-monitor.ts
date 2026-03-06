@@ -1,5 +1,5 @@
 /**
- * System monitoring and alerting for Odim platform
+ * System monitoring and alerting for Foleio platform
  * Tracks performance metrics, errors, and business KPIs
  */
 

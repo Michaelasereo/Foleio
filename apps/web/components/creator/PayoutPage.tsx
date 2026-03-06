@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { formatNaira } from '@odim/utils';
+import { formatNaira } from '@foleio/utils';
 import { useToast } from '@/components/ui/use-toast';
 
 interface PayoutPageProps {

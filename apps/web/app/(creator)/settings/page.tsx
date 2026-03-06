@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { SettingsForm } from '@/components/creator/SettingsForm';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 import { PublicProfileCard } from '@/components/creator/PublicProfileCard';
@@ -18,12 +18,26 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-    include: {
-      user: true,
-    },
-  });
+  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+      include: {
+        user: true,
+      },
+    });
+  } catch {
+    console.warn('Settings page creator lookup failed (non-fatal).');
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <OnboardingPrompt
+          userEmail={session.user.email || 'user'}
+          completedSteps={0}
+          totalSteps={4}
+        />
+      </div>
+    );
+  }
 
   // If no creator account, show onboarding prompt instead of redirecting
   if (!creator) {

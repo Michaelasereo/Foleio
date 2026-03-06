@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -20,7 +21,7 @@ export async function GET(
     }
 
     const collection = await prisma.collection.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         sections: {
           include: {
@@ -110,9 +111,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -125,7 +127,7 @@ export async function PUT(
 
     // Check ownership
     const existingCollection = await prisma.collection.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { creator: { select: { userId: true } } }
     });
 
@@ -167,7 +169,7 @@ export async function PUT(
 
     // Update collection
     const updatedCollection = await prisma.collection.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         title: title.trim(),
         description: description?.trim(),
@@ -251,9 +253,10 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -266,7 +269,7 @@ export async function DELETE(
 
     // Check ownership
     const collection = await prisma.collection.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { creator: { select: { userId: true } } }
     });
 
@@ -286,7 +289,7 @@ export async function DELETE(
 
     // Delete collection (cascade will handle related records)
     await prisma.collection.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({

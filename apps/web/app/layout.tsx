@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { DM_Sans, Playfair_Display } from 'next/font/google';
+import Link from 'next/link';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { ServiceWorkerRegistration } from '@/components/service-worker-registration';
@@ -11,11 +12,19 @@ if (typeof window === 'undefined') {
   validateAndExit();
 }
 
-const inter = Inter({ subsets: ['latin'] });
+const playfairDisplay = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-display',
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-body',
+});
 
 export const metadata: Metadata = {
-  title: 'Odim - Your Nigerian Creator Platform',
-  description: 'Monetize your creativity with instant Naira payouts',
+  title: 'Foleio - Your work. Your world. Your Foleio.',
+  description: 'Foleio is the creative portfolio platform for Nigerian creators — monetize your content, offer services, and build your world.',
   keywords: ['creator platform', 'Nigeria', 'subscription', 'content creator'],
 };
 
@@ -30,7 +39,7 @@ export default function RootLayout({
         {/* Paystack Inline Script for Payment Processing */}
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
-      <body className={inter.className}>
+      <body className={`${dmSans.variable} ${playfairDisplay.variable}`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -38,6 +47,19 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <footer className="px-6 py-6">
+            <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+              <Link href="/legal/terms" className="hover:text-foreground">
+                Terms of Service
+              </Link>
+              <Link href="/legal/privacy" className="hover:text-foreground">
+                Privacy Policy
+              </Link>
+              <Link href="/legal/creator-agreement" className="hover:text-foreground">
+                Creator Agreement
+              </Link>
+            </div>
+          </footer>
           <Toaster />
           <ServiceWorkerRegistration />
         </ThemeProvider>

@@ -76,7 +76,7 @@ if (!email) {
   process.exit(1);
 }
 
-console.log('🗑️  Odim User Deletion Script');
+console.log('🗑️  Foleio User Deletion Script');
 console.log('================================\n');
 
 deleteUser(email).then(() => {

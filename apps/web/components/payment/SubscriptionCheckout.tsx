@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatNaira } from '@odim/utils';
+import { formatNaira } from '@foleio/utils';
 import { Check, Shield } from 'lucide-react';
 
 interface SubscriptionCheckoutProps {
@@ -137,7 +137,7 @@ export function SubscriptionCheckout({
 
           {/* Platform Fee Disclosure */}
           <p className="text-xs text-muted-foreground text-center">
-            Odim charges a 15% platform fee. {creator.displayName} receives 85%
+            Foleio charges a 15% platform fee. {creator.displayName} receives 85%
             of your subscription.
           </p>
         </div>

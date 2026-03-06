@@ -3,7 +3,7 @@
  * Tracks usage costs and enforces quotas
  */
 
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { Currency } from '@/lib/currency/currency';
 
 export interface UsageRecord {

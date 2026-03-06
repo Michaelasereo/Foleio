@@ -17,7 +17,7 @@ import {
   getAvailabilityDates,
 } from '@/lib/actions/availability';
 import { createClient } from '@/lib/supabase/client';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 interface AvailabilityDate {
   id: string;

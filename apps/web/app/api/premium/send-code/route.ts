@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { z } from 'zod';
 import { sendPremiumAccessCode, sendCollectionAccessCodeEmail, sendTutorialAccessCodeEmail } from '@/lib/actions/email';
+import { sendContentPurchaseEmail } from '@/lib/email/send';
 
 const sendCodeSchema = z.object({
   contentId: z.string().uuid().optional(),
@@ -60,6 +61,7 @@ async function handleCollectionCode(collectionId: string, email: string) {
       creator: {
         select: {
           displayName: true,
+          username: true,
         },
       },
     },
@@ -150,6 +152,15 @@ async function handleCollectionCode(collectionId: string, email: string) {
     collection.creator.displayName
   );
 
+  await sendContentPurchaseEmail({
+    email,
+    creatorName: collection.creator.displayName,
+    contentTitle: collection.title,
+    amount: (collection.subscriptionPrice || collection.price || 0) / 100,
+    accessCode: code,
+    accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${collection.creator.username}/collections/${collection.id}`,
+  });
+
   return NextResponse.json({
     success: true,
     message: 'Verification code sent to your email',
@@ -164,6 +175,7 @@ async function handleContentCode(contentId: string, email: string) {
       creator: {
         select: {
           displayName: true,
+          username: true,
         },
       },
     },
@@ -277,6 +289,14 @@ async function handleContentCode(contentId: string, email: string) {
       content.title,
       content.creator.displayName
     );
+    await sendContentPurchaseEmail({
+      email,
+      creatorName: content.creator.displayName,
+      contentTitle: content.title,
+      amount: (content.tutorialPrice || 0) / 100,
+      accessCode: code,
+      accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${content.creator.username}/content/${content.id}`,
+    });
   } else {
     await sendPremiumAccessCode(
       email,

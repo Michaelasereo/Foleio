@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { paystack } from '@/lib/paystack';
-import { PrismaClient } from '@odim/database';
+import { PrismaClient } from '@foleio/database';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();

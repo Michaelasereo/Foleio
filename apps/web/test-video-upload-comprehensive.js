@@ -2,7 +2,7 @@
 // Test the complete video upload flow
 
 (async () => {
-  console.log('🎬 ODIM VIDEO UPLOAD COMPREHENSIVE TEST');
+  console.log('🎬 FOLEIO VIDEO UPLOAD COMPREHENSIVE TEST');
   console.log('========================================');
   console.log('');
   
@@ -14,7 +14,7 @@
     
     if (authData.error) {
       console.log('❌ NOT AUTHENTICATED');
-      console.log('💡 Please log in to Odim first');
+      console.log('💡 Please log in to Foleio first');
       console.log('🔗 http://localhost:3000/login');
       return;
     }
@@ -112,7 +112,7 @@
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   ]);
   
-  const testVideo = new File([mp4Header], 'odim-video-test.mp4', { 
+  const testVideo = new File([mp4Header], 'foleio-video-test.mp4', { 
     type: 'video/mp4' 
   });
   

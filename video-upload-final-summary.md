@@ -82,7 +82,7 @@ Database updated with final data → Video ready for streaming
 ## 🧪 **TEST YOUR VIDEO UPLOAD NOW**
 
 ### **Step 1: Try Complete Upload**
-1. **Login** to your Odim account
+1. **Login** to your Foleio account
 2. **Navigate** to `http://localhost:3000/content/new`
 3. **Fill form:** Title, description, select "Tutorial" category
 4. **Upload video:** Choose MP4/MOV/WebM/MKV file (<100MB)

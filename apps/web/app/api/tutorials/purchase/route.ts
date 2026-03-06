@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { createTutorialPurchase, sendTutorialAccessCode } from '@/lib/actions/collection-access';
 import { sendTutorialPurchaseConfirmation } from '@/lib/actions/email';
+import { sendContentPurchaseEmail } from '@/lib/email/send';
 
 const purchaseSchema = z.object({
   contentId: z.string().uuid(),
@@ -107,6 +108,13 @@ export async function POST(request: NextRequest) {
         tutorial.creator.displayName,
         price
       );
+      await sendContentPurchaseEmail({
+        email,
+        creatorName: tutorial.creator.displayName,
+        contentTitle: tutorial.title,
+        amount: price / 100,
+        accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${tutorial.creator.username}/content/${contentId}`,
+      });
 
       // Send access code immediately
       await sendTutorialAccessCode(email, contentId);

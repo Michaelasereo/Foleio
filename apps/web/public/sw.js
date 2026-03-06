@@ -1,9 +1,9 @@
-// Odim Platform Service Worker
+// Foleio Platform Service Worker
 // Provides offline support and caching for critical resources
 
-const CACHE_NAME = 'odim-v1.0.0';
-const STATIC_CACHE = 'odim-static-v1.0.0';
-const DYNAMIC_CACHE = 'odim-dynamic-v1.0.0';
+const CACHE_NAME = 'foleio-v1.0.0';
+const STATIC_CACHE = 'foleio-static-v1.0.0';
+const DYNAMIC_CACHE = 'foleio-dynamic-v1.0.0';
 
 // Resources to cache immediately on install
 const STATIC_ASSETS = [
@@ -53,7 +53,7 @@ self.addEventListener('activate', (event) => {
       const oldCaches = cacheNames.filter(name =>
         name !== STATIC_CACHE &&
         name !== DYNAMIC_CACHE &&
-        name.startsWith('odim-')
+        name.startsWith('foleio-')
       );
 
       await Promise.all(
@@ -209,7 +209,7 @@ async function handlePageRequest(request) {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Offline - Odim</title>
+      <title>Offline - Foleio</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
         body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem; }

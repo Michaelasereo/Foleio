@@ -4,48 +4,75 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --font-display: 'Playfair Display', serif;
+    --font-body: 'DM Sans', sans-serif;
+
+    /* Base */
+    --background: 43 33% 95%;          /* warm cream #F5F0E8 */
+    --foreground: 20 15% 15%;          /* deep warm brown-black */
+
+    /* Card / surfaces */
+    --card: 40 30% 97%;                /* off-white cream */
+    --card-foreground: 20 15% 15%;
+    --popover: 40 30% 97%;
+    --popover-foreground: 20 15% 15%;
+
+    /* Primary - vibrant orange */
+    --primary: 28 95% 52%;             /* #F97316 orange */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - amber/golden */
+    --secondary: 38 95% 55%;           /* #F59E0B amber */
+    --secondary-foreground: 20 15% 15%;
+
+    /* Accent - cobalt blue */
+    --accent: 225 70% 55%;             /* #3B5FDB cobalt blue */
+    --accent-foreground: 0 0% 100%;
+
+    /* Muted */
+    --muted: 40 20% 90%;               /* warm light grey */
+    --muted-foreground: 20 10% 45%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & inputs */
+    --border: 35 20% 82%;
+    --input: 35 20% 82%;
+    --ring: 28 95% 52%;                /* orange focus ring */
+
+    /* Radius */
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --background: 20 15% 10%;          /* deep warm dark */
+    --foreground: 40 25% 92%;
+
+    --card: 20 15% 13%;
+    --card-foreground: 40 25% 92%;
+    --popover: 20 15% 13%;
+    --popover-foreground: 40 25% 92%;
+
+    --primary: 28 95% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 38 90% 52%;
+    --secondary-foreground: 20 15% 10%;
+
+    --accent: 225 65% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 20 10% 20%;
+    --muted-foreground: 40 15% 60%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 20 12% 22%;
+    --input: 20 12% 22%;
+    --ring: 28 95% 55%;
   }
 }
 
@@ -55,6 +82,112 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+}
+
+.legal-content h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  color: hsl(var(--foreground));
+}
+
+.legal-content p {
+  margin-bottom: 1rem;
+  line-height: 1.8;
+  color: hsl(var(--foreground));
+}
+
+.legal-content ul {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.legal-content ul li {
+  margin-bottom: 0.4rem;
+  line-height: 1.8;
+  list-style-type: disc;
+}
+
+.legal-content .draft-notice {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  color: #dc2626;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.chat-bubble-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-bubble-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.2);
+}
+
+.chat-panel {
+  position: fixed;
+  bottom: 92px;
+  right: 24px;
+  z-index: 50;
+  width: 380px;
+  height: 480px;
+  border-radius: 1rem;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.animate-fola-sheet {
+  animation: folaSheetUp 0.22s ease-out;
+}
+
+@keyframes folaSheetUp {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-panel {
+    width: 100vw;
+    height: 60vh;
+    bottom: 0;
+    right: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
 }
 

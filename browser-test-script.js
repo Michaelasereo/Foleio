@@ -1,8 +1,8 @@
-// Odim Content Upload Test - Copy and paste this into browser console
+// Foleio Content Upload Test - Copy and paste this into browser console
 // Make sure you're logged in at http://localhost:3000
 
 (async function testUploads() {
-  console.log('🚀 Odim Content Upload Test Starting...');
+  console.log('🚀 Foleio Content Upload Test Starting...');
 
   // Test video upload
   console.log('🎬 Testing Video Upload (Mux)...');

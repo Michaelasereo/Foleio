@@ -1,5 +1,5 @@
 import { Handler } from '@netlify/functions';
-import { PrismaClient } from '@odim/database';
+import { PrismaClient } from '@foleio/database';
 import { paystack } from '../../apps/web/lib/paystack';
 
 const prisma = new PrismaClient();
@@ -40,7 +40,7 @@ const handler: Handler = async (event, context) => {
           source: 'balance',
           amount: Number(creator.currentBalance),
           recipient: creator.paystackRecipientCode!,
-          reason: 'Daily payout from Odim',
+          reason: 'Daily payout from Foleio',
         });
 
         // Record payout

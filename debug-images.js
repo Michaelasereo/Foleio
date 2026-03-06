@@ -1,6 +1,6 @@
 // Debug script to check image URLs and display issues
 
-console.log('🔍 ODIM Image Debug Script v2.0');
+console.log('🔍 FOLEIO Image Debug Script v2.0');
 console.log('===============================');
 
 // Check if we're on a creator profile page

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { paystack } from '@/lib/paystack';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { withRateLimit, rateLimiters } from '@/lib/rate-limit/rate-limiter';
 import { z } from 'zod';
 

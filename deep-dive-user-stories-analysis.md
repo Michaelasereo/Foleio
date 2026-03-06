@@ -1,4 +1,4 @@
-# 🎬 **ODIM PLATFORM - DEEP DIVE USER STORIES ANALYSIS**
+# 🎬 **FOLEIO PLATFORM - DEEP DIVE USER STORIES ANALYSIS**
 
 **Date:** January 10, 2026
 **Focus:** Content Management & Payment Systems
@@ -244,7 +244,7 @@ for (const creator of creators) {
     source: 'balance',
     amount: creator.currentBalance,
     recipient: creator.paystackRecipientCode,
-    reason: 'Weekly payout from Odim'
+    reason: 'Weekly payout from Foleio'
   });
 
   // Reset balance after successful transfer
@@ -415,7 +415,7 @@ A comprehensive, creator-friendly platform for content creation, organization, a
 ### **Payment System:**
 A robust, transparent monetization platform with automated 85/15 revenue sharing, real-time processing, and seamless fan checkout experiences.
 
-**The Odim platform successfully delivers on both user stories with production-grade quality, comprehensive features, and excellent user experiences. Ready for launch! 🚀**
+**The Foleio platform successfully delivers on both user stories with production-grade quality, comprehensive features, and excellent user experiences. Ready for launch! 🚀**
 
 ---
 

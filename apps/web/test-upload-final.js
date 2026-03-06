@@ -3,7 +3,7 @@
 // Copy this entire script to your browser console at http://localhost:3000
 
 (async () => {
-  console.log('🚀 TESTING ODIM UPLOAD SYSTEM');
+  console.log('🚀 TESTING FOLEIO UPLOAD SYSTEM');
   console.log('=============================');
   console.log('');
   
@@ -15,7 +15,7 @@
     
     if (authResult.error) {
       console.log('❌ User not authenticated');
-      console.log('💡 Please log in to your Odim account first');
+      console.log('💡 Please log in to your Foleio account first');
       console.log('🔗 Go to: http://localhost:3000/login');
       return;
     }
@@ -46,12 +46,12 @@
   ctx.fillStyle = 'white';
   ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('ODIM TEST', 100, 100);
+  ctx.fillText('FOLEIO TEST', 100, 100);
   ctx.font = '14px Arial';
   ctx.fillText('Upload Working!', 100, 130);
   
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-  const testImage = new File([blob], 'odim-test.png', { type: 'image/png' });
+  const testImage = new File([blob], 'foleio-test.png', { type: 'image/png' });
   
   console.log('✅ Test image created:', testImage.size, 'bytes');
   console.log('');

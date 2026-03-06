@@ -1,4 +1,4 @@
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 async function addDummyData() {
   try {

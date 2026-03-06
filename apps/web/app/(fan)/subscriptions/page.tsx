@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { PrismaClient } from '@odim/database';
+import { PrismaClient } from '@foleio/database';
 import { FanSubscriptions } from '@/components/fan/Subscriptions';
 
 const prisma = new PrismaClient();

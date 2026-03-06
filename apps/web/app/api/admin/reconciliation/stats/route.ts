@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { deadLetterQueue } from '@/lib/queue/queue-manager';
 
 export async function GET(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     // Get failed webhooks from dead letter queue
     const failedJobs = await deadLetterQueue.getJobs(['completed', 'failed'], 0, 100);
-    const recentFailures = failedJobs.slice(0, 20).map(job => ({
+    const recentFailures = failedJobs.slice(0, 20).map((job: any) => ({
       id: job.id,
       event: job.data.event,
       data: job.data.data,

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 export class UploadManager {
   private static instance: UploadManager;

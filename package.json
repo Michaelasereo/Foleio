@@ -1,8 +1,8 @@
 {
-  "name": "odim-platform",
+  "name": "foleio-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Odim - Your Nigerian Creator Platform",
+  "description": "Foleio - Your work. Your world. Your Foleio.",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

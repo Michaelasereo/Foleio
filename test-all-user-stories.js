@@ -1,9 +1,9 @@
-// 🎊 COMPREHENSIVE ODIM PLATFORM USER STORIES TEST SUITE
+// 🎊 COMPREHENSIVE FOLEIO PLATFORM USER STORIES TEST SUITE
 // Test script for all implemented user stories
 // Run this in your browser console after starting the dev server
 
 (async function runCompleteUserStoriesTest() {
-  console.log('🎊 🎉 🎉 ODIM PLATFORM - COMPLETE USER STORIES TEST SUITE 🎉 🎉 🎊');
+  console.log('🎊 🎉 🎉 FOLEIO PLATFORM - COMPLETE USER STORIES TEST SUITE 🎉 🎉 🎊');
   console.log('================================================================================');
   console.log('Testing ALL 26 implemented user stories...');
   console.log('');

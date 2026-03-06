@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -23,22 +23,50 @@ export default async function TutorialsPage() {
     redirect('/login');
   }
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
+  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+    });
+  } catch {
+    console.warn('Tutorials page creator lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Tutorials</h1>
+        <p className="text-muted-foreground">
+          We could not load your tutorials right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   if (!creator) {
     redirect('/onboard');
   }
 
   // Fetch only tutorial content
-  const tutorials = await prisma.content.findMany({
-    where: {
-      creatorId: creator.id,
-      contentCategory: 'tutorial',
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  let tutorials: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  try {
+    tutorials = await prisma.content.findMany({
+      where: {
+        creatorId: creator.id,
+        contentCategory: 'tutorial',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch {
+    console.warn('Tutorials page data lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Tutorials</h1>
+        <p className="text-muted-foreground">
+          We could not load your tutorials right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString('en-NG', {

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,77 +30,119 @@ export default async function CollectionDetailPage({
     redirect('/login');
   }
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
+  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+    });
+  } catch {
+    console.warn('Collection detail creator lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collection</h1>
+        <p className="text-muted-foreground">
+          We could not load this collection right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   if (!creator) {
     redirect('/onboard');
   }
 
-  const collection = await prisma.collection.findFirst({
-    where: {
-      id,
-      creatorId: creator.id,
-    },
-    include: {
-      sections: {
-        where: {
-          parentSectionId: null, // Only top-level sections
-        },
-        include: {
-          subsections: {
-            include: {
-              sectionContents: {
-                include: {
-                  content: true,
-                },
-                orderBy: {
-                  orderIndex: 'asc',
+  let collection: Awaited<ReturnType<typeof prisma.collection.findFirst>> = null;
+  try {
+    collection = await prisma.collection.findFirst({
+      where: {
+        id,
+        creatorId: creator.id,
+      },
+      include: {
+        sections: {
+          where: {
+            parentSectionId: null, // Only top-level sections
+          },
+          include: {
+            subsections: {
+              include: {
+                sectionContents: {
+                  include: {
+                    content: true,
+                  },
+                  orderBy: {
+                    orderIndex: 'asc',
+                  },
                 },
               },
+              orderBy: {
+                orderIndex: 'asc',
+              },
             },
-            orderBy: {
-              orderIndex: 'asc',
+            sectionContents: {
+              include: {
+                content: true,
+              },
+              orderBy: {
+                orderIndex: 'asc',
+              },
             },
           },
-          sectionContents: {
-            include: {
-              content: true,
-            },
-            orderBy: {
-              orderIndex: 'asc',
-            },
+          orderBy: {
+            orderIndex: 'asc',
           },
         },
-        orderBy: {
-          orderIndex: 'asc',
+        tutorialContents: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        subscriptions: {
+          select: {
+            id: true,
+            status: true,
+          },
         },
       },
-      tutorialContents: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-      subscriptions: {
-        select: {
-          id: true,
-          status: true,
-        },
-      },
-    },
-  });
+    });
+  } catch {
+    console.warn('Collection detail lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collection</h1>
+        <p className="text-muted-foreground">
+          We could not load this collection right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   if (!collection) {
     redirect('/collections');
   }
 
   // Get all content for adding to sections
-  const allContent = await prisma.content.findMany({
-    where: { creatorId: creator.id },
-    orderBy: { createdAt: 'desc' },
-  });
+  let allContent: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  try {
+    allContent = await prisma.content.findMany({
+      where: { creatorId: creator.id },
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch {
+    console.warn('Collection content lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Collection</h1>
+        <p className="text-muted-foreground">
+          We could not load this collection right now. Please try again in a
+          moment.
+        </p>
+      </div>
+    );
+  }
 
   // Calculate stats
   const activeSubscribers = collection.subscriptions.filter(s => s.status === 'active').length;

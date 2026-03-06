@@ -7,7 +7,7 @@
 
 import '../lib/queue/workers/webhook-worker';
 
-console.log('🚀 Starting Odim Webhook Worker...');
+console.log('🚀 Starting Foleio Webhook Worker...');
 console.log('📋 Worker will process webhooks from the "webhooks" queue');
 console.log('📊 Monitoring Redis connection and queue health...');
 

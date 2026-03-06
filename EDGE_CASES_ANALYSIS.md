@@ -1,4 +1,4 @@
-# Odim Platform - Edge Cases & Failure Scenarios Analysis
+# Foleio Platform - Edge Cases & Failure Scenarios Analysis
 
 ## 1. AUTHENTICATION & ONBOARDING
 

@@ -1,4 +1,4 @@
-// Test script to run upload tests against the running Odim server
+// Test script to run upload tests against the running Foleio server
 // This will test the upload APIs without needing browser authentication
 
 const fs = require('fs');
@@ -7,7 +7,7 @@ const FormData = require('form-data');
 
 // Simple test without canvas dependency
 async function testUploads() {
-  console.log('🚀 Testing Odim Upload APIs...\n');
+  console.log('🚀 Testing Foleio Upload APIs...\n');
 
   const baseURL = 'http://localhost:3000';
 
@@ -69,7 +69,7 @@ async function testUploads() {
     console.log('');
     console.log('5. Check the response - it should work if you are logged in!');
     console.log('');
-    console.log('🎉 Your Odim platform is ready for content uploads!');
+    console.log('🎉 Your Foleio platform is ready for content uploads!');
 
   } catch (error) {
     console.error('❌ Test failed:', error.message);
@@ -81,7 +81,7 @@ async function testUploads() {
 }
 
 // Check if server is running first
-console.log('🔍 Checking if Odim server is running...\n');
+console.log('🔍 Checking if Foleio server is running...\n');
 
 fetch('http://localhost:3000')
   .then(response => {

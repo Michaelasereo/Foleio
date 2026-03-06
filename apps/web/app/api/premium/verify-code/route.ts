@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 

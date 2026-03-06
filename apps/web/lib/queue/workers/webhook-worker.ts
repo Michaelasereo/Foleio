@@ -1,8 +1,12 @@
 import { Worker, Job } from 'bullmq';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { paystack } from '@/lib/paystack';
 import { webhookQueue, deadLetterQueue } from '../queue-manager';
 import crypto from 'crypto';
+import {
+  sendContentPurchaseEmail,
+  sendSubscriptionConfirmation,
+} from '@/lib/email/send';
 
 interface WebhookJobData {
   event: string;
@@ -52,6 +56,7 @@ async function processWebhook(job: Job<WebhookJobData>) {
 // Handle successful payment events
 async function handlePaymentSuccess(data: any) {
   const reference = data.reference;
+  const queuedEmails: Array<Promise<{ success: boolean }>> = [];
 
   // Use database transaction for atomicity
   await prisma.$transaction(async (tx) => {
@@ -115,6 +120,24 @@ async function handlePaymentSuccess(data: any) {
         },
       });
 
+      const creatorName = transaction.creator?.displayName || 'Creator';
+      const creatorUsername = transaction.creator?.username || '';
+      const planName = metadata?.plan_name || 'Subscription';
+      const fanEmail = metadata?.subscriber_email || data?.customer?.email || '';
+      const nextBillingDate = new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      ).toLocaleDateString();
+      queuedEmails.push(
+        sendSubscriptionConfirmation({
+          fanEmail,
+          creatorName,
+          creatorUsername,
+          planName,
+          amount: (transaction.amount || 0) / 100,
+          nextBillingDate,
+        })
+      );
+
       // Update creator earnings and balance
       if (transaction.amount && transaction.creatorId) {
         await tx.creator.update({
@@ -148,6 +171,8 @@ async function handlePaymentSuccess(data: any) {
       await handleTutorialPurchase(tx, data, transaction, metadata);
     }
   });
+
+  await Promise.all(queuedEmails);
 }
 
 // Handle transfer (payout) events
@@ -252,6 +277,21 @@ async function handleTutorialPurchase(tx: any, data: any, transaction: any, meta
       transactionId: transaction.id,
     },
   });
+
+  const content = await tx.content.findUnique({
+    where: { id: contentId },
+    select: { title: true, creator: { select: { displayName: true, username: true } } },
+  });
+
+  if (content) {
+    await sendContentPurchaseEmail({
+      email: email.toLowerCase(),
+      creatorName: content.creator.displayName,
+      contentTitle: content.title,
+      amount: (transaction.amount || 0) / 100,
+      accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${content.creator.username}/content/${contentId}`,
+    });
+  }
 
   // Update content view count
   await tx.content.update({

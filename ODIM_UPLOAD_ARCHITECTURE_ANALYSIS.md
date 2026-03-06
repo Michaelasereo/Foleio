@@ -1,8 +1,8 @@
-# 🏗️ ODIM PLATFORM - UPLOAD ARCHITECTURE ANALYSIS
+# 🏗️ FOLEIO PLATFORM - UPLOAD ARCHITECTURE ANALYSIS
 ## Senior Software Architect Review (30 Years Experience)
 
 **Date:** January 8, 2026  
-**Platform:** Odim Creator Platform  
+**Platform:** Foleio Creator Platform  
 **Framework:** Next.js 16 (App Router), TypeScript 5.x  
 **Reviewer:** Senior Software Architect
 
@@ -10,7 +10,7 @@
 
 ## 📋 EXECUTIVE SUMMARY
 
-Your Odim platform implements a **hybrid storage architecture** with:
+Your Foleio platform implements a **hybrid storage architecture** with:
 - **Supabase Storage** for images (avatars, banners, content images)
 - **Mux** for video uploads and streaming
 - **Cloudflare R2** (legacy/fallback, partially implemented)

@@ -1,4 +1,4 @@
-# Odim Platform - Product Requirements Document
+# Foleio Platform - Product Requirements Document
 
 ## PART 2: FEATURE SPECIFICATION
 

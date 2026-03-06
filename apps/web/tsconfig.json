@@ -26,13 +26,13 @@
       "@/*": [
         "./*"
       ],
-      "@odim/ui": [
+      "@foleio/ui": [
         "../../packages/ui/src"
       ],
-      "@odim/database": [
+      "@foleio/database": [
         "../../packages/database/src"
       ],
-      "@odim/utils": [
+      "@foleio/utils": [
         "../../packages/utils/src"
       ]
     }

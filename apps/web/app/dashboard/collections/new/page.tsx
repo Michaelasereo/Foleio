@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { redirect } from 'next/navigation';
 import { CreateCollectionForm } from '@/components/collections/CreateCollectionForm';
 

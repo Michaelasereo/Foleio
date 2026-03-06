@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { AvailabilityManager } from '@/components/booking/AvailabilityManager';
 import { serializeForClient } from '@/lib/utils';
 
@@ -14,9 +14,23 @@ export default async function AvailabilityPage() {
     redirect('/login');
   }
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
+  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+    });
+  } catch {
+    console.warn('Availability page creator lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Availability Calendar</h1>
+        <p className="text-muted-foreground">
+          We could not load your availability data right now. Please try again
+          in a moment.
+        </p>
+      </div>
+    );
+  }
 
   if (!creator) {
     redirect('/onboard');
@@ -26,16 +40,32 @@ export default async function AvailabilityPage() {
   const ninetyDaysFromNow = new Date();
   ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
 
-  const availability = await prisma.creatorAvailability.findMany({
-    where: {
-      creatorId: creator.id,
-      date: {
-        gte: new Date(),
-        lte: ninetyDaysFromNow
-      }
-    },
-    orderBy: { date: 'asc' }
-  });
+  let availability: Awaited<
+    ReturnType<typeof prisma.creatorAvailability.findMany>
+  > = [];
+  try {
+    availability = await prisma.creatorAvailability.findMany({
+      where: {
+        creatorId: creator.id,
+        date: {
+          gte: new Date(),
+          lte: ninetyDaysFromNow,
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+  } catch {
+    console.warn('Availability page data lookup failed (non-fatal).');
+    return (
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Availability Calendar</h1>
+        <p className="text-muted-foreground">
+          We could not load your availability data right now. Please try again
+          in a moment.
+        </p>
+      </div>
+    );
+  }
 
   console.log(`Server: Found ${availability.length} availability records for creator ${creator.id}:`,
     availability.map(a => ({ date: a.date.toISOString(), isAvailable: a.isAvailable })));
@@ -61,7 +91,10 @@ export default async function AvailabilityPage() {
         </div>
       </div>
 
-      <AvailabilityManager creatorId={creator.id} availability={serializeForClient(availability)} />
+      <AvailabilityManager 
+        creatorId={creator.id} 
+        availability={serializeForClient(availability) as any} 
+      />
     </div>
   );
 }

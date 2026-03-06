@@ -3,7 +3,7 @@
  * Implements comprehensive file validation and security checks
  */
 
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 export interface FileValidationResult {
   valid: boolean;

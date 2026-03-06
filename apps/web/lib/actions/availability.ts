@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 
@@ -199,17 +199,26 @@ export async function getAvailabilityWithBookings(
     });
 
     // Get booking counts for each date
+    // Wrap in try-catch to handle database connection errors gracefully
     const availabilityWithCounts = await Promise.all(
       availability.map(async (avail: typeof availability[0]) => {
-        const bookingCount = await prisma.booking.count({
-          where: {
-            creatorId,
-            bookingDate: avail.date,
-            status: {
-              notIn: ['cancelled', 'refunded'],
+        let bookingCount = 0;
+        try {
+          bookingCount = await prisma.booking.count({
+            where: {
+              creatorId,
+              bookingDate: avail.date,
+              status: {
+                notIn: ['cancelled', 'refunded'],
+              },
             },
-          },
-        });
+          });
+        } catch (dbError) {
+          console.error('Error counting bookings for date:', avail.date, dbError);
+          // If database query fails, assume 0 bookings to allow the page to load
+          // The booking creation will still validate properly
+          bookingCount = 0;
+        }
 
         const isFullyBooked = avail.maxBookings 
           ? bookingCount >= avail.maxBookings 

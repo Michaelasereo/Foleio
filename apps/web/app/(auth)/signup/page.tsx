@@ -101,7 +101,7 @@ export default function SignupPage() {
       <CardHeader>
         <CardTitle>Create an account</CardTitle>
         <CardDescription>
-          Enter your information to create your Odim account
+          Enter your information to create your Foleio account
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,8 +1,8 @@
-# Supabase Storage Setup for Odim Platform
+# Supabase Storage Setup for Foleio Platform
 
 ## Overview
 
-Your Odim platform now uses:
+Your Foleio platform now uses:
 - **Supabase Storage** for images (avatars, banners, content images)
 - **Mux** for videos (existing integration)
 - **Fallback placeholders** for development
@@ -102,9 +102,9 @@ Run this test in your browser console:
     if (error) {
       console.log('❌ Supabase connection failed:', error.message);
     } else {
-      const odimBucket = data.find(b => b.name === 'odim-uploads');
+      const foleioBucket = data.find(b => b.name === 'foleio-uploads');
       console.log(`✅ Supabase connected: ${data.length} buckets found`);
-      console.log(`📦 Odim bucket: ${odimBucket ? '✅ EXISTS' : '❌ MISSING'}`);
+      console.log(`📦 Foleio bucket: ${foleioBucket ? '✅ EXISTS' : '❌ MISSING'}`);
     }
   } catch (error) {
     console.log('❌ Supabase test failed:', error.message);
@@ -189,7 +189,7 @@ With Supabase Storage, you get:
 ## Troubleshooting
 
 ### "Bucket not found"
-- Create the `odim-uploads` bucket in Supabase Storage
+- Create the `foleio-uploads` bucket in Supabase Storage
 - Make sure it's public
 
 ### "Permission denied"

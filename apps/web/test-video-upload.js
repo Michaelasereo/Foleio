@@ -14,7 +14,7 @@
     
     if (authData.error) {
       console.log('❌ NOT AUTHENTICATED');
-      console.log('💡 Please log in to Odim first');
+      console.log('💡 Please log in to Foleio first');
       return;
     }
     

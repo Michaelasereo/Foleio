@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { redirect } from 'next/navigation';
 import { EditContentForm } from '@/components/content/EditContentForm';
 import { serializeForClient } from '@/lib/utils';

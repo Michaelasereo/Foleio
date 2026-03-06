@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { confirmBookingPayment, processFirstPayout } from '@/lib/actions/booking';
 import { sendBookingConfirmationEmail } from '@/lib/actions/email';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 
 // This is called by Paystack webhook or after successful payment redirect
 export async function POST(request: NextRequest) {

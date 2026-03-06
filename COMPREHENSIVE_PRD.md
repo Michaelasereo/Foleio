@@ -1,4 +1,4 @@
-# **ODIM PLATFORM PRD: RELIABILITY & SCALING ROADMAP**
+# **FOLEIO PLATFORM PRD: RELIABILITY & SCALING ROADMAP**
 *From MVP to Production-Ready Platform*
 
 ---
@@ -456,6 +456,6 @@ Phase 4: Enterprise Scale (Months 6-12)
 
 ---
 
-*This PRD transforms the Odim platform from a functional MVP into a production-ready, reliable payment platform. Phase 2 addresses the critical gaps that could cause business failure while laying the foundation for scalable growth.*
+*This PRD transforms the Foleio platform from a functional MVP into a production-ready, reliable payment platform. Phase 2 addresses the critical gaps that could cause business failure while laying the foundation for scalable growth.*
 
 *Ready to proceed with Phase 2 implementation.*

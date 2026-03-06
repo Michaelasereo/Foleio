@@ -36,6 +36,18 @@ const nextConfig = {
     },
     optimizeCss: true,
   },
+  webpack: (config, { isServer }) => {
+    // Mark optional dependencies as externals to prevent build-time errors
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'ioredis': 'commonjs ioredis',
+        'bullmq': 'commonjs bullmq',
+        'file-type': 'commonjs file-type',
+      });
+    }
+    return config;
+  },
   compress: true,
   generateEtags: true,
   poweredByHeader: false,

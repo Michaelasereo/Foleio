@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// 🚀 ODIM PLATFORM - CRITICAL FIXES VERIFICATION SCRIPT
+// 🚀 FOLEIO PLATFORM - CRITICAL FIXES VERIFICATION SCRIPT
 // Run this to verify all critical fixes are working
 
 const fs = require('fs');

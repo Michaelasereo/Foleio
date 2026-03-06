@@ -6,7 +6,7 @@ const fetch = require('node-fetch');
 const BASE_URL = 'http://localhost:3000';
 
 async function runCompleteUserStoriesTest() {
-  console.log('🎊 🎉 🎉 ODIM PLATFORM - NODE.JS USER STORIES TEST SUITE 🎉 🎉 🎊');
+  console.log('🎊 🎉 🎉 FOLEIO PLATFORM - NODE.JS USER STORIES TEST SUITE 🎉 🎉 🎊');
   console.log('================================================================================');
   console.log('Testing ALL implemented user stories via direct API calls...');
   console.log('');

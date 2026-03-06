@@ -3,14 +3,9 @@ import sharp from 'sharp';
 
 // Conditional import for file-type with fallback
 let fileTypeFromBuffer: any;
-try {
-  const fileType = require('file-type');
-  fileTypeFromBuffer = fileType.fileTypeFromBuffer;
-} catch (e) {
-  console.warn('file-type not available, using fallback validation');
 
-  // Emergency fallback for file-type validation
-  fileTypeFromBuffer = async (buffer: Buffer): Promise<{ ext: string; mime: string } | undefined> => {
+// Emergency fallback for file-type validation
+fileTypeFromBuffer = async (buffer: Buffer): Promise<{ ext: string; mime: string } | undefined> => {
     const header = buffer.slice(0, 12);
 
     // PNG
@@ -40,8 +35,10 @@ try {
     }
 
     return undefined;
-  };
-}
+};
+
+// file-type is optional - we use the fallback implementation above
+// If file-type is needed, it can be loaded at runtime via dynamic import
 
 export interface UploadOptions {
   userId: string;

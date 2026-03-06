@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { PublicCollectionPage } from '@/components/creator/PublicCollectionPage';
 
 export default async function CollectionDetailPage({

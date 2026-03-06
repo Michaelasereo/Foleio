@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { randomBytes } from 'crypto';
 
 // Generate a 6-digit access code
@@ -365,6 +365,29 @@ export async function createTutorialPurchase(data: {
         transactionId: data.transactionId,
       },
     });
+
+    const content = await prisma.content.findUnique({
+      where: { id: data.contentId },
+      include: {
+        creator: {
+          select: {
+            displayName: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    if (content) {
+      const { sendContentPurchaseEmail } = await import('@/lib/email/send');
+      await sendContentPurchaseEmail({
+        email: data.email.toLowerCase(),
+        creatorName: content.creator.displayName,
+        contentTitle: content.title,
+        amount: (content.tutorialPrice || 0) / 100,
+        accessUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/creator/${content.creator.username}/content/${content.id}`,
+      });
+    }
 
     return { success: true, purchase };
   } catch (error) {

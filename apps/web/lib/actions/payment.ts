@@ -2,9 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { paystack } from '@/lib/paystack';
-import { PrismaClient } from '@odim/database';
+import { PrismaClient } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { sendPayoutConfirmation } from '@/lib/email/send';
 
 const prisma = new PrismaClient();
 
@@ -63,7 +64,7 @@ export async function requestPayout(
       source: 'balance',
       amount: validatedData.amount * 100, // Convert to kobo
       recipient: creator.paystackRecipientCode,
-      reason: 'Odim platform payout',
+      reason: 'Foleio platform payout',
     });
 
     // Record payout in database
@@ -74,6 +75,15 @@ export async function requestPayout(
         status: 'processing',
         paystackTransferCode: transfer.data.transfer_code,
       },
+    });
+
+    await sendPayoutConfirmation({
+      creatorEmail: session.user.email || '',
+      creatorName: creator.accountName || 'Creator',
+      amount: validatedData.amount,
+      bankName: 'Bank Account',
+      accountNumber: creator.paystackRecipientCode || '0000',
+      status: 'processing',
     });
 
     // Update creator balance

@@ -16,6 +16,7 @@ interface InitializePaymentParams {
   channels?: string[];
   subaccount?: string;
   callback_url?: string;
+  plan?: string;
 }
 
 interface TransferParams {
@@ -44,6 +45,11 @@ interface CreateTransferRecipientParams {
   currency?: string;
 }
 
+interface DisableSubscriptionParams {
+  code: string;
+  token?: string;
+}
+
 export const paystack = {
   /**
    * Initialize a payment transaction with retry logic
@@ -59,6 +65,7 @@ export const paystack = {
         body: JSON.stringify({
           email: params.email,
           amount: params.amount,
+          plan: params.plan,
           metadata: params.metadata,
           channels: params.channels || ['card', 'bank', 'ussd'],
           subaccount: params.subaccount,
@@ -189,6 +196,31 @@ export const paystack = {
    */
   getPublicKey() {
     return PAYSTACK_PUBLIC_KEY;
+  },
+
+  /**
+   * Disable a recurring subscription.
+   * Paystack requires both the subscription code and email token.
+   */
+  async disableSubscription(params: DisableSubscriptionParams) {
+    const response = await fetch(`${PAYSTACK_BASE_URL}/subscription/disable`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code: params.code,
+        token: params.token || process.env.PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN || '',
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to disable subscription' }));
+      throw new Error(error.message || 'Failed to disable subscription');
+    }
+
+    return response.json();
   },
 };
 

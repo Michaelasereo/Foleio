@@ -1,4 +1,4 @@
-# Odim Platform - Test Matrix
+# Foleio Platform - Test Matrix
 
 ## **1. AUTHENTICATION & ONBOARDING**
 

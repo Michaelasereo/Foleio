@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatDate } from '@odim/utils';
+import { formatDate } from '@foleio/utils';
 
 interface ContentListProps {
   content: any[];

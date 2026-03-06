@@ -1,5 +1,5 @@
-import { prisma } from '@odim/database';
-import { createSupabaseServiceClient } from '@odim/database';
+import { prisma } from '@foleio/database';
+import { createSupabaseServiceClient } from '@foleio/database';
 
 async function clearAllData() {
   try {

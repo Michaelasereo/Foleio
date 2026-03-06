@@ -1,8 +1,8 @@
-// Simple API test for Odim upload endpoints
+// Simple API test for Foleio upload endpoints
 // Run with: node simple-upload-test.js
 
 async function testAPIs() {
-  console.log('🚀 Testing Odim Upload APIs...\n');
+  console.log('🚀 Testing Foleio Upload APIs...\n');
 
   const baseURL = 'http://localhost:3000';
 

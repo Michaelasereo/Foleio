@@ -232,7 +232,6 @@ export default function NewContentPage() {
         setUploadedFile({
           muxUploadId: videoData.muxUploadId,
           status: videoData.status,
-          statusEndpoint: videoData.statusEndpoint,
           uploadUrl: videoData.playbackUrl, // Will be null until processing complete
           estimatedReadyTime: videoData.estimatedReadyTime,
         });
@@ -262,8 +261,9 @@ export default function NewContentPage() {
 
     } catch (error) {
       console.error('💥 UPLOAD ERROR:', error);
-      console.error('Error stack:', error.stack);
-      console.error('Error message:', error.message);
+      const err = error as Error;
+      console.error('Error stack:', err.stack);
+      console.error('Error message:', err.message);
 
       toast({
         title: 'Upload failed',
@@ -309,7 +309,7 @@ export default function NewContentPage() {
             muxAssetId: statusData.assetId,
             muxPlaybackId: statusData.playbackId,
             uploadUrl: statusData.playbackUrl,
-            thumbnail: muxThumbnailUrl,
+            thumbnail: muxThumbnailUrl || undefined,
             status: 'ready',
           }));
 

@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { mediaProcessingQueueInstance as mediaProcessingQueue } from '@/lib/queue/processing-queue';

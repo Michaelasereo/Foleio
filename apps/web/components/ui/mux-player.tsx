@@ -127,24 +127,11 @@ export function MuxVideoPlayer({
       }
 
       // Load Mux player from official CDN with fallback
-      const muxScript = document.createElement('script');
-      muxScript.src = 'https://cdn.jsdelivr.net/npm/@mux/mux-player@2/dist/index.js';
-      muxScript.crossOrigin = 'anonymous';
-      muxScript.async = true;
-      muxScript.onload = () => {
-        console.log('✅ Mux player loaded successfully');
-        setScriptsLoaded(true);
-        setIsLoading(false);
-        setError(null);
-      };
-      muxScript.onerror = (e) => {
-        // Mux player script failed - this is OK, we'll use HLS.js fallback
-        console.warn('⚠️ Mux player script failed to load, using HLS.js fallback');
-        // Don't set scriptsLoaded here - it should already be set from HLS.js loading
-        setIsLoading(false);
-      };
-
-      document.head.appendChild(muxScript);
+      // Note: Mux player v2 uses ES modules, so we'll skip it and use HLS.js directly
+      // The CDN URL was causing MIME type issues, so we'll rely on HLS.js which is more reliable
+      console.log('⚠️ Skipping Mux player script (using HLS.js fallback)');
+      // Mux player script loading removed - using HLS.js directly
+      setIsLoading(false);
     };
 
     loadScripts();
@@ -160,8 +147,14 @@ export function MuxVideoPlayer({
       setUseHlsJs(false);
     }
     
-    if (!playbackId || !videoRef.current || !scriptsLoaded) {
-      console.log('HLS init skipped:', { playbackId: !!playbackId, videoRef: !!videoRef.current, scriptsLoaded });
+    if (!playbackId || !videoRef.current) {
+      console.log('HLS init skipped:', { playbackId: !!playbackId, videoRef: !!videoRef.current });
+      return;
+    }
+    
+    // Wait for HLS.js to be available
+    if (!scriptsLoaded) {
+      console.log('HLS init skipped: scripts not loaded yet');
       return;
     }
 
@@ -171,8 +164,20 @@ export function MuxVideoPlayer({
 
     console.log('Script availability:', { hasMuxPlayer, hasHlsJs, windowHls: !!window.Hls });
 
-    // Force HLS.js usage if available, regardless of native support (since native is failing)
-    const shouldUseHLS = hasHlsJs && !hasMuxPlayer;
+    // Try native HLS first if supported, otherwise use HLS.js
+    const supportsNativeHLS = typeof window !== 'undefined' && 
+      videoRef.current && 
+      videoRef.current.canPlayType('application/vnd.apple.mpegurl');
+    
+    // Use HLS.js if native HLS is not supported
+    const shouldUseHLS = hasHlsJs && !supportsNativeHLS;
+    
+    console.log('Video playback method:', { 
+      supportsNativeHLS, 
+      hasHlsJs, 
+      shouldUseHLS,
+      canPlayType: videoRef.current?.canPlayType('application/vnd.apple.mpegurl')
+    });
 
     if (shouldUseHLS && videoRef.current) {
       console.log('🎬 Initializing HLS.js (preferred over native HLS)...');
@@ -206,24 +211,7 @@ export function MuxVideoPlayer({
       // Store HLS instance in ref for cleanup
       hlsRef.current = hls;
 
-      console.log('🎬 HLS.js: Loading source and attaching media');
-      // Load source first, then attach (this is the correct order)
-      hls.loadSource(playbackUrl);
-      
-      // Small delay to ensure source is loaded before attaching
-      setTimeout(() => {
-        if (videoRef.current && hlsRef.current === hls) {
-          // Double-check src is still empty before attaching
-          if (!videoRef.current.src || videoRef.current.src === '') {
-            hls.attachMedia(videoRef.current);
-          } else {
-            console.warn('⚠️ Video src was set, clearing before HLS attachment');
-            videoRef.current.src = '';
-            hls.attachMedia(videoRef.current);
-          }
-        }
-      }, 50);
-
+      // Register event handlers BEFORE attaching and loading
       hls.on(window.Hls.Events.MEDIA_ATTACHED, () => {
         console.log('📎 HLS media attached successfully');
       });
@@ -245,13 +233,56 @@ export function MuxVideoPlayer({
         setIsLoading(false);
       });
 
+      console.log('🎬 HLS.js: Attaching media and loading source');
+      // Attach media first, then load source (this is the correct order for HLS.js)
+      if (videoRef.current) {
+        // Double-check src is still empty before attaching
+        if (videoRef.current.src && videoRef.current.src !== '') {
+          console.warn('⚠️ Video src was set, clearing before HLS attachment');
+          videoRef.current.src = '';
+          videoRef.current.removeAttribute('src');
+        }
+        console.log('📎 Attaching HLS media to video element');
+        try {
+          hls.attachMedia(videoRef.current);
+          console.log('✅ HLS.attachMedia() called successfully');
+        } catch (error) {
+          console.error('❌ Error attaching HLS media:', error);
+        }
+      } else {
+        console.error('❌ videoRef.current is null, cannot attach media');
+      }
+      
+      // Load source after attaching media
+      try {
+        console.log('📥 Loading HLS source:', playbackUrl);
+        hls.loadSource(playbackUrl);
+        console.log('✅ HLS.loadSource() called successfully');
+      } catch (error) {
+        console.error('❌ Error loading HLS source:', error);
+      }
+
+      // Add more event handlers for debugging
+      hls.on(window.Hls.Events.LEVEL_LOADED, () => {
+        console.log('📦 HLS level loaded');
+      });
+
+      hls.on(window.Hls.Events.FRAG_LOADED, () => {
+        console.log('🎬 HLS fragment loaded');
+      });
+
+      hls.on(window.Hls.Events.FRAG_PARSING_DATA, () => {
+        console.log('🔍 HLS fragment parsing data');
+      });
+
       hls.on(window.Hls.Events.ERROR, (event, data) => {
         console.error('❌ HLS.js error:', data);
         console.error('❌ Error details:', {
           type: data.type,
           details: data.details,
           fatal: data.fatal,
-          url: data.url
+          url: data.url,
+          error: data.error
         });
 
         if (data.fatal) {
@@ -306,19 +337,29 @@ export function MuxVideoPlayer({
 
       // Set a timeout to fallback if HLS takes too long
       const fallbackTimeout = setTimeout(() => {
-        if (videoRef.current && !videoRef.current.currentSrc && hlsRef.current === hls) {
-          console.log('⏰ HLS.js timeout, falling back to native HLS');
-          // Destroy HLS.js and let browser handle it natively
-          hls.destroy();
-          hlsRef.current = null;
-          setUseHlsJs(false);
-          if (videoRef.current) {
-            videoRef.current.src = playbackUrl;
-            videoRef.current.load();
+        if (videoRef.current && hlsRef.current === hls) {
+          // Check if video has loaded or if HLS.js has made progress
+          const hasLoaded = videoRef.current.readyState >= 2; // HAVE_CURRENT_DATA
+          const hasCurrentSrc = !!videoRef.current.currentSrc;
+          
+          if (!hasLoaded && !hasCurrentSrc) {
+            console.log('⏰ HLS.js timeout (no progress), falling back to MP4');
+            // Destroy HLS.js and use MP4 directly
+            hls.destroy();
+            hlsRef.current = null;
+            setUseHlsJs(false);
+            if (videoRef.current) {
+              // Clear any existing src
+              videoRef.current.src = '';
+              videoRef.current.removeAttribute('src');
+              // Use MP4 URL directly
+              videoRef.current.src = mp4Url;
+              videoRef.current.load();
+            }
+            setIsLoading(false);
           }
-          setIsLoading(false);
         }
-      }, 8000); // 8 second timeout (increased for slower connections)
+      }, 5000); // 5 second timeout - if HLS.js hasn't loaded video by then, use MP4
 
       return () => {
         clearTimeout(fallbackTimeout);
@@ -328,11 +369,20 @@ export function MuxVideoPlayer({
           setUseHlsJs(false);
         }
       };
+    } else if (supportsNativeHLS) {
+      // Native HLS is supported, use it directly
+      console.log('📺 Using native browser HLS support');
+      if (videoRef.current && !videoRef.current.src) {
+        videoRef.current.src = playbackUrl;
+        videoRef.current.load();
+        setIsLoading(false);
+      }
     } else if (!hasMuxPlayer && !hasHlsJs) {
-      // No scripts available, try native browser HLS
+      // No scripts available, try native browser HLS anyway
       console.log('📺 No scripts available, trying native browser HLS');
       if (videoRef.current && !videoRef.current.src) {
         videoRef.current.src = playbackUrl;
+        videoRef.current.load();
         setIsLoading(false);
       }
     }
@@ -357,21 +407,26 @@ export function MuxVideoPlayer({
   // Force video source loading immediately (only if not using HLS.js)
   useEffect(() => {
     // Don't set src if we're using or planning to use HLS.js
-    const willUseHLS = typeof window !== 'undefined' && !window.mux?.player && window.Hls;
+    const willUseHLS = typeof window !== 'undefined' && window.Hls && typeof window.Hls === 'function';
+    
+    // Wait a bit to see if HLS.js will be initialized
+    const checkTimer = setTimeout(() => {
+      if (playbackId && videoRef.current && !videoRef.current.src && !willUseHLS && !useHlsJs) {
+        console.log('🎯 Setting video source directly (no HLS.js):', playbackUrl);
+        videoRef.current.src = playbackUrl;
 
-    if (playbackId && videoRef.current && !videoRef.current.src && !willUseHLS && !useHlsJs) {
-      console.log('🎯 Setting video source directly (no HLS.js):', playbackUrl);
-      videoRef.current.src = playbackUrl;
-
-      // Force a load to ensure the video element recognizes the source
-      setTimeout(() => {
-        if (videoRef.current && !useHlsJs) {
-          videoRef.current.load();
-          console.log('📺 Video load() called, src:', videoRef.current.src);
-        }
-      }, 100);
-    }
-  }, [playbackId, playbackUrl, useHlsJs]);
+        // Force a load to ensure the video element recognizes the source
+        setTimeout(() => {
+          if (videoRef.current && !useHlsJs) {
+            videoRef.current.load();
+            console.log('📺 Video load() called, src:', videoRef.current.src);
+          }
+        }, 100);
+      }
+    }, 500); // Wait 500ms to see if HLS.js initializes
+    
+    return () => clearTimeout(checkTimer);
+  }, [playbackId, playbackUrl, useHlsJs, scriptsLoaded]);
 
   // Additional fallback after scripts load (only if not using HLS.js)
   useEffect(() => {
@@ -518,7 +573,10 @@ export function MuxVideoPlayer({
           console.log('🎥 Video loaded data');
           setIsLoading(false);
         }}
-        onLoadedMetadata={() => console.log('🎥 Video loaded metadata')}
+        onLoadedMetadata={() => {
+          console.log('🎥 Video loaded metadata');
+          setIsLoading(false);
+        }}
         onStalled={() => console.log('🎥 Video stalled')}
         onSuspend={() => console.log('🎥 Video suspended')}
         onWaiting={() => console.log('🎥 Video waiting')}
@@ -535,7 +593,7 @@ export function MuxVideoPlayer({
             {/* Try MP4 first (more compatible) */}
             <source src={mp4Url} type="video/mp4" />
             {/* Fallback to HLS */}
-            <source src={hlsUrl} type="application/x-mpegURL" />
+            <source src={hlsUrl} type="application/vnd.apple.mpegurl" />
             <p className="text-gray-500 text-sm">
               Your browser doesn't support this video format.
               <a href={mp4Url} className="text-blue-600 underline ml-1">

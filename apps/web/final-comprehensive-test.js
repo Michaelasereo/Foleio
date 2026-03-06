@@ -1,8 +1,8 @@
-// 🎯 FINAL COMPREHENSIVE ODIM UPLOAD SYSTEM TEST
+// 🎯 FINAL COMPREHENSIVE FOLEIO UPLOAD SYSTEM TEST
 // Test everything: Auth, Images, Videos, Settings
 
 (async () => {
-  console.log('🎯 FINAL ODIM UPLOAD SYSTEM TEST');
+  console.log('🎯 FINAL FOLEIO UPLOAD SYSTEM TEST');
   console.log('=================================');
   console.log('');
   
@@ -14,7 +14,7 @@
     
     if (authData.error) {
       console.log('❌ NOT AUTHENTICATED');
-      console.log('💡 Please log in to Odim first');
+      console.log('💡 Please log in to Foleio first');
       console.log('🔗 http://localhost:3000/login');
       return;
     }
@@ -70,12 +70,12 @@
   ctx.fillStyle = 'white';
   ctx.font = 'bold 18px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('ODIM TEST', 100, 90);
+  ctx.fillText('FOLEIO TEST', 100, 90);
   ctx.font = '12px Arial';
   ctx.fillText('Image Upload', 100, 115);
   
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-  const testImage = new File([blob], 'odim-test.png', { type: 'image/png' });
+  const testImage = new File([blob], 'foleio-test.png', { type: 'image/png' });
   
   const imageFormData = new FormData();
   imageFormData.append('file', testImage);
@@ -170,7 +170,7 @@
   console.log('✅ IMAGE UPLOAD: TESTED');
   console.log('✅ VIDEO UPLOAD: TESTED');
   console.log('');
-  console.log('🚀 YOUR ODIM PLATFORM IS FULLY OPERATIONAL!');
+  console.log('🚀 YOUR FOLEIO PLATFORM IS FULLY OPERATIONAL!');
   console.log('');
   console.log('Features Ready:');
   console.log('🎨 Profile Image Uploads');

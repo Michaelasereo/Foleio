@@ -31,6 +31,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
+import { FanSupportChat } from '@/components/ai/FanSupportChat';
 
 interface BookingData {
   id: string;
@@ -189,67 +190,76 @@ export default function TrackingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+        <FanSupportChat />
+      </>
     );
   }
 
   if (error && !isVerified) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Booking Not Found</h2>
-            <p className="text-muted-foreground">{error}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Booking Not Found</h2>
+              <p className="text-muted-foreground">{error}</p>
+            </CardContent>
+          </Card>
+        </div>
+        <FanSupportChat />
+      </>
     );
   }
 
   // Email verification form
   if (!isVerified) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-muted/30">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <CardTitle>Track Your Booking</CardTitle>
-            <CardDescription>
-              Enter the email address you used to make this booking
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleVerify} className="space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              <Button type="submit" className="w-full" disabled={isVerifying}>
-                {isVerifying ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  'View Booking'
+      <>
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-muted/30">
+          <Card className="max-w-md w-full">
+            <CardHeader className="text-center">
+              <CardTitle>Track Your Booking</CardTitle>
+              <CardDescription>
+                Enter the email address you used to make this booking
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleVerify} className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+                {error && (
+                  <p className="text-sm text-destructive">{error}</p>
                 )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+                <Button type="submit" className="w-full" disabled={isVerifying}>
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    'View Booking'
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+        <FanSupportChat />
+      </>
     );
   }
 
@@ -257,8 +267,9 @@ export default function TrackingPage() {
   if (!booking) return null;
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-background to-muted/30">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <>
+      <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-background to-muted/30">
+        <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-bold">Booking Details</h1>
@@ -428,45 +439,47 @@ export default function TrackingPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </div>
 
-      {/* Refund Dialog */}
-      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request Refund</DialogTitle>
-            <DialogDescription>
-              Please explain why you&apos;re requesting a refund. The creator will review your request.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            placeholder="Please provide a detailed reason for your refund request..."
-            value={refundReason}
-            onChange={(e) => setRefundReason(e.target.value)}
-            rows={4}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRefundRequest}
-              disabled={!refundReason.trim() || isRequestingRefund}
-            >
-              {isRequestingRefund ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit Request'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* Refund Dialog */}
+        <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Request Refund</DialogTitle>
+              <DialogDescription>
+                Please explain why you&apos;re requesting a refund. The creator will review your request.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              placeholder="Please provide a detailed reason for your refund request..."
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              rows={4}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleRefundRequest}
+                disabled={!refundReason.trim() || isRequestingRefund}
+              >
+                {isRequestingRefund ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Request'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+      <FanSupportChat />
+    </>
   );
 }
 

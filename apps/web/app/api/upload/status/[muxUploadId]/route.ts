@@ -41,7 +41,7 @@ export async function GET(
 
     // First, find the upload record and associated content
     try {
-      const { prisma } = await import('@odim/database');
+      const { prisma } = await import('@foleio/database');
       const upload = await prisma.upload.findFirst({
         where: { muxUploadId: muxUploadId }
       });
@@ -87,7 +87,7 @@ export async function GET(
           // Update database with completed status
           try {
             // Import prisma here to avoid circular dependencies
-            const { prisma } = await import('@odim/database');
+            const { prisma } = await import('@foleio/database');
 
             // Find the upload record first to get the upload ID
             const upload = await prisma.upload.findFirst({

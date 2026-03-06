@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
 import { TutorialsPage } from '@/components/creator/TutorialsPage';
 
 export default async function CreatorTutorialsPage({

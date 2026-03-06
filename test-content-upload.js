@@ -1,8 +1,8 @@
-// Test Content Upload Script for Odim Platform
+// Test Content Upload Script for Foleio Platform
 // Run this in the browser console while logged in to http://localhost:3000
 
 (async function testContentUpload() {
-  console.log('🚀 Starting Odim Content Upload Test...');
+  console.log('🚀 Starting Foleio Content Upload Test...');
 
   try {
     // Get authentication token from localStorage or cookies
@@ -76,7 +76,7 @@
       ctx.font = '48px Arial';
       ctx.textAlign = 'center';
       ctx.fillText('TEST VIDEO', 320, 180);
-      ctx.fillText('Odim Platform', 320, 240);
+      ctx.fillText('Foleio Platform', 320, 240);
 
       return new Promise((resolve) => {
         canvas.toBlob((blob) => {
@@ -106,7 +106,7 @@
       ctx.fillText('TEST IMAGE', 400, 280);
       ctx.font = '24px Arial';
       ctx.fillText('Cloudflare R2 Storage', 400, 320);
-      ctx.fillText('Odim Platform', 400, 350);
+      ctx.fillText('Foleio Platform', 400, 350);
 
       return new Promise((resolve) => {
         canvas.toBlob((blob) => {

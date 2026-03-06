@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requestRefund } from '@/lib/actions/booking';
 import { z } from 'zod';
+import { prisma } from '@foleio/database';
+import { sendBookingStatusUpdate } from '@/lib/email/send';
 
 const refundRequestSchema = z.object({
   trackingToken: z.string(),
@@ -28,6 +30,37 @@ export async function POST(request: NextRequest) {
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        trackingToken: validation.data.trackingToken,
+        customerEmail: validation.data.email.toLowerCase(),
+      },
+      include: {
+        creator: {
+          select: {
+            displayName: true,
+          },
+        },
+        priceListItem: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (booking) {
+      await sendBookingStatusUpdate({
+        customerEmail: booking.customerEmail,
+        customerName: booking.customerName,
+        creatorName: booking.creator.displayName,
+        serviceName: booking.priceListItem.name,
+        bookingDate: new Date(booking.bookingDate).toLocaleDateString(),
+        status: 'disputed',
+        trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/tracking/${booking.trackingToken}`,
+      });
     }
 
     return NextResponse.json({

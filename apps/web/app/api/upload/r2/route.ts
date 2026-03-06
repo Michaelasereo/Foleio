@@ -82,10 +82,9 @@ export async function POST(request: NextRequest) {
 
       // Estimate and deduct cost upfront
       const costEstimate = await costMonitor.estimateUploadCost(file.size, 'image', user.id);
-      const costDeducted = await costMonitor.deductFromBalance(user.id, {
-        amount: BigInt(Math.ceil(costEstimate.total * 100)), // Convert to kobo
-        currency: 'NGN'
-      });
+      const { Currency } = await import('@/lib/currency/currency');
+      const costAmount = Currency.fromMinor(BigInt(Math.ceil(costEstimate.total * 100)));
+      const costDeducted = await costMonitor.deductFromBalance(user.id, costAmount);
 
       if (!costDeducted) {
         systemMonitor.trackApiCall('/api/upload/r2', 'POST', 402, Date.now() - startTime, user.id);
@@ -100,13 +99,9 @@ export async function POST(request: NextRequest) {
 
       // Queue for processing
       const processingJobId = await mediaProcessingQueue.addJob({
-        contentId: '', // Will be set when content is created
-        assetId: uploadResult.assetId,
-        userId: user.id,
-        contentType: 'image',
-        provider: uploadResult.provider as any,
-        fileName: file.name,
-        fileSize: file.size
+        type: 'image',
+        fileUrl: uploadResult.url || '',
+        userId: user.id
       });
 
       // Track successful upload

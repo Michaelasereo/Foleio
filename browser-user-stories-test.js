@@ -1,9 +1,9 @@
-// 🎊 COMPREHENSIVE ODIM PLATFORM USER STORIES TEST SUITE
+// 🎊 COMPREHENSIVE FOLEIO PLATFORM USER STORIES TEST SUITE
 // Copy and paste this entire script into your browser console
 // Make sure your dev server is running on http://localhost:3000
 
 (async function runCompleteUserStoriesTest() {
-  console.log('🎊 🎉 🎉 ODIM PLATFORM - COMPLETE USER STORIES TEST SUITE 🎉 🎉 🎊');
+  console.log('🎊 🎉 🎉 FOLEIO PLATFORM - COMPLETE USER STORIES TEST SUITE 🎉 🎉 🎊');
   console.log('================================================================================');
   console.log('Testing ALL 26 implemented user stories...');
   console.log('Run this in your browser console with the dev server running!');

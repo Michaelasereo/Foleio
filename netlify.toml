@@ -1,10 +1,10 @@
 [build]
   base = "apps/web"
-  command = "cd ../.. && cd packages/database && npm run db:generate && cd ../../apps/web && npm run build"
+  # command = "cd ../.. && cd packages/database && npm run db:generate && cd ../../apps/web && npm run build"
   publish = ".next"
 
 [build.environment]
-  NEXT_PUBLIC_APP_URL = "https://odim.ng"
+  NEXT_PUBLIC_APP_URL = "https://foleio.ng"
   NEXT_TELEMETRY_DISABLED = "1"
 
 [context.production.environment]
@@ -16,10 +16,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-
-[[functions.schedule]]
-  cron = "0 9 * * 1" # Every Monday at 9 AM
-  function = "process-payouts"
 
 [dev]
   framework = "nextjs"
@@ -34,7 +30,7 @@
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Content-Security-Policy = """
-      default-src 'self' *.odim.ng *.paystack.co *.cloudflare.com;
+      default-src 'self' *.foleio.ng *.paystack.co *.cloudflare.com;
       script-src 'self' 'unsafe-inline' 'unsafe-eval' *.paystack.co;
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: blob: *.cloudflare.com;

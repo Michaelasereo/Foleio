@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
-import { prisma } from '@odim/database';
+import { prisma } from '@foleio/database';
+import { ensureDbUser } from '@/lib/auth/ensure-db-user';
 
 // BigInt JSON serialization patch - fixes "Cannot serialize BigInt" errors
 (BigInt.prototype as any).toJSON = function() {
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
     }
 
     console.log(`✅ SERVER DEBUG: User authenticated: ${user.id} (${user.email})`);
+    await ensureDbUser(user);
 
     // 3. Get or create creator
     let creator = await prisma.creator.findUnique({
@@ -71,7 +73,6 @@ export async function POST(request: Request) {
           userId: user.id,
           username: user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`,
           displayName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'New Creator',
-          email: user.email || '',
           balance: 0,
           pendingBalance: 0,
           totalEarnings: 0,
@@ -339,7 +340,7 @@ export async function POST(request: Request) {
     ));
 
     // DECLARE CONTENT VARIABLE OUTSIDE TRY BLOCK
-    let createdContent = null;
+    let createdContent: { id: string } | null = null;
 
     try {
       createdContent = await prisma.content.create({
@@ -348,22 +349,23 @@ export async function POST(request: Request) {
       console.log(`✅ SERVER DEBUG: Content created successfully: ${createdContent.id}`);
     } catch (contentError) {
       console.error('❌ SERVER DEBUG: CONTENT CREATION FAILED!');
-      console.error('❌ SERVER DEBUG: Error code:', contentError.code);
-      console.error('❌ SERVER DEBUG: Error message:', contentError.message);
-      console.error('❌ SERVER DEBUG: Error meta:', contentError.meta);
-      console.error('❌ SERVER DEBUG: Error stack:', contentError.stack);
+      const err = contentError as any;
+      console.error('❌ SERVER DEBUG: Error code:', err.code);
+      console.error('❌ SERVER DEBUG: Error message:', err.message);
+      console.error('❌ SERVER DEBUG: Error meta:', err.meta);
+      console.error('❌ SERVER DEBUG: Error stack:', err.stack);
 
       // Specific error handling
-      if (contentError.code === 'P2002') {
-        console.error('🔄 Unique constraint violation on:', contentError.meta?.target);
-        throw new Error(`Content creation failed: ${contentError.meta?.target} already exists`);
+      if (err.code === 'P2002') {
+        console.error('🔄 Unique constraint violation on:', err.meta?.target);
+        throw new Error(`Content creation failed: ${err.meta?.target} already exists`);
       }
-      if (contentError.code === 'P2003') {
-        console.error('🔗 Foreign key constraint failed on:', contentError.meta?.field_name);
-        throw new Error(`Content creation failed: Invalid ${contentError.meta?.field_name}`);
+      if (err.code === 'P2003') {
+        console.error('🔗 Foreign key constraint failed on:', err.meta?.field_name);
+        throw new Error(`Content creation failed: Invalid ${err.meta?.field_name}`);
       }
 
-      throw new Error(`Database error: Failed to create content record - ${contentError.message}`);
+      throw new Error(`Database error: Failed to create content record - ${err.message}`);
     }
 
     // 11. Return success

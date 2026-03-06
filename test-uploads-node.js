@@ -43,14 +43,14 @@ function createTestImage() {
   ctx.fillText('TEST IMAGE', 400, 280);
   ctx.font = '24px Arial';
   ctx.fillText('Cloudflare R2 Storage', 400, 320);
-  ctx.fillText('Odim Platform', 400, 350);
+  ctx.fillText('Foleio Platform', 400, 350);
 
   return canvas.toBuffer('image/jpeg');
 }
 
 // Test the upload functionality
 async function testUploads() {
-  console.log('🚀 Starting Odim Content Upload Test...\n');
+  console.log('🚀 Starting Foleio Content Upload Test...\n');
 
   const baseURL = 'http://localhost:3000';
 
