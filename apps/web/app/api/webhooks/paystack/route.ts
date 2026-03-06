@@ -370,7 +370,7 @@ async function handleTransferEvent(eventType: string, eventData: any) {
   const { reference, transfer_code, amount, reason } = eventData;
 
   try {
-    const payout = await prisma.payout.findFirst({
+    const payout: any = await prisma.payout.findFirst({
       where: {
         OR: [
           { paystackReference: reference },
