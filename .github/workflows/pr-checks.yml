@@ -13,7 +13,7 @@ jobs:
 
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -27,7 +27,7 @@ jobs:
         run: pnpm --filter @foleio/web run type-check
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
           NEXTAUTH_SECRET: ci_secret_placeholder
           NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_placeholder
           PAYSTACK_SECRET_KEY: sk_test_placeholder
@@ -49,7 +49,7 @@ jobs:
 
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -63,7 +63,7 @@ jobs:
         run: pnpm --filter @foleio/web run build
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
           NEXTAUTH_SECRET: ci_secret_placeholder
           NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_placeholder
           PAYSTACK_SECRET_KEY: sk_test_placeholder
