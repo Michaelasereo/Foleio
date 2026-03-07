@@ -1,4 +1,5 @@
 import { resend, FROM_EMAIL } from './resend';
+import { prisma } from '@foleio/database';
 import { subscriptionConfirmationEmail } from './templates/subscription-confirmation';
 import { contentPurchaseEmail } from './templates/content-purchase';
 import { bookingConfirmationEmail } from './templates/booking-confirmation';
@@ -178,4 +179,68 @@ export async function sendPayoutRequestConfirmationEmail(data: {
   `;
 
   return sendEmail({ to: data.creatorEmail, subject, html });
+}
+
+export async function notifySubscribersNewEntry({
+  creatorId,
+  entryTitle,
+  entrySlug,
+  creatorUsername,
+  creatorName,
+}: {
+  creatorId: string;
+  entryTitle: string;
+  entrySlug: string;
+  creatorUsername: string;
+  creatorName: string;
+}) {
+  const subscribers = await prisma.fanSubscription.findMany({
+    where: {
+      creatorId,
+      status: 'active',
+    },
+    select: {
+      fan: { select: { email: true } },
+    },
+  });
+
+  const emails = subscribers.map((sub) => sub.fan.email).filter(Boolean);
+  if (!emails.length) return;
+
+  const entryUrl = `${process.env.NEXT_PUBLIC_APP_URL}/creator/${creatorUsername}/journal/${entrySlug}`;
+  const batches = chunk(emails, 50);
+
+  for (const batch of batches) {
+    if (!canSendEmails()) {
+      continue;
+    }
+    await resend.batch.send(
+      batch.map((to) => ({
+        from: `${creatorName} via Foleio <noreply@foleio.com>`,
+        to,
+        subject: `📖 New journal entry: ${entryTitle}`,
+        html: `
+          <div style="max-width:560px;margin:0 auto;font-family:DM Sans,sans-serif;">
+            <div style="background:#F5F0E8;padding:32px;border-radius:16px;">
+              <p style="color:#F97316;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+                New Journal Entry
+              </p>
+              <h1 style="color:#1C1008;font-size:28px;font-weight:800;line-height:1.2;margin:0 0 16px;">
+                ${entryTitle}
+              </h1>
+              <a href="${entryUrl}" style="display:inline-block;background:#F97316;color:white;padding:14px 28px;border-radius:100px;font-weight:700;font-size:15px;text-decoration:none;">
+                Read now →
+              </a>
+            </div>
+          </div>
+        `,
+      }))
+    );
+  }
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+    arr.slice(i * size, i * size + size)
+  );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import {
   Video,
   Sparkles,
   FileText,
+  BookOpen,
   Calendar as CalendarIcon,
   BarChart3,
   Wallet,
@@ -56,6 +57,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { label: 'Services', href: '/price-list', icon: FileText },
       { label: 'Content', href: '/content', icon: Video },
+      { label: 'Journal', href: '/journal', icon: BookOpen },
       {
         label: 'Brand Deals',
         icon: Sparkles,
@@ -95,10 +97,25 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [journalDraftCount, setJournalDraftCount] = useState(0);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({
     Bookings: pathname.startsWith('/bookings'),
   });
   const currentBookingsTab = searchParams.get('tab');
+
+  useEffect(() => {
+    async function loadDraftCount() {
+      try {
+        const response = await fetch('/api/journal/drafts-count');
+        if (!response.ok) return;
+        const data = await response.json();
+        setJournalDraftCount(Number(data.count || 0));
+      } catch {
+        setJournalDraftCount(0);
+      }
+    }
+    void loadDraftCount();
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
@@ -237,6 +254,11 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
                   {item.href === '/earnings' && availableBalance > 0 ? (
                     <span className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                       {formatNaira(availableBalance / 100)}
+                    </span>
+                  ) : null}
+                  {item.href === '/journal' && journalDraftCount > 0 ? (
+                    <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      {journalDraftCount}
                     </span>
                   ) : null}
                   {item.subItems?.length ? (

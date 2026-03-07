@@ -51,6 +51,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
+import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
 
 interface Content {
   id: string;
@@ -142,6 +143,17 @@ interface PublicCreatorProfileProps {
   regularContent: Content[];
   tutorials: Content[];
   tutorialCollections: TutorialCollection[];
+  journalEntries: {
+    id: string;
+    slug: string;
+    title: string;
+    subtitle: string | null;
+    coverImage: string | null;
+    tags: string[];
+    readTime: number;
+    viewCount: number;
+    publishedAt: Date | null;
+  }[];
   groupedPriceList: GroupedPriceList[];
 }
 
@@ -168,6 +180,7 @@ export function PublicCreatorProfile({
   regularContent,
   tutorials,
   tutorialCollections,
+  journalEntries,
   groupedPriceList,
 }: PublicCreatorProfileProps) {
   const router = useRouter();
@@ -680,6 +693,23 @@ export function PublicCreatorProfile({
                 ))}
               </div>
             </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {journalEntries.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-2xl">Journal</h2>
+            <Card className="border-border/70 bg-card shadow-sm">
+              <CardContent className="space-y-4 pt-6">
+                {journalEntries.map((entry) => (
+                  <JournalEntryCard
+                    key={entry.id}
+                    entry={entry}
+                    creator={{ username: creator.username }}
+                  />
+                ))}
+              </CardContent>
             </Card>
           </section>
         )}

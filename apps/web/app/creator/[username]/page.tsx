@@ -89,6 +89,21 @@ export default async function CreatorPublicPage({
           },
         },
       },
+      journalEntries: {
+        where: { isPublished: true },
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+          subtitle: true,
+          coverImage: true,
+          tags: true,
+          readTime: true,
+          viewCount: true,
+          publishedAt: true,
+        },
+        orderBy: { publishedAt: 'desc' },
+      },
     },
   });
 
@@ -300,6 +315,7 @@ export default async function CreatorPublicPage({
       regularContent={serializeForClient(regularContent)}
       tutorials={serializeForClient(tutorials)}
       tutorialCollections={serializeForClient(tutorialCollections)}
+      journalEntries={serializeForClient(creator.journalEntries)}
       groupedPriceList={serializeForClient(groupedPriceList)}
     />
   );
