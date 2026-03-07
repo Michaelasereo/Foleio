@@ -1,21 +1,31 @@
 [build]
-  base = "apps/web"
-  # command = "cd ../.. && cd packages/database && npm run db:generate && cd ../../apps/web && npm run build"
-  publish = ".next"
+  command = "pnpm --filter @foleio/web run build"
+  publish = "apps/web/.next"
 
 [build.environment]
-  NEXT_PUBLIC_APP_URL = "https://foleio.com"
+  NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
+  NEXT_PUBLIC_APP_URL = "https://foleio.com"
+  AWS_LAMBDA_JS_RUNTIME = "nodejs20.x"
+
+# Production context - explicit overrides
+[context.production]
+  command = "pnpm --filter @foleio/web run build"
 
 [context.production.environment]
-  NODE_VERSION = "20"
+  NEXT_PUBLIC_ENV = "production"
 
 [context.staging]
   command = "pnpm --filter @foleio/web run build"
 
 [context.staging.environment]
   NEXT_PUBLIC_ENV = "staging"
-  NODE_VERSION = "20"
+
+[context.branch-deploy]
+  command = "pnpm --filter @foleio/web run build"
+
+[context.branch-deploy.environment]
+  NEXT_PUBLIC_ENV = "preview"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -41,6 +51,11 @@
   port = 3000
 
 # Security headers
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+
 [[headers]]
   for = "/*"
   [headers.values]
