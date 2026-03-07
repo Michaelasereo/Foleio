@@ -10,6 +10,13 @@
 [context.production.environment]
   NODE_VERSION = "20"
 
+[context.staging]
+  command = "pnpm --filter @foleio/web run build"
+
+[context.staging.environment]
+  NEXT_PUBLIC_ENV = "staging"
+  NODE_VERSION = "20"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

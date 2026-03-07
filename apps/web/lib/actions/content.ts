@@ -11,7 +11,7 @@ const createContentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   type: z.enum(['video', 'image', 'pdf', 'text']),
-  accessType: z.enum(['free', 'subscription', 'one_time']).default('subscription'),
+  accessType: z.enum(['free', 'subscription', 'one_time', 'collection']).default('subscription'),
   requiredPlanId: z.string().optional(),
   tags: z.array(z.string()).default([]),
   isPublished: z.boolean().default(false),
@@ -27,28 +27,25 @@ const createContentSchema = z.object({
 function normalizeContentPricing(data: {
   contentCategory: 'content' | 'tutorial';
   collectionId?: string | null;
-  accessType: 'free' | 'subscription' | 'one_time';
+  accessType: 'free' | 'subscription' | 'one_time' | 'collection';
   tutorialPrice?: number | null;
 }) {
   const isInCollection = Boolean(data.collectionId);
-  const isStandalone = !isInCollection;
 
   if (data.contentCategory !== 'tutorial') {
     return {
       accessType: data.accessType,
       tutorialPrice: data.tutorialPrice ?? null,
       collectionId: data.collectionId ?? null,
-      isStandalone,
       error: null as string | null,
     };
   }
 
   if (isInCollection) {
     return {
-      accessType: 'subscription' as const,
+      accessType: 'collection' as const,
       tutorialPrice: 0,
       collectionId: data.collectionId ?? null,
-      isStandalone: false,
       error: null as string | null,
     };
   }
@@ -58,7 +55,6 @@ function normalizeContentPricing(data: {
       accessType: 'free' as const,
       tutorialPrice: 0,
       collectionId: null,
-      isStandalone: true,
       error: null as string | null,
     };
   }
@@ -68,7 +64,6 @@ function normalizeContentPricing(data: {
       accessType: data.accessType,
       tutorialPrice: null,
       collectionId: null,
-      isStandalone: true,
       error: 'Standalone tutorial must have a price or be marked as free',
     };
   }
@@ -77,7 +72,6 @@ function normalizeContentPricing(data: {
     accessType: data.accessType,
     tutorialPrice: data.tutorialPrice,
     collectionId: null,
-    isStandalone: true,
     error: null as string | null,
   };
 }
@@ -108,12 +102,6 @@ export async function createContent(
         error: 'Creator profile not found',
       };
     }
-
-    const lastContent = await prisma.content.findFirst({
-      where: { creatorId: creator.id },
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
-    });
 
     const normalizedPricing = normalizeContentPricing({
       contentCategory: data.contentCategory || 'content',
@@ -146,8 +134,6 @@ export async function createContent(
         contentCategory: data.contentCategory || 'content',
         collectionId: normalizedPricing.collectionId,
         tutorialPrice: normalizedPricing.tutorialPrice,
-        isStandalone: normalizedPricing.isStandalone,
-        sortOrder: (lastContent?.sortOrder ?? -1) + 1,
       },
     });
 
@@ -229,7 +215,7 @@ export async function updateContent(
     const normalizedPricing = normalizeContentPricing({
       contentCategory: mergedContentCategory as 'content' | 'tutorial',
       collectionId: mergedCollectionId,
-      accessType: mergedAccessType as 'free' | 'subscription' | 'one_time',
+      accessType: mergedAccessType as 'free' | 'subscription' | 'one_time' | 'collection',
       tutorialPrice: mergedTutorialPrice,
     });
 
@@ -254,7 +240,6 @@ export async function updateContent(
         contentCategory: mergedContentCategory,
         collectionId: normalizedPricing.collectionId,
         tutorialPrice: normalizedPricing.tutorialPrice,
-        isStandalone: normalizedPricing.isStandalone,
       },
     });
 

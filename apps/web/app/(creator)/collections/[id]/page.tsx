@@ -136,7 +136,7 @@ export default async function CollectionDetailPage({
   let allContent: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
   try {
     allContent = await prisma.content.findMany({
-      where: { creatorId: creator.id },
+      where: { creatorId: creator.id, type: 'video' },
       orderBy: { createdAt: 'desc' },
     });
   } catch {

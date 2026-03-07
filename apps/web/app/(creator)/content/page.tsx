@@ -74,7 +74,7 @@ export default async function ContentPage() {
           },
         },
       },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      orderBy: { createdAt: 'desc' },
     });
 
     collections = await prisma.collection.findMany({

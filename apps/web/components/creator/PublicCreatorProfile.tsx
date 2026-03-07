@@ -44,6 +44,9 @@ import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { SubscriptionModal } from '@/components/creator/SubscriptionModal';
 import { PremiumAccessModal } from '@/components/creator/PremiumAccessModal';
+import { CollectionSubscriptionModal } from '@/components/creator/CollectionSubscriptionModal';
+import { CollectionCard } from '@/components/content/CollectionCard';
+import { CollectionModal } from '@/components/content/CollectionModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
@@ -138,13 +141,33 @@ interface PublicCreatorProfileProps {
   creator: Creator;
   regularContent: Content[];
   tutorials: Content[];
+  tutorialCollections: TutorialCollection[];
   groupedPriceList: GroupedPriceList[];
+}
+
+interface TutorialCollection {
+  id: string;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  price: number | null;
+  subscriptionPrice: number | null;
+  videos: {
+    id: string;
+    title: string;
+    description: string | null;
+    thumbnailUrl: string | null;
+    muxAssetId: string | null;
+    muxPlaybackId: string | null;
+    createdAt: Date;
+  }[];
 }
 
 export function PublicCreatorProfile({
   creator,
   regularContent,
   tutorials,
+  tutorialCollections,
   groupedPriceList,
 }: PublicCreatorProfileProps) {
   const router = useRouter();
@@ -160,6 +183,10 @@ export function PublicCreatorProfile({
   const [selectedPremiumContent, setSelectedPremiumContent] = useState<Content | null>(null);
   const [verifiedContentIds, setVerifiedContentIds] = useState<Set<string>>(new Set());
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<TutorialCollection | null>(null);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
+  const [collectionSubscriptionOpen, setCollectionSubscriptionOpen] = useState(false);
+  const [verifiedCollectionIds, setVerifiedCollectionIds] = useState<Set<string>>(new Set());
 
   const getLinkIcon = (linkType: string, size: 'sm' | 'md' = 'md') => {
     const iconSize = size === 'sm' ? 'h-5 w-5' : 'h-6 w-6';
@@ -231,6 +258,16 @@ export function PublicCreatorProfile({
         setPremiumAccessOpen(true);
       }
     }
+  };
+
+  const handleCollectionClick = (collection: TutorialCollection) => {
+    setSelectedCollection(collection);
+    setCollectionModalOpen(true);
+  };
+
+  const handleCollectionPlayVideo = (videoId: string) => {
+    setCollectionModalOpen(false);
+    setPlayingVideoId(videoId);
   };
 
   const handlePremiumAccessVerified = (contentId: string) => {
@@ -513,13 +550,39 @@ export function PublicCreatorProfile({
           </section>
         )}
 
-        {/* Tutorials Section with Tabs */}
+        {/* Tutorial Collections */}
+        {tutorialCollections.length > 0 && (
+          <Card className="border-border/70 bg-card shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <BookOpen className="h-5 w-5" />
+                Collections
+              </CardTitle>
+              <CardDescription>
+                Access grouped tutorials from {creator.displayName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {tutorialCollections.map((collection) => (
+                  <CollectionCard
+                    key={collection.id}
+                    collection={collection}
+                    onClick={() => handleCollectionClick(collection)}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Standalone Tutorials Section */}
         {tutorials.length > 0 && (
           <Card className="border-border/70 bg-card shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-2xl">
                 <BookOpen className="h-5 w-5" />
-                Tutorials
+                Standalone Tutorials
               </CardTitle>
               <CardDescription>
                 Learn from {creator.displayName}&apos;s tutorial videos
@@ -663,11 +726,51 @@ export function PublicCreatorProfile({
         />
       )}
 
+      {/* Collection Preview + Access Modal */}
+      <CollectionModal
+        isOpen={collectionModalOpen}
+        onClose={() => setCollectionModalOpen(false)}
+        collection={selectedCollection}
+        hasAccess={selectedCollection ? verifiedCollectionIds.has(selectedCollection.id) : false}
+        onAccessGranted={() => {
+          if (!selectedCollection) return;
+          setVerifiedCollectionIds((prev) => new Set([...prev, selectedCollection.id]));
+        }}
+        onPlayVideo={handleCollectionPlayVideo}
+        onPurchaseRequired={() => {
+          setCollectionModalOpen(false);
+          setCollectionSubscriptionOpen(true);
+        }}
+      />
+
+      {/* Collection Purchase Modal */}
+      {selectedCollection ? (
+        <CollectionSubscriptionModal
+          open={collectionSubscriptionOpen}
+          onOpenChange={setCollectionSubscriptionOpen}
+          collection={{
+            id: selectedCollection.id,
+            title: selectedCollection.title,
+            description: selectedCollection.description,
+            thumbnailUrl: selectedCollection.thumbnailUrl,
+            price: selectedCollection.price,
+            subscriptionPrice: selectedCollection.subscriptionPrice,
+            subscriptionType: selectedCollection.subscriptionPrice ? 'recurring' : 'one_time',
+            enrolledCount: selectedCollection.videos.length,
+          }}
+          creatorName={creator.displayName}
+          onSuccess={() => {
+            setVerifiedCollectionIds((prev) => new Set([...prev, selectedCollection.id]));
+          }}
+        />
+      ) : null}
+
       {/* Video Player Modal */}
       <Dialog open={!!playingVideoId} onOpenChange={() => setPlayingVideoId(null)}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden">
           {playingVideoId && (() => {
-            const content = [...regularContent, ...tutorials].find(c => c.id === playingVideoId);
+            const collectionVideos = tutorialCollections.flatMap((collection) => collection.videos);
+            const content = [...regularContent, ...tutorials, ...collectionVideos].find(c => c.id === playingVideoId);
             if (!content?.muxPlaybackId) return null;
             return (
               <>

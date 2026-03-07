@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 function normalizeContentPricing(data: {
   contentCategory: 'content' | 'tutorial';
   collectionId?: string | null;
-  accessType: 'free' | 'subscription' | 'one_time';
+  accessType: 'free' | 'subscription' | 'one_time' | 'collection';
   tutorialPrice?: number | null;
 }) {
   const isInCollection = Boolean(data.collectionId);
@@ -18,17 +18,15 @@ function normalizeContentPricing(data: {
       accessType: data.accessType,
       tutorialPrice: data.tutorialPrice ?? null,
       collectionId: data.collectionId ?? null,
-      isStandalone: !isInCollection,
       error: null as string | null,
     };
   }
 
   if (isInCollection) {
     return {
-      accessType: 'subscription' as const,
+      accessType: 'collection' as const,
       tutorialPrice: 0,
       collectionId: data.collectionId ?? null,
-      isStandalone: false,
       error: null as string | null,
     };
   }
@@ -38,7 +36,6 @@ function normalizeContentPricing(data: {
       accessType: 'free' as const,
       tutorialPrice: 0,
       collectionId: null,
-      isStandalone: true,
       error: null as string | null,
     };
   }
@@ -48,7 +45,6 @@ function normalizeContentPricing(data: {
       accessType: data.accessType,
       tutorialPrice: null,
       collectionId: null,
-      isStandalone: true,
       error: 'This content is now standalone — please set a price.',
     };
   }
@@ -57,7 +53,6 @@ function normalizeContentPricing(data: {
     accessType: data.accessType,
     tutorialPrice: data.tutorialPrice,
     collectionId: null,
-    isStandalone: true,
     error: null as string | null,
   };
 }
@@ -119,7 +114,6 @@ export async function GET(
       contentCategory: content.contentCategory,
       tutorialPrice: content.tutorialPrice,
       collectionId: content.collectionId,
-      isStandalone: content.isStandalone,
       isPublished: content.isPublished,
       tags: content.tags,
       createdAt: content.createdAt.toISOString(),
@@ -211,7 +205,8 @@ export async function PUT(
     const mergedAccessType = (accessType || existingContent.accessType) as
       | 'free'
       | 'subscription'
-      | 'one_time';
+      | 'one_time'
+      | 'collection';
     const rawTutorialPrice =
       tutorialPrice !== undefined
         ? Number(tutorialPrice)
@@ -245,7 +240,6 @@ export async function PUT(
         contentCategory: mergedContentCategory,
         tutorialPrice: normalizedPricing.tutorialPrice,
         collectionId: normalizedPricing.collectionId,
-        isStandalone: normalizedPricing.isStandalone,
         publishedAt:
           isPublished && !existingContent.publishedAt ? new Date() : existingContent.publishedAt,
       },
@@ -267,7 +261,6 @@ export async function PUT(
       contentCategory: updatedContent.contentCategory,
       tutorialPrice: updatedContent.tutorialPrice,
       collectionId: updatedContent.collectionId,
-      isStandalone: updatedContent.isStandalone,
       isPublished: updatedContent.isPublished,
       tags: updatedContent.tags,
       updatedAt: updatedContent.updatedAt?.toISOString()

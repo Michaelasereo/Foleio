@@ -9,6 +9,7 @@ import {
   Clock,
   CreditCard,
   Crown,
+  FlaskConical,
   LayoutDashboard,
   Menu,
   RefreshCw,
@@ -101,6 +102,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="border-t border-white/10 p-4">
+              <Link
+                href="/admin/payout-test"
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  'mb-2 flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition',
+                  pathname.startsWith('/admin/payout-test')
+                    ? 'border-amber-400/70 bg-amber-500/10 text-amber-200'
+                    : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200'
+                )}
+              >
+                <FlaskConical className="h-4 w-4" />
+                Payout Test
+              </Link>
               <Link
                 href="/dashboard"
                 className="block rounded-md px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white"
