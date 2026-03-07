@@ -1,6 +1,7 @@
 [build]
-  command = "pnpm --filter @foleio/web run build"
-  publish = "apps/web/.next"
+  base = "apps/web"
+  command = "pnpm run build"
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -10,19 +11,19 @@
 
 # Production context - explicit overrides
 [context.production]
-  command = "pnpm --filter @foleio/web run build"
+  command = "pnpm run build"
 
 [context.production.environment]
   NEXT_PUBLIC_ENV = "production"
 
 [context.staging]
-  command = "pnpm --filter @foleio/web run build"
+  command = "pnpm run build"
 
 [context.staging.environment]
   NEXT_PUBLIC_ENV = "staging"
 
 [context.branch-deploy]
-  command = "pnpm --filter @foleio/web run build"
+  command = "pnpm run build"
 
 [context.branch-deploy.environment]
   NEXT_PUBLIC_ENV = "preview"
@@ -41,10 +42,6 @@
 [[crons]]
   schedule = "0 9 * * *"
   handler = "/.netlify/functions/process-payouts"
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
 
 [dev]
   framework = "nextjs"
