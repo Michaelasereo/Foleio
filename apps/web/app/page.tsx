@@ -169,9 +169,10 @@ function SignUpForm() {
   });
 
   async function onSubmit(data: SignupFormValues) {
-    if (!isPilotEmail(data.email)) {
+    const normalizedEmail = data.email.trim();
+    if (!isPilotEmail(normalizedEmail)) {
       setWaitlistName(data.fullName);
-      setWaitlistEmail(data.email);
+      setWaitlistEmail(normalizedEmail);
       setIsWaitlistOpen(true);
       return;
     }
@@ -179,7 +180,7 @@ function SignUpForm() {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
         options: {
           data: {

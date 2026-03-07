@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { serializeCreator } from '@/lib/utils/serialization';
 import { ensureDbUser } from '@/lib/auth/ensure-db-user';
+import { shouldAutoUpgradeToPremium } from '@/lib/config/pilot';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,11 +82,17 @@ export async function GET(request: Request) {
         counter++;
       }
 
+      const autoPremium = shouldAutoUpgradeToPremium(user.email);
       creator = await prisma.creator.create({
         data: {
           userId: user.id,
           username,
           displayName: user.user_metadata?.full_name || username,
+          platformPlan: autoPremium ? 'premium' : 'starter',
+          platformSubscriptionActive: true,
+          platformSubscriptionEndsAt: autoPremium
+            ? null
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           balance: 0,
           pendingBalance: 0,
           totalEarnings: 0,

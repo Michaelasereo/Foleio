@@ -105,6 +105,7 @@ export default async function CollectionDetailPage({
           select: {
             id: true,
             title: true,
+            type: true,
           },
         },
         subscriptions: {
@@ -262,6 +263,7 @@ export default async function CollectionDetailPage({
           <CollectionSectionManager
             collectionId={collection.id}
             sections={collection.sections}
+            collectionContent={collection.tutorialContents}
             allContent={allContent}
           />
         </CardContent>

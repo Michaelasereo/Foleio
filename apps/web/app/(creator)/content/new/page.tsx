@@ -167,9 +167,9 @@ export default function NewContentPage() {
         throw new Error('File is empty');
       }
 
-      if (file.size > 100 * 1024 * 1024) {
-        console.error('❌ File too large:', file.size, 'bytes (max: 100MB)');
-        throw new Error(`File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB (max: 100MB)`);
+      if (file.size > 500 * 1024 * 1024) {
+        console.error('❌ File too large:', file.size, 'bytes (max: 500MB)');
+        throw new Error(`File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB (max: 500MB)`);
       }
 
       const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
@@ -241,7 +241,7 @@ export default function NewContentPage() {
         if (responseData.error?.includes('Authentication')) {
           throw new Error('Authentication failed. Please log in again.');
         } else if (responseData.error?.includes('File too large')) {
-          throw new Error('File is too large. Maximum size is 100MB.');
+          throw new Error('File is too large. Maximum size is 500MB.');
         } else if (responseData.error?.includes('Unsupported file type')) {
           throw new Error('Unsupported file type. Please use MP4, WebM, MOV, or MKV.');
         } else if (

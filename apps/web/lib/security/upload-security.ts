@@ -112,7 +112,7 @@ export class SecureUploadHandler {
     }
 
     // Check file size (basic limits before user-specific checks)
-    const maxBasicSize = contentType === 'video' ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 100MB video, 10MB image
+    const maxBasicSize = contentType === 'video' ? 500 * 1024 * 1024 : 10 * 1024 * 1024; // 500MB video, 10MB image
     if (file.size > maxBasicSize) {
       return {
         valid: false,

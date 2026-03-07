@@ -65,6 +65,11 @@ interface Section {
 interface CollectionSectionManagerProps {
   collectionId: string;
   sections: Section[];
+  collectionContent: Array<{
+    id: string;
+    title: string;
+    type: string;
+  }>;
   allContent: Array<{
     id: string;
     title: string;
@@ -75,6 +80,7 @@ interface CollectionSectionManagerProps {
 export function CollectionSectionManager({
   collectionId,
   sections: initialSections,
+  collectionContent,
   allContent,
 }: CollectionSectionManagerProps) {
   const router = useRouter();
@@ -87,6 +93,21 @@ export function CollectionSectionManager({
   const [parentSectionId, setParentSectionId] = useState<string | undefined>(undefined);
   const [addingContent, setAddingContent] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string>('');
+
+  const videosInSections = new Set<string>();
+  for (const section of sections) {
+    for (const sectionContent of section.sectionContents) {
+      videosInSections.add(sectionContent.content.id);
+    }
+    for (const subsection of section.subsections) {
+      for (const sectionContent of subsection.sectionContents) {
+        videosInSections.add(sectionContent.content.id);
+      }
+    }
+  }
+  const unsectionedVideos = collectionContent.filter(
+    (content) => !videosInSections.has(content.id)
+  );
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
@@ -373,6 +394,24 @@ export function CollectionSectionManager({
             <p className="text-muted-foreground mb-4">
               No sections yet. Create your first section to organize your content!
             </p>
+            {unsectionedVideos.length > 0 && (
+              <div className="mt-4 space-y-2 rounded-lg border bg-muted/30 p-4 text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Unsectioned Videos
+                </p>
+                {unsectionedVideos.map((content) => (
+                  <div
+                    key={content.id}
+                    className="flex items-center justify-between rounded border bg-background p-2"
+                  >
+                    <span className="text-sm">{content.title}</span>
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {content.type}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

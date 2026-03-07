@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { isPilotEmail } from '@/lib/config/pilot';
 
 const signupSchema = z
   .object({
@@ -57,10 +58,21 @@ export default function SignupPage() {
   });
 
   async function onSubmit(data: SignupFormValues) {
+    const normalizedEmail = data.email.trim();
+    if (!isPilotEmail(normalizedEmail)) {
+      toast({
+        title: 'Pilot access only',
+        description:
+          'Signups are currently limited to approved pilot emails.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
         options: {
           data: {
