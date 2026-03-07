@@ -1,0 +1,80 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm --filter @foleio/web run type-check
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          NEXTAUTH_SECRET: ci_secret_placeholder
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_placeholder
+          PAYSTACK_SECRET_KEY: sk_test_placeholder
+          NEXT_PUBLIC_APP_URL: https://staging-foleio.netlify.app
+          ANTHROPIC_API_KEY: placeholder
+          RESEND_API_KEY: placeholder
+          MUX_TOKEN_ID: placeholder
+          MUX_TOKEN_SECRET: placeholder
+          CLOUDFLARE_ACCOUNT_ID: placeholder
+          CLOUDFLARE_ACCESS_KEY_ID: placeholder
+          CLOUDFLARE_SECRET_ACCESS_KEY: placeholder
+          CLOUDFLARE_BUCKET_NAME: placeholder
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @foleio/web run build
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          NEXTAUTH_SECRET: ci_secret_placeholder
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_placeholder
+          PAYSTACK_SECRET_KEY: sk_test_placeholder
+          NEXT_PUBLIC_APP_URL: https://staging-foleio.netlify.app
+          ANTHROPIC_API_KEY: placeholder
+          RESEND_API_KEY: placeholder
+          MUX_TOKEN_ID: placeholder
+          MUX_TOKEN_SECRET: placeholder
+          CLOUDFLARE_ACCOUNT_ID: placeholder
+          CLOUDFLARE_ACCESS_KEY_ID: placeholder
+          CLOUDFLARE_SECRET_ACCESS_KEY: placeholder
+          CLOUDFLARE_BUCKET_NAME: placeholder
+          CRON_SECRET: placeholder
+          ADMIN_SECRET: placeholder

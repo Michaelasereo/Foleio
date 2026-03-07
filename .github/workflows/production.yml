@@ -1,0 +1,76 @@
+name: Production Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  guard:
+    name: Production guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm --filter @foleio/web run type-check
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.PAYSTACK_PUBLIC_KEY }}
+          PAYSTACK_SECRET_KEY: ${{ secrets.PAYSTACK_SECRET_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_BUCKET_NAME: ${{ secrets.CLOUDFLARE_BUCKET_NAME }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+
+      - name: Build check
+        run: pnpm --filter @foleio/web run build
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.PAYSTACK_PUBLIC_KEY }}
+          PAYSTACK_SECRET_KEY: ${{ secrets.PAYSTACK_SECRET_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_BUCKET_NAME: ${{ secrets.CLOUDFLARE_BUCKET_NAME }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          PAYSTACK_PRO_PLAN_CODE: ${{ secrets.PAYSTACK_PRO_PLAN_CODE }}
+          PAYSTACK_PREMIUM_PLAN_CODE: ${{ secrets.PAYSTACK_PREMIUM_PLAN_CODE }}
+
+      - name: Block if failed
+        if: failure()
+        run: |
+          echo "🚨 PRODUCTION BUILD FAILED — deploy blocked"
+          exit 1
+
+      - name: Confirm production deploy
+        if: success()
+        run: echo "✓ Production checks passed — Netlify deploying"

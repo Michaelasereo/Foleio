@@ -1,0 +1,74 @@
+name: Staging Deploy
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  checks:
+    name: Pre-deploy checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm --filter @foleio/web run type-check
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.STAGING_PAYSTACK_PUBLIC_KEY }}
+          PAYSTACK_SECRET_KEY: ${{ secrets.STAGING_PAYSTACK_SECRET_KEY }}
+          NEXT_PUBLIC_APP_URL: https://staging-foleio.netlify.app
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_BUCKET_NAME: ${{ secrets.CLOUDFLARE_BUCKET_NAME }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+
+      - name: Build check
+        run: pnpm --filter @foleio/web run build
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.STAGING_PAYSTACK_PUBLIC_KEY }}
+          PAYSTACK_SECRET_KEY: ${{ secrets.STAGING_PAYSTACK_SECRET_KEY }}
+          NEXT_PUBLIC_APP_URL: https://staging-foleio.netlify.app
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_BUCKET_NAME: ${{ secrets.CLOUDFLARE_BUCKET_NAME }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+
+      - name: Notify success
+        if: success()
+        run: echo "✓ Staging checks passed — Netlify deploying to staging"
+
+      - name: Block on failure
+        if: failure()
+        run: |
+          echo "🚨 Staging checks failed — fix errors before merging"
+          exit 1
