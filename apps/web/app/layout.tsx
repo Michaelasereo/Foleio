@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { StagingBanner } from '@/components/ui/StagingBanner';
 import { Toaster } from '@/components/ui/toaster';
 import { ServiceWorkerRegistration } from '@/components/service-worker-registration';
+import { shouldShowStagingBanner } from '@/lib/config/runtime-environment';
 import { validateAndExit } from '@/lib/config/env-validation';
 import './globals.css';
 
@@ -34,6 +35,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const showStagingBanner = shouldShowStagingBanner();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -42,7 +45,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${dmSans.variable} ${playfairDisplay.variable} ${
-          process.env.NEXT_PUBLIC_ENV === 'staging' ? 'pt-8' : ''
+          showStagingBanner ? 'pt-8' : ''
         }`}
       >
         <ThemeProvider

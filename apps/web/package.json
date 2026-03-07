@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NEXT_PRIVATE_TURBOPACK=0 next dev",
-    "build": "next build",
+    "build": "node ./scripts/validate-netlify-env.js && next build",
     "start": "next start",
     "lint": "next lint && biome check .",
     "type-check": "tsc --noEmit",
