@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import {
+  Banknote,
   Calendar,
   Clock,
   CreditCard,
@@ -13,6 +14,7 @@ import {
   LayoutDashboard,
   Menu,
   RefreshCw,
+  ShieldAlert,
   Users,
   X,
   Zap,
@@ -22,6 +24,8 @@ import foleioLogo from '../../../../foleio-logo.png';
 
 const navItems = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/payouts', label: 'Payouts', icon: Banknote },
+  { href: '/admin/moderation', label: 'Moderation', icon: ShieldAlert },
   { href: '/admin/creators', label: 'Creators', icon: Users },
   { href: '/admin/transactions', label: 'Transactions', icon: CreditCard },
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
@@ -47,10 +51,40 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [now, setNow] = useState(() => new Date());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingModerationCount, setPendingModerationCount] = useState(0);
+  const [pendingPayoutCount, setPendingPayoutCount] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    async function loadModerationCount() {
+      try {
+        const response = await fetch('/api/admin/moderation/count', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        setPendingModerationCount(Number(data.totalPending || 0));
+      } catch (error) {
+        console.error('Failed to load moderation count:', error);
+      }
+    }
+    void loadModerationCount();
+  }, []);
+
+  useEffect(() => {
+    async function loadPayoutCount() {
+      try {
+        const response = await fetch('/api/admin/payouts/pending-count', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        setPendingPayoutCount(Number(data.pendingCount || 0));
+      } catch (error) {
+        console.error('Failed to load payout count:', error);
+      }
+    }
+    void loadPayoutCount();
   }, []);
 
   const formattedNow = useMemo(() => formatDateTime(now), [now]);
@@ -96,6 +130,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   >
                     <Icon className="h-4 w-4" />
                     {item.label}
+                    {item.href === '/admin/moderation' && pendingModerationCount > 0 ? (
+                      <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {pendingModerationCount}
+                      </span>
+                    ) : null}
+                    {item.href === '/admin/payouts' && pendingPayoutCount > 0 ? (
+                      <span className="ml-auto rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {pendingPayoutCount}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}

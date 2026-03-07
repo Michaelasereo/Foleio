@@ -181,6 +181,53 @@ export async function sendPayoutRequestConfirmationEmail(data: {
   return sendEmail({ to: data.creatorEmail, subject, html });
 }
 
+export async function sendPayoutSentEmail(data: {
+  creatorEmail: string;
+  creatorName: string;
+  amount: number;
+  bankName: string;
+  accountNumber: string;
+}) {
+  const amountText = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+  }).format(data.amount / 100);
+  const last4 = data.accountNumber.slice(-4);
+
+  const subject = 'Your payout is on its way 🎉';
+  const html = `
+    <p>Hi ${data.creatorName},</p>
+    <p>Your payout of <strong>${amountText}</strong> has been sent to <strong>${data.bankName}</strong> ending in <strong>${last4}</strong>.</p>
+    <p>It should arrive within 1 business day.</p>
+    <p>Thank you for being a Foleio founding creator.</p>
+  `;
+
+  return sendEmail({ to: data.creatorEmail, subject, html });
+}
+
+export async function sendPayoutRejectedEmail(data: {
+  creatorEmail: string;
+  creatorName: string;
+  amount: number;
+  reason: string;
+}) {
+  const amountText = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+  }).format(data.amount / 100);
+
+  const subject = 'Payout request update';
+  const html = `
+    <p>Hi ${data.creatorName},</p>
+    <p>Your payout request of <strong>${amountText}</strong> could not be processed.</p>
+    <p><strong>Reason:</strong> ${data.reason}</p>
+    <p>Your balance has been returned to your account.</p>
+    <p>Please contact support@foleio.com if you have questions.</p>
+  `;
+
+  return sendEmail({ to: data.creatorEmail, subject, html });
+}
+
 export async function notifySubscribersNewEntry({
   creatorId,
   entryTitle,
