@@ -87,32 +87,6 @@ export default async function CreatorPublicPage({
             },
             orderBy: { createdAt: 'asc' },
           },
-          sections: {
-            select: {
-              id: true,
-              orderIndex: true,
-              sectionContents: {
-                select: {
-                  orderIndex: true,
-                  content: {
-                    select: {
-                      id: true,
-                      title: true,
-                      description: true,
-                      thumbnailUrl: true,
-                      muxAssetId: true,
-                      muxPlaybackId: true,
-                      createdAt: true,
-                      isPublished: true,
-                      type: true,
-                    },
-                  },
-                },
-                orderBy: { orderIndex: 'asc' },
-              },
-            },
-            orderBy: { orderIndex: 'asc' },
-          },
         },
       },
     },
@@ -120,6 +94,91 @@ export default async function CreatorPublicPage({
 
   if (!creator) {
     notFound();
+  }
+
+  let sectionsByCollectionId = new Map<string, Array<{
+    id: string;
+    title: string;
+    orderIndex: number;
+    sectionContents: Array<{
+      content: {
+        id: string;
+        title: string;
+        description: string | null;
+        thumbnailUrl: string | null;
+        muxAssetId: string | null;
+        muxPlaybackId: string | null;
+        createdAt: Date;
+        isPublished: boolean;
+        type: string;
+      };
+    }>;
+  }>>();
+
+  try {
+    const collectionIds = creator.collections.map((collection) => collection.id);
+    if (collectionIds.length > 0) {
+      const sections = await prisma.section.findMany({
+        where: { collectionId: { in: collectionIds } },
+        select: {
+          id: true,
+          title: true,
+          orderIndex: true,
+          collectionId: true,
+          sectionContents: {
+            select: {
+              content: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  thumbnailUrl: true,
+                  muxAssetId: true,
+                  muxPlaybackId: true,
+                  createdAt: true,
+                  isPublished: true,
+                  type: true,
+                },
+              },
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+        orderBy: { orderIndex: 'asc' },
+      });
+
+      sectionsByCollectionId = sections.reduce((acc, section) => {
+        const list = acc.get(section.collectionId) ?? [];
+        list.push({
+          id: section.id,
+          title: section.title,
+          orderIndex: section.orderIndex,
+          sectionContents: section.sectionContents,
+        });
+        acc.set(section.collectionId, list);
+        return acc;
+      }, new Map<string, Array<{
+        id: string;
+        title: string;
+        orderIndex: number;
+        sectionContents: Array<{
+          content: {
+            id: string;
+            title: string;
+            description: string | null;
+            thumbnailUrl: string | null;
+            muxAssetId: string | null;
+            muxPlaybackId: string | null;
+            createdAt: Date;
+            isPublished: boolean;
+            type: string;
+          };
+        }>;
+      }>>());
+    }
+  } catch {
+    // Keep profile visible even if section tables are unavailable.
+    sectionsByCollectionId = new Map();
   }
 
   // Build collection videos from both direct links and section-linked content.
@@ -142,14 +201,13 @@ export default async function CreatorPublicPage({
         videosById.set(video.id, video);
       }
 
-      for (const section of collection.sections) {
-        for (const sectionContent of section.sectionContents) {
-          const video = sectionContent.content;
-          if (!video || !video.isPublished || video.type !== 'video') {
-            continue;
-          }
-          if (!videosById.has(video.id)) {
-            videosById.set(video.id, {
+      const sectionGroups = (sectionsByCollectionId.get(collection.id) ?? [])
+        .sort((a, b) => a.orderIndex - b.orderIndex)
+        .map((section) => {
+          const videos = section.sectionContents
+            .map((sectionContent) => sectionContent.content)
+            .filter((video) => video && video.isPublished && video.type === 'video')
+            .map((video) => ({
               id: video.id,
               title: video.title,
               description: video.description,
@@ -157,10 +215,31 @@ export default async function CreatorPublicPage({
               muxAssetId: video.muxAssetId,
               muxPlaybackId: video.muxPlaybackId,
               createdAt: video.createdAt,
-            });
+            }));
+          for (const video of videos) {
+            if (!videosById.has(video.id)) {
+              videosById.set(video.id, video);
+            }
           }
-        }
-      }
+          return {
+            id: section.id,
+            title: section.title,
+            videos,
+          };
+        })
+        .filter((section) => section.videos.length > 0) as Array<{
+        id: string;
+        title: string;
+        videos: Array<{
+          id: string;
+          title: string;
+          description: string | null;
+          thumbnailUrl: string | null;
+          muxAssetId: string | null;
+          muxPlaybackId: string | null;
+          createdAt: Date;
+        }>;
+      }>;
 
       return {
         id: collection.id,
@@ -169,6 +248,7 @@ export default async function CreatorPublicPage({
         thumbnailUrl: collection.thumbnailUrl,
         price: collection.price,
         subscriptionPrice: collection.subscriptionPrice,
+        sections: sectionGroups,
         videos: Array.from(videosById.values()).sort(
           (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         ),

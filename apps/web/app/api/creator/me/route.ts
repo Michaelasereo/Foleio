@@ -109,11 +109,33 @@ export async function GET(request: Request) {
 
     console.log(`✅ Creator found: ${creator.id}`);
 
+    const [contentCount, collections] = await Promise.all([
+      prisma.content.count({
+        where: { creatorId: creator.id, isPublished: true },
+      }),
+      prisma.collection.findMany({
+        where: { creatorId: creator.id },
+        select: {
+          id: true,
+          title: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
     // 4. Serialize ALL Prisma special types
     const serializedCreator = serializeCreator(creator);
+    const creatorResponse = {
+      ...serializedCreator,
+      contentCount,
+      collections,
+      // Compatibility fallback while some databases are still missing this new column.
+      contentGuidelinesAccepted:
+        (serializedCreator as any).contentGuidelinesAccepted ?? false,
+    };
 
     // 5. Return serialized creator
-    return NextResponse.json(serializedCreator);
+    return NextResponse.json(creatorResponse);
 
   } catch (error: any) {
     console.error('❌ Creator API error:', error);

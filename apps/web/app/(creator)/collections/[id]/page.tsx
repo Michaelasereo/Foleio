@@ -68,39 +68,6 @@ export default async function CollectionDetailPage({
         creatorId: creator.id,
       },
       include: {
-        sections: {
-          where: {
-            parentSectionId: null, // Only top-level sections
-          },
-          include: {
-            subsections: {
-              include: {
-                sectionContents: {
-                  include: {
-                    content: true,
-                  },
-                  orderBy: {
-                    orderIndex: 'asc',
-                  },
-                },
-              },
-              orderBy: {
-                orderIndex: 'asc',
-              },
-            },
-            sectionContents: {
-              include: {
-                content: true,
-              },
-              orderBy: {
-                orderIndex: 'asc',
-              },
-            },
-          },
-          orderBy: {
-            orderIndex: 'asc',
-          },
-        },
         tutorialContents: {
           select: {
             id: true,
@@ -133,11 +100,90 @@ export default async function CollectionDetailPage({
     redirect('/collections');
   }
 
+  let collectionSections: any[] = [];
+  try {
+    collectionSections = await prisma.section.findMany({
+      where: {
+        collectionId: collection.id,
+        parentSectionId: null,
+      },
+      include: {
+        subsections: {
+          include: {
+            sectionContents: {
+              include: {
+                content: true,
+              },
+              orderBy: {
+                orderIndex: 'asc',
+              },
+            },
+          },
+          orderBy: {
+            orderIndex: 'asc',
+          },
+        },
+        sectionContents: {
+          include: {
+            content: true,
+          },
+          orderBy: {
+            orderIndex: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        orderIndex: 'asc',
+      },
+    });
+  } catch (error) {
+    console.warn('Collection sections lookup failed; retrying without parentSectionId.', error);
+    try {
+      collectionSections = await prisma.section.findMany({
+        where: {
+          collectionId: collection.id,
+        },
+        include: {
+          sectionContents: {
+            include: {
+              content: true,
+            },
+            orderBy: {
+              orderIndex: 'asc',
+            },
+          },
+        },
+        orderBy: {
+          orderIndex: 'asc',
+        },
+      });
+    } catch (fallbackError) {
+      console.warn('Collection sections fallback lookup failed (non-fatal).', fallbackError);
+    }
+  }
+
   // Get all content for adding to sections
-  let allContent: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  let allContent: Array<{
+    id: string;
+    title: string;
+    type: string;
+    thumbnailUrl: string | null;
+    durationSeconds: number | null;
+    isPublished: boolean;
+    collectionId: string | null;
+  }> = [];
   try {
     allContent = await prisma.content.findMany({
       where: { creatorId: creator.id, type: 'video' },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        thumbnailUrl: true,
+        durationSeconds: true,
+        isPublished: true,
+        collectionId: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   } catch {
@@ -153,9 +199,26 @@ export default async function CollectionDetailPage({
     );
   }
 
+  const fallbackCollectionContent = Array.from(
+    new Map(
+      collectionSections
+        .flatMap((section: any) => [
+          ...(section.sectionContents || []).map((sc: any) => sc.content),
+          ...((section.subsections || []) as any[]).flatMap((subsection: any) =>
+            (subsection.sectionContents || []).map((sc: any) => sc.content)
+          ),
+        ])
+        .filter(Boolean)
+        .map((content: any) => [content.id, content])
+    ).values()
+  );
+
+  const collectionContentForManager =
+    collection.tutorialContents.length > 0 ? collection.tutorialContents : fallbackCollectionContent;
+
   // Calculate stats
   const activeSubscribers = collection.subscriptions.filter((s: any) => s.status === 'active').length;
-  const totalTutorials = collection.tutorialContents.length;
+  const totalTutorials = collectionContentForManager.length;
 
   const formatPrice = (priceInKobo: number | null) => {
     if (!priceInKobo) return 'Free';
@@ -262,8 +325,8 @@ export default async function CollectionDetailPage({
         <CardContent>
           <CollectionSectionManager
             collectionId={collection.id}
-            sections={collection.sections}
-            collectionContent={collection.tutorialContents}
+            sections={collectionSections}
+            collectionContent={collectionContentForManager}
             allContent={allContent}
           />
         </CardContent>
