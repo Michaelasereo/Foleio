@@ -46,10 +46,7 @@ const step1Schema = z.object({
 });
 
 const step2Schema = z.object({
-  bankCode: z.string().min(1, 'Bank code is required'),
-  accountNumber: z.string().min(10, 'Account number must be at least 10 digits'),
-  accountName: z.string().min(2, 'Account name is required'),
-  bvn: z.string().length(11, 'BVN must be 11 digits').optional(),
+  skipBankSetup: z.boolean().default(true),
 });
 
 const step3Schema = z.object({
@@ -62,31 +59,6 @@ const step3Schema = z.object({
 const step4Schema = z.object({
   platformPlan: z.enum(['starter', 'pro', 'premium']).default('starter'),
 });
-
-const NIGERIAN_BANKS = [
-  { code: '044', name: 'Access Bank' },
-  { code: '063', name: 'Access Bank (Diamond)' },
-  { code: '050', name: 'Ecobank Nigeria' },
-  { code: '070', name: 'Fidelity Bank' },
-  { code: '011', name: 'First Bank of Nigeria' },
-  { code: '214', name: 'First City Monument Bank' },
-  { code: '058', name: 'Guaranty Trust Bank' },
-  { code: '030', name: 'Heritage Bank' },
-  { code: '301', name: 'Jaiz Bank' },
-  { code: '082', name: 'Keystone Bank' },
-  { code: '526', name: 'Parallex Bank' },
-  { code: '076', name: 'Polaris Bank' },
-  { code: '101', name: 'Providus Bank' },
-  { code: '221', name: 'Stanbic IBTC Bank' },
-  { code: '068', name: 'Standard Chartered Bank' },
-  { code: '232', name: 'Sterling Bank' },
-  { code: '100', name: 'Suntrust Bank' },
-  { code: '032', name: 'Union Bank of Nigeria' },
-  { code: '033', name: 'United Bank For Africa' },
-  { code: '215', name: 'Unity Bank' },
-  { code: '035', name: 'Wema Bank' },
-  { code: '057', name: 'Zenith Bank' },
-];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -156,10 +128,7 @@ export default function OnboardingPage() {
   const step2Form = useForm<z.infer<typeof step2Schema>>({
     resolver: zodResolver(step2Schema),
     defaultValues: {
-      bankCode: '',
-      accountNumber: '',
-      accountName: '',
-      bvn: '',
+      skipBankSetup: true,
     },
   });
 
@@ -184,8 +153,8 @@ export default function OnboardingPage() {
     setStep(2);
   }
 
-  async function handleStep2Submit(data: z.infer<typeof step2Schema>) {
-    setFormData((prev) => ({ ...prev, step2: data }));
+  async function handleStep2Submit() {
+    setFormData((prev) => ({ ...prev, step2: { skipBankSetup: true } }));
     setStep(3);
   }
 
@@ -274,13 +243,13 @@ export default function OnboardingPage() {
             <CardTitle>
               Step {step}:{' '}
               {step === 1 && 'Business Information'}
-              {step === 2 && 'Bank Details'}
+              {step === 2 && 'Payout Account (Optional)'}
               {step === 3 && 'Subscription Plan'}
               {step === 4 && 'Platform Subscription'}
             </CardTitle>
             <CardDescription>
               {step === 1 && 'Tell us about your business'}
-              {step === 2 && 'Add your bank account for payouts'}
+              {step === 2 && 'You can set up payouts later from Earnings'}
               {step === 3 && 'Create your first subscription plan'}
               {step === 4 && 'Choose your platform plan'}
             </CardDescription>
@@ -385,75 +354,29 @@ export default function OnboardingPage() {
             {step === 2 && (
               <Form {...step2Form}>
                 <form
-                  onSubmit={step2Form.handleSubmit(handleStep2Submit)}
+                  onSubmit={step2Form.handleSubmit(() => handleStep2Submit())}
                   className="space-y-4"
                 >
-                <FormField
-                  control={step2Form.control}
-                  name="bankCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bank</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select bank" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {NIGERIAN_BANKS.map((bank) => (
-                            <SelectItem key={bank.code} value={bank.code}>
-                              {bank.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={step2Form.control}
-                  name="accountNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="0123456789" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={step2Form.control}
-                  name="accountName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={step2Form.control}
-                  name="bvn"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>BVN (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="12345678901" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-foreground">Payout Account</h3>
+                      <p className="text-sm text-muted-foreground">
+                        You can add your bank account later from the Earnings page.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+                      Optional
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStep(3)}
+                    className="w-full py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Skip for now →
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -464,7 +387,7 @@ export default function OnboardingPage() {
                     Back
                   </Button>
                   <Button type="submit" className="w-full">
-                    Next
+                    Continue
                   </Button>
                 </div>
                 </form>

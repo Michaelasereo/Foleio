@@ -23,7 +23,6 @@ export async function GET() {
         pendingBalance: true,
         totalEarned: true,
         platformPlan: true,
-        bvnVerified: true,
         bankAccount: true as any,
       } as any,
     } as any);

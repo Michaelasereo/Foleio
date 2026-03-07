@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { shouldAutoUpgradeToPremium } from '@/lib/config/pilot';
 
 const creatorCoreSelect = {
   id: true,
@@ -49,10 +50,7 @@ const profileUpdateSchema = z.object({
 });
 
 const onboardingStep2Schema = z.object({
-  bankCode: z.string().min(1, 'Bank code is required'),
-  accountNumber: z.string().min(10, 'Account number must be at least 10 digits'),
-  accountName: z.string().min(2, 'Account name is required'),
-  bvn: z.string().length(11, 'BVN must be 11 digits').optional(),
+  skipBankSetup: z.boolean().default(true),
 });
 
 const onboardingStep3Schema = z.object({
@@ -68,7 +66,7 @@ const onboardingStep4Schema = z.object({
 
 export async function createCreatorProfile(
   step1Data: z.infer<typeof onboardingStep1Schema>,
-  step2Data: z.infer<typeof onboardingStep2Schema>,
+  _step2Data: z.infer<typeof onboardingStep2Schema>,
   step3Data: z.infer<typeof onboardingStep3Schema>,
   step4Data: z.infer<typeof onboardingStep4Schema>
 ) {
@@ -117,20 +115,19 @@ export async function createCreatorProfile(
       select: { id: true },
     });
 
+    const autoPremium = shouldAutoUpgradeToPremium(session.user.email);
+    const selectedPlan = autoPremium ? 'premium' : step4Data.platformPlan;
     const creatorData = {
       displayName: step1Data.displayName,
       bio: step1Data.bio,
       category: step1Data.category,
       instagramHandle: step1Data.instagramHandle,
       tiktokHandle: step1Data.tiktokHandle,
-      bankCode: step2Data.bankCode,
-      accountNumber: step2Data.accountNumber,
-      accountName: step2Data.accountName,
-      platformPlan: step4Data.platformPlan,
+      platformPlan: selectedPlan,
       platformSubscriptionActive: true,
-      platformSubscriptionEndsAt: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ), // 30 days trial
+      platformSubscriptionEndsAt: autoPremium
+        ? null
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
     };
 
     const creator = existingCreatorForUser

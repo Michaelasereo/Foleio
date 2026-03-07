@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, TrendingUp, Wallet } from 'lucide-react';
+import { Building2, CheckCircle2, Clock, TrendingUp, Wallet } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import {
   CartesianGrid,
@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PayoutModal } from '@/components/creator/PayoutModal';
 import { PayoutScheduleSettings } from '@/components/creator/PayoutScheduleSettings';
+import { BankSetupForm, type BankAccount } from '@/components/creator/BankSetupForm';
 
 type EarningsPayload = {
   creator: {
@@ -27,7 +28,6 @@ type EarningsPayload = {
     pendingBalance: string | number;
     totalEarned: number;
     platformPlan: string | null;
-    bvnVerified: boolean;
     bankAccount: any | null;
     payouts: Array<any>;
   };
@@ -52,12 +52,17 @@ function statusClass(status: string) {
 export function EarningsDashboard() {
   const [data, setData] = useState<EarningsPayload | null>(null);
   const [payoutOpen, setPayoutOpen] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [editingBank, setEditingBank] = useState(false);
+  const [creatorBank, setCreatorBank] = useState<BankAccount | null>(null);
 
   async function load() {
     const response = await fetch('/api/creator/earnings', { cache: 'no-store' });
     if (!response.ok) return;
     const payload = (await response.json()) as EarningsPayload;
     setData(payload);
+    setCreatorBank(payload.creator.bankAccount);
   }
 
   useEffect(() => {
@@ -86,6 +91,33 @@ export function EarningsDashboard() {
   const available = Number(data.creator.availableBalance || 0);
   const pending = Number(data.creator.pendingBalance || 0);
   const totalEarned = Number(data.creator.totalEarned || 0);
+  const manualPayoutsEnabled =
+    process.env.NEXT_PUBLIC_MANUAL_PAYOUTS_ENABLED === 'true';
+  const hasPendingRequest = data.creator.payouts.some((payout) =>
+    ['PENDING', 'PROCESSING', 'pending', 'processing'].includes(String(payout.status))
+  );
+  const canRequestPayout =
+    available >= 500000 && !!creatorBank && !hasPendingRequest;
+
+  async function handleRequestPayout() {
+    setRequestLoading(true);
+    setRequestError('');
+    try {
+      const response = await fetch('/api/creator/payouts/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: available }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setRequestError(payload.error || 'Failed to request payout');
+        return;
+      }
+      await load();
+    } finally {
+      setRequestLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -101,9 +133,26 @@ export function EarningsDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-2xl font-semibold text-green-800">{formatNaira(available / 100)}</p>
-            <Button onClick={() => setPayoutOpen(true)} className="w-full">
-              Withdraw Now
-            </Button>
+            {manualPayoutsEnabled ? (
+              <Button
+                onClick={handleRequestPayout}
+                disabled={
+                  requestLoading ||
+                  hasPendingRequest ||
+                  available < 500000 ||
+                  !creatorBank
+                }
+                className="w-full"
+              >
+                {hasPendingRequest
+                  ? 'Payout Request Pending ✓'
+                  : `Request Payout — ${formatNaira(available / 100)}`}
+              </Button>
+            ) : (
+              <Button onClick={() => setPayoutOpen(true)} className="w-full">
+                Withdraw Now
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -133,6 +182,127 @@ export function EarningsDashboard() {
             <p className="text-2xl font-semibold text-orange-800">{formatNaira(totalEarned / 100)}</p>
           </CardContent>
         </Card>
+      </div>
+
+      {manualPayoutsEnabled ? (
+        <div className="rounded-2xl border border-border bg-white p-6">
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <Clock className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">
+                Manual Payouts - Founding Phase
+              </p>
+              <p className="mt-1 text-sm text-amber-800">
+                Payouts are processed every Friday during our founding phase. Request by Thursday midnight to be included in this week&apos;s batch. Automated instant payouts launch in 2 weeks.
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Available to withdraw</p>
+              <p className="text-3xl font-bold text-foreground">
+                {formatNaira(available / 100)}
+              </p>
+            </div>
+            <div className="text-right text-sm text-muted-foreground">
+              <p>
+                Next payout: <strong>Friday</strong>
+              </p>
+              <p>Min. withdrawal: ₦5,000</p>
+            </div>
+          </div>
+
+          {!creatorBank ? (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+              <p className="mb-1 text-sm font-semibold text-amber-900">
+                Add your bank account to request payouts
+              </p>
+              <p className="mb-3 text-xs text-amber-700">
+                Scroll down to set up your payout account
+              </p>
+              <button
+                onClick={() => {
+                  document
+                    .getElementById('payout-account')
+                    ?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-sm font-semibold text-primary underline underline-offset-2"
+              >
+                Set up bank account →
+              </button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleRequestPayout}
+              disabled={requestLoading || !canRequestPayout}
+              className="w-full"
+            >
+              {hasPendingRequest
+                ? 'Payout Request Pending ✓'
+                : `Request Payout — ${formatNaira(available / 100)}`}
+            </Button>
+          )}
+
+          {hasPendingRequest ? (
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              Your request is queued for Friday&apos;s payout batch. We&apos;ll email you once sent.
+            </p>
+          ) : null}
+          {requestError ? (
+            <p className="mt-3 text-center text-sm text-destructive">{requestError}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div id="payout-account" className="mt-6 rounded-2xl border border-border bg-white p-6">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-foreground">Payout Account</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Where we send your earnings
+            </p>
+          </div>
+          {creatorBank ? (
+            <button
+              onClick={() => setEditingBank(true)}
+              className="text-sm text-primary underline underline-offset-2 hover:opacity-80"
+            >
+              Change
+            </button>
+          ) : null}
+        </div>
+
+        {creatorBank && !editingBank ? (
+          <div className="flex items-center gap-4 rounded-xl bg-muted/50 p-4">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <Building2 className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground">
+                {creatorBank.bankName}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {creatorBank.accountNumber}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {creatorBank.accountName}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-green-600">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="text-xs font-medium">Verified</span>
+            </div>
+          </div>
+        ) : (
+          <BankSetupForm
+            onSaved={(bank) => {
+              setCreatorBank(bank);
+              setEditingBank(false);
+            }}
+            onCancel={creatorBank ? () => setEditingBank(false) : undefined}
+          />
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
@@ -212,7 +382,7 @@ export function EarningsDashboard() {
                       <td className="py-2">{new Date(payout.createdAt).toLocaleDateString()}</td>
                       <td className="py-2">{formatNaira(Number(payout.amount) / 100)}</td>
                       <td className="py-2">
-                        {data.creator.bankAccount?.bankName || 'Bank account'}
+                        {creatorBank?.bankName || 'Bank account'}
                       </td>
                       <td className="py-2">
                         <Badge className={statusClass(String(payout.status || 'PENDING'))}>
@@ -237,17 +407,18 @@ export function EarningsDashboard() {
         </CardContent>
       </Card>
 
-      <PayoutScheduleSettings />
+      {!manualPayoutsEnabled ? <PayoutScheduleSettings /> : null}
 
-      <PayoutModal
-        open={payoutOpen}
-        onOpenChange={setPayoutOpen}
-        availableBalance={available}
-        platformPlan={data.creator.platformPlan}
-        bankAccount={data.creator.bankAccount}
-        bvnVerified={data.creator.bvnVerified}
-        onRefresh={load}
-      />
+      {!manualPayoutsEnabled ? (
+        <PayoutModal
+          open={payoutOpen}
+          onOpenChange={setPayoutOpen}
+          availableBalance={available}
+          platformPlan={data.creator.platformPlan}
+          bankAccount={creatorBank}
+          onRefresh={load}
+        />
+      ) : null}
     </div>
   );
 }

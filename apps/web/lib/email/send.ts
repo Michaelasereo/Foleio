@@ -123,3 +123,59 @@ export async function sendPayoutConfirmation(data: {
     return { success: false };
   }
 }
+
+export async function sendPayoutRequestEmail(data: {
+  creatorName: string;
+  creatorEmail: string;
+  amount: number;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  payoutId: string;
+}) {
+  const adminEmail =
+    process.env.ADMIN_NOTIFICATION_EMAIL ||
+    process.env.SUPPORT_EMAIL ||
+    'noreply@foleio.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
+  const amountText = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+  }).format(data.amount / 100);
+
+  const subject = `💸 New Payout Request — ${data.creatorName} — ${amountText}`;
+  const html = `
+    <h2>New Payout Request</h2>
+    <p><strong>Creator:</strong> ${data.creatorName} (${data.creatorEmail})</p>
+    <p><strong>Amount:</strong> ${amountText}</p>
+    <p><strong>Payout ID:</strong> ${data.payoutId}</p>
+    <p><strong>Bank:</strong> ${data.bankName}</p>
+    <p><strong>Account Number:</strong> ${data.accountNumber}</p>
+    <p><strong>Account Name:</strong> ${data.accountName}</p>
+    <p><a href="${appUrl}/admin/payouts">Open payout queue →</a></p>
+  `;
+
+  return sendEmail({ to: adminEmail, subject, html });
+}
+
+export async function sendPayoutRequestConfirmationEmail(data: {
+  creatorEmail: string;
+  creatorName: string;
+  amount: number;
+  expectedDate: string;
+}) {
+  const amountText = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+  }).format(data.amount / 100);
+
+  const subject = 'Payout request received 🧡';
+  const html = `
+    <p>Hi ${data.creatorName},</p>
+    <p>We received your payout request for <strong>${amountText}</strong>.</p>
+    <p>It will be processed by <strong>${data.expectedDate}</strong>.</p>
+    <p>We'll email you once it's on its way.</p>
+  `;
+
+  return sendEmail({ to: data.creatorEmail, subject, html });
+}
