@@ -24,7 +24,6 @@ interface Content {
   contentCategory: string;
   tutorialPrice: number | null;
   collectionId: string | null;
-  isStandalone: boolean;
   thumbnailUrl: string | null;
   isPublished: boolean;
   tags: string[];
@@ -181,7 +180,6 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
                 : parseInt(formData.tutorialPrice || '0', 10)
             : null,
         collectionId: hasCollectionSelected ? formData.collectionId : null,
-        isStandalone: !hasCollectionSelected,
         thumbnailUrl: thumbnailPreview,
         isPublished: formData.isPublished,
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)

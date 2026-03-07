@@ -77,7 +77,13 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
   }, [content]);
 
   useEffect(() => {
-    const handler = () => setOpenMenu(null);
+    const handler = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-content-menu="true"]')) {
+        return;
+      }
+      setOpenMenu(null);
+    };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, []);
@@ -183,13 +189,17 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
   }
 
   async function persistOrder(updatedItems: any[]) {
-    await fetch('/api/content/reorder', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        order: updatedItems.map((entry, index) => ({ id: entry.id, sortOrder: index })),
-      }),
-    });
+    try {
+      await fetch('/api/content/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order: updatedItems.map((entry, index) => ({ id: entry.id, sortOrder: index })),
+        }),
+      });
+    } catch {
+      // Keep UI responsive even if reorder persistence is unavailable.
+    }
   }
 
   function moveItem(dragId: string, targetId: string) {
@@ -292,7 +302,7 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
         {filteredContent.map((item) => (
           <Card
             key={item.id}
-            className={`overflow-hidden ${view === 'list' ? 'p-0' : ''}`}
+            className={`overflow-visible ${view === 'list' ? 'p-0' : ''}`}
             draggable={view === 'list'}
             onDragStart={() => setDraggedId(item.id)}
             onDragOver={(event) => event.preventDefault()}
@@ -330,7 +340,7 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
                 <CardTitle className="text-lg">{item.title}</CardTitle>
-                <div className="relative">
+                <div className="relative" data-content-menu="true">
                   <button
                     type="button"
                     onClick={(event) => {
@@ -343,6 +353,7 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
                   </button>
                   {openMenu === item.id ? (
                     <div
+                      data-content-menu="true"
                       className="absolute right-0 top-8 z-20 w-44 rounded-xl border border-border bg-white py-1 text-sm shadow-lg"
                       onClick={(event) => event.stopPropagation()}
                     >

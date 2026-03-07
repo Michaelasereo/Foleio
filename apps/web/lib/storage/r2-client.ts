@@ -70,7 +70,7 @@ export class R2StorageClient {
       Key: key,
     });
 
-    return await getSignedUrl(this.client, command, { expiresIn });
+    return await getSignedUrl(this.client as any, command as any, { expiresIn });
   }
 
   /**

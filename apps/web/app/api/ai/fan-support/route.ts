@@ -1,6 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getAnthropicApiKey() {
+  const key = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  if (!key || key === 'your_key_here') {
+    return null;
+  }
+  return key;
+}
 
 const SYSTEM_PROMPT = `You are Fola, Foleio's friendly support assistant.
 Foleio is a Nigerian creator monetization platform. You are helping
@@ -86,12 +92,14 @@ function isRateLimited(ip: string): boolean {
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const apiKey = getAnthropicApiKey();
+    if (!apiKey) {
       return Response.json(
-        { error: 'Support unavailable right now' },
+        { error: 'Support unavailable right now (AI key missing)' },
         { status: 500 }
       );
     }
+    const client = new Anthropic({ apiKey });
 
     const ip = getClientIp(request);
     if (isRateLimited(ip)) {

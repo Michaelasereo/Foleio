@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import { getR2Client } from '@/lib/storage/r2-client';
 
 // Conditional import for file-type with fallback
 let fileTypeFromBuffer: any;
@@ -116,7 +117,7 @@ export class UploadService {
 
     // 1. Read file as buffer
     const arrayBuffer = await file.arrayBuffer();
-    let buffer = Buffer.from(arrayBuffer);
+    let buffer: Buffer<ArrayBufferLike> = Buffer.from(arrayBuffer);
     let contentType = file.type;
     let optimized = false;
 

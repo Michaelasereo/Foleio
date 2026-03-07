@@ -67,13 +67,6 @@ export class UploadManager {
           isPublished: false,
           accessType: 'subscription',
           contentCategory: 'content',
-          metadata: {
-            duration: muxResult.duration,
-            aspectRatio: muxResult.aspectRatio,
-            resolution: muxResult.resolution,
-            originalName: file.name,
-            mimeType: file.type
-          }
         }
       });
 

@@ -42,16 +42,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized reorder request' }, { status: 401 });
     }
 
-    await prisma.$transaction(
-      order.map((item: any, index: number) =>
-        prisma.content.update({
-          where: { id: item.id },
-          data: { sortOrder: Number.isFinite(item.sortOrder) ? item.sortOrder : index },
-        })
-      )
-    );
-
-    return NextResponse.json({ success: true });
+    // Temporary no-op until sortOrder DB migration is fully applied.
+    return NextResponse.json({
+      success: false,
+      message: 'Reordering temporarily unavailable until migration completes',
+    });
   } catch (error: any) {
     console.error('Content reorder error:', error);
     return NextResponse.json(

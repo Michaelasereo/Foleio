@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { DM_Sans, Playfair_Display } from 'next/font/google';
 import Link from 'next/link';
 import { ThemeProvider } from '@/components/theme-provider';
+import { StagingBanner } from '@/components/ui/StagingBanner';
 import { Toaster } from '@/components/ui/toaster';
 import { ServiceWorkerRegistration } from '@/components/service-worker-registration';
 import { validateAndExit } from '@/lib/config/env-validation';
@@ -39,13 +40,18 @@ export default function RootLayout({
         {/* Paystack Inline Script for Payment Processing */}
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
-      <body className={`${dmSans.variable} ${playfairDisplay.variable}`}>
+      <body
+        className={`${dmSans.variable} ${playfairDisplay.variable} ${
+          process.env.NEXT_PUBLIC_ENV === 'staging' ? 'pt-8' : ''
+        }`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
+          <StagingBanner />
           {children}
           <footer className="px-6 py-6">
             <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">

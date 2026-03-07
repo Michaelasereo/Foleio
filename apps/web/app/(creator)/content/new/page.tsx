@@ -468,7 +468,6 @@ export default function NewContentPage() {
           accessType: normalizedAccessType,
           collectionId: data.collectionId || undefined,
           tutorialPrice: tutorialPriceKobo,
-          isStandalone: !isInCollection,
         }),
       });
 

@@ -56,7 +56,6 @@ export default async function CreatorPublicPage({
           muxPlaybackId: true,
           tutorialPrice: true,
           collectionId: true,
-          isStandalone: true,
           collection: {
             select: {
               id: true,
@@ -64,8 +63,57 @@ export default async function CreatorPublicPage({
             },
           },
         },
-        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
-        take: 24,
+        orderBy: { createdAt: 'desc' },
+      },
+      collections: {
+        where: { isPublished: true },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          thumbnailUrl: true,
+          price: true,
+          subscriptionPrice: true,
+          tutorialContents: {
+            where: { isPublished: true, type: 'video' },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              thumbnailUrl: true,
+              muxAssetId: true,
+              muxPlaybackId: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'asc' },
+          },
+          sections: {
+            select: {
+              id: true,
+              orderIndex: true,
+              sectionContents: {
+                select: {
+                  orderIndex: true,
+                  content: {
+                    select: {
+                      id: true,
+                      title: true,
+                      description: true,
+                      thumbnailUrl: true,
+                      muxAssetId: true,
+                      muxPlaybackId: true,
+                      createdAt: true,
+                      isPublished: true,
+                      type: true,
+                    },
+                  },
+                },
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
       },
     },
   });
@@ -74,9 +122,76 @@ export default async function CreatorPublicPage({
     notFound();
   }
 
-  // Separate content by category
-  const regularContent = creator.content.filter((c: typeof creator.content[0]) => c.contentCategory === 'content');
-  const tutorials = creator.content.filter((c: typeof creator.content[0]) => c.contentCategory === 'tutorial');
+  // Build collection videos from both direct links and section-linked content.
+  const tutorialCollections = creator.collections
+    .map((collection: (typeof creator.collections)[0]) => {
+      const videosById = new Map<
+        string,
+        {
+          id: string;
+          title: string;
+          description: string | null;
+          thumbnailUrl: string | null;
+          muxAssetId: string | null;
+          muxPlaybackId: string | null;
+          createdAt: Date;
+        }
+      >();
+
+      for (const video of collection.tutorialContents) {
+        videosById.set(video.id, video);
+      }
+
+      for (const section of collection.sections) {
+        for (const sectionContent of section.sectionContents) {
+          const video = sectionContent.content;
+          if (!video || !video.isPublished || video.type !== 'video') {
+            continue;
+          }
+          if (!videosById.has(video.id)) {
+            videosById.set(video.id, {
+              id: video.id,
+              title: video.title,
+              description: video.description,
+              thumbnailUrl: video.thumbnailUrl,
+              muxAssetId: video.muxAssetId,
+              muxPlaybackId: video.muxPlaybackId,
+              createdAt: video.createdAt,
+            });
+          }
+        }
+      }
+
+      return {
+        id: collection.id,
+        title: collection.title,
+        description: collection.description,
+        thumbnailUrl: collection.thumbnailUrl,
+        price: collection.price,
+        subscriptionPrice: collection.subscriptionPrice,
+        videos: Array.from(videosById.values()).sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        ),
+      };
+    })
+    .filter((collection: { videos: any[] }) => collection.videos.length > 0);
+
+  const collectionVideoIds = new Set(
+    tutorialCollections.flatMap((collection: { videos: Array<{ id: string }> }) =>
+      collection.videos.map((video) => video.id)
+    )
+  );
+
+  // Separate content by category and keep collection videos out of standalone cards.
+  const regularContent = creator.content.filter(
+    (c: typeof creator.content[0]) => c.contentCategory === 'content' && !c.collectionId
+  );
+  const tutorials = creator.content.filter(
+    (c: typeof creator.content[0]) =>
+      c.contentCategory === 'tutorial' &&
+      !c.collectionId &&
+      !collectionVideoIds.has(c.id)
+  );
 
   // Group price list items by category
   const groupedPriceList = groupPriceListByCategory(creator.priceListItems);
@@ -104,6 +219,7 @@ export default async function CreatorPublicPage({
       creator={serializedCreator as any}
       regularContent={serializeForClient(regularContent)}
       tutorials={serializeForClient(tutorials)}
+      tutorialCollections={serializeForClient(tutorialCollections)}
       groupedPriceList={serializeForClient(groupedPriceList)}
     />
   );

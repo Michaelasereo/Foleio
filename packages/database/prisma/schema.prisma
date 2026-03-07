@@ -250,12 +250,10 @@ model Content {
   // Tutorial-specific pricing (for individual purchase)
   tutorialPrice Int?     @map("tutorial_price") // in kobo, for individual tutorial purchase
   collectionId  String?  @map("collection_id") // Link tutorial to collection (optional)
-  isStandalone  Boolean  @default(true) @map("is_standalone")
 
   // Stats
   viewCount     Int      @default(0) @map("view_count")
   likeCount     Int      @default(0) @map("like_count")
-  sortOrder     Int      @default(0) @map("sort_order")
 
   // Metadata
   isPublished   Boolean  @default(false) @map("is_published")

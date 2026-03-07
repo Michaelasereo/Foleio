@@ -289,6 +289,7 @@ export async function addContentToSection(
 
     const creator = await prisma.creator.findUnique({
       where: { userId: session.user.id },
+      select: { id: true, username: true },
     });
 
     if (!creator) {
@@ -305,6 +306,9 @@ export async function addContentToSection(
         collection: {
           creatorId: creator.id,
         },
+      },
+      select: {
+        collectionId: true,
       },
     });
 
@@ -330,25 +334,41 @@ export async function addContentToSection(
       };
     }
 
-    const sectionContent = await prisma.sectionContent.upsert({
-      where: {
-        sectionId_contentId: {
+    const sectionContent = await prisma.$transaction(async (tx) => {
+      const relation = await tx.sectionContent.upsert({
+        where: {
+          sectionId_contentId: {
+            sectionId: data.sectionId,
+            contentId: data.contentId,
+          },
+        },
+        update: {
+          orderIndex: data.orderIndex,
+        },
+        create: {
           sectionId: data.sectionId,
           contentId: data.contentId,
+          orderIndex: data.orderIndex,
         },
-      },
-      update: {
-        orderIndex: data.orderIndex,
-      },
-      create: {
-        sectionId: data.sectionId,
-        contentId: data.contentId,
-        orderIndex: data.orderIndex,
-      },
+      });
+
+      // Keep content and collection linkage in sync so public profile groups correctly.
+      await tx.content.update({
+        where: { id: data.contentId },
+        data: {
+          collectionId: section.collectionId,
+          accessType: 'collection',
+          tutorialPrice: 0,
+          contentCategory: 'tutorial',
+        },
+      });
+
+      return relation;
     });
 
     revalidatePath('/collections');
     revalidatePath(`/collections/${section.collectionId}`);
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, sectionContent };
   } catch (error) {
     console.error('Error adding content to section:', error);

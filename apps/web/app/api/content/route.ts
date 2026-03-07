@@ -4,23 +4,21 @@ import { withCreatorSessionValidation } from '@/lib/auth/session-middleware';
 import { prisma } from '@foleio/database';
 import { getPlanLimits } from '@/lib/utils/plan-limits';
 
+type CreateContentInput = Parameters<typeof createContent>[0];
+
 function normalizeContentPayload(data: Record<string, any>) {
   const isTutorial = data.contentCategory === 'tutorial';
   const isInCollection = Boolean(data.collectionId);
 
   if (!isTutorial) {
-    return {
-      ...data,
-      isStandalone: !isInCollection,
-    };
+    return data;
   }
 
   if (isInCollection) {
     return {
       ...data,
-      accessType: 'subscription',
+      accessType: 'collection',
       tutorialPrice: 0,
-      isStandalone: false,
     };
   }
 
@@ -32,7 +30,6 @@ function normalizeContentPayload(data: Record<string, any>) {
   return {
     ...data,
     tutorialPrice: data.accessType === 'free' ? 0 : normalizedPrice,
-    isStandalone: true,
   };
 }
 
@@ -67,7 +64,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: normalizedData.error }, { status: 400 });
       }
 
-      const result = await createContent(normalizedData);
+      const result = await createContent(normalizedData as CreateContentInput);
 
       if (!result.success) {
         return NextResponse.json(

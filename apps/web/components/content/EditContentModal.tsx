@@ -43,7 +43,7 @@ export function EditContentModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [collectionId, setCollectionId] = useState('');
-  const [accessType, setAccessType] = useState<'free' | 'subscription' | 'one_time'>('subscription');
+  const [accessType, setAccessType] = useState<'free' | 'subscription' | 'one_time' | 'collection'>('subscription');
   const [tutorialPrice, setTutorialPrice] = useState('');
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
@@ -54,7 +54,7 @@ export function EditContentModal({
     setTitle(content.title || '');
     setDescription(content.description || '');
     setCollectionId(content.collectionId || '');
-    setAccessType((content.accessType as 'free' | 'subscription' | 'one_time') || 'subscription');
+    setAccessType((content.accessType as 'free' | 'subscription' | 'one_time' | 'collection') || 'subscription');
     setTutorialPrice(content.tutorialPrice ? String(Math.round(content.tutorialPrice / 100)) : '');
     setThumbnailPreview(content.thumbnailUrl || null);
     setIsPublished(Boolean(content.isPublished));
@@ -120,7 +120,7 @@ export function EditContentModal({
 
       if (isTutorial) {
         payload.collectionId = collectionId || null;
-        payload.accessType = isInCollection ? 'subscription' : accessType;
+        payload.accessType = isInCollection ? 'collection' : accessType;
         payload.tutorialPrice = isInCollection ? 0 : accessType === 'free' ? 0 : tutorialPriceKobo;
       }
 
