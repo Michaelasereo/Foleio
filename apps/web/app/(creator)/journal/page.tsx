@@ -30,8 +30,8 @@ export default async function JournalPage() {
     isPublished: boolean;
     slug: string | null;
     publishedAt: Date | null;
-    readTime: number;
-    viewCount: number;
+    readTime?: number;
+    viewCount?: number;
   }> = [];
 
   try {
@@ -41,19 +41,34 @@ export default async function JournalPage() {
     });
     if (!creator) redirect('/settings');
 
-    entries = await prisma.journalEntry.findMany({
-      where: { creatorId: creator.id },
-      orderBy: [{ updatedAt: 'desc' }],
-      select: {
-        id: true,
-        title: true,
-        isPublished: true,
-        slug: true,
-        publishedAt: true,
-        readTime: true,
-        viewCount: true,
-      },
-    });
+    try {
+      entries = await prisma.journalEntry.findMany({
+        where: { creatorId: creator.id },
+        orderBy: [{ updatedAt: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          isPublished: true,
+          slug: true,
+          publishedAt: true,
+          readTime: true,
+          viewCount: true,
+        },
+      });
+    } catch {
+      // Fallback for environments with partially migrated journal columns.
+      entries = await prisma.journalEntry.findMany({
+        where: { creatorId: creator.id },
+        orderBy: [{ updatedAt: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          isPublished: true,
+          slug: true,
+          publishedAt: true,
+        },
+      });
+    }
   } catch (error) {
     console.error('Journal page load error:', error);
     return (
@@ -109,7 +124,8 @@ export default async function JournalPage() {
               </CardHeader>
               <CardContent className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
-                  {formatDate(entry.publishedAt)} · {entry.readTime} min read · {entry.viewCount} views
+                  {formatDate(entry.publishedAt)} · {Number(entry.readTime || 0)} min read ·{' '}
+                  {Number(entry.viewCount || 0)} views
                 </p>
                 <div className="flex items-center gap-2">
                   {entry.isPublished ? (

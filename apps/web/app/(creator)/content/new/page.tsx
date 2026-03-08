@@ -39,6 +39,7 @@ import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, getPlanLimits, type PlatformPlan } from '@/lib/utils/plan-limits';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { UploadProgress } from '@/components/content/UploadProgress';
 import { useRef } from 'react';
 
 const contentSchema = z.object({
@@ -79,6 +80,10 @@ export default function NewContentPage() {
   } | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [uploadState, setUploadState] = useState<'uploading' | 'processing' | 'complete' | 'error'>('uploading');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
+  const [currentUploadFile, setCurrentUploadFile] = useState<{ name: string; size: number } | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [currentPlan, setCurrentPlan] = useState<PlatformPlan>('STARTER');
   const [isHardBlocked, setIsHardBlocked] = useState(false);
@@ -158,6 +163,10 @@ export default function NewContentPage() {
     });
 
     setUploading(true);
+    setUploadState('uploading');
+    setUploadProgress(10);
+    setUploadError('');
+    setCurrentUploadFile({ name: file.name, size: file.size });
 
     try {
       // 🔍 STEP 1: File Validation
@@ -213,6 +222,7 @@ export default function NewContentPage() {
         method: 'POST',
         body: formData,
       });
+      setUploadProgress(65);
 
       const uploadTime = Date.now() - uploadStart;
       console.log('⏱️ Upload response time:', uploadTime + 'ms');
@@ -274,7 +284,10 @@ export default function NewContentPage() {
           status: videoData.status,
           uploadUrl: videoData.playbackUrl, // Will be null until processing complete
           estimatedReadyTime: videoData.estimatedReadyTime,
+          fileName: file.name,
         });
+        setUploadState('processing');
+        setUploadProgress(100);
 
         // Start polling for video processing status
         console.log('⏳ Starting video processing status polling...');
@@ -295,6 +308,8 @@ export default function NewContentPage() {
           title: 'Success',
           description: 'File uploaded successfully!',
         });
+        setUploadState('complete');
+        setUploadProgress(100);
       }
 
       console.log('🎉 Upload process initiated successfully!');
@@ -305,6 +320,8 @@ export default function NewContentPage() {
       console.error('Error stack:', err.stack);
       console.error('Error message:', err.message);
 
+      setUploadState('error');
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload file');
       toast({
         title: 'Upload failed',
         description: error instanceof Error ? error.message : 'Failed to upload file',
@@ -352,6 +369,7 @@ export default function NewContentPage() {
             thumbnail: muxThumbnailUrl || undefined,
             status: 'ready',
           }));
+          setUploadState('complete');
 
           toast({
             title: 'Video Ready!',
@@ -363,6 +381,8 @@ export default function NewContentPage() {
 
         if (statusData.error) {
           console.error('❌ Video processing error:', statusData.error);
+          setUploadState('error');
+          setUploadError(String(statusData.error));
           toast({
             title: 'Processing Error',
             description: `Video processing failed: ${statusData.error}`,
@@ -743,7 +763,20 @@ export default function NewContentPage() {
                     {contentType === 'video' ? 'Video File' : contentType === 'image' ? 'Image File' : 'PDF File'}
                   </FormLabel>
                   <div className="space-y-4">
-                    {!uploadedFile ? (
+                    {(uploading || uploadedFile?.status === 'processing' || uploadState === 'error') ? (
+                      <UploadProgress
+                        state={uploadState === 'error' ? 'error' : uploading ? 'uploading' : 'processing'}
+                        progress={uploadProgress}
+                        fileName={currentUploadFile?.name || uploadedFile?.fileName || 'Uploading video'}
+                        fileSize={currentUploadFile?.size || 0}
+                        error={uploadError}
+                        onCancel={() => {
+                          setUploading(false);
+                          setUploadState('error');
+                          setUploadError('Upload cancelled');
+                        }}
+                      />
+                    ) : !uploadedFile ? (
                       <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
                         <div className="flex flex-col items-center justify-center space-y-4">
                           <Upload className="h-10 w-10 text-muted-foreground" />
@@ -817,7 +850,12 @@ export default function NewContentPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => setUploadedFile(null)}
+                            onClick={() => {
+                              setUploadedFile(null);
+                              setUploadProgress(0);
+                              setUploadError('');
+                              setCurrentUploadFile(null);
+                            }}
                             disabled={uploading}
                           >
                             <X className="h-4 w-4" />
