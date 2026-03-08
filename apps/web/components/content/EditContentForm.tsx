@@ -252,17 +252,33 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
     setErrors((prev) => ({ ...prev, submit: '' }));
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
       const response = await fetch(`/api/content/${content.id}/reupload`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        }),
       });
       const result = await response.json();
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to re-upload video');
+      }
+
+      if (!result?.data?.uploadUrl) {
+        throw new Error('Missing upload URL for re-upload');
+      }
+
+      const uploadResult = await fetch(result.data.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+
+      if (!uploadResult.ok) {
+        throw new Error('Failed uploading replacement file to video host');
       }
 
       setReuploadMessage('Upload complete. Processing video...');

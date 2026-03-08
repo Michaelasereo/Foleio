@@ -131,7 +131,7 @@ export default async function ContentPage() {
             Manage your content, collections, and intro video
           </p>
         </div>
-        <Link href="/dashboard/booking">
+        <Link href="/bookings">
           <Button variant="outline">
             Manage Bookings
           </Button>

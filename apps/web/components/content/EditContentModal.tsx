@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -168,15 +168,30 @@ export function EditContentModal({
     setReuploadMessage('Uploading replacement video...');
     setError('');
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
       const response = await fetch(`/api/content/${content.id}/reupload`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to re-upload video');
+
+      if (!result?.data?.uploadUrl) {
+        throw new Error('Missing upload URL for re-upload');
+      }
+
+      const uploadResult = await fetch(result.data.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!uploadResult.ok) {
+        throw new Error('Failed uploading replacement file to video host');
+      }
 
       setReuploadMessage('Upload complete. Processing video...');
       const ready = await pollReuploadStatus(result?.data?.muxUploadId);
@@ -200,6 +215,9 @@ export function EditContentModal({
       <DialogContent className="!left-auto !right-0 !top-0 !h-full !max-w-xl !translate-x-0 !translate-y-0 rounded-none">
         <DialogHeader>
           <DialogTitle>Edit Content</DialogTitle>
+          <DialogDescription>
+            Update content settings and replace the video file if playback is broken.
+          </DialogDescription>
         </DialogHeader>
 
         {!content ? null : (

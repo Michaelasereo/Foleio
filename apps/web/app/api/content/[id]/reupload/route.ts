@@ -42,22 +42,26 @@ export async function POST(
       return NextResponse.json({ error: 'Only videos can be re-uploaded' }, { status: 400 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    const body = (await request.json().catch(() => ({}))) as {
+      fileName?: string;
+      fileSize?: number;
+      fileType?: string;
+    };
+    const fileName = body.fileName?.trim() || 'reupload-video';
+    const fileSize = Number(body.fileSize || 0);
+    const fileType = String(body.fileType || '');
+
+    if (!fileSize || fileSize <= 0) {
+      return NextResponse.json({ error: 'Invalid file size' }, { status: 400 });
     }
-    if (file.size === 0) {
-      return NextResponse.json({ error: 'File is empty' }, { status: 400 });
-    }
-    if (file.size > 500 * 1024 * 1024) {
+    if (fileSize > 500 * 1024 * 1024) {
       return NextResponse.json({ error: 'File too large. Maximum size: 500MB' }, { status: 400 });
     }
 
     const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
-    if (!allowedTypes.includes(file.type)) {
+    if (!allowedTypes.includes(fileType)) {
       return NextResponse.json(
-        { error: `Unsupported file type: ${file.type}. Allowed: MP4, WebM, MOV, MKV` },
+        { error: `Unsupported file type: ${fileType}. Allowed: MP4, WebM, MOV, MKV` },
         { status: 400 }
       );
     }
@@ -68,14 +72,14 @@ export async function POST(
         id: uploadId,
         userId: user.id,
         creatorId: content.creator.id,
-        filename: file.name,
-        mimeType: file.type,
-        size: file.size,
+        filename: fileName,
+        mimeType: fileType,
+        size: fileSize,
         status: 'UPLOADING',
         metadata: {
-          originalName: file.name,
-          size: file.size,
-          type: file.type,
+          originalName: fileName,
+          size: fileSize,
+          type: fileType,
           action: 'reupload',
           contentId: content.id,
         },
@@ -123,25 +127,6 @@ export async function POST(
       data: { muxUploadId },
     });
 
-    const fileBuffer = await file.arrayBuffer();
-    const uploadResult = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: fileBuffer,
-      headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    });
-
-    if (!uploadResult.ok) {
-      const errorText = await uploadResult.text();
-      await prisma.upload.update({
-        where: { id: uploadId },
-        data: { status: 'FAILED', error: errorText, failedAt: new Date() },
-      });
-      return NextResponse.json(
-        { error: 'Failed to upload video to Mux', details: errorText },
-        { status: 500 }
-      );
-    }
-
     await prisma.content.update({
       where: { id: content.id },
       data: {
@@ -154,11 +139,12 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Video uploaded. Processing has started.',
+      message: 'Upload URL created. Upload to Mux directly, then processing starts.',
       data: {
         contentId: content.id,
         uploadId,
         muxUploadId,
+        uploadUrl,
         status: 'processing',
         statusEndpoint: `/api/upload/status/${muxUploadId}`,
       },
