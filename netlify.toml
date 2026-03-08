@@ -1,73 +1,12 @@
 [build]
-  base = "apps/web"
-  command = "pnpm run build"
-  publish = ".next"
+  command = "pnpm --filter @foleio/web run build"
+  publish = "apps/web/.next"
 
 [build.environment]
   NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
-  NEXT_PUBLIC_APP_URL = "https://foleio.com"
-  AWS_LAMBDA_JS_RUNTIME = "nodejs20.x"
-
-# Production context - explicit overrides
-[context.production]
-  command = "pnpm run build"
-
-[context.production.environment]
   NEXT_PUBLIC_ENV = "production"
-
-[context.staging]
-  command = "pnpm run build"
-
-[context.staging.environment]
-  NEXT_PUBLIC_ENV = "staging"
-
-[context.branch-deploy]
-  command = "pnpm run build"
-
-[context.branch-deploy.environment]
-  NEXT_PUBLIC_ENV = "preview"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-[[crons]]
-  schedule = "0 9 * * *"
-  handler = "/.netlify/functions/nudge-cron"
-
-[[crons]]
-  schedule = "0 10 * * *"
-  handler = "/.netlify/functions/cancel-past-due"
-
-[[crons]]
-  schedule = "0 9 * * *"
-  handler = "/.netlify/functions/process-payouts"
-
-[dev]
-  framework = "nextjs"
-  port = 3000
-
-# Security headers
-[[headers]]
-  for = "/api/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    X-XSS-Protection = "1; mode=block"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = """
-      default-src 'self' *.foleio.com *.paystack.co *.cloudflare.com;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' *.paystack.co;
-      style-src 'self' 'unsafe-inline';
-      img-src 'self' data: blob: *.cloudflare.com;
-      media-src 'self' *.cloudflare.com;
-      connect-src 'self' *.supabase.co *.paystack.co *.cloudflare.com;
-      font-src 'self';
-      frame-src *.paystack.co;
-    """
 
