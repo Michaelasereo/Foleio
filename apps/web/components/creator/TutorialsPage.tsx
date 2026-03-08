@@ -91,11 +91,23 @@ export function TutorialsPage({
   const [tutorialModalOpen, setTutorialModalOpen] = useState(false);
   const [selectedTutorial, setSelectedTutorial] = useState<Content | null>(null);
   const [reportContentId, setReportContentId] = useState<string | null>(null);
+  const [trackedViewIds, setTrackedViewIds] = useState<Set<string>>(new Set());
+
+  const trackView = async (contentId: string) => {
+    if (trackedViewIds.has(contentId)) return;
+    setTrackedViewIds((prev) => new Set([...prev, contentId]));
+    try {
+      await fetch(`/api/content/${contentId}/views`, { method: 'POST' });
+    } catch {
+      // Non-blocking analytics call.
+    }
+  };
 
   const handleContentClick = (content: Content) => {
     // Free content - play directly
     if (content.accessType === 'free') {
       if (content.type === 'video' && content.muxPlaybackId) {
+        void trackView(content.id);
         setPlayingVideoId(content.id);
       }
       return;
@@ -104,6 +116,7 @@ export function TutorialsPage({
     // Already verified - play
     if (verifiedContentIds.has(content.id)) {
       if (content.type === 'video' && content.muxPlaybackId) {
+        void trackView(content.id);
         setPlayingVideoId(content.id);
       }
       return;
@@ -115,6 +128,7 @@ export function TutorialsPage({
       if (verifiedCollectionIds.has(content.collectionId)) {
         // Collection is verified - play
         if (content.type === 'video' && content.muxPlaybackId) {
+          void trackView(content.id);
           setPlayingVideoId(content.id);
         }
         return;
@@ -125,6 +139,7 @@ export function TutorialsPage({
       if (storedAccess) {
         setVerifiedCollectionIds(prev => new Set([...prev, content.collectionId!]));
         if (content.type === 'video' && content.muxPlaybackId) {
+          void trackView(content.id);
           setPlayingVideoId(content.id);
         }
         return;
@@ -144,6 +159,7 @@ export function TutorialsPage({
     if (storedTutorialAccess) {
       setVerifiedContentIds(prev => new Set([...prev, content.id]));
       if (content.type === 'video' && content.muxPlaybackId) {
+        void trackView(content.id);
         setPlayingVideoId(content.id);
       }
       return;
@@ -168,6 +184,7 @@ export function TutorialsPage({
     
     const content = [...freeTutorials, ...paidTutorials].find((c) => c.id === contentId);
     if (content?.type === 'video' && content?.muxPlaybackId) {
+      void trackView(contentId);
       setPlayingVideoId(contentId);
     }
   };
@@ -187,6 +204,7 @@ export function TutorialsPage({
       storeVerifiedAccess('tutorial', selectedTutorial.id, '');
       
       if (selectedTutorial.type === 'video' && selectedTutorial.muxPlaybackId) {
+        void trackView(selectedTutorial.id);
         setPlayingVideoId(selectedTutorial.id);
       }
     }

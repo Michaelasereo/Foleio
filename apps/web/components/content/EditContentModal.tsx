@@ -12,6 +12,7 @@ import { MAX_THUMBNAIL_SIZE_BYTES, MAX_THUMBNAIL_SIZE_LABEL } from '@/lib/utils/
 
 type ContentItem = {
   id: string;
+  type?: string;
   title: string;
   description?: string | null;
   contentCategory?: string;
@@ -49,6 +50,9 @@ export function EditContentModal({
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [reuploadingVideo, setReuploadingVideo] = useState(false);
+  const [reuploadMessage, setReuploadMessage] = useState('');
 
   useEffect(() => {
     if (!content) return;
@@ -140,6 +144,54 @@ export function EditContentModal({
       setError(saveError?.message || 'Failed to update content');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const pollReuploadStatus = async (muxUploadId: string) => {
+    const maxAttempts = 90;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const response = await fetch(`/api/upload/status/${muxUploadId}`);
+      const data = await response.json();
+      if (data?.ready && data?.playbackId) return true;
+      if (data?.error) throw new Error(data.error);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    return false;
+  };
+
+  const handleVideoReupload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!content) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setReuploadingVideo(true);
+    setReuploadMessage('Uploading replacement video...');
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/content/${content.id}/reupload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to re-upload video');
+
+      setReuploadMessage('Upload complete. Processing video...');
+      const ready = await pollReuploadStatus(result?.data?.muxUploadId);
+      setReuploadMessage(
+        ready
+          ? 'Video re-upload complete. Playback is restored.'
+          : 'Video is still processing. Please refresh shortly.'
+      );
+      if (ready) onSaved();
+    } catch (uploadError: any) {
+      setError(uploadError?.message || 'Failed to re-upload video');
+      setReuploadMessage('');
+    } finally {
+      setReuploadingVideo(false);
+      if (videoInputRef.current) videoInputRef.current.value = '';
     }
   };
 
@@ -251,6 +303,33 @@ export function EditContentModal({
                 Upload custom thumbnail
               </button>
             </div>
+
+            {content.type === 'video' ? (
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <Label className="text-sm font-medium">Video File</Label>
+                <p className="text-xs text-muted-foreground">
+                  Re-upload if this video has playback ID issues.
+                </p>
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                  className="hidden"
+                  onChange={handleVideoReupload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={reuploadingVideo}
+                >
+                  {reuploadingVideo ? 'Re-uploading...' : 'Re-upload Video'}
+                </Button>
+                {reuploadMessage ? (
+                  <p className="text-xs text-muted-foreground">{reuploadMessage}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>

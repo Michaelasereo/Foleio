@@ -23,16 +23,52 @@ export default async function JournalPage() {
 
   if (!session) redirect('/login');
 
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true, username: true, displayName: true },
-  });
-  if (!creator) redirect('/settings');
+  let creator: { id: string; username: string; displayName: string } | null = null;
+  let entries: Array<{
+    id: string;
+    title: string;
+    isPublished: boolean;
+    slug: string | null;
+    publishedAt: Date | null;
+    readTime: number;
+    viewCount: number;
+  }> = [];
 
-  const entries = await prisma.journalEntry.findMany({
-    where: { creatorId: creator.id },
-    orderBy: [{ updatedAt: 'desc' }],
-  });
+  try {
+    creator = await prisma.creator.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true, username: true, displayName: true },
+    });
+    if (!creator) redirect('/settings');
+
+    entries = await prisma.journalEntry.findMany({
+      where: { creatorId: creator.id },
+      orderBy: [{ updatedAt: 'desc' }],
+      select: {
+        id: true,
+        title: true,
+        isPublished: true,
+        slug: true,
+        publishedAt: true,
+        readTime: true,
+        viewCount: true,
+      },
+    });
+  } catch (error) {
+    console.error('Journal page load error:', error);
+    return (
+      <div className="space-y-4">
+        <h1 className="text-3xl font-bold">Journal</h1>
+        <Card>
+          <CardContent className="py-10">
+            <p className="text-muted-foreground">
+              We could not load journal entries right now. Please refresh in a moment.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

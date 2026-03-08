@@ -66,6 +66,11 @@ export default async function CollectionsPage() {
             },
           },
         },
+        _count: {
+          select: {
+            tutorialContents: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -106,9 +111,13 @@ export default async function CollectionsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {collections.map((collection: any) => {
-            const totalContent = collection.sections.reduce(
+            const sectionContentCount = collection.sections.reduce(
               (acc: number, section: any) => acc + section.sectionContents.length,
               0
+            );
+            const totalContent = Math.max(
+              Number(collection._count?.tutorialContents || 0),
+              sectionContentCount
             );
 
             return (
