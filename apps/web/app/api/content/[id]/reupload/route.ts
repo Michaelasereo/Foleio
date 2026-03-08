@@ -9,6 +9,15 @@ function createUploadId() {
   return `upl_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function inferMimeTypeFromFileName(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith('.mp4') || lower.endsWith('.m4v')) return 'video/mp4';
+  if (lower.endsWith('.webm')) return 'video/webm';
+  if (lower.endsWith('.mov')) return 'video/quicktime';
+  if (lower.endsWith('.mkv')) return 'video/x-matroska';
+  return '';
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -49,7 +58,9 @@ export async function POST(
     };
     const fileName = body.fileName?.trim() || 'reupload-video';
     const fileSize = Number(body.fileSize || 0);
-    const fileType = String(body.fileType || '');
+    const rawFileType = String(body.fileType || '').trim().toLowerCase();
+    const inferredType = inferMimeTypeFromFileName(fileName);
+    const fileType = rawFileType || inferredType || 'application/octet-stream';
 
     if (!fileSize || fileSize <= 0) {
       return NextResponse.json({ error: 'Invalid file size' }, { status: 400 });
@@ -58,10 +69,26 @@ export async function POST(
       return NextResponse.json({ error: 'File too large. Maximum size: 500MB' }, { status: 400 });
     }
 
-    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
-    if (!allowedTypes.includes(fileType)) {
+    const strictAllowedTypes = [
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+      'video/x-matroska',
+      'video/matroska',
+      'video/x-msvideo',
+      'video/avi',
+    ];
+    const isVideoMime = fileType.startsWith('video/');
+    const isOctetWithKnownExt =
+      fileType === 'application/octet-stream' && Boolean(inferredType);
+
+    if (!isVideoMime && !isOctetWithKnownExt && !strictAllowedTypes.includes(fileType)) {
       return NextResponse.json(
-        { error: `Unsupported file type: ${fileType}. Allowed: MP4, WebM, MOV, MKV` },
+        {
+          error:
+            `Unsupported file type: ${fileType || 'unknown'}. ` +
+            'Allowed: MP4, WebM, MOV, MKV (or any standard video/* MIME type).',
+        },
         { status: 400 }
       );
     }
