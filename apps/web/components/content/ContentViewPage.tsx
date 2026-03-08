@@ -17,9 +17,11 @@ import {
   BookOpen,
   Star,
   Lock,
+  Flag,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatDate } from '@foleio/utils';
+import { ReportContentModal } from '@/components/content/ReportContentModal';
 
 interface Content {
   id: string;
@@ -78,6 +80,7 @@ export function ContentViewPage({ content, creator, hasAccess, isCreatorView = f
 
   const router = useRouter();
   const [isPlaying, setIsPlaying] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const formatPrice = (priceInKobo: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -346,6 +349,14 @@ export function ContentViewPage({ content, creator, hasAccess, isCreatorView = f
                     <Heart className="h-4 w-4 mr-2" />
                     Like
                   </Button>
+                  <button
+                    type="button"
+                    onClick={() => setReportOpen(true)}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-red-500"
+                  >
+                    <Flag className="h-3 w-3" />
+                    Report
+                  </button>
                 </div>
               </div>
             )}
@@ -448,6 +459,11 @@ export function ContentViewPage({ content, creator, hasAccess, isCreatorView = f
           </div>
         </div>
       </div>
+      <ReportContentModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        contentId={content.id}
+      />
     </div>
   );
 }

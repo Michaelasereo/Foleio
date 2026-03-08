@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { MAX_THUMBNAIL_SIZE_BYTES, MAX_THUMBNAIL_SIZE_LABEL } from '@/lib/utils/constants';
 
 type ContentItem = {
   id: string;
@@ -70,8 +71,8 @@ export function EditContentModal({
   const handleThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Thumbnail must be less than 10MB.');
+    if (file.size > MAX_THUMBNAIL_SIZE_BYTES) {
+      setError(`Thumbnail must be less than ${MAX_THUMBNAIL_SIZE_LABEL}.`);
       return;
     }
 

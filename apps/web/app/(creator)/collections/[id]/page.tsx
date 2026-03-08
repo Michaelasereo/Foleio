@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronRight, Users, BookOpen, Eye, DollarSign } from 'lucide-react';
 import { CollectionSectionManager } from '@/components/creator/CollectionSectionManager';
 import { CollectionPricingForm } from '@/components/creator/CollectionPricingForm';
+import { CollectionInlineDetails } from '@/components/creator/CollectionInlineDetails';
 
 export default async function CollectionDetailPage({
   params,
@@ -73,6 +74,9 @@ export default async function CollectionDetailPage({
             id: true,
             title: true,
             type: true,
+            thumbnailUrl: true,
+            durationSeconds: true,
+            isPublished: true,
           },
         },
         subscriptions: {
@@ -239,10 +243,11 @@ export default async function CollectionDetailPage({
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">{collection.title}</span>
           </div>
-          <h1 className="text-3xl font-bold">{collection.title}</h1>
-          {collection.description && (
-            <p className="text-muted-foreground mt-2">{collection.description}</p>
-          )}
+          <CollectionInlineDetails
+            collectionId={collection.id}
+            initialTitle={collection.title}
+            initialDescription={collection.description}
+          />
         </div>
       </div>
 
