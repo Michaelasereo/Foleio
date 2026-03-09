@@ -1,0 +1,8 @@
+ALTER TABLE creators
+ADD COLUMN IF NOT EXISTS subscription_enabled BOOLEAN DEFAULT false;
+
+ALTER TABLE creators
+ADD COLUMN IF NOT EXISTS monthly_price INTEGER DEFAULT 0;
+
+ALTER TABLE creators
+ADD COLUMN IF NOT EXISTS subscription_perks TEXT[] DEFAULT '{}';

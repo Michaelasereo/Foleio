@@ -2,18 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Camera, Copy, ExternalLink, Globe, Loader2, Share2 } from 'lucide-react';
+import { Camera, Check, Copy, ExternalLink, Globe, Loader2, Plus, Share2, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import { Switch } from '@/components/ui/switch';
 import { ProfileCardModal } from '@/components/creator/ProfileCardModal';
 import { ProfileCardPreview } from '@/components/creator/ProfileCardPreview';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 
-type SettingsTab = 'profile' | 'notifications' | 'billing' | 'security';
+type SettingsTab = 'profile' | 'subscription' | 'notifications' | 'billing' | 'security';
 
 const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'profile', label: 'Profile' },
+  { id: 'subscription', label: 'Subscription' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'billing', label: 'Billing' },
   { id: 'security', label: 'Security' },
@@ -41,6 +43,11 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
   const [showCardModal, setShowCardModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [subscriptionSaving, setSubscriptionSaving] = useState(false);
+  const [subscriptionEnabled, setSubscriptionEnabled] = useState(false);
+  const [monthlyPrice, setMonthlyPrice] = useState(2000);
+  const [perks, setPerks] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(creator.avatarUrl || null);
   const [username, setUsername] = useState(creator.username || '');
   const [displayName, setDisplayName] = useState(creator.displayName || '');
@@ -58,6 +65,39 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
     }
     return undefined;
   }, [searchParams]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSubscriptionSettings() {
+      try {
+        const response = await fetch('/api/creator/subscription-settings', {
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !isMounted) return;
+        const creatorSettings = payload?.creator || {};
+        setSubscriptionEnabled(Boolean(creatorSettings.subscriptionEnabled ?? false));
+        setMonthlyPrice(
+          Number(creatorSettings.monthlyPrice ?? 2000) > 0
+            ? Number(creatorSettings.monthlyPrice)
+            : 2000
+        );
+        setPerks(
+          Array.isArray(creatorSettings.subscriptionPerks)
+            ? creatorSettings.subscriptionPerks
+            : []
+        );
+      } finally {
+        if (isMounted) {
+          setSubscriptionLoading(false);
+        }
+      }
+    }
+    void loadSubscriptionSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const currentCreator = useMemo(
     () => ({
@@ -205,6 +245,77 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleSubscription(nextValue: boolean) {
+    setSubscriptionEnabled(nextValue);
+    setSubscriptionSaving(true);
+    try {
+      const response = await fetch('/api/creator/subscription-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionEnabled: nextValue }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to update subscription setting');
+      }
+      toast({
+        title: 'Subscription updated',
+        description: nextValue ? 'Fans can now subscribe to you.' : 'Fan subscriptions are turned off.',
+      });
+    } catch (error: any) {
+      setSubscriptionEnabled(!nextValue);
+      toast({
+        title: 'Could not update subscription',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubscriptionSaving(false);
+    }
+  }
+
+  async function handleSaveSubscriptionSettings() {
+    if (subscriptionEnabled && monthlyPrice < 500) {
+      toast({
+        title: 'Invalid price',
+        description: 'Minimum monthly subscription price is ₦500.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubscriptionSaving(true);
+    try {
+      const cleanedPerks = perks.map((perk) => perk.trim()).filter(Boolean);
+      const response = await fetch('/api/creator/subscription-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionEnabled,
+          monthlyPrice,
+          subscriptionPerks: cleanedPerks,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to save subscription settings');
+      }
+      setPerks(cleanedPerks);
+      toast({
+        title: 'Saved',
+        description: 'Subscription settings updated successfully.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Could not save subscription settings',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubscriptionSaving(false);
     }
   }
 
@@ -433,6 +544,132 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
 
             <div className="border-t border-border" />
             <CreatorLinksManager />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="subscription" className="mt-6">
+          <div className="max-w-2xl space-y-6">
+            <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-5">
+              <div>
+                <h3 className="font-semibold text-foreground">Fan Subscriptions</h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Allow fans to subscribe monthly for access to your content
+                </p>
+              </div>
+              <Switch
+                checked={subscriptionEnabled}
+                onCheckedChange={handleToggleSubscription}
+                disabled={subscriptionLoading || subscriptionSaving}
+              />
+            </div>
+
+            {subscriptionEnabled ? (
+              <div className="space-y-6">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Monthly Price (₦)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-muted-foreground">₦</span>
+                    <input
+                      type="number"
+                      value={monthlyPrice}
+                      onChange={(e) => setMonthlyPrice(Number(e.target.value) || 0)}
+                      min={500}
+                      step={100}
+                      placeholder="2000"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Minimum ₦500 · You keep 97% = ₦
+                    {Math.floor(Math.max(monthlyPrice, 0) * 0.97).toLocaleString()}/month per
+                    subscriber
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    What subscribers get
+                  </label>
+                  <div className="space-y-2">
+                    {perks.map((perk, i) => (
+                      <div key={`${i}-${perk}`} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={perk}
+                          onChange={(e) => {
+                            const updated = [...perks];
+                            updated[i] = e.target.value;
+                            setPerks(updated);
+                          }}
+                          placeholder="e.g. Access to all videos"
+                          className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                        />
+                        <button
+                          onClick={() => setPerks(perks.filter((_, pi) => pi !== i))}
+                          className="rounded-lg p-2 hover:bg-red-50"
+                          type="button"
+                        >
+                          <X className="h-4 w-4 text-red-400" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setPerks([...perks, ''])}
+                      className="flex items-center gap-1.5 text-sm font-medium text-primary hover:opacity-80"
+                      type="button"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add perk
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-[#FDF8F2] p-5">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    How it looks to fans
+                  </p>
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-lg font-bold text-foreground">
+                      ₦{Math.max(monthlyPrice, 0).toLocaleString()}
+                      <span className="text-sm font-normal text-muted-foreground">/month</span>
+                    </p>
+                    <div className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white">
+                      Subscribe
+                    </div>
+                  </div>
+                  {perks.some((perk) => perk.trim()) ? (
+                    <ul className="space-y-1.5">
+                      {perks
+                        .filter((perk) => perk.trim())
+                        .map((perk, i) => (
+                          <li key={`${perk}-${i}`} className="flex items-center gap-2 text-sm text-foreground">
+                            <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                              <Check className="h-2.5 w-2.5 text-primary" />
+                            </div>
+                            {perk}
+                          </li>
+                        ))}
+                    </ul>
+                  ) : null}
+                </div>
+
+                <Button
+                  onClick={handleSaveSubscriptionSettings}
+                  disabled={subscriptionSaving || subscriptionLoading}
+                >
+                  {subscriptionSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Subscription Settings'
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </TabsContent>
 
