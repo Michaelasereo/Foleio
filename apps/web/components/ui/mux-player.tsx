@@ -84,54 +84,14 @@ export function MuxVideoPlayer({
       });
   }
 
-  // Load Mux player script and HLS.js dynamically
+  // Avoid remote script injection (CSP-safe): rely on native playback and MP4 fallback.
   useEffect(() => {
-    const loadScripts = async () => {
-      // Check if scripts are already loaded
-      if (window.mux && window.mux.player) {
-        console.log('Mux player already loaded');
-        setScriptsLoaded(true);
-        setIsLoading(false);
-        return;
-      }
-      
+    const loadScripts = () => {
       if (window.Hls && typeof window.Hls === 'function') {
-        console.log('HLS.js already loaded');
-        setScriptsLoaded(true);
+        console.log('HLS.js available in window');
       }
-
-      console.log('Loading video scripts...');
-
-      // Load HLS.js first (for HTML5 fallback)
-      if (!window.Hls) {
-        const hlsScript = document.createElement('script');
-        hlsScript.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.10/dist/hls.min.js';
-        hlsScript.async = true;
-
-        await new Promise((resolve, reject) => {
-          hlsScript.onload = () => {
-            console.log('✅ HLS.js loaded successfully');
-            setScriptsLoaded(true);
-            resolve(true);
-          };
-          hlsScript.onerror = (e) => {
-            console.warn('⚠️ HLS.js failed to load, HTML5 fallback may not work with HLS streams');
-            setScriptsLoaded(true); // Still mark as loaded so fallback can proceed
-            resolve(false); // Don't fail completely
-          };
-          document.head.appendChild(hlsScript);
-        });
-      } else {
-        // HLS.js already loaded
-        setScriptsLoaded(true);
-      }
-
-      // Load Mux player from official CDN with fallback
-      // Note: Mux player v2 uses ES modules, so we'll skip it and use HLS.js directly
-      // The CDN URL was causing MIME type issues, so we'll rely on HLS.js which is more reliable
-      console.log('⚠️ Skipping Mux player script (using HLS.js fallback)');
-      // Mux player script loading removed - using HLS.js directly
       setIsLoading(false);
+      setScriptsLoaded(true);
     };
 
     loadScripts();

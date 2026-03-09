@@ -65,6 +65,9 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(content.thumbnailUrl || null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [reuploadingVideo, setReuploadingVideo] = useState(false);
+  const [reuploadMessage, setReuploadMessage] = useState('');
   const hasCollectionSelected =
     formData.contentCategory === 'tutorial' && Boolean(formData.collectionId);
   const wasCollectionLinked = Boolean(content.collectionId);
@@ -211,6 +214,87 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
       setErrors({ submit: 'An unexpected error occurred' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const pollReuploadStatus = async (muxUploadId: string) => {
+    const maxAttempts = 90;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await fetch(`/api/upload/status/${muxUploadId}`);
+        const data = await response.json();
+        if (data?.ready && data?.playbackId) {
+          setReuploadMessage('Video re-upload complete. Playback is restored.');
+          return true;
+        }
+        if (data?.error) {
+          throw new Error(data.error);
+        }
+      } catch (error: any) {
+        setErrors((prev) => ({
+          ...prev,
+          submit: error?.message || 'Video processing failed',
+        }));
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    setReuploadMessage('Video is still processing. Please refresh shortly.');
+    return false;
+  };
+
+  const handleVideoReupload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setReuploadingVideo(true);
+    setReuploadMessage('Uploading replacement video...');
+    setErrors((prev) => ({ ...prev, submit: '' }));
+
+    try {
+      const response = await fetch(`/api/content/${content.id}/reupload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to re-upload video');
+      }
+
+      if (!result?.data?.uploadUrl) {
+        throw new Error('Missing upload URL for re-upload');
+      }
+
+      const uploadResult = await fetch(result.data.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+
+      if (!uploadResult.ok) {
+        throw new Error('Failed uploading replacement file to video host');
+      }
+
+      setReuploadMessage('Upload complete. Processing video...');
+      const isReady = await pollReuploadStatus(result?.data?.muxUploadId);
+      if (isReady) {
+        router.refresh();
+      }
+    } catch (error: any) {
+      setErrors((prev) => ({
+        ...prev,
+        submit: error?.message || 'Failed to re-upload video',
+      }));
+      setReuploadMessage('');
+    } finally {
+      setReuploadingVideo(false);
+      if (videoInputRef.current) videoInputRef.current.value = '';
     }
   };
 
@@ -482,6 +566,33 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
               </p>
             </div>
           )}
+
+          {content.type === 'video' ? (
+            <div className="space-y-2 rounded-lg border border-border p-4">
+              <Label className="text-sm font-medium">Video File</Label>
+              <p className="text-xs text-muted-foreground">
+                If playback is broken (missing/invalid playback ID), upload a fresh video file here.
+              </p>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                className="hidden"
+                onChange={handleVideoReupload}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={reuploadingVideo}
+              >
+                {reuploadingVideo ? 'Re-uploading...' : 'Re-upload Video'}
+              </Button>
+              {reuploadMessage ? (
+                <p className="text-xs text-muted-foreground">{reuploadMessage}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Publish Toggle */}
           <div className="flex items-center justify-between">
