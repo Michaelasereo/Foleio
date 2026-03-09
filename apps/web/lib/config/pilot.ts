@@ -7,6 +7,7 @@ export const PILOT_EMAILS: string[] = [
   'tadenmosun@gmail.com',
   'tosinakingbade7@gmail.com',
   'michaelasereo@gmail.com',
+  'michaelasereoo@gmail.com',
   'Chiamakasoniaeke@gmail.com',
   'ajayiodeborah@gmail.com',
   'awonaiketimmie@gmail.com',
