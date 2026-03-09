@@ -137,6 +137,15 @@ model Creator {
 
   // Settings
   isPublic  Boolean @default(true) @map("is_public")
+  isBanned  Boolean @default(false) @map("is_banned")
+  bannedAt  DateTime? @map("banned_at")
+  banReason String? @map("ban_reason")
+  journalBio String? @map("journal_bio")
+  contentGuidelinesAccepted   Boolean  @default(false) @map("content_guidelines_accepted")
+  contentGuidelinesAcceptedAt DateTime? @map("content_guidelines_accepted_at")
+  hasSeenWelcome Boolean @default(false) @map("has_seen_welcome")
+  hasCompletedOnboarding Boolean @default(false) @map("has_completed_onboarding")
+  hasCompletedTour Boolean @default(false) @map("has_completed_tour")
   verified  Boolean @default(false)
   bankVerified Boolean @default(false) @map("bank_verified")
   createdAt DateTime @default(now()) @map("created_at")
@@ -161,10 +170,37 @@ model Creator {
   milestoneLogs     MilestoneLog[]
   bankAccount       BankAccount?
   payoutSchedule    PayoutSchedule?
+  journalEntries    JournalEntry[]
 
   @@map("creators")
   @@index([userId])
   @@index([username])
+}
+
+model JournalEntry {
+  id          String   @id @default(uuid())
+  creatorId   String   @map("creator_id")
+  title       String
+  subtitle    String?
+  slug        String
+  content     String
+  coverImage  String?  @map("cover_image")
+  tags        String[] @default([])
+  readTime    Int      @default(1) @map("read_time")
+  status      String   @default("draft")
+  isPublished Boolean  @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at")
+  viewCount   Int      @default(0) @map("view_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  creator     Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, slug])
+  @@map("journal_entries")
+  @@index([creatorId])
+  @@index([isPublished])
+  @@index([publishedAt])
 }
 
 // Creator subscription plans
@@ -259,6 +295,15 @@ model Content {
   isPublished   Boolean  @default(false) @map("is_published")
   publishedAt   DateTime? @map("published_at")
   tags          String[] @default([])
+  flaggedForReview Boolean @default(false) @map("flagged_for_review")
+  flaggedReason String? @map("flagged_reason")
+  flaggedAt DateTime? @map("flagged_at")
+  moderationStatus String @default("pending") @map("moderation_status")
+  moderationScore Float? @map("moderation_score")
+  contentGuidelinesAccepted Boolean @default(false) @map("content_guidelines_accepted")
+  isStandalone Boolean @default(false) @map("is_standalone")
+  sectionId String? @map("section_id")
+  sectionOrder Int @default(0) @map("section_order")
 
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -270,6 +315,7 @@ model Content {
   introVideoFor    Creator[]       @relation("IntroVideo")
   premiumAccessCodes PremiumAccessCode[]
   tutorialPurchases TutorialPurchase[]
+  reports           ContentReport[]
   upload           Upload?         @relation(fields: [uploadId], references: [id])
 
   @@map("content")
@@ -277,6 +323,24 @@ model Content {
   @@index([isPublished])
   @@index([contentCategory])
   @@index([collectionId])
+}
+
+model ContentReport {
+  id            String   @id @default(cuid())
+  contentId     String?  @map("content_id")
+  content       Content? @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  reporterEmail String?  @map("reporter_email")
+  reason        String
+  details       String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now()) @map("created_at")
+  reviewedAt    DateTime? @map("reviewed_at")
+  reviewedBy    String?  @map("reviewed_by")
+
+  @@map("content_reports")
+  @@index([contentId])
+  @@index([status])
+  @@index([reason])
 }
 
 // Collections (Courses/Playlists)
@@ -425,6 +489,10 @@ model Payout {
   scheduledFor        DateTime? @map("scheduled_for")
   transactionIds      String[] @default([]) @map("transaction_ids")
   metadata            Json     @default("{}")
+  isManual            Boolean  @default(false) @map("is_manual")
+  manualNote          String?  @map("manual_note")
+  manualPaidAt        DateTime? @map("manual_paid_at")
+  manualPaidBy        String?  @map("manual_paid_by")
   processedAt         DateTime? @map("processed_at")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")

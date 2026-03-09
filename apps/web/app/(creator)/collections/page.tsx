@@ -57,13 +57,9 @@ export default async function CollectionsPage() {
     collections = await prisma.collection.findMany({
       where: { creatorId: creator.id },
       include: {
-        sections: {
-          include: {
-            sectionContents: {
-              include: {
-                content: true,
-              },
-            },
+        _count: {
+          select: {
+            tutorialContents: true,
           },
         },
       },
@@ -106,14 +102,12 @@ export default async function CollectionsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {collections.map((collection: any) => {
-            const totalContent = collection.sections.reduce(
-              (acc: number, section: any) => acc + section.sectionContents.length,
-              0
-            );
+            const totalContent = Number(collection._count?.tutorialContents || 0);
+            const sectionCount = Number(collection.sectionCount || 0);
 
             return (
-              <Link key={collection.id} href={`/collections/${collection.id}`}>
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card key={collection.id} className="hover:shadow-lg transition-shadow">
+                <Link href={`/collections/${collection.id}`}>
                   {collection.thumbnailUrl && (
                     <div className="aspect-video bg-muted relative">
                       <img
@@ -134,19 +128,28 @@ export default async function CollectionsPage() {
                   <CardContent>
                     <div className="flex items-center justify-between text-sm mb-2">
                       <Badge variant="outline">
-                        {collection.sections.length} section{collection.sections.length !== 1 ? 's' : ''}
+                        {sectionCount} section{sectionCount !== 1 ? 's' : ''}
                       </Badge>
                       <Badge variant={collection.isPublished ? 'default' : 'secondary'}>
                         {collection.isPublished ? 'Published' : 'Draft'}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>{totalContent} items</span>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>{sectionCount} sections</span>
+                        <span>·</span>
+                        <span>{totalContent} videos</span>
+                      </div>
                       <span>{new Date(collection.createdAt).toLocaleDateString()}</span>
                     </div>
+                    <div className="mt-4">
+                      <span className="inline-flex items-center rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                        Manage →
+                      </span>
+                    </div>
                   </CardContent>
-                </Card>
-              </Link>
+                </Link>
+              </Card>
             );
           })}
         </div>

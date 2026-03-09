@@ -13,6 +13,7 @@ type Filter = 'all' | CreatorHealthStatus;
 
 function relativeDate(date: Date | null): string {
   if (!date) return 'No activity yet';
+  if (Number.isNaN(date.getTime())) return 'No activity yet';
   const now = Date.now();
   const diff = date.getTime() - now;
   const abs = Math.abs(diff);
@@ -66,14 +67,24 @@ export default function AdminCreatorsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    type CreatorHealthApiRow = Omit<CreatorHealthRow, 'createdAt' | 'lastContentDate'> & {
+      createdAt: string;
+      lastContentDate: string | null;
+    };
+
     async function load() {
       const response = await fetch('/api/admin/creators', { cache: 'no-store' });
       if (!response.ok) {
         setLoading(false);
         return;
       }
-      const data = (await response.json()) as { creators: CreatorHealthRow[] };
-      setCreators(data.creators);
+      const data = (await response.json()) as { creators: CreatorHealthApiRow[] };
+      const normalizedCreators: CreatorHealthRow[] = data.creators.map((creator) => ({
+        ...creator,
+        createdAt: new Date(creator.createdAt),
+        lastContentDate: creator.lastContentDate ? new Date(creator.lastContentDate) : null,
+      }));
+      setCreators(normalizedCreators);
       setLoading(false);
     }
     void load();

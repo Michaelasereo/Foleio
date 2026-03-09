@@ -1,5 +1,7 @@
+import { shouldShowStagingBanner } from '@/lib/config/runtime-environment';
+
 export function StagingBanner() {
-  if (process.env.NEXT_PUBLIC_ENV !== 'staging') {
+  if (!shouldShowStagingBanner()) {
     return null;
   }
 

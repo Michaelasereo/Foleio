@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         subscriber_email: validatedData.email,
       },
       subaccount: creator.paystackSubaccountCode || undefined,
-      callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/callback`,
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/payment/callback`,
     });
 
     if (!paymentData.status) {

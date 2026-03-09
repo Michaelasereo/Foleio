@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -35,11 +35,19 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Upload, X, BookOpen, Info } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, getPlanLimits, type PlatformPlan } from '@/lib/utils/plan-limits';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
-import { useRef } from 'react';
+import { UploadProgress } from '@/components/content/UploadProgress';
+import { ContentGuidelinesModal } from '@/components/content/ContentGuidelinesModal';
+import {
+  MAX_THUMBNAIL_SIZE_BYTES,
+  MAX_THUMBNAIL_SIZE_LABEL,
+  MAX_UPLOAD_SIZE_BYTES,
+  MAX_UPLOAD_SIZE_LABEL,
+} from '@/lib/utils/constants';
 
 const contentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -59,11 +67,49 @@ interface Collection {
   title: string;
 }
 
+function uploadVideoWithProgress(
+  uploadUrl: string,
+  file: File,
+  onProgress: (percent: number) => void,
+  onComplete: () => void,
+  onError: (error: string) => void
+) {
+  const xhr = new XMLHttpRequest();
+
+  xhr.upload.addEventListener('progress', (event) => {
+    if (event.lengthComputable) {
+      const percent = Math.round((event.loaded / event.total) * 100);
+      onProgress(percent);
+    }
+  });
+
+  xhr.addEventListener('load', () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      onComplete();
+      return;
+    }
+    onError(`Upload failed with status ${xhr.status}`);
+  });
+
+  xhr.addEventListener('error', () => {
+    onError('Network error - check your connection');
+  });
+
+  xhr.addEventListener('abort', () => {
+    onError('Upload cancelled');
+  });
+
+  xhr.open('PUT', uploadUrl);
+  xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+  xhr.send(file);
+
+  return xhr;
+}
+
 export default function NewContentPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isPublished, setIsPublished] = useState(true); // Default to published
   const [uploadedFile, setUploadedFile] = useState<{
@@ -82,6 +128,21 @@ export default function NewContentPage() {
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [currentPlan, setCurrentPlan] = useState<PlatformPlan>('STARTER');
   const [isHardBlocked, setIsHardBlocked] = useState(false);
+  const [showGuidelinesModal, setShowGuidelinesModal] = useState(false);
+  const [guidelinesRequireAcceptance, setGuidelinesRequireAcceptance] = useState(false);
+  const [guidelinesAccepted, setGuidelinesAccepted] = useState(true);
+  const [acceptingGuidelines, setAcceptingGuidelines] = useState(false);
+  const [uploadState, setUploadState] = useState<
+    'idle' | 'uploading' | 'processing' | 'complete' | 'error'
+  >('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [xhrRef, setXhrRef] = useState<XMLHttpRequest | null>(null);
+  const uploadStartTime = useRef<number>(0);
+  const lastLoadedRef = useRef<number>(0);
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
 
   const form = useForm<ContentFormValues>({
@@ -104,6 +165,10 @@ export default function NewContentPage() {
   const collectionId = form.watch('collectionId');
   const contentTitle = form.watch('title');
   const hasCollectionSelected = contentCategory === 'tutorial' && Boolean(collectionId);
+  const isFileBusy = uploadState === 'uploading' || uploadState === 'processing';
+  const showUploadProgress =
+    contentType === 'video' &&
+    (uploadState === 'uploading' || uploadState === 'processing' || uploadState === 'error');
 
   // Fetch collections when component mounts
   useEffect(() => {
@@ -122,6 +187,12 @@ export default function NewContentPage() {
           }
           if (data.collections) {
             setCollections(data.collections);
+          }
+          const hasAcceptedGuidelines = Boolean(data.contentGuidelinesAccepted);
+          setGuidelinesAccepted(hasAcceptedGuidelines);
+          if (!hasAcceptedGuidelines) {
+            setGuidelinesRequireAcceptance(true);
+            setShowGuidelinesModal(true);
           }
         }
       } catch (error) {
@@ -147,241 +218,206 @@ export default function NewContentPage() {
     }
   }, [collectionId, contentCategory, form]);
 
+  function formatSpeed(bytesPerSec: number): string {
+    if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '';
+    if (bytesPerSec >= 1024 * 1024) {
+      return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    }
+    return `${Math.max(1, Math.round(bytesPerSec / 1024))} KB/s`;
+  }
+
+  function formatTime(seconds: number): string {
+    if (!Number.isFinite(seconds) || seconds < 0) return '';
+    if (seconds < 60) return `${Math.max(1, Math.round(seconds))}s left`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}m ${secs}s left`;
+  }
+
+  function handleCancelUpload() {
+    if (xhrRef && uploadState === 'uploading') {
+      xhrRef.abort();
+    }
+    setUploadState('idle');
+    setUploadProgress(0);
+    setUploadSpeed('');
+    setTimeRemaining('');
+    setUploadError('');
+    setSelectedUploadFile(null);
+    setXhrRef(null);
+  }
+
   async function handleFileUpload(file: File) {
-    console.log('🚀 VIDEO UPLOAD DEBUG - START');
-    console.log('📁 File Details:', {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified,
-      sizeMB: (file.size / (1024 * 1024)).toFixed(2) + 'MB'
-    });
-
-    setUploading(true);
-
+    if (!guidelinesAccepted) {
+      toast({
+        title: 'Content guidelines required',
+        description: 'Please accept the content guidelines before uploading.',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
-      // 🔍 STEP 1: File Validation
-      console.log('🔍 STEP 1: File Validation');
       if (file.size === 0) {
-        console.error('❌ File is empty!');
         throw new Error('File is empty');
       }
 
-      if (file.size > 100 * 1024 * 1024) {
-        console.error('❌ File too large:', file.size, 'bytes (max: 100MB)');
-        throw new Error(`File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB (max: 100MB)`);
+      if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+        throw new Error(
+          `File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB (max: ${MAX_UPLOAD_SIZE_LABEL})`
+        );
       }
 
       const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
       if (!allowedTypes.includes(file.type)) {
-        console.error('❌ Invalid file type:', file.type, '- Allowed:', allowedTypes);
         throw new Error(`Unsupported file type: ${file.type}. Allowed: MP4, WebM, MOV, MKV`);
       }
 
-      console.log('✅ File validation passed');
+      if (contentType === 'video') {
+        setSelectedUploadFile(file);
+        setUploadState('uploading');
+        setUploadProgress(0);
+        setUploadSpeed('');
+        setTimeRemaining('');
+        setUploadError('');
+        uploadStartTime.current = Date.now();
+        lastLoadedRef.current = 0;
 
-      // 📦 STEP 2: Prepare FormData
-      console.log('📦 STEP 2: Prepare FormData');
-      const formData = new FormData();
-      formData.append('file', file);
-      console.log('📦 FormData prepared, file appended');
+        const uploadUrlResponse = await fetch('/api/content/mux-upload-url');
+        const uploadUrlData = await uploadUrlResponse.json();
 
-      // 🌐 STEP 3: Determine endpoint
-      const endpoint = contentType === 'video' ? '/api/upload/stream' : '/api/upload/r2';
-      console.log('🌐 STEP 3: Upload endpoint:', endpoint);
-      console.log('   Content type:', contentType);
-
-      // 🔐 STEP 4: Check authentication
-      console.log('🔐 STEP 4: Checking authentication...');
-      try {
-        const authCheck = await fetch('/api/creator/me');
-        console.log('   Auth check response:', authCheck.status);
-        if (authCheck.status === 401) {
-          console.log('   ⚠️ User not authenticated');
-        } else if (authCheck.status === 200) {
-          console.log('   ✅ User authenticated');
+        if (!uploadUrlResponse.ok || !uploadUrlData.uploadUrl || !uploadUrlData.uploadId) {
+          throw new Error(uploadUrlData.error || 'Failed to create Mux upload URL');
         }
-      } catch (authError) {
-        console.error('   ❌ Auth check failed:', authError);
+
+        const xhr = uploadVideoWithProgress(
+          uploadUrlData.uploadUrl,
+          file,
+          (percent) => {
+            setUploadProgress((prev) => Math.max(prev, percent));
+            const elapsed = (Date.now() - uploadStartTime.current) / 1000;
+            const loaded = (Math.max(percent, 1) / 100) * file.size;
+            const speed = loaded / Math.max(elapsed, 0.1);
+            const remaining = (file.size - loaded) / Math.max(speed, 1);
+            setUploadSpeed(formatSpeed(speed));
+            setTimeRemaining(formatTime(remaining));
+            lastLoadedRef.current = loaded;
+          },
+          async () => {
+            setUploadState('processing');
+            setUploadProgress(100);
+            setUploadedFile({
+              muxUploadId: uploadUrlData.uploadId,
+              fileName: file.name,
+              status: 'processing',
+            });
+            await pollMuxProcessing(uploadUrlData.uploadId);
+          },
+          (errorMessage) => {
+            setUploadState('error');
+            setUploadError(errorMessage);
+            toast({
+              title: 'Upload failed',
+              description: errorMessage,
+              variant: 'destructive',
+            });
+          }
+        );
+
+        setXhrRef(xhr);
+        return;
       }
 
-      // 📤 STEP 5: Start upload
-      console.log('📤 STEP 5: Starting upload...');
-      const uploadStart = Date.now();
+      // Non-video uploads keep existing server upload path.
+      const formData = new FormData();
+      formData.append('file', file);
 
+      const endpoint = '/api/upload/r2';
       const response = await fetch(endpoint, {
         method: 'POST',
         body: formData,
       });
 
-      const uploadTime = Date.now() - uploadStart;
-      console.log('⏱️ Upload response time:', uploadTime + 'ms');
-      console.log('📊 Response status:', response.status, response.statusText);
-      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
-
-      // 📄 STEP 6: Process response
-      console.log('📄 STEP 6: Processing response...');
-      const responseText = await response.text();
-      console.log('📄 Raw response:', responseText.substring(0, 500));
-
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-        console.log('📋 Parsed response:', responseData);
-      } catch (parseError) {
-        console.error('❌ Failed to parse response as JSON:', parseError);
-        throw new Error(`Server returned invalid response: ${responseText.substring(0, 200)}`);
-      }
-
+      const responseData = await response.json();
       if (!response.ok) {
-        console.error('❌ Upload failed with status:', response.status);
-        console.error('❌ Error details:', responseData);
-
-        // Provide specific error messages
-        if (responseData.error?.includes('Authentication')) {
-          throw new Error('Authentication failed. Please log in again.');
-        } else if (responseData.error?.includes('File too large')) {
-          throw new Error('File is too large. Maximum size is 100MB.');
-        } else if (responseData.error?.includes('Unsupported file type')) {
-          throw new Error('Unsupported file type. Please use MP4, WebM, MOV, or MKV.');
-        } else if (
-          responseData.details?.includes('Video upload limit reached on the current Mux account') ||
-          responseData.details?.includes('Free plan is limited to 10 assets')
-        ) {
-          throw new Error(
-            'Video hosting limit reached (Mux free plan). Please upgrade Mux or remove old hosted videos, then retry.'
-          );
-        } else if (responseData.error?.includes('Mux')) {
-          throw new Error('Video processing service error. Please try again.');
-        } else {
-          throw new Error(responseData.error || responseData.details || 'Upload failed');
-        }
+        throw new Error(responseData.error || responseData.details || 'Upload failed');
       }
 
-      console.log('✅ Upload successful!');
-      console.log('🎬 Processing response data...');
+      setUploadedFile({
+        url: responseData.data?.url || responseData.url,
+        fileName: responseData.data?.path || responseData.fileName,
+      });
 
-      // 🎯 STEP 7: Handle success response
-      console.log('🎉 Upload response received:', JSON.stringify(responseData, null, 2));
-
-      if (contentType === 'video') {
-        console.log('🎬 Video upload - processing async response...');
-        const videoData = responseData.data;
-
-        // Video is processing asynchronously
-        setUploadedFile({
-          muxUploadId: videoData.muxUploadId,
-          status: videoData.status,
-          uploadUrl: videoData.playbackUrl, // Will be null until processing complete
-          estimatedReadyTime: videoData.estimatedReadyTime,
-        });
-
-        // Start polling for video processing status
-        console.log('⏳ Starting video processing status polling...');
-        pollVideoStatus(videoData.muxUploadId);
-
-        toast({
-          title: 'Video Uploaded!',
-          description: videoData.message || 'Your video is being processed. This usually takes 1-3 minutes.',
-        });
-      } else {
-        console.log('📁 Other file upload - extracting file data...');
-        setUploadedFile({
-          url: responseData.data?.url || responseData.url,
-          fileName: responseData.data?.path || responseData.fileName,
-        });
-
-        toast({
-          title: 'Success',
-          description: 'File uploaded successfully!',
-        });
-      }
-
-      console.log('🎉 Upload process initiated successfully!');
+      toast({
+        title: 'Success',
+        description: 'File uploaded successfully!',
+      });
 
     } catch (error) {
-      console.error('💥 UPLOAD ERROR:', error);
-      const err = error as Error;
-      console.error('Error stack:', err.stack);
-      console.error('Error message:', err.message);
-
       toast({
         title: 'Upload failed',
         description: error instanceof Error ? error.message : 'Failed to upload file',
         variant: 'destructive',
       });
-    } finally {
-      console.log('🏁 UPLOAD DEBUG - END');
-      setUploading(false);
     }
   }
 
-  // Poll for video processing status
-  async function pollVideoStatus(muxUploadId: string) {
-    console.log('🔄 Starting video status polling for:', muxUploadId);
+  async function pollMuxProcessing(uploadId: string) {
+    const maxAttempts = 120;
+    const pollInterval = 3000;
 
-    const maxAttempts = 60; // 60 attempts = ~2 minutes
-    const pollInterval = 2000; // 2 seconds
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        console.log(`🔄 Polling attempt ${attempt}/${maxAttempts}...`);
-
-        const statusResponse = await fetch(`/api/upload/status/${muxUploadId}`);
+        const statusResponse = await fetch(`/api/content/mux-status/${uploadId}`);
         const statusData = await statusResponse.json();
 
-        console.log('📊 Video status response:', statusResponse.status);
-        console.log('📊 Video status data:', JSON.stringify(statusData, null, 2));
+        if (!statusResponse.ok) {
+          throw new Error(statusData.error || 'Failed to check video status');
+        }
 
-        // Check for successful processing
-        if (statusData.ready && statusData.playbackUrl && statusData.playbackId) {
-          console.log('✅ Video processing complete!');
-          console.log('🎬 Playback URL:', statusData.playbackUrl);
-
-          // Generate Mux thumbnail URL if available
-          const muxThumbnailUrl = statusData.playbackId 
+        if (statusData.status === 'ready') {
+          const muxThumbnailUrl = statusData.playbackId
             ? `https://image.mux.com/${statusData.playbackId}/thumbnail.jpg`
-            : null;
-
-          // Update the uploaded file with the real data
-          setUploadedFile(prev => ({
+            : undefined;
+          setUploadedFile((prev) => ({
             ...prev,
+            muxUploadId: uploadId,
             muxAssetId: statusData.assetId,
             muxPlaybackId: statusData.playbackId,
             uploadUrl: statusData.playbackUrl,
-            thumbnail: muxThumbnailUrl || undefined,
+            thumbnail: muxThumbnailUrl,
+            fileName: selectedUploadFile?.name ?? prev?.fileName,
             status: 'ready',
           }));
-
+          setUploadState('complete');
+          setXhrRef(null);
           toast({
             title: 'Video Ready!',
             description: 'Your video has finished processing and is now ready to view.',
           });
-
-          return; // Stop polling
+          return;
         }
 
-        if (statusData.error) {
-          console.error('❌ Video processing error:', statusData.error);
-          toast({
-            title: 'Processing Error',
-            description: `Video processing failed: ${statusData.error}`,
-            variant: 'destructive',
-          });
-          return; // Stop polling
+        if (statusData.status === 'errored') {
+          throw new Error('Video processing failed');
         }
-
-        // Video still processing - wait before next poll
-        console.log(`⏳ Video still processing (status: ${statusData.assetStatus || 'unknown'})...`);
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-
       } catch (error) {
-        console.error('❌ Polling error:', error);
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        setUploadState('error');
+        setUploadError(error instanceof Error ? error.message : 'Video processing failed');
+        setXhrRef(null);
+        toast({
+          title: 'Processing Error',
+          description: error instanceof Error ? error.message : 'Video processing failed',
+          variant: 'destructive',
+        });
+        return;
       }
+
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
 
-    console.log('⏰ Polling timeout - video may still be processing');
+    setUploadState('error');
+    setUploadError('Video processing is taking longer than expected');
+    setXhrRef(null);
     toast({
       title: 'Still Processing',
       description: 'Your video is taking longer than expected to process. Please check back later.',
@@ -394,6 +430,14 @@ export default function NewContentPage() {
   }
 
   async function onSubmit(data: ContentFormValues) {
+    if (!guidelinesAccepted) {
+      toast({
+        title: 'Content guidelines required',
+        description: 'Please accept the content guidelines before publishing.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!uploadedFile && contentType !== 'text') {
       toast({
         title: 'File required',
@@ -520,6 +564,27 @@ export default function NewContentPage() {
     contentCategory === 'tutorial' &&
     !hasCollectionSelected &&
     accessType !== 'free';
+
+  async function handleAcceptGuidelines() {
+    setAcceptingGuidelines(true);
+    try {
+      const response = await fetch('/api/creator/accept-guidelines', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Failed to save acceptance');
+      }
+      setGuidelinesAccepted(true);
+      setGuidelinesRequireAcceptance(false);
+      setShowGuidelinesModal(false);
+    } catch (error) {
+      toast({
+        title: 'Unable to continue',
+        description: 'Please try again to accept content guidelines.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAcceptingGuidelines(false);
+    }
+  }
 
   return (
     <div className="container mx-auto max-w-2xl py-8">
@@ -743,7 +808,18 @@ export default function NewContentPage() {
                     {contentType === 'video' ? 'Video File' : contentType === 'image' ? 'Image File' : 'PDF File'}
                   </FormLabel>
                   <div className="space-y-4">
-                    {!uploadedFile ? (
+                    {showUploadProgress ? (
+                      <UploadProgress
+                        state={uploadState === 'error' ? 'error' : uploadState}
+                        progress={uploadProgress}
+                        speed={uploadSpeed}
+                        timeRemaining={timeRemaining}
+                        fileName={selectedUploadFile?.name || 'Uploading video'}
+                        fileSize={selectedUploadFile?.size || 0}
+                        error={uploadError}
+                        onCancel={handleCancelUpload}
+                      />
+                    ) : !uploadedFile ? (
                       <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
                         <div className="flex flex-col items-center justify-center space-y-4">
                           <Upload className="h-10 w-10 text-muted-foreground" />
@@ -752,7 +828,7 @@ export default function NewContentPage() {
                               Click to upload or drag and drop
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {contentType === 'video' && 'MP4, MOV, AVI (max 500MB)'}
+                              {contentType === 'video' && `MP4, MOV, AVI (max ${MAX_UPLOAD_SIZE_LABEL})`}
                               {contentType === 'image' && 'JPG, PNG, GIF (max 10MB)'}
                               {contentType === 'pdf' && 'PDF (max 50MB)'}
                             </p>
@@ -772,7 +848,7 @@ export default function NewContentPage() {
                                 handleFileUpload(file);
                               }
                             }}
-                            disabled={uploading}
+                            disabled={isFileBusy}
                             className="hidden"
                             id="file-upload"
                           />
@@ -780,9 +856,9 @@ export default function NewContentPage() {
                             type="button"
                             variant="outline"
                             onClick={() => document.getElementById('file-upload')?.click()}
-                            disabled={uploading}
+                            disabled={isFileBusy}
                           >
-                            {uploading ? 'Uploading...' : 'Select File'}
+                            {isFileBusy ? 'Uploading...' : 'Select File'}
                           </Button>
                         </div>
                       </div>
@@ -817,8 +893,17 @@ export default function NewContentPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => setUploadedFile(null)}
-                            disabled={uploading}
+                            onClick={() => {
+                              setUploadedFile(null);
+                              setUploadState('idle');
+                              setUploadProgress(0);
+                              setUploadSpeed('');
+                              setTimeRemaining('');
+                              setUploadError('');
+                              setSelectedUploadFile(null);
+                              setXhrRef(null);
+                            }}
+                            disabled={isFileBusy}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -893,10 +978,10 @@ export default function NewContentPage() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        if (file.size > 10 * 1024 * 1024) {
+                        if (file.size > MAX_THUMBNAIL_SIZE_BYTES) {
                           toast({
                             title: 'File too large',
-                            description: 'Thumbnail must be less than 10MB',
+                            description: `Thumbnail must be less than ${MAX_THUMBNAIL_SIZE_LABEL}`,
                             variant: 'destructive',
                           });
                           return;
@@ -952,11 +1037,11 @@ export default function NewContentPage() {
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
-                  disabled={isLoading}
+                  disabled={isLoading || isFileBusy}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={isLoading || isFileBusy}>
                   {isLoading
                     ? 'Creating...'
                     : isPublished
@@ -964,6 +1049,20 @@ export default function NewContentPage() {
                       : 'Save as Draft'
                   }
                 </Button>
+              </div>
+
+              <div className="mt-6 flex items-center justify-center border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGuidelinesRequireAcceptance(false);
+                    setShowGuidelinesModal(true);
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Content Guidelines
+                </button>
               </div>
             </form>
           </Form>
@@ -979,6 +1078,14 @@ export default function NewContentPage() {
           currentPlan={currentPlan}
         />
       ) : null}
+
+      <ContentGuidelinesModal
+        open={showGuidelinesModal}
+        onClose={() => setShowGuidelinesModal(false)}
+        requireAcceptance={guidelinesRequireAcceptance}
+        onAccepted={handleAcceptGuidelines}
+        loading={acceptingGuidelines}
+      />
     </div>
   );
 }

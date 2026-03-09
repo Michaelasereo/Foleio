@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { ContentViewPage } from '@/components/content/ContentViewPage';
+import { ContentViewTracker } from '@/components/content/ContentViewTracker';
 import type { Metadata } from 'next';
 
 async function getPublicContent(username: string, id: string) {
@@ -120,40 +121,16 @@ export default async function ContentPage({
     }
   }
 
-  // Increment view count (but not for the creator viewing their own content)
-  if (session?.user?.id !== creator.id) {
-    try {
-      await prisma.content.update({
-        where: { id },
-        data: {
-          viewCount: {
-            increment: 1,
-          },
-        },
-      });
-
-      // Track analytics
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/analytics/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'content_view',
-          contentId: id,
-          userId: session?.user?.id,
-        }),
-      });
-    } catch (error) {
-      console.error('Failed to increment view count:', error);
-    }
-  }
-
   return (
-    <ContentViewPage
-      content={content}
-      creator={creator}
-      hasAccess={hasAccess}
-      isCreatorView={session?.user?.id === creator.id}
-    />
+    <>
+      <ContentViewTracker contentId={content.id} isCreatorView={session?.user?.id === creator.id} />
+      <ContentViewPage
+        content={content}
+        creator={creator}
+        hasAccess={hasAccess}
+        isCreatorView={session?.user?.id === creator.id}
+      />
+    </>
   );
 }
 

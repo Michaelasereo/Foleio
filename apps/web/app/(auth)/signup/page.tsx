@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { Mail } from 'lucide-react';
+import { isPilotEmail } from '@/lib/config/pilot';
 
 const signupSchema = z
   .object({
@@ -40,10 +42,54 @@ const signupSchema = z
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
+function ResendVerificationButton({ email }: { email: string }) {
+  const supabase = createClient();
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  async function handleResend() {
+    setLoading(true);
+    await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
+      },
+    });
+    setSent(true);
+    setLoading(false);
+    setCooldown(60);
+    const timer = setInterval(() => {
+      setCooldown((current) => {
+        if (current <= 1) {
+          clearInterval(timer);
+          setSent(false);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void handleResend()}
+      disabled={loading || cooldown > 0}
+      className="text-sm font-semibold text-primary underline underline-offset-2 disabled:no-underline disabled:opacity-50"
+    >
+      {loading ? 'Sending...' : sent ? `Resend in ${cooldown}s` : 'Resend verification email'}
+    </button>
+  );
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
   const supabase = createClient();
 
   const form = useForm<SignupFormValues>({
@@ -57,12 +103,41 @@ export default function SignupPage() {
   });
 
   async function onSubmit(data: SignupFormValues) {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    if (!isPilotEmail(normalizedEmail)) {
+      toast({
+        title: 'Pilot access only',
+        description:
+          'Signups are currently limited to approved pilot emails.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
-        email: data.email,
+      const emailExistsRes = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      const emailExistsData = await emailExistsRes.json().catch(() => ({ exists: false }));
+      if (emailExistsData.exists) {
+        toast({
+          title: 'Account already exists',
+          description:
+            'An account with this email already exists. Please log in or reset your password.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: signupData, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
         password: data.password,
         options: {
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
           data: {
             full_name: data.fullName,
           },
@@ -78,13 +153,15 @@ export default function SignupPage() {
         return;
       }
 
-      toast({
-        title: 'Success',
-        description:
-          'Account created! Please check your email to verify your account.',
-      });
+      if (signupData.user && !signupData.session) {
+        setSignupEmail(normalizedEmail);
+        setVerificationSent(true);
+        return;
+      }
 
-      router.push('/login');
+      if (signupData.session) {
+        router.push('/dashboard');
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -105,6 +182,30 @@ export default function SignupPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {verificationSent ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
+              <Mail className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="mb-2 font-display text-2xl font-bold">Check your inbox</h2>
+            <p className="mb-2 text-sm text-muted-foreground">We sent a verification link to:</p>
+            <p className="mb-6 font-semibold text-foreground">{signupEmail}</p>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Click the link in the email to activate your account and get started.
+            </p>
+            <ResendVerificationButton email={signupEmail} />
+            <p className="mt-4 text-xs text-muted-foreground">
+              Wrong email?{' '}
+              <button
+                type="button"
+                onClick={() => setVerificationSent(false)}
+                className="text-primary underline underline-offset-2"
+              >
+                Go back
+              </button>
+            </p>
+          </div>
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -174,6 +275,7 @@ export default function SignupPage() {
             </div>
           </form>
         </Form>
+        )}
       </CardContent>
     </Card>
   );

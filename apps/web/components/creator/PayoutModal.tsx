@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BankSetupFlow } from '@/components/creator/BankSetupFlow';
+import { BankSetupForm } from '@/components/creator/BankSetupForm';
 
 interface PayoutModalProps {
   open: boolean;
@@ -20,7 +20,6 @@ interface PayoutModalProps {
   availableBalance: number;
   platformPlan: string | null;
   bankAccount: any | null;
-  bvnVerified: boolean;
   onRefresh: () => Promise<void> | void;
 }
 
@@ -30,17 +29,12 @@ export function PayoutModal({
   availableBalance,
   platformPlan,
   bankAccount: initialBankAccount,
-  bvnVerified: initialBvnVerified,
   onRefresh,
 }: PayoutModalProps) {
   const [bankAccount, setBankAccount] = useState<any | null>(initialBankAccount);
-  const [bvnVerified, setBvnVerified] = useState(initialBvnVerified);
-  const [bvn, setBvn] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
   const [amountNaira, setAmountNaira] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState('');
-  const [verifiedSuccess, setVerifiedSuccess] = useState(false);
 
   const amountKobo = Math.round((Number(amountNaira) || 0) * 100);
   const isPro = ['PRO', 'PREMIUM'].includes((platformPlan || '').toUpperCase());
@@ -49,29 +43,6 @@ export function PayoutModal({
     if (isPro) return 'Today / next business day';
     return 'Next business day';
   }, [isPro]);
-
-  async function verifyBVN() {
-    if (bvn.length !== 11) return;
-    setIsVerifying(true);
-    setRequestError('');
-    const response = await fetch('/api/creator/bank/verify-bvn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bvn }),
-    });
-    const data = await response.json();
-    setIsVerifying(false);
-
-    if (response.ok && data.verified) {
-      setBvnVerified(true);
-      setVerifiedSuccess(true);
-      setBvn('');
-      await onRefresh();
-      return;
-    }
-
-    setRequestError(data.error || 'Verification failed');
-  }
 
   async function requestPayout() {
     setIsSubmitting(true);
@@ -104,56 +75,7 @@ export function PayoutModal({
         </DialogHeader>
 
         {!bankAccount ? (
-          <BankSetupFlow onSaved={(saved) => setBankAccount(saved)} />
-        ) : !bvnVerified ? (
-          <div className="space-y-4">
-            {!verifiedSuccess ? (
-              <>
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <h4 className="mb-1 font-semibold text-blue-900">One-time identity check</h4>
-                  <p className="text-sm text-blue-800">
-                    Your BVN is sent directly to Paystack. Foleio never stores your BVN. We only receive a yes/no confirmation.
-                  </p>
-                  <p className="mt-2 text-xs text-blue-600">
-                    This is the same verification used by major Nigerian fintech products.
-                  </p>
-                </div>
-
-                <Input
-                  placeholder="Enter your BVN"
-                  maxLength={11}
-                  type="password"
-                  value={bvn}
-                  onChange={(e) => setBvn(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                />
-
-                <p className="text-xs text-muted-foreground">
-                  Your BVN is 11 digits and can be retrieved by dialling *565*0# on your registered phone number.
-                </p>
-
-                <Button
-                  disabled={bvn.length !== 11 || isVerifying}
-                  onClick={verifyBVN}
-                  className="w-full"
-                >
-                  {isVerifying ? 'Verifying...' : 'Verify Identity'}
-                </Button>
-              </>
-            ) : (
-              <div className="py-6 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                  <ShieldCheck className="h-8 w-8 text-green-600" />
-                </div>
-                <h3 className="mb-2 font-display text-xl font-bold">Identity Verified</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your account is verified and secure. You can now withdraw your earnings anytime.
-                </p>
-                <Button onClick={() => setVerifiedSuccess(false)} className="mt-4 w-full">
-                  Continue to Withdrawal
-                </Button>
-              </div>
-            )}
-          </div>
+          <BankSetupForm onSaved={(saved) => setBankAccount(saved)} />
         ) : (
           <div className="space-y-4">
             <div className="rounded-xl bg-green-50 p-4 text-center">

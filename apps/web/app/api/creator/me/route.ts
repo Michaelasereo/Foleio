@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { serializeCreator } from '@/lib/utils/serialization';
 import { ensureDbUser } from '@/lib/auth/ensure-db-user';
+import { shouldAutoUpgradeToPremium } from '@/lib/config/pilot';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,11 +82,17 @@ export async function GET(request: Request) {
         counter++;
       }
 
+      const autoPremium = shouldAutoUpgradeToPremium(user.email);
       creator = await prisma.creator.create({
         data: {
           userId: user.id,
           username,
           displayName: user.user_metadata?.full_name || username,
+          platformPlan: autoPremium ? 'premium' : 'starter',
+          platformSubscriptionActive: true,
+          platformSubscriptionEndsAt: autoPremium
+            ? null
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           balance: 0,
           pendingBalance: 0,
           totalEarnings: 0,
@@ -102,11 +109,63 @@ export async function GET(request: Request) {
 
     console.log(`✅ Creator found: ${creator.id}`);
 
+    const [contentCount, collections] = await Promise.all([
+      prisma.content.count({
+        where: { creatorId: creator.id, isPublished: true },
+      }),
+      prisma.collection.findMany({
+        where: { creatorId: creator.id },
+        select: {
+          id: true,
+          title: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
     // 4. Serialize ALL Prisma special types
     const serializedCreator = serializeCreator(creator);
+    let hasSeenWelcome = false;
+    let hasCompletedTour = false;
+    try {
+      const creatorFlags = await prisma.$queryRaw<
+        Array<{ has_seen_welcome: boolean | null; has_completed_tour: boolean | null }>
+      >`
+        SELECT has_seen_welcome, has_completed_tour
+        FROM creators
+        WHERE id = ${creator.id}
+        LIMIT 1
+      `;
+      hasSeenWelcome = creatorFlags[0]?.has_seen_welcome ?? false;
+      hasCompletedTour = creatorFlags[0]?.has_completed_tour ?? false;
+    } catch {
+      try {
+        const legacyWelcomeRows = await prisma.$queryRaw<Array<{ has_seen_welcome: boolean | null }>>`
+          SELECT has_seen_welcome
+          FROM creators
+          WHERE id = ${creator.id}
+          LIMIT 1
+        `;
+        hasSeenWelcome = legacyWelcomeRows[0]?.has_seen_welcome ?? false;
+      } catch {
+        hasSeenWelcome = false;
+      }
+      hasCompletedTour = false;
+    }
+
+    const creatorResponse = {
+      ...serializedCreator,
+      contentCount,
+      collections,
+      hasSeenWelcome,
+      hasCompletedTour,
+      // Compatibility fallback while some databases are still missing this new column.
+      contentGuidelinesAccepted:
+        (serializedCreator as any).contentGuidelinesAccepted ?? false,
+    };
 
     // 5. Return serialized creator
-    return NextResponse.json(serializedCreator);
+    return NextResponse.json(creatorResponse);
 
   } catch (error: any) {
     console.error('❌ Creator API error:', error);

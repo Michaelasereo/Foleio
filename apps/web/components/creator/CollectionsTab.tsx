@@ -60,10 +60,8 @@ export function CollectionsTab({ collections, platformPlan }: CollectionsTabProp
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {collections.map((collection: typeof collections[0]) => {
-            const totalContent = collection.sections.reduce(
-              (acc: number, section: typeof collection.sections[0]) => acc + section.sectionContents.length,
-              0
-            );
+            const totalContent = collection._count?.content ?? 0;
+            const totalSections = collection._count?.sections ?? 0;
 
             return (
               <Link key={collection.id} href={`/collections/${collection.id}`}>
@@ -88,7 +86,7 @@ export function CollectionsTab({ collections, platformPlan }: CollectionsTabProp
                   <CardContent>
                     <div className="flex items-center justify-between text-sm mb-2">
                       <Badge variant="outline">
-                        {collection.sections.length} section{collection.sections.length !== 1 ? 's' : ''}
+                        {totalSections} section{totalSections !== 1 ? 's' : ''}
                       </Badge>
                       <Badge variant={collection.isPublished ? 'default' : 'secondary'}>
                         {collection.isPublished ? 'Published' : 'Draft'}

@@ -20,6 +20,7 @@ export type {
   CreatorAvailability,
   Booking,
   EmailSubscription,
+  JournalEntry,
   PremiumAccessCode,
   CollectionSubscription,
   TutorialPurchase,

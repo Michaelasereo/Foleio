@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -19,8 +20,12 @@ import {
 } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { WelcomeModal } from '@/components/creator/WelcomeModal';
+import { OnboardingGateModal } from '@/components/creator/OnboardingGateModal';
+import { TourTooltip, type TourStep } from '@/components/onboarding/TourTooltip';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, getPlanLimits } from '@/lib/utils/plan-limits';
+import { useOnboardingTour } from '@/hooks/useOnboardingTour';
 
 interface CreatorDashboardProps {
   creator: any;
@@ -38,10 +43,77 @@ export function CreatorDashboard({
   contentMetrics,
 }: CreatorDashboardProps) {
   const router = useRouter();
+  const [creatorState, setCreatorState] = useState(creator);
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
-  const currentPlan = getCreatorPlan(creator.platformPlan ?? null);
-  const limits = getPlanLimits(creator.platformPlan ?? null);
-  const currentContentCount = Number(creator.contentCount || 0);
+  const { isActive, currentStep, startTour, nextStep, skipTour, completeTour } = useOnboardingTour();
+  const hasStartedTourRef = useRef(false);
+  const currentPlan = getCreatorPlan(creatorState.platformPlan ?? null);
+  const limits = getPlanLimits(creatorState.platformPlan ?? null);
+  const currentContentCount = Number(creatorState.contentCount || 0);
+
+  const tourSteps = useMemo<TourStep[]>(
+    () => [
+      {
+        target: '[data-tour="dashboard"]',
+        text: 'This is your home base. See your earnings, subscribers, and top content at a glance.',
+        position: 'right',
+      },
+      {
+        target: '[data-tour="content"]',
+        text: 'Upload videos, PDFs, and files here. Organise them into collections for your fans.',
+        position: 'right',
+      },
+      {
+        target: '[data-tour="journal"]',
+        text: 'Write long-form posts for your audience. Think of it as your personal blog — free for all your fans to read.',
+        position: 'right',
+      },
+      {
+        target: '[data-tour="new-content"]',
+        text: 'Ready to upload? Hit this to add your first piece of content.',
+        position: 'bottom',
+      },
+      {
+        target: '[data-tour="earnings"]',
+        text: 'Track your revenue and request payouts here once you start earning.',
+        position: 'right',
+      },
+      {
+        target: '[data-tour="analytics"]',
+        text: 'See how your content is performing — views, engagement, and subscriber growth.',
+        position: 'right',
+      },
+      {
+        target: '[data-tour="creator-profile"]',
+        text: "Update your profile photo and share your profile card with your audience. Let them know you're live 🧡",
+        position: 'right',
+      },
+    ],
+    []
+  );
+
+  useEffect(() => {
+    const shouldStartTour =
+      !profileIncomplete &&
+      Boolean(creatorState.hasSeenWelcome) &&
+      !Boolean(creatorState.hasCompletedTour);
+
+    if (!shouldStartTour || hasStartedTourRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      startTour();
+      hasStartedTourRef.current = true;
+    }, 800);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    creatorState.hasCompletedTour,
+    creatorState.hasSeenWelcome,
+    profileIncomplete,
+    startTour,
+  ]);
 
   // Format percentage change with proper styling
   const formatChange = (change: string | null | undefined) => {
@@ -51,10 +123,26 @@ export function CreatorDashboard({
     return <span className={color}>{change}</span>;
   };
 
+  const handleSkipTour = () => {
+    void skipTour();
+    setCreatorState((prev: any) => ({
+      ...prev,
+      hasCompletedTour: true,
+    }));
+  };
+
+  const handleCompleteTour = () => {
+    void completeTour();
+    setCreatorState((prev: any) => ({
+      ...prev,
+      hasCompletedTour: true,
+    }));
+  };
+
   const stats = [
     {
       title: 'Total Earnings',
-      value: formatNaira(Number(creator.totalEarnings) / 100),
+      value: formatNaira(Number(creatorState.totalEarnings) / 100),
       change: analytics?.percentageChanges?.earnings || null,
       icon: DollarSign,
       valueColor: 'text-primary',
@@ -62,7 +150,7 @@ export function CreatorDashboard({
     },
     {
       title: 'Subscribers',
-      value: creator.subscriberCount.toLocaleString(),
+      value: Number(analytics?.subscriberCount || 0).toLocaleString(),
       change: analytics?.percentageChanges?.subscribers || null,
       icon: Users,
       valueColor: 'text-accent',
@@ -88,11 +176,25 @@ export function CreatorDashboard({
 
   return (
     <div className="space-y-6">
+      {profileIncomplete ? (
+        <OnboardingGateModal open userEmail={creatorState?.email || undefined} />
+      ) : null}
+      {!profileIncomplete && !creatorState.hasSeenWelcome ? (
+        <WelcomeModal
+          creator={creatorState}
+          onClose={() =>
+            setCreatorState((prev: any) => ({
+              ...prev,
+              hasSeenWelcome: true,
+            }))
+          }
+        />
+      ) : null}
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl tracking-tight">
-            Welcome back, {creator.displayName}
+            Welcome back, {creatorState.displayName}
           </h1>
           <p className="text-muted-foreground">
             Here's what's happening with your creator account
@@ -101,6 +203,7 @@ export function CreatorDashboard({
         <div className="flex gap-2">
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary/90"
+            data-tour="new-content"
             onClick={() => {
               if (currentContentCount >= limits.maxContent) {
                 showUpgradeModal('maxContent');
@@ -116,36 +219,14 @@ export function CreatorDashboard({
             variant="outline"
             className="border-accent text-accent hover:bg-accent/10 hover:text-accent"
             onClick={() => router.push('/earnings')}
-            disabled={Number(creator.currentBalance) < 1000}
+            disabled={Number(creatorState.currentBalance) < 1000}
           >
             <Download className="mr-2 h-4 w-4" />
             Withdraw{' '}
-            {formatNaira(Number(creator.currentBalance) / 100)}
+            {formatNaira(Number(creatorState.currentBalance) / 100)}
           </Button>
         </div>
       </div>
-
-      {profileIncomplete ? (
-        <Card className="border-amber-200 bg-amber-50 shadow-sm">
-          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-amber-900">
-                Complete your profile to unlock the best creator experience.
-              </p>
-              <p className="text-sm text-amber-800/90">
-                Add your missing profile details in Settings. You can keep using your dashboard while you finish setup.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
-              onClick={() => router.push('/settings')}
-            >
-              Complete Profile
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -176,7 +257,7 @@ export function CreatorDashboard({
           <CardHeader>
             <CardTitle>Recent Subscribers</CardTitle>
             <CardDescription>
-              {recentSubscriptions.length} new subscribers this month
+              {recentSubscriptions.length} most recent active subscribers
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -208,7 +289,7 @@ export function CreatorDashboard({
           <CardHeader>
             <CardTitle>Top Performing Content</CardTitle>
             <CardDescription>
-              Your most viewed content this month
+              Your most viewed content overall
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -240,6 +321,15 @@ export function CreatorDashboard({
           onClose={closeUpgradeModal}
           limitType={limitType}
           currentPlan={currentPlan}
+        />
+      ) : null}
+      {isActive ? (
+        <TourTooltip
+          steps={tourSteps}
+          currentStep={currentStep}
+          onNext={() => nextStep(tourSteps.length)}
+          onSkip={handleSkipTour}
+          onDone={handleCompleteTour}
         />
       ) : null}
     </div>

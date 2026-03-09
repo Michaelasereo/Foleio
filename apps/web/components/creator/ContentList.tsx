@@ -23,7 +23,7 @@ import {
   Trash2,
   GripVertical,
 } from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { EditContentModal } from '@/components/content/EditContentModal';
 
 interface ContentListProps {
@@ -71,6 +71,7 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingContent, setEditingContent] = useState<any | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [brokenThumbnails, setBrokenThumbnails] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setItems(content);
@@ -325,11 +326,18 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
               ) : null}
               <div className={view === 'list' ? 'w-40 flex-shrink-0' : ''}>
             <div className="aspect-video bg-muted">
-              {getThumbnailUrl(item) ? (
+              {getThumbnailUrl(item) && !brokenThumbnails[item.id] ? (
                 <img
                   src={getThumbnailUrl(item) || ''}
                   alt={item.title}
+                  loading="lazy"
                   className="h-full w-full object-cover"
+                  onError={() =>
+                    setBrokenThumbnails((prev) => ({
+                      ...prev,
+                      [item.id]: true,
+                    }))
+                  }
                 />
               ) : (
                 <DefaultThumbnail title={item.title} />
@@ -485,6 +493,10 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
+          <DialogTitle className="sr-only">Delete content</DialogTitle>
+          <DialogDescription className="sr-only">
+            Confirm deletion of this content item. This action cannot be undone.
+          </DialogDescription>
           <div className="py-4 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
               <Trash2 className="h-6 w-6 text-red-600" />

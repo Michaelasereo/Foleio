@@ -34,8 +34,66 @@ export async function middleware(request: NextRequest) {
       },
     });
 
-    // Refresh session if expired - required for Server Components
-    await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const pathname = request.nextUrl.pathname;
+    const isOnboardingRoute =
+      pathname.startsWith('/onboarding') || pathname.startsWith('/onboard');
+    const creatorProtectedPrefixes = [
+      '/dashboard',
+      '/analytics',
+      '/content',
+      '/collections',
+      '/bookings',
+      '/availability',
+      '/price-list',
+      '/payouts',
+      '/earnings',
+      '/settings',
+    ];
+    const isCreatorProtectedRoute = creatorProtectedPrefixes.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    );
+
+    const copyCookies = (response: NextResponse) => {
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        response.cookies.set(cookie);
+      });
+      return response;
+    };
+
+    if (isOnboardingRoute || isCreatorProtectedRoute) {
+      if (!user) {
+        const loginUrl = new URL('/login', request.url);
+        return copyCookies(NextResponse.redirect(loginUrl));
+      }
+
+      const statusResponse = await fetch(
+        new URL('/api/auth/onboarding-status', request.url),
+        {
+          headers: {
+            cookie: request.headers.get('cookie') || '',
+          },
+        }
+      );
+
+      if (statusResponse.ok) {
+        const statusData = (await statusResponse.json()) as {
+          hasCompletedOnboarding?: boolean;
+        };
+        const hasCompletedOnboarding = Boolean(statusData.hasCompletedOnboarding);
+
+        if (isOnboardingRoute && hasCompletedOnboarding) {
+          return copyCookies(NextResponse.redirect(new URL('/dashboard', request.url)));
+        }
+
+        if (isCreatorProtectedRoute && !hasCompletedOnboarding) {
+          return copyCookies(NextResponse.redirect(new URL('/onboarding', request.url)));
+        }
+      }
+    }
 
     return supabaseResponse;
   } catch (error) {
@@ -57,8 +115,10 @@ export const config = {
     '/availability/:path*',
     '/price-list/:path*',
     '/payouts/:path*',
+    '/earnings/:path*',
     '/settings/:path*',
     '/onboard/:path*',
+    '/onboarding/:path*',
     '/(fan)/:path*',
     '/admin/:path*',
   ],

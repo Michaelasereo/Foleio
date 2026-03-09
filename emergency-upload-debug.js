@@ -150,7 +150,7 @@ function monitorFileSelection() {
           // Validate file
           const errors = [];
           if (file.size === 0) errors.push('File is empty');
-          if (file.size > 100 * 1024 * 1024) errors.push('File too large (max 100MB)');
+          if (file.size > 500 * 1024 * 1024) errors.push('File too large (max 500MB)');
           const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
           if (!allowedTypes.includes(file.type)) errors.push(`Invalid type: ${file.type}`);
 

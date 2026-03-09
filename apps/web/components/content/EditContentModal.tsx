@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { MAX_THUMBNAIL_SIZE_BYTES, MAX_THUMBNAIL_SIZE_LABEL } from '@/lib/utils/constants';
+import { UploadProgress } from '@/components/content/UploadProgress';
 
 type ContentItem = {
   id: string;
@@ -22,6 +24,38 @@ type ContentItem = {
 };
 
 type CollectionItem = { id: string; title: string };
+type UploadState = 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
+
+function uploadVideoWithProgress(
+  uploadUrl: string,
+  file: File,
+  onProgress: (percent: number) => void,
+  onComplete: () => void,
+  onError: (error: string) => void
+) {
+  const xhr = new XMLHttpRequest();
+
+  xhr.upload.addEventListener('progress', (event) => {
+    if (!event.lengthComputable) return;
+    const percent = Math.round((event.loaded / event.total) * 100);
+    onProgress(percent);
+  });
+
+  xhr.addEventListener('load', () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      onComplete();
+      return;
+    }
+    onError(`Upload failed with status ${xhr.status}`);
+  });
+
+  xhr.addEventListener('error', () => onError('Network error while uploading video'));
+  xhr.addEventListener('abort', () => onError('Upload cancelled'));
+  xhr.open('PUT', uploadUrl);
+  xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+  xhr.send(file);
+  return xhr;
+}
 
 interface EditContentModalProps {
   open: boolean;
@@ -48,6 +82,26 @@ export function EditContentModal({
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [videoUploadState, setVideoUploadState] = useState<UploadState>('idle');
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [videoUploadError, setVideoUploadError] = useState('');
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [videoUploadId, setVideoUploadId] = useState<string | null>(null);
+  const [videoResult, setVideoResult] = useState<{
+    muxUploadId: string;
+    muxAssetId: string;
+    muxPlaybackId: string;
+  } | null>(null);
+  const [videoXhr, setVideoXhr] = useState<XMLHttpRequest | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (videoXhr) {
+        videoXhr.abort();
+      }
+    };
+  }, [videoXhr]);
 
   useEffect(() => {
     if (!content) return;
@@ -59,6 +113,13 @@ export function EditContentModal({
     setThumbnailPreview(content.thumbnailUrl || null);
     setIsPublished(Boolean(content.isPublished));
     setError('');
+    setVideoUploadState('idle');
+    setVideoUploadProgress(0);
+    setVideoUploadError('');
+    setSelectedVideoFile(null);
+    setVideoUploadId(null);
+    setVideoResult(null);
+    setVideoXhr(null);
   }, [content]);
 
   const isTutorial = content?.contentCategory === 'tutorial';
@@ -67,11 +128,110 @@ export function EditContentModal({
 
   const clearThumbnail = () => setThumbnailPreview(null);
 
+  const cancelVideoUpload = () => {
+    if (videoXhr && videoUploadState === 'uploading') {
+      videoXhr.abort();
+    }
+    setVideoUploadState('idle');
+    setVideoUploadProgress(0);
+    setVideoUploadError('');
+    setSelectedVideoFile(null);
+    setVideoUploadId(null);
+    setVideoResult(null);
+    setVideoXhr(null);
+  };
+
+  const pollMuxStatus = async (uploadId: string) => {
+    const maxAttempts = 120;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const response = await fetch(`/api/content/mux-status/${uploadId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to check video status');
+      }
+
+      if (data.status === 'ready' && data.assetId && data.playbackId) {
+        setVideoResult({
+          muxUploadId: uploadId,
+          muxAssetId: data.assetId,
+          muxPlaybackId: data.playbackId,
+        });
+        setVideoUploadState('complete');
+        setVideoUploadProgress(100);
+        return;
+      }
+
+      if (data.status === 'errored') {
+        throw new Error(data.error || 'Video processing failed');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    throw new Error('Video processing is taking longer than expected');
+  };
+
+  const handleVideoReupload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
+    if (!allowedTypes.includes(file.type)) {
+      setVideoUploadState('error');
+      setVideoUploadError('Invalid video type. Please upload MP4, WebM, MOV, or MKV.');
+      return;
+    }
+
+    setSelectedVideoFile(file);
+    setVideoUploadState('uploading');
+    setVideoUploadProgress(0);
+    setVideoUploadError('');
+    setVideoResult(null);
+
+    try {
+      const uploadUrlResponse = await fetch('/api/content/mux-upload-url');
+      const uploadUrlData = await uploadUrlResponse.json();
+
+      if (!uploadUrlResponse.ok || !uploadUrlData.uploadUrl || !uploadUrlData.uploadId) {
+        throw new Error(uploadUrlData.error || 'Failed to create Mux upload URL');
+      }
+
+      setVideoUploadId(uploadUrlData.uploadId);
+
+      const xhr = uploadVideoWithProgress(
+        uploadUrlData.uploadUrl,
+        file,
+        (percent) => {
+          setVideoUploadProgress(percent);
+        },
+        async () => {
+          setVideoUploadState('processing');
+          setVideoUploadProgress(100);
+          await pollMuxStatus(uploadUrlData.uploadId);
+        },
+        (message) => {
+          setVideoUploadState('error');
+          setVideoUploadError(message);
+        }
+      );
+
+      setVideoXhr(xhr);
+    } catch (uploadError: any) {
+      setVideoUploadState('error');
+      setVideoUploadError(uploadError?.message || 'Failed to upload replacement video');
+    } finally {
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   const handleThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Thumbnail must be less than 10MB.');
+    if (file.size > MAX_THUMBNAIL_SIZE_BYTES) {
+      setError(`Thumbnail must be less than ${MAX_THUMBNAIL_SIZE_LABEL}.`);
       return;
     }
 
@@ -124,6 +284,12 @@ export function EditContentModal({
         payload.tutorialPrice = isInCollection ? 0 : accessType === 'free' ? 0 : tutorialPriceKobo;
       }
 
+      if (videoResult) {
+        payload.muxUploadId = videoResult.muxUploadId;
+        payload.muxAssetId = videoResult.muxAssetId;
+        payload.muxPlaybackId = videoResult.muxPlaybackId;
+      }
+
       const response = await fetch(`/api/content/${content.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -133,8 +299,8 @@ export function EditContentModal({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to update content');
       }
+      // Parent onSaved already refreshes data and closes this modal.
       onSaved();
-      onOpenChange(false);
     } catch (saveError: any) {
       setError(saveError?.message || 'Failed to update content');
     } finally {
@@ -147,6 +313,9 @@ export function EditContentModal({
       <DialogContent className="!left-auto !right-0 !top-0 !h-full !max-w-xl !translate-x-0 !translate-y-0 rounded-none">
         <DialogHeader>
           <DialogTitle>Edit Content</DialogTitle>
+          <DialogDescription className="sr-only">
+            Update content details, access settings, thumbnail, and publish state.
+          </DialogDescription>
         </DialogHeader>
 
         {!content ? null : (
@@ -212,6 +381,57 @@ export function EditContentModal({
             ) : null}
 
             <div className="space-y-2">
+              {content.type === 'video' ? (
+                <div className="space-y-3 rounded-lg border border-border p-3">
+                  <Label>Video file</Label>
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                    className="hidden"
+                    onChange={handleVideoReupload}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => videoInputRef.current?.click()}
+                      disabled={videoUploadState === 'uploading' || videoUploadState === 'processing'}
+                    >
+                      {videoUploadState === 'complete' ? 'Upload different video' : 'Re-upload video'}
+                    </Button>
+                  </div>
+                  {selectedVideoFile ? (
+                    <UploadProgress
+                      state={
+                        videoUploadState === 'idle'
+                          ? 'uploading'
+                          : (videoUploadState as 'uploading' | 'processing' | 'complete' | 'error')
+                      }
+                      progress={videoUploadProgress}
+                      speed=""
+                      timeRemaining=""
+                      fileName={selectedVideoFile.name}
+                      fileSize={selectedVideoFile.size}
+                      error={videoUploadError}
+                      onCancel={cancelVideoUpload}
+                    />
+                  ) : null}
+                  {videoUploadState === 'complete' ? (
+                    <p className="text-xs text-green-700">
+                      Replacement video is ready. Click &quot;Save Changes&quot; to apply it.
+                    </p>
+                  ) : null}
+                  {videoUploadId && videoUploadState === 'processing' ? (
+                    <p className="text-xs text-muted-foreground">
+                      Processing upload ID: {videoUploadId}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
               <Label>
                 Thumbnail <span className="text-muted-foreground">(optional)</span>
               </Label>
@@ -250,6 +470,7 @@ export function EditContentModal({
                 Upload custom thumbnail
               </button>
             </div>
+            </div>
 
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
@@ -265,7 +486,11 @@ export function EditContentModal({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving} className="flex-1">
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isSaving} className="flex-1">
+              <Button
+                onClick={handleSave}
+                disabled={isSaving || videoUploadState === 'uploading' || videoUploadState === 'processing'}
+                className="flex-1"
+              >
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>

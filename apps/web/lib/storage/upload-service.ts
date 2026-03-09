@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import sharp from 'sharp';
 import { getR2Client } from '@/lib/storage/r2-client';
+import { MAX_UPLOAD_SIZE_MB } from '@/lib/utils/constants';
 
 // Conditional import for file-type with fallback
 let fileTypeFromBuffer: any;
@@ -60,6 +60,27 @@ export interface UploadResult {
 }
 
 export class UploadService {
+  private static async optimizeImageBuffer(
+    buffer: Buffer,
+    maxWidth: number,
+    maxHeight: number
+  ): Promise<{ buffer: Buffer; optimized: boolean }> {
+    try {
+      const sharp = (await import('sharp')).default;
+      const optimizedBuffer = await sharp(buffer)
+        .resize(maxWidth, maxHeight, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 85 })
+        .toBuffer();
+      return { buffer: optimizedBuffer, optimized: true };
+    } catch (error) {
+      console.warn('[upload-service] sharp unavailable, skipping optimization:', error);
+      return { buffer, optimized: false };
+    }
+  }
+
   /**
    * Main upload method - handles all file types
    */
@@ -70,7 +91,7 @@ export class UploadService {
       type,
       metadata = {},
       optimizeImages = true,
-      maxSizeMB = type === 'video' ? 500 : 50, // 500MB for videos, 50MB for images
+      maxSizeMB = type === 'video' ? MAX_UPLOAD_SIZE_MB : 50,
     } = options;
 
     try {
@@ -123,25 +144,14 @@ export class UploadService {
 
     // 2. Optimize image if it's an image file
     if (file.type.startsWith('image/')) {
-      try {
-        const maxWidth = type === 'avatar' ? 400 : 1920;
-        const maxHeight = type === 'avatar' ? 400 : 1080;
-
-        buffer = await sharp(buffer)
-          .resize(maxWidth, maxHeight, {
-            fit: 'inside',
-            withoutEnlargement: true,
-          })
-          .webp({ quality: 85 })
-          .toBuffer();
-
+      const maxWidth = type === 'avatar' ? 400 : 1920;
+      const maxHeight = type === 'avatar' ? 400 : 1080;
+      const optimization = await this.optimizeImageBuffer(buffer, maxWidth, maxHeight);
+      buffer = optimization.buffer;
+      optimized = optimization.optimized;
+      if (optimized) {
         contentType = 'image/webp';
-        optimized = true;
-
         console.log(`🖼️ Optimized ${type}: ${file.size} → ${buffer.length} bytes`);
-      } catch (sharpError) {
-        console.warn(`⚠️ Sharp optimization failed for ${type}, using original:`, sharpError);
-        // Continue with original file
       }
     }
 

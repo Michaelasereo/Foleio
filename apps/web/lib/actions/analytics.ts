@@ -209,6 +209,7 @@ export async function getRecentSubscriptions(creatorId: string) {
           select: {
             fullName: true,
             email: true,
+            avatarUrl: true,
           },
         },
         plan: {
@@ -219,7 +220,7 @@ export async function getRecentSubscriptions(creatorId: string) {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 5,
     });
 
     // Serialize all Prisma special types
@@ -233,7 +234,7 @@ export async function getRecentSubscriptions(creatorId: string) {
 export async function getContentMetrics(creatorId: string) {
   try {
     const topContent = await prisma.content.findMany({
-      where: { creatorId, isPublished: true },
+      where: { creatorId },
       orderBy: { viewCount: 'desc' },
       take: 5,
       select: {

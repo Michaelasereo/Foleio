@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CollectionsTab } from '@/components/creator/CollectionsTab';
 import { IntroVideoTab } from '@/components/creator/IntroVideoTab';
 
+export const revalidate = 0;
+
 export default async function ContentPage() {
   const supabase = await createClient();
   const {
@@ -80,13 +82,10 @@ export default async function ContentPage() {
     collections = await prisma.collection.findMany({
       where: { creatorId: creator.id },
       include: {
-        sections: {
-          include: {
-            sectionContents: {
-              include: {
-                content: true,
-              },
-            },
+        _count: {
+          select: {
+            content: true,
+            sections: true,
           },
         },
       },
@@ -131,7 +130,7 @@ export default async function ContentPage() {
             Manage your content, collections, and intro video
           </p>
         </div>
-        <Link href="/dashboard/booking">
+        <Link href="/bookings">
           <Button variant="outline">
             Manage Bookings
           </Button>

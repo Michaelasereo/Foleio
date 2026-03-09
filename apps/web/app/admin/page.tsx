@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   AlertTriangle,
   Clock,
@@ -10,6 +10,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
+import useSWR from 'swr';
 import {
   CartesianGrid,
   Line,
@@ -22,6 +23,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMoneyFromKobo, formatRelativeTime, transactionTypeBadgeClass } from '@/lib/admin/format';
+import { createClient } from '@/lib/supabase/client';
+import { AnimatedCount } from '@/components/ui/AnimatedCount';
 
 type StatsPayload = {
   totalCreators: number;
@@ -44,67 +47,86 @@ type StatsPayload = {
 };
 
 export default function AdminOverviewPage() {
-  const [stats, setStats] = useState<StatsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const fetcher = async (url: string) => {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Failed to fetch admin stats');
+    return (await response.json()) as StatsPayload;
+  };
+
+  const { data: stats, isLoading, mutate } = useSWR('/api/admin/stats', fetcher, {
+    refreshInterval: 60000,
+  });
 
   useEffect(() => {
-    async function load() {
-      const response = await fetch('/api/admin/stats', { cache: 'no-store' });
-      if (!response.ok) return setLoading(false);
-      const data = (await response.json()) as StatsPayload;
-      setStats(data);
-      setLoading(false);
-    }
-    void load();
-  }, []);
+    const supabase = createClient();
+    const channel = supabase
+      .channel('admin-live-stats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        void mutate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payouts' }, () => {
+        void mutate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        void mutate();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [mutate]);
 
   const cards = useMemo(
     () => [
       {
         label: 'Platform Revenue',
-        value: formatMoneyFromKobo(stats?.platformRevenue),
+        value: Number(stats?.platformRevenue || 0),
+        formatter: (value: number) => formatMoneyFromKobo(value),
         icon: TrendingUp,
         color: 'text-green-600',
       },
       {
         label: 'MRR',
-        value: formatMoneyFromKobo(stats?.mrr),
+        value: Number(stats?.mrr || 0),
+        formatter: (value: number) => formatMoneyFromKobo(value),
         icon: Crown,
         color: 'text-orange-600',
       },
       {
         label: 'Total Creators',
-        value: (stats?.totalCreators || 0).toLocaleString(),
+        value: Number(stats?.totalCreators || 0),
         icon: Users,
         color: 'text-blue-600',
       },
       {
         label: 'Active Creators',
-        value: (stats?.activeCreators || 0).toLocaleString(),
+        value: Number(stats?.activeCreators || 0),
         icon: UserCheck,
         color: 'text-blue-600',
       },
       {
         label: 'Total Transactions',
-        value: (stats?.totalTransactions || 0).toLocaleString(),
+        value: Number(stats?.totalTransactions || 0),
         icon: CreditCard,
         color: 'text-purple-600',
       },
       {
         label: 'Pending Payouts',
-        value: formatMoneyFromKobo(stats?.pendingPayouts),
+        value: Number(stats?.pendingPayouts || 0),
+        formatter: (value: number) => formatMoneyFromKobo(value),
         icon: Clock,
         color: 'text-amber-600',
       },
       {
         label: 'Disputed Bookings',
-        value: (stats?.disputedBookings || 0).toLocaleString(),
+        value: Number(stats?.disputedBookings || 0),
         icon: AlertTriangle,
         color: 'text-red-600',
       },
       {
         label: 'Waitlist Signups',
-        value: (stats?.waitlistCount || 0).toLocaleString(),
+        value: Number(stats?.waitlistCount || 0),
         icon: Clock,
         color: 'text-teal-600',
       },
@@ -112,19 +134,28 @@ export default function AdminOverviewPage() {
     [stats]
   );
 
-  if (loading) {
+  if (isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading admin overview...</div>;
   }
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-foreground">Overview</h2>
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+          Live
+        </span>
+      </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <Card key={card.label} className="border-border/70 bg-white shadow-sm">
             <CardContent className="flex items-center justify-between p-5">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">{card.label}</p>
-                <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+                <p className="mt-2 text-2xl font-semibold">
+                  <AnimatedCount value={card.value} format={card.formatter} />
+                </p>
               </div>
               <card.icon className={`h-6 w-6 ${card.color}`} />
             </CardContent>

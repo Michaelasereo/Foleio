@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { checkVideoModeration } from '@/lib/services/moderation';
+import { sendModerationAlertEmail } from '@/lib/email/moderation';
 
 // Status polling endpoint for Mux video processing
 export async function GET(
@@ -102,6 +104,52 @@ export async function GET(
                   muxPlaybackId: playbackId,
                 }
               });
+
+              const content = await prisma.content.findFirst({
+                where: { uploadId: upload.id },
+                include: {
+                  creator: {
+                    include: {
+                      user: { select: { email: true } },
+                    },
+                  },
+                },
+              });
+
+              if (content) {
+                const moderation = await checkVideoModeration(
+                  uploadData.data.asset_id,
+                  content.id,
+                  content.creator.user.email,
+                  content.title
+                );
+
+                if (moderation.flagged) {
+                  await prisma.content.update({
+                    where: { id: content.id },
+                    data: {
+                      isPublished: false,
+                      flaggedForReview: true,
+                      flaggedReason: moderation.reason || 'Video flagged for review',
+                      flaggedAt: new Date(),
+                      moderationStatus: 'pending',
+                    },
+                  });
+
+                  await sendModerationAlertEmail({
+                    contentId: content.id,
+                    contentTitle: content.title,
+                    creatorEmail: content.creator.user.email,
+                    creatorName: content.creator.displayName,
+                    reason: moderation.reason || 'Video flagged for review',
+                  });
+                } else {
+                  await prisma.content.update({
+                    where: { id: content.id },
+                    data: { moderationStatus: 'approved' },
+                  });
+                }
+              }
             }
 
             await prisma.upload.updateMany({

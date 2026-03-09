@@ -24,6 +24,21 @@ export function validateEnvironment(): EnvValidationResult {
     'NEXT_PUBLIC_SUPABASE_ANON_KEY'
   ];
 
+  const requiredInProduction = [
+    'DIRECT_URL',
+    'NEXTAUTH_URL',
+    'NEXTAUTH_SECRET',
+    'PAYSTACK_PRO_PLAN_CODE',
+    'PAYSTACK_PREMIUM_PLAN_CODE',
+    'RESEND_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'CRON_SECRET',
+    'ADMIN_SECRET',
+    'ADMIN_NOTIFICATION_EMAIL',
+    'MANUAL_PAYOUTS_ENABLED',
+    'NEXT_PUBLIC_ENV',
+  ];
+
   const recommended = [
     'REDIS_URL',
     'SENTRY_DSN',
@@ -33,11 +48,41 @@ export function validateEnvironment(): EnvValidationResult {
   const missing: string[] = [];
   const warnings: string[] = [];
 
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.CONTEXT === 'production';
+
   // Check required variables
   for (const key of required) {
     if (!process.env[key]) {
       missing.push(key);
     }
+  }
+
+  // Enforce stricter checks in production deploys.
+  if (isProduction) {
+    for (const key of requiredInProduction) {
+      if (!process.env[key]) {
+        missing.push(key);
+      }
+    }
+  }
+
+  // Cloudflare credentials may use either canonical or R2-prefixed names.
+  const hasCloudflareAccountId = !!process.env.CLOUDFLARE_ACCOUNT_ID;
+  const hasCloudflareAccessKeyId = !!(process.env.CLOUDFLARE_ACCESS_KEY_ID || process.env.CLOUDFLARE_R2_ACCESS_KEY_ID);
+  const hasCloudflareSecretAccessKey = !!(process.env.CLOUDFLARE_SECRET_ACCESS_KEY || process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY);
+  const hasCloudflareBucketName = !!(process.env.CLOUDFLARE_BUCKET_NAME || process.env.CLOUDFLARE_R2_BUCKET_NAME);
+
+  if (!hasCloudflareAccountId) {
+    missing.push('CLOUDFLARE_ACCOUNT_ID');
+  }
+  if (!hasCloudflareAccessKeyId) {
+    missing.push('CLOUDFLARE_ACCESS_KEY_ID (or CLOUDFLARE_R2_ACCESS_KEY_ID)');
+  }
+  if (!hasCloudflareSecretAccessKey) {
+    missing.push('CLOUDFLARE_SECRET_ACCESS_KEY (or CLOUDFLARE_R2_SECRET_ACCESS_KEY)');
+  }
+  if (!hasCloudflareBucketName) {
+    missing.push('CLOUDFLARE_BUCKET_NAME (or CLOUDFLARE_R2_BUCKET_NAME)');
   }
 
   // Check recommended variables
@@ -54,6 +99,18 @@ export function validateEnvironment(): EnvValidationResult {
 
   if (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.startsWith('http')) {
     warnings.push('NEXT_PUBLIC_APP_URL should include protocol (http/https)');
+  }
+
+  if (
+    isProduction &&
+    process.env.NEXT_PUBLIC_APP_URL &&
+    process.env.NEXT_PUBLIC_APP_URL !== 'https://foleio.com'
+  ) {
+    warnings.push('NEXT_PUBLIC_APP_URL should be https://foleio.com in production');
+  }
+
+  if (isProduction && process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL !== 'https://foleio.com') {
+    warnings.push('NEXTAUTH_URL should be https://foleio.com in production');
   }
 
   const valid = missing.length === 0;

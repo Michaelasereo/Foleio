@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '@foleio/database';
+import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_LABEL } from '@/lib/utils/constants';
 
 export class UploadManager {
   private static instance: UploadManager;
@@ -98,9 +99,9 @@ export class UploadManager {
   private async validateFile(file: File): Promise<void> {
     const errors: string[] = [];
 
-    // Size validation (5GB max)
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      errors.push('File exceeds 5GB limit');
+    // Size validation
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      errors.push(`File exceeds ${MAX_UPLOAD_SIZE_LABEL} limit`);
     }
 
     // Type validation
@@ -150,6 +151,7 @@ export class UploadManager {
       },
       body: JSON.stringify({
         cors_origin: process.env.NEXT_PUBLIC_APP_URL || '*',
+        max_size: MAX_UPLOAD_SIZE_BYTES,
         new_asset_settings: {
           playback_policy: ['public'],
           mp4_support: 'standard',

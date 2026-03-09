@@ -30,6 +30,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { isPilotEmail } from '@/lib/config/pilot';
 import { WaitlistModal } from '@/components/WaitlistModal';
 import foleioLogo from '../../../foleio-logo.png';
+import { Mail } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -156,6 +157,10 @@ function SignUpForm() {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
   const [waitlistName, setWaitlistName] = useState('');
   const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const supabase = createClient();
 
   const form = useForm<SignupFormValues>({
@@ -169,19 +174,38 @@ function SignUpForm() {
   });
 
   async function onSubmit(data: SignupFormValues) {
-    if (!isPilotEmail(data.email)) {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    if (!isPilotEmail(normalizedEmail)) {
       setWaitlistName(data.fullName);
-      setWaitlistEmail(data.email);
+      setWaitlistEmail(normalizedEmail);
       setIsWaitlistOpen(true);
       return;
     }
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
-        email: data.email,
+      const emailExistsRes = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      const emailExistsData = await emailExistsRes.json().catch(() => ({ exists: false }));
+      if (emailExistsData.exists) {
+        toast({
+          title: 'Account already exists',
+          description:
+            'An account with this email already exists. Please log in or reset your password.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: signupData, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
         password: data.password,
         options: {
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
           data: {
             full_name: data.fullName,
           },
@@ -197,13 +221,15 @@ function SignUpForm() {
         return;
       }
 
-      toast({
-        title: 'Success',
-        description:
-          'Account created! Please check your email to verify your account.',
-      });
+      if (signupData.user && !signupData.session) {
+        setSignupEmail(normalizedEmail);
+        setVerificationSent(true);
+        return;
+      }
 
-      router.push('/login');
+      if (signupData.session) {
+        router.push('/dashboard');
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -215,8 +241,66 @@ function SignUpForm() {
     }
   }
 
+  async function handleResendVerification() {
+    if (!signupEmail || resendCooldown > 0) return;
+    setResendLoading(true);
+    await supabase.auth.resend({
+      type: 'signup',
+      email: signupEmail,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
+      },
+    });
+    setResendLoading(false);
+    setResendCooldown(60);
+    const timer = setInterval(() => {
+      setResendCooldown((current) => {
+        if (current <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+  }
+
   return (
     <>
+      {verificationSent ? (
+        <div className="py-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
+            <Mail className="h-8 w-8 text-primary" />
+          </div>
+          <h2 className="mb-2 font-display text-2xl font-bold">Check your inbox</h2>
+          <p className="mb-2 text-sm text-muted-foreground">We sent a verification link to:</p>
+          <p className="mb-6 font-semibold text-foreground">{signupEmail}</p>
+          <p className="mb-6 text-sm text-muted-foreground">
+            Click the link in the email to activate your account and get started.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleResendVerification()}
+            disabled={resendLoading || resendCooldown > 0}
+            className="text-sm font-semibold text-primary underline underline-offset-2 disabled:no-underline disabled:opacity-50"
+          >
+            {resendLoading
+              ? 'Sending...'
+              : resendCooldown > 0
+                ? `Resend in ${resendCooldown}s`
+                : 'Resend verification email'}
+          </button>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Wrong email?{' '}
+            <button
+              type="button"
+              onClick={() => setVerificationSent(false)}
+              className="text-primary underline underline-offset-2"
+            >
+              Go back
+            </button>
+          </p>
+        </div>
+      ) : (
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -280,6 +364,7 @@ function SignUpForm() {
           </Button>
         </form>
       </Form>
+      )}
 
       <WaitlistModal
         open={isWaitlistOpen}

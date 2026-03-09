@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { CreatorDashboard } from '@/components/creator/Dashboard';
-import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
+import { OnboardingGateModal } from '@/components/creator/OnboardingGateModal';
 import { getCreatorAnalytics, getRecentSubscriptions, getContentMetrics } from '@/lib/actions/analytics';
+
+export const revalidate = 0;
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -16,13 +18,22 @@ export default async function DashboardPage() {
   // Fetch creator data with proper cookie handling
   let creator = null;
   try {
-    // Get cookies properly for the API call
+    // Build origin from incoming request so local/dev works reliably.
+    const headerStore = await headers();
+    const host = headerStore.get('x-forwarded-host') || headerStore.get('host');
+    const protocol = headerStore.get('x-forwarded-proto') || 'http';
+    const appOrigin =
+      host
+        ? `${protocol}://${host}`
+        : process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
+
+    // Forward cookies for the API call
     const cookieStore = await cookies();
     const cookieString = cookieStore.getAll()
       .map(cookie => `${cookie.name}=${cookie.value}`)
       .join('; ');
 
-    const creatorRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/api/creator/me`, {
+    const creatorRes = await fetch(`${appOrigin}/api/creator/me`, {
       headers: {
         Cookie: cookieString,
         'Content-Type': 'application/json'
@@ -68,15 +79,11 @@ export default async function DashboardPage() {
     console.error('Error fetching creator:', error);
   }
 
-  // If no creator account, show onboarding prompt
+  // If no creator account, block dashboard usage and force onboarding.
   if (!creator) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <OnboardingPrompt
-          userEmail={user.email || 'user'}
-          completedSteps={0}
-          totalSteps={4}
-        />
+      <div className="min-h-screen bg-gray-50">
+        <OnboardingGateModal open userEmail={user.email || 'user'} />
       </div>
     );
   }

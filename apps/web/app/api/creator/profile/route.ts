@@ -5,6 +5,118 @@ import { getPlanLimits } from '@/lib/utils/plan-limits';
 
 export const dynamic = 'force-dynamic';
 
+export async function PATCH(request: Request) {
+  try {
+    const supabase = await createRouteHandlerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const data: {
+      username?: string;
+      displayName?: string;
+      bio?: string | null;
+      avatarUrl?: string | null;
+      instagramHandle?: string | null;
+      tiktokHandle?: string | null;
+    } = {};
+
+    if (typeof body.username === 'string') {
+      const username = body.username
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-');
+      if (!/^[a-z0-9_-]{3,30}$/.test(username)) {
+        return NextResponse.json(
+          {
+            error:
+              'Username must be 3-30 chars and contain only lowercase letters, numbers, hyphens, and underscores',
+          },
+          { status: 400 }
+        );
+      }
+
+      const existing = await prisma.creator.findFirst({
+        where: {
+          username,
+          userId: { not: user.id },
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
+      }
+      data.username = username;
+    }
+
+    if (typeof body.displayName === 'string') {
+      const trimmed = body.displayName.trim();
+      if (trimmed.length < 2) {
+        return NextResponse.json(
+          { error: 'Display name must be at least 2 characters' },
+          { status: 400 }
+        );
+      }
+      data.displayName = trimmed.slice(0, 50);
+    }
+
+    if (typeof body.bio === 'string') {
+      data.bio = body.bio.trim().slice(0, 150);
+    } else if (body.bio === null) {
+      data.bio = null;
+    }
+
+    if (typeof body.avatarUrl === 'string') {
+      data.avatarUrl = body.avatarUrl;
+    } else if (body.avatarUrl === null) {
+      data.avatarUrl = null;
+    }
+
+    if (typeof body.instagramHandle === 'string') {
+      data.instagramHandle = body.instagramHandle.trim();
+    } else if (body.instagramHandle === null) {
+      data.instagramHandle = null;
+    }
+
+    if (typeof body.tiktokHandle === 'string') {
+      data.tiktokHandle = body.tiktokHandle.trim();
+    } else if (body.tiktokHandle === null) {
+      data.tiktokHandle = null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    const updatedCreator = await prisma.creator.update({
+      where: { userId: user.id },
+      data,
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        avatarUrl: true,
+        instagramHandle: true,
+        tiktokHandle: true,
+      },
+    });
+
+    return NextResponse.json({ success: true, creator: updatedCreator });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: 'Failed to update profile', details: error?.message },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(request: Request) {
   try {
     // 1. Authenticate user

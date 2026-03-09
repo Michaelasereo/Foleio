@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Trash2, AlertTriangle, Info } from 'lucide-react';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { MAX_THUMBNAIL_SIZE_BYTES, MAX_THUMBNAIL_SIZE_LABEL } from '@/lib/utils/constants';
 
 interface Content {
   id: string;
@@ -124,8 +125,11 @@ export function EditContentForm({ content, creatorPlans, collections }: EditCont
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, submit: 'Thumbnail must be less than 10MB' }));
+    if (file.size > MAX_THUMBNAIL_SIZE_BYTES) {
+      setErrors((prev) => ({
+        ...prev,
+        submit: `Thumbnail must be less than ${MAX_THUMBNAIL_SIZE_LABEL}`,
+      }));
       return;
     }
 

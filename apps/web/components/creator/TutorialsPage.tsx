@@ -15,8 +15,10 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
 } from '@/components/ui/dialog';
-import { BookOpen, ArrowLeft, Play, Lock, Video, Library } from 'lucide-react';
+import { BookOpen, ArrowLeft, Play, Lock, Video, Library, Flag } from 'lucide-react';
 import { PremiumAccessModal } from './PremiumAccessModal';
 import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { CollectionSubscriptionModal } from './CollectionSubscriptionModal';
@@ -24,6 +26,7 @@ import { TutorialPurchaseModal } from './TutorialPurchaseModal';
 import { getStoredVerifiedAccess, storeVerifiedAccess } from '@/lib/utils/tutorial-access';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
+import { ReportContentModal } from '@/components/content/ReportContentModal';
 
 interface Collection {
   id: string;
@@ -89,6 +92,7 @@ export function TutorialsPage({
   // Tutorial purchase modal state
   const [tutorialModalOpen, setTutorialModalOpen] = useState(false);
   const [selectedTutorial, setSelectedTutorial] = useState<Content | null>(null);
+  const [reportContentId, setReportContentId] = useState<string | null>(null);
 
   const handleContentClick = (content: Content) => {
     // Free content - play directly
@@ -333,6 +337,7 @@ export function TutorialsPage({
                             setCollectionModalOpen(true);
                           }
                         }}
+                        onReport={() => setReportContentId(content.id)}
                       />
                     ))}
                   </div>
@@ -363,6 +368,7 @@ export function TutorialsPage({
                             setCollectionModalOpen(true);
                           }
                         }}
+                        onReport={() => setReportContentId(content.id)}
                       />
                     ))}
                   </div>
@@ -416,6 +422,10 @@ export function TutorialsPage({
       {/* Video Player Modal */}
       <Dialog open={!!playingVideoId} onOpenChange={() => setPlayingVideoId(null)}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          <DialogTitle className="sr-only">Tutorial video player</DialogTitle>
+          <DialogDescription className="sr-only">
+            Watch the selected tutorial video in a modal player.
+          </DialogDescription>
           {playingVideoId && (() => {
             const content = [...freeTutorials, ...paidTutorials].find(
               (c) => c.id === playingVideoId
@@ -442,6 +452,16 @@ export function TutorialsPage({
           })()}
         </DialogContent>
       </Dialog>
+
+      {reportContentId ? (
+        <ReportContentModal
+          open={Boolean(reportContentId)}
+          onOpenChange={(open) => {
+            if (!open) setReportContentId(null);
+          }}
+          contentId={reportContentId}
+        />
+      ) : null}
     </div>
   );
 }
@@ -454,6 +474,7 @@ interface TutorialCardProps {
   isPlaying: boolean;
   collection?: Collection | null;
   onCollectionClick?: () => void;
+  onReport: () => void;
 }
 
 function TutorialCard({
@@ -463,6 +484,7 @@ function TutorialCard({
   isPlaying,
   collection,
   onCollectionClick,
+  onReport,
 }: TutorialCardProps) {
   const isPremium = content.accessType !== 'free';
   const showLock = isPremium && !isVerified;
@@ -547,6 +569,17 @@ function TutorialCard({
           <Video className="h-3 w-3" />
           {content.viewCount} views
         </p>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onReport();
+          }}
+          className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-red-500"
+        >
+          <Flag className="h-3 w-3" />
+          Report
+        </button>
       </div>
     </div>
   );

@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
         email,
         amount: price, // in kobo
         reference,
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/tutorials/purchase/callback`,
+        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/api/tutorials/purchase/callback`,
         metadata: {
           type: 'tutorial_purchase',
           contentId,

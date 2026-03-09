@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import {
   Accordion,
@@ -325,6 +327,10 @@ export function PublicCollectionPage({ creator, collection }: PublicCollectionPa
         setPlayingContent(null);
       }}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          <DialogTitle className="sr-only">Collection video player</DialogTitle>
+          <DialogDescription className="sr-only">
+            Watch the selected video from this collection.
+          </DialogDescription>
           {playingVideoId && playingContent && (
             <>
               <div className="aspect-video bg-black">

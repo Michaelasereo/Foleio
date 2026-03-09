@@ -15,11 +15,15 @@ export function generateThumbnailCSS(title: string): string {
 
 export function getThumbnailUrl(content: {
   thumbnailUrl?: string | null;
+  muxPlaybackId?: string | null;
   title: string;
   id: string;
 }): string | null {
   if (content.thumbnailUrl) {
     return content.thumbnailUrl;
+  }
+  if (content.muxPlaybackId) {
+    return `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg`;
   }
   return null;
 }

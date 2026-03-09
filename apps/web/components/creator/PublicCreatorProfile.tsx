@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import useSWR from 'swr';
 import NextLink from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -25,11 +27,7 @@ import {
   Video,
   Image as ImageIcon,
   FileText,
-  ExternalLink,
-  Instagram,
-  Youtube,
-  Twitter,
-  Link as LinkIcon,
+  Link2,
   Mail,
   Play,
   Eye,
@@ -38,6 +36,7 @@ import {
   CreditCard,
   Lock,
   ArrowRight,
+  Flag,
 } from 'lucide-react';
 import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { PriceListModal } from '@/components/booking/PriceListModal';
@@ -51,6 +50,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
+import { ReportContentModal } from '@/components/content/ReportContentModal';
+import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
+import foleioLogo from '../../../../foleio-logo.png';
 
 interface Content {
   id: string;
@@ -142,6 +144,17 @@ interface PublicCreatorProfileProps {
   regularContent: Content[];
   tutorials: Content[];
   tutorialCollections: TutorialCollection[];
+  journalEntries: {
+    id: string;
+    slug: string;
+    title: string;
+    subtitle: string | null;
+    coverImage: string | null;
+    tags: string[];
+    readTime: number;
+    viewCount: number;
+    publishedAt: Date | null;
+  }[];
   groupedPriceList: GroupedPriceList[];
 }
 
@@ -152,6 +165,19 @@ interface TutorialCollection {
   thumbnailUrl: string | null;
   price: number | null;
   subscriptionPrice: number | null;
+  sections?: {
+    id: string;
+    title: string;
+    videos: {
+      id: string;
+      title: string;
+      description: string | null;
+      thumbnailUrl: string | null;
+      muxAssetId: string | null;
+      muxPlaybackId: string | null;
+      createdAt: Date;
+    }[];
+  }[];
   videos: {
     id: string;
     title: string;
@@ -168,8 +194,26 @@ export function PublicCreatorProfile({
   regularContent,
   tutorials,
   tutorialCollections,
+  journalEntries,
   groupedPriceList,
 }: PublicCreatorProfileProps) {
+  const fetcher = async (url: string) => {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Failed to fetch stats');
+    return response.json();
+  };
+  const { data: liveStats } = useSWR(
+    `/api/creators/${creator.username}/stats`,
+    fetcher,
+    {
+      refreshInterval: 60000,
+      fallbackData: {
+        subscriberCount: creator.subscriberCount || 0,
+        contentCount: creator.contentCount || 0,
+      },
+    }
+  );
+
   const router = useRouter();
   const [priceListOpen, setPriceListOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -181,30 +225,15 @@ export function PublicCreatorProfile({
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const [premiumAccessOpen, setPremiumAccessOpen] = useState(false);
   const [selectedPremiumContent, setSelectedPremiumContent] = useState<Content | null>(null);
+  const [reportContentId, setReportContentId] = useState<string | null>(null);
   const [verifiedContentIds, setVerifiedContentIds] = useState<Set<string>>(new Set());
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<TutorialCollection | null>(null);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [collectionSubscriptionOpen, setCollectionSubscriptionOpen] = useState(false);
   const [verifiedCollectionIds, setVerifiedCollectionIds] = useState<Set<string>>(new Set());
-
-  const getLinkIcon = (linkType: string, size: 'sm' | 'md' = 'md') => {
-    const iconSize = size === 'sm' ? 'h-5 w-5' : 'h-6 w-6';
-    switch (linkType) {
-      case 'instagram':
-        return <Instagram className={iconSize} />;
-      case 'youtube':
-        return <Youtube className={iconSize} />;
-      case 'twitter':
-        return <Twitter className={iconSize} />;
-      case 'tiktok':
-        return <span className={size === 'sm' ? 'text-lg' : 'text-xl'}>🎵</span>;
-      case 'price_list':
-        return <FileText className={iconSize} />;
-      default:
-        return <LinkIcon className={iconSize} />;
-    }
-  };
+  const [activeTab, setActiveTab] = useState<'Content' | 'Journal' | 'About'>('Content');
+  const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
   const handleServiceSelect = (item: PriceListItem) => {
     // Validate that creator has availability before opening booking modal
@@ -222,16 +251,6 @@ export function PublicCreatorProfile({
     setBookingOpen(false);
     setSelectedService(null);
     setPriceListOpen(true);
-  };
-
-  const handleLinkClick = (link: CreatorLink) => {
-    if (link.linkType === 'price_list') {
-      setPriceListOpen(true);
-    } else if (link.url && link.url !== '#price-list') {
-      window.open(link.url, '_blank');
-    } else {
-      setPriceListOpen(true);
-    }
   };
 
   const handleContentClick = (content: Content) => {
@@ -377,13 +396,31 @@ export function PublicCreatorProfile({
               {creator.bio && (
                 <p className="mb-4 text-base leading-relaxed">{creator.bio}</p>
               )}
+              {Array.isArray(creator.creatorLinks) && creator.creatorLinks.length > 0 && (
+                <div className="mt-3 mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {creator.creatorLinks
+                    .filter((link) => link.url && link.url !== '#price-list')
+                    .map((link) => (
+                      <a
+                        key={link.id}
+                        href={normalizeUrl(link.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+                        <span className="font-medium">{link.label || 'Link'}</span>
+                      </a>
+                    ))}
+                </div>
+              )}
 
               <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/15">
                   {creator.category}
                 </Badge>
-                <span>{creator.subscriberCount} Subscribers</span>
-                <span>{creator.contentCount} content</span>
+                <span>{liveStats?.subscriberCount ?? 0} Subscribers</span>
+                <span>{liveStats?.contentCount ?? 0} Published posts</span>
               </div>
             </div>
 
@@ -418,24 +455,57 @@ export function PublicCreatorProfile({
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        {/* Creator Links */}
-        {creator.creatorLinks.length > 0 && (
-          <section className="space-y-3">
-            {creator.creatorLinks.map((link) => (
-              <button
-                key={link.id}
-                onClick={() => handleLinkClick(link)}
-                className="group flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius)] border border-border/70 bg-card px-4 py-3 text-left text-foreground shadow-sm transition hover:bg-muted/40"
-              >
-                <span className="h-8 w-1 rounded-full bg-primary" />
-                <span className="text-primary">{getLinkIcon(link.linkType, 'sm')}</span>
-                <span className="flex-1 font-medium">{link.label}</span>
-                <ArrowRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-accent" />
-              </button>
-            ))}
-          </section>
-        )}
+        <div className="mb-2 flex border-b border-border">
+          {(['Content', 'Journal', 'About'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`border-b-2 px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              type="button"
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
 
+        {activeTab === 'Journal' ? (
+          <div className="space-y-6">
+            {journalEntries.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <BookOpen className="mx-auto mb-3 h-8 w-8 opacity-30" />
+                <p>No journal entries yet.</p>
+              </div>
+            ) : (
+              journalEntries.map((entry) => (
+                <JournalEntryCard
+                  key={entry.id}
+                  entry={entry}
+                  creator={{ username: creator.username }}
+                />
+              ))
+            )}
+          </div>
+        ) : null}
+
+        {activeTab === 'About' ? (
+          <Card className="border-border/70 bg-card shadow-sm">
+            <CardHeader>
+              <CardTitle>About {creator.displayName}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                {creator.bio || 'No bio yet.'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {activeTab === 'Content' ? (
+          <>
         {/* Intro Video Section */}
         {creator.introVideo && creator.introVideo.muxPlaybackId && (
           <Card>
@@ -608,6 +678,7 @@ export function PublicCreatorProfile({
                         onClick={() => handleContentClick(content)}
                         isVerified={verifiedContentIds.has(content.id)}
                         isPlaying={playingVideoId === content.id}
+                        onReport={() => setReportContentId(content.id)}
                       />
                     ))}
                   </div>
@@ -633,6 +704,7 @@ export function PublicCreatorProfile({
                         onClick={() => handleContentClick(content)}
                         isVerified={verifiedContentIds.has(content.id)}
                         isPlaying={playingVideoId === content.id}
+                        onReport={() => setReportContentId(content.id)}
                       />
                     ))}
                   </div>
@@ -676,6 +748,7 @@ export function PublicCreatorProfile({
                     onClick={() => handleContentClick(content)}
                     isVerified={verifiedContentIds.has(content.id)}
                     isPlaying={playingVideoId === content.id}
+                    onReport={() => setReportContentId(content.id)}
                   />
                 ))}
               </div>
@@ -683,6 +756,8 @@ export function PublicCreatorProfile({
             </Card>
           </section>
         )}
+          </>
+        ) : null}
       </div>
 
       {/* Price List Modal */}
@@ -849,10 +924,12 @@ export function PublicCreatorProfile({
             className="flex items-center gap-2 group"
           >
             <span className="text-muted-foreground text-sm">Powered by</span>
-            <span className="font-display text-lg font-bold text-primary group-hover:opacity-80 transition-opacity">
-              Foleio
-            </span>
-            <span className="text-primary text-lg">●</span>
+            <Image
+              src={foleioLogo}
+              alt="Foleio"
+              className="h-7 w-auto transition-opacity group-hover:opacity-80"
+              priority={false}
+            />
           </a>
           <p className="text-xs text-muted-foreground text-center max-w-xs">
             The home for Nigerian creators — sell content, offer services, and build your world.
@@ -865,6 +942,16 @@ export function PublicCreatorProfile({
           </a>
         </div>
       )}
+
+      {reportContentId ? (
+        <ReportContentModal
+          open={Boolean(reportContentId)}
+          onOpenChange={(open) => {
+            if (!open) setReportContentId(null);
+          }}
+          contentId={reportContentId}
+        />
+      ) : null}
     </div>
   );
 }
@@ -875,9 +962,10 @@ interface ContentCardProps {
   onClick: () => void;
   isVerified: boolean;
   isPlaying: boolean;
+  onReport: () => void;
 }
 
-function ContentCard({ content, onClick, isVerified, isPlaying }: ContentCardProps) {
+function ContentCard({ content, onClick, isVerified, isPlaying, onReport }: ContentCardProps) {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'video':
@@ -963,6 +1051,17 @@ function ContentCard({ content, onClick, isVerified, isPlaying }: ContentCardPro
           {getTypeIcon(content.type)}
           {content.viewCount} views
         </p>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onReport();
+          }}
+          className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-red-500"
+        >
+          <Flag className="h-3 w-3" />
+          Report
+        </button>
       </div>
     </div>
   );

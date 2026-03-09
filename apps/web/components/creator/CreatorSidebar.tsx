@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -14,15 +14,16 @@ import {
   Video,
   Sparkles,
   FileText,
+  BookOpen,
   Calendar as CalendarIcon,
   BarChart3,
   Wallet,
   CreditCard,
-  Settings,
+  Settings2,
   ExternalLink,
   LogOut,
-  ShieldCheck,
   ChevronDown,
+  Link2,
   type LucideIcon,
 } from 'lucide-react';
 import foleioLogo from '../../../../foleio-logo.png';
@@ -36,7 +37,11 @@ interface CreatorSidebarProps {
     avatarUrl: string | null;
     platformPlan?: string | null;
     availableBalance?: number;
-    bvnVerified?: boolean;
+    creatorLinks?: Array<{
+      id: string;
+      label: string;
+      url: string;
+    }>;
   };
 }
 
@@ -44,6 +49,7 @@ type NavItem = {
   label: string;
   href?: string;
   icon: LucideIcon;
+  tourId?: string;
   disabled?: boolean;
   tooltip?: string;
   subItems?: { label: string; href: string; queryTab?: string }[];
@@ -53,9 +59,10 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: 'Workspace',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
       { label: 'Services', href: '/price-list', icon: FileText },
-      { label: 'Content', href: '/content', icon: Video },
+      { label: 'Content', href: '/content', icon: Video, tourId: 'content' },
+      { label: 'Journal', href: '/journal', icon: BookOpen, tourId: 'journal' },
       {
         label: 'Brand Deals',
         icon: Sparkles,
@@ -79,12 +86,12 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   },
   {
     title: 'Insights',
-    items: [{ label: 'Analytics', href: '/analytics', icon: BarChart3 }],
+    items: [{ label: 'Analytics', href: '/analytics', icon: BarChart3, tourId: 'analytics' }],
   },
   {
     title: 'Payments',
     items: [
-      { label: 'Earnings', href: '/earnings', icon: Wallet },
+      { label: 'Earnings', href: '/earnings', icon: Wallet, tourId: 'earnings' },
       { label: 'Billing', href: '/billing', icon: CreditCard },
     ],
   },
@@ -95,10 +102,25 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [journalDraftCount, setJournalDraftCount] = useState(0);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({
     Bookings: pathname.startsWith('/bookings'),
   });
   const currentBookingsTab = searchParams.get('tab');
+
+  useEffect(() => {
+    async function loadDraftCount() {
+      try {
+        const response = await fetch('/api/journal/drafts-count');
+        if (!response.ok) return;
+        const data = await response.json();
+        setJournalDraftCount(Number(data.count || 0));
+      } catch {
+        setJournalDraftCount(0);
+      }
+    }
+    void loadDraftCount();
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
@@ -137,6 +159,7 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
       : creatorPlan === 'PRO'
         ? 'Pro ✦'
         : 'Starter';
+  const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
   return (
     <aside className="hidden h-screen w-64 overflow-y-auto border-r border-border/70 bg-card lg:flex lg:flex-col">
@@ -152,7 +175,7 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
       </div>
 
       {/* Creator Profile Quick View */}
-      <div className="border-b border-border/60 p-4">
+      <div className="border-b border-border/60 p-4" data-tour="creator-profile">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex-shrink-0">
             {creator.avatarUrl ? (
@@ -175,12 +198,6 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
             <Link href="/billing" className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${planBadgeClass}`}>
               {planLabel}
             </Link>
-            {creator.bvnVerified ? (
-              <div className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
-                <span className="text-xs font-medium text-green-700">Identity Verified</span>
-              </div>
-            ) : null}
           </div>
         </div>
         <Link
@@ -191,6 +208,24 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
           <ExternalLink className="h-3 w-3" />
           View Public Page
         </Link>
+        {Array.isArray(creator.creatorLinks) && creator.creatorLinks.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 px-1">
+            {creator.creatorLinks
+              .filter((link) => link.url && link.url !== '#price-list')
+              .map((link) => (
+                <a
+                  key={link.id}
+                  href={normalizeUrl(link.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                >
+                  <Link2 className="h-3 w-3 flex-shrink-0" />
+                  <span>{link.label || 'Link'}</span>
+                </a>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -221,7 +256,7 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
               }
 
               return (
-                <div key={item.href}>
+                <div key={item.href} data-tour={item.tourId}>
                   <div
                     className={cn(
                       'flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors',
@@ -237,6 +272,11 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
                   {item.href === '/earnings' && availableBalance > 0 ? (
                     <span className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                       {formatNaira(availableBalance / 100)}
+                    </span>
+                  ) : null}
+                  {item.href === '/journal' && journalDraftCount > 0 ? (
+                    <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      {journalDraftCount}
                     </span>
                   ) : null}
                   {item.subItems?.length ? (
@@ -298,8 +338,8 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
               : 'border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground'
           )}
         >
-          <Settings className="h-4 w-4" />
-          <span className="font-medium">Settings</span>
+          <Settings2 className="h-4 w-4" />
+          <span className="font-medium">Account Settings</span>
         </Link>
         <button
           type="button"

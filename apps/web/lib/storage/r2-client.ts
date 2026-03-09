@@ -106,16 +106,31 @@ let r2Client: R2StorageClient | null = null;
 
 export function getR2Client(): R2StorageClient {
   if (!r2Client) {
-    if (!process.env.R2_ACCOUNT_ID || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
+    const accountId = process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
+    const accessKeyId =
+      process.env.R2_ACCESS_KEY_ID ||
+      process.env.CLOUDFLARE_ACCESS_KEY_ID ||
+      process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    const secretAccessKey =
+      process.env.R2_SECRET_ACCESS_KEY ||
+      process.env.CLOUDFLARE_SECRET_ACCESS_KEY ||
+      process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    const bucketName =
+      process.env.R2_BUCKET_NAME ||
+      process.env.CLOUDFLARE_BUCKET_NAME ||
+      process.env.CLOUDFLARE_R2_BUCKET_NAME ||
+      'foleio-uploads';
+
+    if (!accountId || !accessKeyId || !secretAccessKey) {
       throw new Error('R2 credentials not configured. Check your environment variables.');
     }
 
     r2Client = new R2StorageClient({
-      accountId: process.env.R2_ACCOUNT_ID,
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-      bucketName: process.env.R2_BUCKET_NAME || 'foleio-uploads',
-      publicUrl: process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`,
+      accountId,
+      accessKeyId,
+      secretAccessKey,
+      bucketName,
+      publicUrl: process.env.R2_PUBLIC_URL || process.env.CLOUDFLARE_R2_PUBLIC_URL || `https://pub-${accountId}.r2.dev`,
     });
   }
 

@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@foleio/database';
+import { MAX_UPLOAD_SIZE_BYTES } from '@/lib/utils/constants';
 
 export interface FileValidationResult {
   valid: boolean;
@@ -37,14 +38,14 @@ export class SecureUploadHandler {
 
   private readonly MAX_FILE_SIZES = {
     video: {
-      FREE: 500 * 1024 * 1024,    // 500MB
+      FREE: MAX_UPLOAD_SIZE_BYTES,
       PRO: 2 * 1024 * 1024 * 1024, // 2GB
       ENTERPRISE: 10 * 1024 * 1024 * 1024 // 10GB
     },
     image: {
       FREE: 10 * 1024 * 1024,     // 10MB
       PRO: 50 * 1024 * 1024,      // 50MB
-      ENTERPRISE: 100 * 1024 * 1024 // 100MB
+      ENTERPRISE: MAX_UPLOAD_SIZE_BYTES
     }
   };
 
@@ -112,7 +113,7 @@ export class SecureUploadHandler {
     }
 
     // Check file size (basic limits before user-specific checks)
-    const maxBasicSize = contentType === 'video' ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 100MB video, 10MB image
+    const maxBasicSize = contentType === 'video' ? MAX_UPLOAD_SIZE_BYTES : 10 * 1024 * 1024; // 500MB video, 10MB image
     if (file.size > maxBasicSize) {
       return {
         valid: false,

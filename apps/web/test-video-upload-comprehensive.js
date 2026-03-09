@@ -246,7 +246,7 @@
         } else if (errorJson.details?.includes('size') || errorJson.details?.includes('large')) {
           console.log('');
           console.log('📏 FILE SIZE ISSUE:');
-          console.log('💡 File exceeds 100MB limit or validation failed');
+          console.log('💡 File exceeds 500MB limit or validation failed');
         } else {
           console.log('');
           console.log('🔍 UNKNOWN ERROR:');

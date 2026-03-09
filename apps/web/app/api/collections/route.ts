@@ -17,8 +17,17 @@ export async function GET(request: Request) {
       );
     }
 
+    const creator = await prisma.creator.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
+    if (!creator) {
+      return NextResponse.json({ collections: [] });
+    }
+
     const collections = await prisma.collection.findMany({
-      where: { creatorId: user.id },
+      where: { creatorId: creator.id },
       include: {
         sections: {
           include: {

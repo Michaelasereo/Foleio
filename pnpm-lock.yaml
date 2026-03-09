@@ -185,15 +185,19 @@ importers:
       resend:
         specifier: ^6.9.3
         version: 6.9.3
-      sharp:
-        specifier: ^0.33.0
-        version: 0.33.5
+      swr:
+        specifier: ^2.4.1
+        version: 2.4.1(react@19.2.3)
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+    optionalDependencies:
+      sharp:
+        specifier: ^0.33.0
+        version: 0.33.5
     devDependencies:
       '@biomejs/biome':
         specifier: ^1.9.4
@@ -4697,6 +4701,11 @@ packages:
   svix@1.84.1:
     resolution: {integrity: sha512-K8DPPSZaW/XqXiz1kEyzSHYgmGLnhB43nQCMeKjWGCUpLIpAMMM8kx3rVVOSm6Bo6EHyK1RQLPT4R06skM/MlQ==}
 
+  swr@2.4.1:
+    resolution: {integrity: sha512-2CC6CiKQtEwaEeNiqWTAw9PGykW8SR5zZX8MZk6TeAvEAnVS7Visz8WzphqgtQ8v2xz/4Q5K+j+SeMaKXeeQIA==}
+    peerDependencies:
+      react: ^16.11.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
 
@@ -8709,11 +8718,13 @@ snapshots:
     dependencies:
       color-name: 1.1.4
       simple-swizzle: 0.2.4
+    optional: true
 
   color@4.2.3:
     dependencies:
       color-convert: 2.0.1
       color-string: 1.9.1
+    optional: true
 
   combined-stream@1.0.8:
     dependencies:
@@ -8819,7 +8830,8 @@ snapshots:
 
   destr@2.0.5: {}
 
-  detect-libc@2.1.2: {}
+  detect-libc@2.1.2:
+    optional: true
 
   detect-node-es@1.1.0: {}
 
@@ -9195,7 +9207,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  is-arrayish@0.3.4: {}
+  is-arrayish@0.3.4:
+    optional: true
 
   is-binary-path@2.1.0:
     dependencies:
@@ -9952,6 +9965,7 @@ snapshots:
       '@img/sharp-wasm32': 0.33.5
       '@img/sharp-win32-ia32': 0.33.5
       '@img/sharp-win32-x64': 0.33.5
+    optional: true
 
   sharp@0.34.5:
     dependencies:
@@ -9992,6 +10006,7 @@ snapshots:
   simple-swizzle@0.2.4:
     dependencies:
       is-arrayish: 0.3.4
+    optional: true
 
   source-map-js@1.2.1: {}
 
@@ -10059,6 +10074,12 @@ snapshots:
     dependencies:
       standardwebhooks: 1.0.0
       uuid: 10.0.0
+
+  swr@2.4.1(react@19.2.3):
+    dependencies:
+      dequal: 2.0.3
+      react: 19.2.3
+      use-sync-external-store: 1.6.0(react@19.2.3)
 
   symbol-tree@3.2.4: {}
 

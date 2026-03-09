@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NEXT_PRIVATE_TURBOPACK=0 next dev",
-    "build": "next build",
+    "build": "node ./scripts/validate-netlify-env.js && next build",
     "start": "next start",
     "lint": "next lint && biome check .",
     "type-check": "tsc --noEmit",
@@ -67,9 +67,12 @@
     "react-hook-form": "^7.54.2",
     "recharts": "^2.15.0",
     "resend": "^6.9.3",
-    "sharp": "^0.33.0",
+    "swr": "^2.4.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.24.1"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.33.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

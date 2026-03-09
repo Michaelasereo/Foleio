@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { ensureDbUser } from '@/lib/auth/ensure-db-user';
+import { shouldAutoUpgradeToPremium } from '@/lib/config/pilot';
+import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_LABEL } from '@/lib/utils/constants';
 
 // BigInt JSON serialization patch - fixes "Cannot serialize BigInt" errors
 (BigInt.prototype as any).toJSON = function() {
@@ -69,11 +71,17 @@ export async function POST(request: Request) {
 
     if (!creator) {
       console.log(`🆕 Creating creator for user ${user.id}`);
+      const autoPremium = shouldAutoUpgradeToPremium(user.email);
       creator = await prisma.creator.create({
         data: {
           userId: user.id,
           username: user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`,
           displayName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'New Creator',
+          platformPlan: autoPremium ? 'premium' : 'starter',
+          platformSubscriptionActive: true,
+          platformSubscriptionEndsAt: autoPremium
+            ? null
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           balance: 0,
           pendingBalance: 0,
           totalEarnings: 0,
@@ -117,10 +125,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
-      console.error(`❌ SERVER DEBUG: File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB (max: 100MB)`);
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      console.error(
+        `❌ SERVER DEBUG: File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB (max: ${MAX_UPLOAD_SIZE_LABEL})`
+      );
       return NextResponse.json(
-        { error: 'File too large. Maximum size: 100MB' },
+        { error: `File too large. Maximum size: ${MAX_UPLOAD_SIZE_LABEL}` },
         { status: 400 }
       );
     }
@@ -186,6 +196,7 @@ export async function POST(request: Request) {
     console.log('🎬 SERVER DEBUG: Creating Mux upload URL...');
     const muxRequestBody = {
       cors_origin: '*',
+      max_size: MAX_UPLOAD_SIZE_BYTES,
       new_asset_settings: {
         playback_policy: ['public'],
         mp4_support: 'standard',

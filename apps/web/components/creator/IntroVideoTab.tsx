@@ -12,6 +12,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -22,6 +23,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { Input } from '@/components/ui/input';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_LABEL } from '@/lib/utils/constants';
 
 interface IntroVideoTabProps {
   creatorId: string;
@@ -148,10 +150,10 @@ export function IntroVideoTab({
     if (!file) return;
 
     // Validate file
-    if (file.size > 100 * 1024 * 1024) {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       toast({
         title: 'File too large',
-        description: 'Video must be less than 100MB',
+        description: `Video must be less than ${MAX_UPLOAD_SIZE_LABEL}`,
         variant: 'destructive',
       });
       return;
@@ -309,7 +311,7 @@ export function IntroVideoTab({
             )}
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
-            Max file size: 100MB. Supported formats: MP4, WebM, MOV, MKV
+            Max file size: {MAX_UPLOAD_SIZE_LABEL}. Supported formats: MP4, WebM, MOV, MKV
           </p>
         </CardContent>
       </Card>
@@ -462,6 +464,9 @@ export function IntroVideoTab({
         <DialogContent className="max-w-4xl p-0 overflow-hidden">
           <DialogHeader className="p-4 pb-0">
             <DialogTitle>{previewVideo?.title}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Preview this intro video in a modal player.
+            </DialogDescription>
           </DialogHeader>
           {previewVideo && (
             <div className="p-4 pt-2">

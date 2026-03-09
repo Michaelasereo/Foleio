@@ -14,6 +14,9 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronRight, Users, BookOpen, Eye, DollarSign } from 'lucide-react';
 import { CollectionSectionManager } from '@/components/creator/CollectionSectionManager';
 import { CollectionPricingForm } from '@/components/creator/CollectionPricingForm';
+import { CollectionInlineDetails } from '@/components/creator/CollectionInlineDetails';
+
+export const revalidate = 0;
 
 export default async function CollectionDetailPage({
   params,
@@ -68,44 +71,19 @@ export default async function CollectionDetailPage({
         creatorId: creator.id,
       },
       include: {
-        sections: {
-          where: {
-            parentSectionId: null, // Only top-level sections
-          },
-          include: {
-            subsections: {
-              include: {
-                sectionContents: {
-                  include: {
-                    content: true,
-                  },
-                  orderBy: {
-                    orderIndex: 'asc',
-                  },
-                },
-              },
-              orderBy: {
-                orderIndex: 'asc',
-              },
-            },
-            sectionContents: {
-              include: {
-                content: true,
-              },
-              orderBy: {
-                orderIndex: 'asc',
-              },
-            },
-          },
-          orderBy: {
-            orderIndex: 'asc',
-          },
-        },
         tutorialContents: {
           select: {
             id: true,
             title: true,
+            type: true,
+            thumbnailUrl: true,
+            viewCount: true,
+            durationSeconds: true,
+            isPublished: true,
+            createdAt: true,
+            sectionOrder: true,
           },
+          orderBy: [{ sectionOrder: 'asc' }, { createdAt: 'asc' }],
         },
         subscriptions: {
           select: {
@@ -132,11 +110,92 @@ export default async function CollectionDetailPage({
     redirect('/collections');
   }
 
+  let collectionSections: any[] = [];
+  try {
+    collectionSections = await prisma.section.findMany({
+      where: {
+        collectionId: collection.id,
+        parentSectionId: null,
+      },
+      include: {
+        subsections: {
+          include: {
+            sectionContents: {
+              include: {
+                content: true,
+              },
+              orderBy: {
+                orderIndex: 'asc',
+              },
+            },
+          },
+          orderBy: {
+            orderIndex: 'asc',
+          },
+        },
+        sectionContents: {
+          include: {
+            content: true,
+          },
+          orderBy: {
+            orderIndex: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        orderIndex: 'asc',
+      },
+    });
+  } catch (error) {
+    console.warn('Collection sections lookup failed; retrying without parentSectionId.', error);
+    try {
+      collectionSections = await prisma.section.findMany({
+        where: {
+          collectionId: collection.id,
+        },
+        include: {
+          sectionContents: {
+            include: {
+              content: true,
+            },
+            orderBy: {
+              orderIndex: 'asc',
+            },
+          },
+        },
+        orderBy: {
+          orderIndex: 'asc',
+        },
+      });
+    } catch (fallbackError) {
+      console.warn('Collection sections fallback lookup failed (non-fatal).', fallbackError);
+    }
+  }
+
   // Get all content for adding to sections
-  let allContent: Awaited<ReturnType<typeof prisma.content.findMany>> = [];
+  let allContent: Array<{
+    id: string;
+    title: string;
+    type: string;
+    thumbnailUrl: string | null;
+    durationSeconds: number | null;
+    isPublished: boolean;
+    collectionId: string | null;
+    createdAt: Date;
+  }> = [];
   try {
     allContent = await prisma.content.findMany({
       where: { creatorId: creator.id, type: 'video' },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        thumbnailUrl: true,
+        durationSeconds: true,
+        isPublished: true,
+        collectionId: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   } catch {
@@ -152,9 +211,31 @@ export default async function CollectionDetailPage({
     );
   }
 
+  const fallbackCollectionContent = Array.from(
+    new Map(
+      collectionSections
+        .flatMap((section: any) => [
+          ...(section.sectionContents || []).map((sc: any) => sc.content),
+          ...((section.subsections || []) as any[]).flatMap((subsection: any) =>
+            (subsection.sectionContents || []).map((sc: any) => sc.content)
+          ),
+        ])
+        .filter(Boolean)
+        .map((content: any) => [content.id, content])
+    ).values()
+  );
+
+  const collectionContentForManager =
+    collection.tutorialContents.length > 0 ? collection.tutorialContents : fallbackCollectionContent;
+
   // Calculate stats
   const activeSubscribers = collection.subscriptions.filter((s: any) => s.status === 'active').length;
-  const totalTutorials = collection.tutorialContents.length;
+  const totalEnrolled = activeSubscribers;
+  const totalTutorials = collectionContentForManager.length;
+  const totalViews = collectionContentForManager.reduce(
+    (sum: number, item: any) => sum + Number(item?.viewCount || 0),
+    0
+  );
 
   const formatPrice = (priceInKobo: number | null) => {
     if (!priceInKobo) return 'Free';
@@ -175,10 +256,11 @@ export default async function CollectionDetailPage({
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">{collection.title}</span>
           </div>
-          <h1 className="text-3xl font-bold">{collection.title}</h1>
-          {collection.description && (
-            <p className="text-muted-foreground mt-2">{collection.description}</p>
-          )}
+          <CollectionInlineDetails
+            collectionId={collection.id}
+            initialTitle={collection.title}
+            initialDescription={collection.description}
+          />
         </div>
       </div>
 
@@ -212,7 +294,7 @@ export default async function CollectionDetailPage({
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{collection.enrolledCount}</div>
+            <div className="text-2xl font-bold">{totalEnrolled}</div>
             <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
@@ -232,7 +314,7 @@ export default async function CollectionDetailPage({
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{collection.viewCount}</div>
+            <div className="text-2xl font-bold">{totalViews}</div>
             <p className="text-xs text-muted-foreground">Total views</p>
           </CardContent>
         </Card>
@@ -261,7 +343,8 @@ export default async function CollectionDetailPage({
         <CardContent>
           <CollectionSectionManager
             collectionId={collection.id}
-            sections={collection.sections}
+            sections={collectionSections}
+            collectionContent={collectionContentForManager}
             allContent={allContent}
           />
         </CardContent>

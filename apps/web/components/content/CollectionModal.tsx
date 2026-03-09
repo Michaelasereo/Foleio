@@ -13,6 +13,12 @@ interface CollectionVideo {
   muxPlaybackId: string | null;
 }
 
+interface CollectionSection {
+  id: string;
+  title: string;
+  videos: CollectionVideo[];
+}
+
 interface CollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,6 +30,7 @@ interface CollectionModalProps {
     price: number | null;
     subscriptionPrice: number | null;
     videos: CollectionVideo[];
+    sections?: CollectionSection[];
   } | null;
   hasAccess: boolean;
   onAccessGranted: () => void;
@@ -57,6 +64,7 @@ export function CollectionModal({
   const activeCollection = collection;
 
   const displayPrice = activeCollection.subscriptionPrice || activeCollection.price || 0;
+  const hasSections = Boolean(activeCollection.sections?.length);
 
   async function handleAccessRequest() {
     if (!email) return;
@@ -134,35 +142,83 @@ export function CollectionModal({
         ) : null}
 
         {!hasAccess ? (
-          <div className="mb-6 max-h-[38vh] space-y-2 overflow-y-auto pr-1">
-            {activeCollection.videos.map((video, index) => (
-              <div key={video.id} className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
-                  {index + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{video.title}</p>
-                </div>
-                <Lock className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-              </div>
-            ))}
+          <div className="mb-6 max-h-[38vh] overflow-y-auto pr-1">
+            {hasSections
+              ? activeCollection.sections?.map((section) => (
+                  <div key={section.id} className="mb-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {section.title}
+                    </p>
+                    <div className="space-y-2">
+                      {section.videos.map((video, index) => (
+                        <div
+                          key={video.id}
+                          className="flex items-center gap-3 rounded-lg bg-muted/50 p-3"
+                        >
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">
+                              {video.title}
+                            </p>
+                          </div>
+                          <Lock className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              : activeCollection.videos.map((video, index) => (
+                  <div key={video.id} className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{video.title}</p>
+                    </div>
+                    <Lock className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  </div>
+                ))}
           </div>
         ) : null}
 
         {hasAccess ? (
-          <div className="max-h-[38vh] space-y-2 overflow-y-auto pr-1">
-            {activeCollection.videos.map((video) => (
-              <button
-                key={video.id}
-                onClick={() => onPlayVideo(video.id)}
-                className="flex w-full items-center gap-3 rounded-lg bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
-              >
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Play className="h-4 w-4 text-primary" />
-                </div>
-                <p className="text-sm font-medium text-foreground">{video.title}</p>
-              </button>
-            ))}
+          <div className="max-h-[38vh] overflow-y-auto pr-1">
+            {hasSections
+              ? activeCollection.sections?.map((section) => (
+                  <div key={section.id} className="mb-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {section.title}
+                    </p>
+                    <div className="space-y-2">
+                      {section.videos.map((video) => (
+                        <button
+                          key={video.id}
+                          onClick={() => onPlayVideo(video.id)}
+                          className="flex w-full items-center gap-3 rounded-lg bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
+                        >
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                            <Play className="h-4 w-4 text-primary" />
+                          </div>
+                          <p className="text-sm font-medium text-foreground">{video.title}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              : activeCollection.videos.map((video) => (
+                  <button
+                    key={video.id}
+                    onClick={() => onPlayVideo(video.id)}
+                    className="flex w-full items-center gap-3 rounded-lg bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
+                  >
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Play className="h-4 w-4 text-primary" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{video.title}</p>
+                  </button>
+                ))}
           </div>
         ) : (
           <div className="space-y-3">

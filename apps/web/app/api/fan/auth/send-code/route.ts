@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
 import { z } from 'zod';
 import { resend, FROM_EMAIL } from '@/lib/email/resend';
+import { baseEmailTemplate } from '@/lib/email/base-template';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -41,7 +42,9 @@ export async function POST(request: NextRequest) {
         from: FROM_EMAIL,
         to: email,
         subject: `Your Foleio login code: ${code}`,
-        html: `
+        html: baseEmailTemplate({
+          previewText: `Your Foleio login code: ${code}`,
+          body: `
           <div style="background:#F5F0E8;padding:24px;font-family:Arial,sans-serif;">
             <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">
               <h1 style="margin:0 0 16px;color:#F97316;">Foleio</h1>
@@ -50,10 +53,10 @@ export async function POST(request: NextRequest) {
                 ${code}
               </div>
               <p style="margin-top:16px;color:#666;">This code expires in 10 minutes.</p>
-              <p style="margin-top:20px;color:#7a7a7a;font-size:12px;">Powered by Foleio · noreply@foleio.com</p>
             </div>
           </div>
         `,
+        }),
       });
     } else {
       console.log(`📧 Fan OTP skipped in dev for ${email}. Code: ${code}`);

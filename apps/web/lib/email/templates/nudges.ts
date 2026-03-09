@@ -1,25 +1,10 @@
+import { baseEmailTemplate } from '@/lib/email/base-template';
+
 function baseTemplate(content: string): string {
-  return `
-    <div style="background:#F5F0E8;padding:40px 20px;font-family:Arial,sans-serif;">
-      <div style="max-width:560px;margin:0 auto;background:#fff;
-        border-radius:16px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.08);">
-        <div style="background:#F97316;padding:24px 32px;">
-          <h1 style="color:#fff;margin:0;font-size:28px;
-            letter-spacing:-0.5px;">Foleio</h1>
-        </div>
-        <div style="padding:32px;">
-          ${content}
-        </div>
-        <div style="padding:20px 32px;border-top:1px solid #F5F0E8;
-          text-align:center;">
-          <p style="color:#999;font-size:12px;margin:0;">
-            Foleio · noreply@foleio.com ·
-            <a href="{{unsubscribe}}" style="color:#999;">Unsubscribe</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
+  return baseEmailTemplate({
+    previewText: 'Foleio update',
+    body: content,
+  });
 }
 
 export function nudge1_incomplete_onboarding({

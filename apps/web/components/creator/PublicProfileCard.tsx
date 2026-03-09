@@ -11,14 +11,25 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Copy, ExternalLink, Check } from 'lucide-react';
+import { ProfileCardModal } from '@/components/creator/ProfileCardModal';
 
 interface PublicProfileCardProps {
   publicUrl: string;
   username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
 }
 
-export function PublicProfileCard({ publicUrl, username }: PublicProfileCardProps) {
+export function PublicProfileCard({
+  publicUrl,
+  username,
+  displayName,
+  avatarUrl,
+  bio,
+}: PublicProfileCardProps) {
   const [copied, setCopied] = useState(false);
+  const [profileCardOpen, setProfileCardOpen] = useState(false);
 
   async function handleCopy() {
     try {
@@ -64,7 +75,23 @@ export function PublicProfileCard({ publicUrl, username }: PublicProfileCardProp
         <p className="text-xs text-muted-foreground mt-2">
           Your username: <span className="font-mono">@{username}</span>
         </p>
+        <div className="mt-4">
+          <Button variant="outline" onClick={() => setProfileCardOpen(true)}>
+            Create Profile Card
+          </Button>
+        </div>
       </CardContent>
+
+      <ProfileCardModal
+        open={profileCardOpen}
+        onOpenChange={setProfileCardOpen}
+        creator={{
+          username,
+          displayName,
+          avatarUrl,
+          bio,
+        }}
+      />
     </Card>
   );
 }

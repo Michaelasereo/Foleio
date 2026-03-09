@@ -251,6 +251,71 @@ export async function PUT(
   }
 }
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const supabase = await createRouteHandlerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (!creator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    const body = (await request.json()) as {
+      title?: string;
+      description?: string | null;
+      price?: number | null;
+    };
+
+    const current = await prisma.collection.findFirst({
+      where: { id, creatorId: creator.id },
+      select: { id: true },
+    });
+    if (!current) {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+    }
+
+    const data: Record<string, unknown> = {};
+    if (typeof body.title === 'string' && body.title.trim()) {
+      data.title = body.title.trim();
+    }
+    if (body.description !== undefined) {
+      data.description =
+        body.description === null ? null : String(body.description).trim();
+    }
+    if (body.price !== undefined) {
+      data.price = body.price === null ? null : Number(body.price);
+    }
+
+    const collection = await prisma.collection.update({
+      where: { id: current.id },
+      data,
+    });
+
+    return NextResponse.json({ collection });
+  } catch (error: any) {
+    console.error('Collection patch error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update collection', details: error?.message },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -185,7 +185,27 @@ export async function PUT(
       tutorialPrice,
       collectionId,
       thumbnailUrl,
+      muxUploadId,
+      muxAssetId,
+      muxPlaybackId,
     } = body;
+
+    const hasPartialMuxReplacement =
+      muxUploadId !== undefined ||
+      muxAssetId !== undefined ||
+      muxPlaybackId !== undefined;
+    const hasCompleteMuxReplacement =
+      typeof muxAssetId === 'string' &&
+      muxAssetId.length > 0 &&
+      typeof muxPlaybackId === 'string' &&
+      muxPlaybackId.length > 0;
+
+    if (hasPartialMuxReplacement && !hasCompleteMuxReplacement) {
+      return NextResponse.json(
+        { error: 'Replacement video is still processing. Please wait until it is ready.' },
+        { status: 400 }
+      );
+    }
 
     // Validate required fields
     if (!title || !title.trim()) {
@@ -226,6 +246,21 @@ export async function PUT(
       );
     }
 
+    const isReplacingVideo =
+      typeof muxAssetId === 'string' &&
+      muxAssetId.length > 0 &&
+      muxAssetId !== existingContent.muxAssetId;
+
+    if (isReplacingVideo && typeof muxPlaybackId === 'string' && muxPlaybackId.length > 0) {
+      const replacementAsset = await MuxService.getAsset(muxAssetId);
+      if (!replacementAsset || replacementAsset.status !== 'ready' || replacementAsset.playbackId !== muxPlaybackId) {
+        return NextResponse.json(
+          { error: 'Replacement video is not ready yet. Please wait and try again.' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Update content
     const updatedContent = await prisma.content.update({
       where: { id: resolvedParams.id },
@@ -237,6 +272,10 @@ export async function PUT(
         tags,
         isPublished,
         ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
+        // uploadId references internal Upload table IDs, not Mux upload IDs.
+        // Persist only asset/playback IDs for replacement videos.
+        ...(muxAssetId !== undefined ? { muxAssetId: muxAssetId || null } : {}),
+        ...(muxPlaybackId !== undefined ? { muxPlaybackId: muxPlaybackId || null } : {}),
         contentCategory: mergedContentCategory,
         tutorialPrice: normalizedPricing.tutorialPrice,
         collectionId: normalizedPricing.collectionId,
@@ -271,6 +310,12 @@ export async function PUT(
       message: 'Content updated successfully',
       content: serializedContent
     });
+
+    if (isReplacingVideo && existingContent.muxAssetId) {
+      MuxService.deleteAsset(existingContent.muxAssetId).catch((muxError) => {
+        console.warn('Failed to delete previous Mux asset during replacement:', muxError);
+      });
+    }
 
   } catch (error: any) {
     console.error('Content update error:', error);

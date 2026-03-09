@@ -3,6 +3,8 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { UploadService } from '@/lib/storage/upload-service';
 import { randomUUID } from 'crypto'; // ✅ FIXED: Add missing import
+import { checkImageModeration } from '@/lib/services/moderation';
+import { MAX_THUMBNAIL_SIZE_BYTES, MAX_THUMBNAIL_SIZE_LABEL } from '@/lib/utils/constants';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for large files
@@ -51,7 +53,8 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const type = formData.get('type') as 'avatar' | 'banner'; // ✅ FIXED: Remove unused fileName, fix type
+    const type = formData.get('type') as 'avatar' | 'banner' | 'thumbnail';
+    const contentId = formData.get('contentId') as string | null;
 
     console.log('Request received:', { fileName: file?.name, size: file?.size, type: file?.type, uploadType: type });
 
@@ -75,14 +78,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (max 10MB, stricter for thumbnails)
+    const maxSize = type === 'thumbnail' ? MAX_THUMBNAIL_SIZE_BYTES : 10 * 1024 * 1024;
     if (file.size > maxSize) {
       console.error('❌ File too large:', file.size);
       return NextResponse.json(
-        { error: 'File size must be less than 10MB' },
+        {
+          error:
+            type === 'thumbnail'
+              ? `File size must be less than ${MAX_THUMBNAIL_SIZE_LABEL}`
+              : 'File size must be less than 10MB',
+        },
         { status: 400 }
       );
+    }
+
+    if (type === 'thumbnail') {
+      const bytes = await file.arrayBuffer();
+      const base64 = Buffer.from(bytes).toString('base64');
+      const moderation = await checkImageModeration(base64, file.type || 'image/jpeg');
+
+      if (moderation.flagged) {
+        await prisma.contentReport.create({
+          data: {
+            contentId: contentId || null,
+            reporterEmail: user.email || null,
+            reason: 'auto_thumbnail_moderation',
+            details: `Confidence: ${moderation.confidence} - ${moderation.reason}`,
+            status: 'reviewed',
+            reviewedAt: new Date(),
+            reviewedBy: 'system',
+          },
+        });
+
+        return NextResponse.json(
+          {
+            error:
+              "This image doesn't meet our content guidelines. Please upload a different thumbnail.",
+            code: 'CONTENT_POLICY_VIOLATION',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (moderation.reason === 'moderation_error') {
+        await prisma.contentReport.create({
+          data: {
+            contentId: contentId || null,
+            reporterEmail: user.email || null,
+            reason: 'thumbnail_moderation_error',
+            details: 'Anthropic moderation call failed; upload allowed.',
+            status: 'reviewed',
+            reviewedAt: new Date(),
+            reviewedBy: 'system',
+          },
+        });
+      }
     }
 
     // Generate unique filename
@@ -97,7 +148,7 @@ export async function POST(request: NextRequest) {
     const uploadResult = await UploadService.upload({
       userId: user.id,
       file,
-      type,
+      type: type === 'thumbnail' ? 'image' : type,
       metadata: {
         creatorId: creator.id,
         uploadType: type,

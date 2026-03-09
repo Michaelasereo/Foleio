@@ -1,5 +1,5 @@
 // Redis configuration (optional for Phase 2 testing)
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisUrl = process.env.REDIS_URL;
 let redisConnected = false;
 let redis: any = null;
 let Queue: any = null;
@@ -9,6 +9,11 @@ let QueueScheduler: any = null;
 // Use a function to avoid top-level await issues during build
 async function initializeRedis() {
   try {
+    if (!redisUrl) {
+      console.log('ℹ️ Redis URL not configured, queue system disabled');
+      return;
+    }
+
     // Check if we're in a build environment - skip Redis initialization
     if (process.env.NEXT_PHASE === 'phase-production-build') {
       console.log('⏭️ Skipping Redis initialization during build');

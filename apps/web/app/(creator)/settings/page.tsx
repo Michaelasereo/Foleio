@@ -1,12 +1,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import { SettingsForm } from '@/components/creator/SettingsForm';
-import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
-import { PublicProfileCard } from '@/components/creator/PublicProfileCard';
-import { LogoutButton } from '@/components/creator/LogoutButton';
+import { AccountSettingsTabs } from '@/components/creator/AccountSettingsTabs';
 import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -52,42 +48,25 @@ export default async function SettingsPage() {
     );
   }
 
-  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  const appUrl =
-    envAppUrl && !/localhost|127\.0\.0\.1/i.test(envAppUrl)
-      ? envAppUrl.replace(/\/+$/, '')
-      : 'https://foleio.com';
-  const publicUrl = `${appUrl}/creator/${creator.username}`;
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
+        <h1 className="text-3xl font-bold">Account Settings</h1>
         <p className="text-muted-foreground">
-          Manage your profile and account settings
+          Manage your profile, privacy and account preferences
         </p>
       </div>
-
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="account">Account</TabsTrigger>
-        </TabsList>
-        <TabsContent value="profile" className="mt-6 space-y-6">
-          {/* Public Profile Link */}
-          <PublicProfileCard publicUrl={publicUrl} username={creator.username} />
-
-          {/* Profile Settings */}
-          <SettingsForm creator={creator} />
-
-          {/* Links Management (Linktree-style) */}
-          <CreatorLinksManager />
-        </TabsContent>
-        <TabsContent value="account" className="mt-6">
-          {/* Logout */}
-          <LogoutButton />
-        </TabsContent>
-      </Tabs>
+      <AccountSettingsTabs
+        creator={{
+          id: creator.id,
+          username: creator.username,
+          displayName: creator.displayName,
+          bio: creator.bio,
+          avatarUrl: creator.avatarUrl,
+          instagramHandle: creator.instagramHandle,
+          tiktokHandle: creator.tiktokHandle,
+        }}
+      />
     </div>
   );
 }

@@ -32,9 +32,14 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '100mb',
+      bodySizeLimit: '500mb',
     },
     optimizeCss: true,
+  },
+  api: {
+    bodyParser: {
+      sizeLimit: '500mb',
+    },
   },
   typescript: {
     ignoreBuildErrors: true,
