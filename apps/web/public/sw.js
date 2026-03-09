@@ -48,20 +48,9 @@ self.addEventListener('activate', (event) => {
 
   event.waitUntil(
     (async () => {
-      // Clean up old caches
+      // Clear all caches to avoid stale chunk references after deploys.
       const cacheNames = await caches.keys();
-      const oldCaches = cacheNames.filter(name =>
-        name !== STATIC_CACHE &&
-        name !== DYNAMIC_CACHE &&
-        name.startsWith('foleio-')
-      );
-
-      await Promise.all(
-        oldCaches.map(cacheName => {
-          console.log('Deleting old cache:', cacheName);
-          return caches.delete(cacheName);
-        })
-      );
+      await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
 
       // Take control of all clients
       await self.clients.claim();

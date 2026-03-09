@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { DM_Sans, Playfair_Display } from 'next/font/google';
 import Link from 'next/link';
 import { ThemeProvider } from '@/components/theme-provider';
+import { ChunkRecovery } from '@/components/chunk-recovery';
 import { StagingBanner } from '@/components/ui/StagingBanner';
 import { Toaster } from '@/components/ui/toaster';
 import { ServiceWorkerRegistration } from '@/components/service-worker-registration';
@@ -55,6 +56,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <StagingBanner />
+          <ChunkRecovery />
           {children}
           <footer className="px-6 py-6">
             <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">

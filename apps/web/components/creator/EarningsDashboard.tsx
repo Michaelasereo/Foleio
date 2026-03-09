@@ -51,23 +51,46 @@ function statusClass(status: string) {
 
 export function EarningsDashboard() {
   const [data, setData] = useState<EarningsPayload | null>(null);
+  const [state, setState] = useState<'loading' | 'error' | 'ready'>('loading');
+  const [retryKey, setRetryKey] = useState(0);
   const [payoutOpen, setPayoutOpen] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestError, setRequestError] = useState('');
   const [editingBank, setEditingBank] = useState(false);
   const [creatorBank, setCreatorBank] = useState<BankAccount | null>(null);
 
-  async function load() {
-    const response = await fetch('/api/creator/earnings', { cache: 'no-store' });
-    if (!response.ok) return;
-    const payload = (await response.json()) as EarningsPayload;
+  async function load(signal?: AbortSignal) {
+    const response = await fetch('/api/creator/earnings', { cache: 'no-store', signal });
+    const payload = (await response.json()) as EarningsPayload & { error?: string };
+    if (!response.ok && payload.error && !payload.stats) {
+      throw new Error(payload.error);
+    }
     setData(payload);
-    setCreatorBank(payload.creator.bankAccount);
+    setCreatorBank(payload.creator?.bankAccount || null);
+    setState('ready');
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+      setState('error');
+    }, 10000);
+
+    setState('loading');
+    load(controller.signal)
+      .catch(() => {
+        setState('error');
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+      });
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [retryKey]);
 
   const streamRows = useMemo(() => {
     const total = (data?.byStream || []).reduce((sum, row) => sum + Number(row.amount || 0), 0) || 1;
@@ -84,7 +107,21 @@ export function EarningsDashboard() {
     }));
   }, [data]);
 
-  if (!data) {
+  if (state === 'error') {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <p className="mb-4 text-muted-foreground">Could not load earnings right now.</p>
+        <button
+          onClick={() => setRetryKey((prev) => prev + 1)}
+          className="text-sm text-primary underline underline-offset-2"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (state === 'loading' || !data) {
     return <p className="text-sm text-muted-foreground">Loading earnings...</p>;
   }
 

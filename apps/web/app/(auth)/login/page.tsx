@@ -37,6 +37,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const supabase = createClient();
 
   const form = useForm<LoginFormValues>({
@@ -48,6 +49,7 @@ export default function LoginPage() {
   });
 
   async function onSubmit(data: LoginFormValues) {
+    let didStartRedirect = false;
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -69,6 +71,9 @@ export default function LoginPage() {
         description: 'You have been logged in successfully',
       });
 
+      didStartRedirect = true;
+      setRedirecting(true);
+      await new Promise((resolve) => setTimeout(resolve, 300));
       router.push('/dashboard');
       router.refresh();
     } catch (error) {
@@ -78,72 +83,127 @@ export default function LoginPage() {
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      if (!didStartRedirect) {
+        setIsLoading(false);
+      }
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Login to Foleio</CardTitle>
-        <CardDescription>
-          Enter your credentials to access your account
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex items-center justify-between">
-              <Link
-                href="/forgot-password"
-                className="text-sm text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
-            </Button>
-            <div className="text-center text-sm">
-              Don't have an account?{' '}
-              <Link href="/signup" className="text-primary hover:underline">
-                Sign up
-              </Link>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+    <>
+      {redirecting && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: '#F5F0E8',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Georgia, serif',
+              fontSize: 28,
+              fontWeight: 700,
+              color: '#F97316',
+              letterSpacing: '-1px',
+              marginBottom: 24,
+            }}
+          >
+            foleio.
+          </span>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              border: '3px solid #F0EAE0',
+              borderTop: '3px solid #F97316',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+          <p
+            style={{
+              marginTop: 16,
+              fontSize: 14,
+              color: '#9E8E82',
+            }}
+          >
+            Taking you to your dashboard...
+          </p>
+        </div>
+      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Login to Foleio</CardTitle>
+          <CardDescription>
+            Enter your credentials to access your account
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="you@example.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex items-center justify-between">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading || redirecting}>
+                {isLoading ? 'Logging in...' : 'Login'}
+              </Button>
+              <div className="text-center text-sm">
+                Don't have an account?{' '}
+                <Link href="/signup" className="text-primary hover:underline">
+                  Sign up
+                </Link>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

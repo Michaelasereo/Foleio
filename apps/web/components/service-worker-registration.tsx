@@ -11,6 +11,15 @@ export function ServiceWorkerRegistration() {
   useEffect(() => {
     // Register service worker
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          const scope = registration.scope || '';
+          if (!scope.startsWith(window.location.origin)) {
+            void registration.unregister();
+          }
+        }
+      });
+
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
