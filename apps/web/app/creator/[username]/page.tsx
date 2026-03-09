@@ -5,6 +5,8 @@ import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile'
 import { serializeForClient } from '@/lib/utils';
 import { getAvailabilityWithBookings } from '@/lib/actions/availability';
 
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata({
   params,
 }: {

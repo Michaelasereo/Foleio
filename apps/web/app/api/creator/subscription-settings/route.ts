@@ -20,9 +20,7 @@ export async function GET() {
     const creator = await prisma.creator.findUnique({
       where: { userId: user.id },
       select: {
-        subscriptionEnabled: true,
-        monthlyPrice: true,
-        subscriptionPerks: true,
+        id: true,
       },
     });
 
@@ -30,11 +28,27 @@ export async function GET() {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
     }
 
+    const activePlan = await prisma.creatorPlan.findFirst({
+      where: {
+        creatorId: creator.id,
+        isActive: true,
+      },
+      orderBy: { orderIndex: 'asc' },
+      select: {
+        price: true,
+        features: true,
+      },
+    });
+
+    const perksFromPlan = Array.isArray(activePlan?.features)
+      ? activePlan?.features.map((perk) => String(perk))
+      : [];
+
     return NextResponse.json({
       creator: {
-        subscriptionEnabled: Boolean(creator.subscriptionEnabled),
-        monthlyPrice: Number(creator.monthlyPrice || 0),
-        subscriptionPerks: Array.isArray(creator.subscriptionPerks) ? creator.subscriptionPerks : [],
+        subscriptionEnabled: Boolean(activePlan),
+        monthlyPrice: Math.floor(Number(activePlan?.price || 0) / 100),
+        subscriptionPerks: perksFromPlan,
       },
     });
   } catch (error: any) {
@@ -63,30 +77,93 @@ export async function PATCH(request: Request) {
       subscriptionPerks?: string[];
     };
 
-    const creator = await prisma.creator.update({
+    const creator = await prisma.creator.findUnique({
       where: { userId: user.id },
-      data: {
-        ...(body.subscriptionEnabled !== undefined && {
-          subscriptionEnabled: Boolean(body.subscriptionEnabled),
-        }),
-        ...(body.monthlyPrice !== undefined && {
-          monthlyPrice: Number(body.monthlyPrice) || 0,
-        }),
-        ...(body.subscriptionPerks !== undefined && {
-          subscriptionPerks: Array.isArray(body.subscriptionPerks)
-            ? body.subscriptionPerks.map((perk) => String(perk))
-            : [],
-        }),
-      },
       select: {
         id: true,
-        subscriptionEnabled: true,
-        monthlyPrice: true,
-        subscriptionPerks: true,
+        username: true,
       },
     });
 
-    return NextResponse.json({ creator });
+    if (!creator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    const existingPlan = await prisma.creatorPlan.findFirst({
+      where: { creatorId: creator.id },
+      orderBy: { orderIndex: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        features: true,
+        isActive: true,
+      },
+    });
+
+    const nextEnabled =
+      body.subscriptionEnabled !== undefined
+        ? Boolean(body.subscriptionEnabled)
+        : Boolean(existingPlan?.isActive);
+    const nextPriceNaira =
+      body.monthlyPrice !== undefined
+        ? Math.max(0, Number(body.monthlyPrice) || 0)
+        : Math.floor(Number(existingPlan?.price || 0) / 100) || 2000;
+    const nextPerks =
+      body.subscriptionPerks !== undefined
+        ? (Array.isArray(body.subscriptionPerks)
+            ? body.subscriptionPerks.map((perk) => String(perk).trim()).filter(Boolean)
+            : [])
+        : (Array.isArray(existingPlan?.features)
+            ? existingPlan?.features.map((perk) => String(perk).trim()).filter(Boolean)
+            : []);
+
+    let updatedPlan;
+    if (existingPlan) {
+      updatedPlan = await prisma.creatorPlan.update({
+        where: { id: existingPlan.id },
+        data: {
+          isActive: nextEnabled,
+          price: nextPriceNaira * 100,
+          features: nextPerks,
+        },
+        select: {
+          id: true,
+          isActive: true,
+          price: true,
+          features: true,
+        },
+      });
+    } else {
+      updatedPlan = await prisma.creatorPlan.create({
+        data: {
+          creatorId: creator.id,
+          name: 'Monthly Subscription',
+          description: 'Access to all premium content',
+          price: nextPriceNaira * 100,
+          features: nextPerks,
+          isActive: nextEnabled,
+          orderIndex: 0,
+        },
+        select: {
+          id: true,
+          isActive: true,
+          price: true,
+          features: true,
+        },
+      });
+    }
+
+    return NextResponse.json({
+      creator: {
+        subscriptionEnabled: Boolean(updatedPlan.isActive),
+        monthlyPrice: Math.floor(Number(updatedPlan.price || 0) / 100),
+        subscriptionPerks: Array.isArray(updatedPlan.features)
+          ? updatedPlan.features.map((perk) => String(perk))
+          : [],
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to update subscription settings', details: error?.message || String(error) },
