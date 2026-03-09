@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     <title>Redirecting...</title>
   </head>
   <body style="margin:0;background:#F5F0E8;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;">
-    <span style="font-family:Georgia,serif;font-size:28px;font-weight:700;color:#F97316;letter-spacing:-1px;margin-bottom:24px;">foleio.</span>
+    <img src="/foleio-logo.png" alt="Foleio" style="height:56px;width:auto;margin-bottom:20px;" />
     <div style="width:32px;height:32px;border:3px solid #F0EAE0;border-top:3px solid #F97316;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
     <p style="margin-top:16px;font-size:14px;color:#9E8E82;">Confirming your session...</p>
     <style>@keyframes spin { to { transform: rotate(360deg); } }</style>

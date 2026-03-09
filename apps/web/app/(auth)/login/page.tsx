@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import foleioLogo from '../../../../../foleio-logo.png';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -104,18 +106,14 @@ export default function LoginPage() {
             zIndex: 9999,
           }}
         >
-          <span
-            style={{
-              fontFamily: 'Georgia, serif',
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#F97316',
-              letterSpacing: '-1px',
-              marginBottom: 24,
-            }}
-          >
-            foleio.
-          </span>
+          <div style={{ marginBottom: 20 }}>
+            <Image
+              src={foleioLogo}
+              alt="Foleio"
+              priority
+              style={{ height: 56, width: 'auto' }}
+            />
+          </div>
           <div
             style={{
               width: 32,

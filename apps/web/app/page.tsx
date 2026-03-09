@@ -127,18 +127,12 @@ function SignInForm() {
             zIndex: 9999,
           }}
         >
-          <span
-            style={{
-              fontFamily: 'Georgia, serif',
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#F97316',
-              letterSpacing: '-1px',
-              marginBottom: 24,
-            }}
-          >
-            foleio.
-          </span>
+          <Image
+            src={foleioLogo}
+            alt="Foleio"
+            priority
+            style={{ height: 56, width: 'auto', marginBottom: 20 }}
+          />
           <div
             style={{
               width: 32,

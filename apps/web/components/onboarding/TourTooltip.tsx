@@ -19,7 +19,8 @@ interface TourTooltipProps {
 
 const TOOLTIP_WIDTH = 280;
 const TOOLTIP_OFFSET = 14;
-const SPOTLIGHT_PADDING = 8;
+const SPOTLIGHT_PADDING = 4;
+const SIDEBAR_SPOTLIGHT_MAX_HEIGHT = 52;
 
 type Coordinates = { top: number; left: number };
 
@@ -120,6 +121,12 @@ export function TourTooltip({
   }
 
   const isLastStep = currentStep === steps.length - 1;
+  const isSidebarLinkTarget =
+    step.target.includes('[data-tour=') &&
+    targetRect.height > SIDEBAR_SPOTLIGHT_MAX_HEIGHT;
+  const spotlightHeight = isSidebarLinkTarget
+    ? SIDEBAR_SPOTLIGHT_MAX_HEIGHT
+    : targetRect.height + SPOTLIGHT_PADDING * 2;
 
   const handleNext = () => {
     setIsFading(true);
@@ -182,13 +189,13 @@ export function TourTooltip({
           top: targetRect.top - SPOTLIGHT_PADDING,
           left: targetRect.left - SPOTLIGHT_PADDING,
           width: targetRect.width + SPOTLIGHT_PADDING * 2,
-          height: targetRect.height + SPOTLIGHT_PADDING * 2,
-          borderRadius: 12,
+          height: spotlightHeight,
+          borderRadius: 8,
           boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
           border: '1px solid rgba(249,115,22,0.75)',
           zIndex: 9998,
           pointerEvents: 'none',
-          transition: 'top 150ms ease, left 150ms ease, width 150ms ease, height 150ms ease',
+          transition: 'all 0.25s ease',
         }}
       />
 

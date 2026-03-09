@@ -78,20 +78,30 @@ export default async function ContentPage() {
       },
       orderBy: { createdAt: 'desc' },
     });
+  } catch {
+    console.warn('Content page content lookup failed (non-fatal).');
+    content = [];
+  }
 
+  try {
     collections = await prisma.collection.findMany({
       where: { creatorId: creator.id },
       include: {
         _count: {
           select: {
-            content: true,
+            tutorialContents: true,
             sections: true,
           },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
+  } catch {
+    console.warn('Content page collections lookup failed (non-fatal).');
+    collections = [];
+  }
 
+  try {
     // Get all video content for intro video selection
     videoContent = await prisma.content.findMany({
       where: {
@@ -109,16 +119,8 @@ export default async function ContentPage() {
       orderBy: { createdAt: 'desc' },
     });
   } catch {
-    console.warn('Content page data lookup failed (non-fatal).');
-    return (
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Content</h1>
-        <p className="text-muted-foreground">
-          We could not load your content right now. Please try again in a
-          moment.
-        </p>
-      </div>
-    );
+    console.warn('Content page video lookup failed (non-fatal).');
+    videoContent = [];
   }
 
   return (

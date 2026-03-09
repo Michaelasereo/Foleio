@@ -256,7 +256,7 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
               }
 
               return (
-                <div key={item.href} data-tour={item.tourId}>
+                <div key={item.href}>
                   <div
                     className={cn(
                       'flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors',
@@ -265,7 +265,11 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
                         : 'border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                     )}
                   >
-                  <Link href={item.href!} className="flex min-w-0 flex-1 items-center gap-3">
+                  <Link
+                    href={item.href!}
+                    data-tour={item.tourId}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
                     <Icon className="h-4 w-4" />
                     <span className="font-medium">{item.label}</span>
                   </Link>
