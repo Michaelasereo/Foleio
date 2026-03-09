@@ -63,14 +63,18 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Never intercept full page navigations. Let the browser/Next handle these
+  // so auth redirects don't get replaced with a false offline page.
+  if (request.mode === 'navigate') {
+    return;
+  }
+
   // Handle different types of requests
   if (request.method === 'GET') {
     if (isStaticAsset(url)) {
       event.respondWith(handleStaticRequest(request));
     } else if (isApiRequest(url)) {
       event.respondWith(handleApiRequest(request));
-    } else if (isPageRequest(url)) {
-      event.respondWith(handlePageRequest(request));
     }
   }
 });
@@ -172,61 +176,6 @@ async function handleApiRequest(request) {
   }), {
     status: 503,
     headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-// Handle page requests
-async function handlePageRequest(request) {
-  try {
-    const networkResponse = await fetch(request);
-
-    if (networkResponse.ok) {
-      return networkResponse;
-    }
-  } catch (error) {
-    console.log('Network failed for page request');
-  }
-
-  // Try to serve cached version or offline page
-  const cachedResponse = await caches.match(request);
-  if (cachedResponse) {
-    return cachedResponse;
-  }
-
-  // Return offline page
-  const offlinePage = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Offline - Foleio</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem; }
-        .offline { max-width: 400px; margin: 0 auto; }
-        .retry-btn {
-          background: #0070f3;
-          color: white;
-          border: none;
-          padding: 0.75rem 1.5rem;
-          border-radius: 0.375rem;
-          cursor: pointer;
-          margin-top: 1rem;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="offline">
-        <h1>You're Offline</h1>
-        <p>You can still access some cached content while offline.</p>
-        <button class="retry-btn" onclick="window.location.reload()">Try Again</button>
-      </div>
-    </body>
-    </html>
-  `;
-
-  return new Response(offlinePage, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html' },
   });
 }
 
