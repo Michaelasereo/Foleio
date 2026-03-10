@@ -361,11 +361,19 @@ async function handleChargeSuccess(eventData: any) {
       where: { reference },
     });
 
+    const paystackAmountKobo = Number(amount || 0);
+    const platformFee = Math.round(paystackAmountKobo * 0.03);
+    const creatorEarnings = Math.max(0, paystackAmountKobo - platformFee);
+
     if (transaction) {
       await prisma.transaction.update({
         where: { id: transaction.id },
         data: {
           status: 'success',
+          creatorEarnings,
+          platformFee,
+          netAmount: creatorEarnings,
+          feeAmount: platformFee,
           gatewayResponse: eventData,
         },
       });

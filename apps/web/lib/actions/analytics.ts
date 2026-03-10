@@ -118,12 +118,12 @@ export async function getCreatorAnalytics(creatorId: string) {
     });
 
     const currentMonthRevenue = (currentMonthTransactions as any[]).reduce(
-      (sum: number, t: any) => sum + Number(t?.netAmount || 0),
+      (sum: number, t: any) => sum + Number(t?.creatorEarnings || 0),
       0
     );
 
     const prevMonthRevenue = (prevMonthTransactions as any[]).reduce(
-      (sum: number, t: any) => sum + Number(t?.netAmount || 0),
+      (sum: number, t: any) => sum + Number(t?.creatorEarnings || 0),
       0
     );
 
@@ -140,8 +140,18 @@ export async function getCreatorAnalytics(creatorId: string) {
       take: 10,
     });
 
-    const totalRevenue = (recentTransactions as any[]).reduce(
-      (sum: number, t: any) => sum + Number(t?.netAmount || 0),
+    const allSuccessfulTransactions = await prisma.transaction.findMany({
+      where: {
+        creatorId,
+        status: 'success',
+      },
+      select: {
+        creatorEarnings: true,
+      },
+    });
+
+    const totalRevenue = (allSuccessfulTransactions as any[]).reduce(
+      (sum: number, t: any) => sum + Number(t?.creatorEarnings || 0),
       0
     );
 

@@ -6,6 +6,8 @@ import { serializePrismaObject } from '@/lib/utils/serialization';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const SUCCESS_STATUSES = new Set(['SUCCESS', 'COMPLETED', 'PAID', 'success', 'completed', 'paid']);
+
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -64,12 +66,17 @@ export async function GET() {
     const monthlyMap = new Map<string, number>();
     const streamMap = new Map<string, number>();
     for (const tx of transactions) {
+      const status = String(tx?.status || '');
+      if (!SUCCESS_STATUSES.has(status)) {
+        continue;
+      }
+
       const createdAt = tx?.createdAt ? new Date(tx.createdAt) : null;
       if (!createdAt || Number.isNaN(createdAt.getTime()) || createdAt < sixMonthsAgo) {
         continue;
       }
 
-      const rawAmount = Number(tx?.creatorEarnings ?? tx?.amount ?? 0);
+      const rawAmount = Number(tx?.creatorEarnings ?? 0);
       if (Number.isNaN(rawAmount)) continue;
       const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
       monthlyMap.set(key, (monthlyMap.get(key) || 0) + rawAmount);
@@ -87,18 +94,23 @@ export async function GET() {
     }));
 
     const totalEarningsFromTransactions = transactions
-      .filter((transaction) => ['SUCCESS', 'COMPLETED', 'success', 'completed'].includes(String(transaction?.status || '')))
-      .reduce((sum, transaction) => sum + Number(transaction?.creatorEarnings ?? transaction?.amount ?? 0), 0);
+      .filter((transaction) => SUCCESS_STATUSES.has(String(transaction?.status || '')))
+      .reduce((sum, transaction) => sum + Number(transaction?.creatorEarnings ?? 0), 0);
 
     const totalPaidOut = payouts
-      .filter((payout) => ['SUCCESS', 'COMPLETED', 'PAID', 'success', 'completed', 'paid'].includes(String(payout?.status || '')))
+      .filter((payout) => SUCCESS_STATUSES.has(String(payout?.status || '')))
       .reduce((sum, payout) => sum + Number(payout?.amount ?? 0), 0);
+
+    const availableBalanceFromTransactions = Math.max(
+      0,
+      Number(totalEarningsFromTransactions) - Number(totalPaidOut)
+    );
 
     const payload = {
       creator: {
-        availableBalance: Number(creator.availableBalance || 0),
+        availableBalance: availableBalanceFromTransactions,
         pendingBalance: Number(creator.pendingBalance || 0),
-        totalEarned: Number(creator.totalEarned || 0),
+        totalEarned: Number(totalEarningsFromTransactions || 0),
         platformPlan: creator.platformPlan || null,
         bankAccount,
         payouts,
@@ -107,12 +119,9 @@ export async function GET() {
       monthlyEarnings,
       byStream,
       stats: {
-        totalEarnings: Number(totalEarningsFromTransactions || creator.totalEarned || 0),
+        totalEarnings: Number(totalEarningsFromTransactions || 0),
         totalPaidOut,
-        availableBalance: Math.max(
-          0,
-          Number(creator.availableBalance || totalEarningsFromTransactions - totalPaidOut || 0)
-        ),
+        availableBalance: availableBalanceFromTransactions,
       },
     };
 

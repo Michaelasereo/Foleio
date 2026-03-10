@@ -33,6 +33,16 @@ type EarningsPayload = {
   };
   monthlyEarnings: Array<{ month: string; amount: number }>;
   byStream: Array<{ type: string; amount: number }>;
+  transactions: Array<{
+    id: string;
+    createdAt: string;
+    status: string;
+    type: string;
+    amount: number | string;
+    creatorEarnings?: number | string | null;
+    platformFee?: number | string | null;
+    reference?: string | null;
+  }>;
 };
 
 const streamColors: Record<string, string> = {
@@ -391,6 +401,48 @@ export function EarningsDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Transactions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.transactions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No transactions yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="py-2">Date</th>
+                    <th className="py-2">Type</th>
+                    <th className="py-2">Fan Paid</th>
+                    <th className="py-2">Your Earnings</th>
+                    <th className="py-2">Foleio Fee</th>
+                    <th className="py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.transactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-t">
+                      <td className="py-2">{new Date(transaction.createdAt).toLocaleDateString()}</td>
+                      <td className="py-2 capitalize">{String(transaction.type || 'payment').replace('_', ' ')}</td>
+                      <td className="py-2">{formatNaira(Number(transaction.amount || 0) / 100)}</td>
+                      <td className="py-2">{formatNaira(Number(transaction.creatorEarnings || 0) / 100)}</td>
+                      <td className="py-2">{formatNaira(Number(transaction.platformFee || 0) / 100)}</td>
+                      <td className="py-2">
+                        <Badge className={statusClass(String(transaction.status || 'PENDING'))}>
+                          {String(transaction.status || 'PENDING')}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

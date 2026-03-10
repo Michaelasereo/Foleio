@@ -142,7 +142,7 @@ export function CreatorDashboard({
   const stats = [
     {
       title: 'Total Earnings',
-      value: formatNaira(Number(creatorState.totalEarnings) / 100),
+      value: formatNaira(Number(analytics?.totalRevenue || 0) / 100),
       change: analytics?.percentageChanges?.earnings || null,
       icon: DollarSign,
       valueColor: 'text-primary',
