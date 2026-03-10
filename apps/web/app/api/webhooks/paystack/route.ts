@@ -49,9 +49,13 @@ async function syncFanAccessRecordsFromCharge(eventData: any) {
   const contentId = String(metadata?.contentId || metadata?.content_id || '').trim() || null;
   const collectionId = String(metadata?.collectionId || metadata?.collection_id || '').trim() || null;
   const subscriptionType = String(metadata?.subscriptionType || metadata?.subscription_type || 'one_time');
+  const metadataFanId = String(metadata?.user_id || metadata?.userId || '').trim() || null;
 
-  const fanUser = await ensureFanUserByEmail(fanEmail, fanName);
-  const fanId = fanUser?.id || null;
+  let fanId = metadataFanId;
+  if (!fanId) {
+    const fanUser = await ensureFanUserByEmail(fanEmail, fanName);
+    fanId = fanUser?.id || null;
+  }
 
   if ((type === 'subscription' || type === 'fan_subscription') && fanId && creatorId) {
     const existing = await prisma.fanSubscription.findFirst({
@@ -368,7 +372,12 @@ async function handleChargeSuccess(eventData: any) {
     }
 
     // Ensure fan-facing records exist for dashboard visibility after payment.
-    await syncFanAccessRecordsFromCharge(eventData);
+    // Never fail the full webhook for fan-dashboard sync errors.
+    try {
+      await syncFanAccessRecordsFromCharge(eventData);
+    } catch (fanSyncError) {
+      console.error(`[webhook] Failed to sync fan access records for ${reference}:`, fanSyncError);
+    }
 
     // Create payment record
     await (prisma as any).payment.create({
