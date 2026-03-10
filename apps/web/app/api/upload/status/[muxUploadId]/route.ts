@@ -102,6 +102,9 @@ export async function GET(
                 data: {
                   muxAssetId: uploadData.data.asset_id,
                   muxPlaybackId: playbackId,
+                  ...(playbackId
+                    ? { thumbnailUrl: `https://image.mux.com/${playbackId}/thumbnail.jpg` }
+                    : {}),
                 }
               });
 

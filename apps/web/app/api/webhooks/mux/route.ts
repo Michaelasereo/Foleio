@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     }
 
     const asset = event.data;
+    const playbackId = asset?.playback_ids?.[0]?.id as string | undefined;
     let flagged = false;
     let flagReason = '';
 
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
           flaggedReason: flagReason,
           flaggedAt: new Date(),
           moderationStatus: 'pending',
+          ...(playbackId
+            ? {
+                muxPlaybackId: playbackId,
+                thumbnailUrl: `https://image.mux.com/${playbackId}/thumbnail.jpg`,
+              }
+            : {}),
         },
       });
 
@@ -61,7 +68,15 @@ export async function POST(request: Request) {
     } else {
       await prisma.content.update({
         where: { id: content.id },
-        data: { moderationStatus: 'approved' },
+        data: {
+          moderationStatus: 'approved',
+          ...(playbackId
+            ? {
+                muxPlaybackId: playbackId,
+                thumbnailUrl: `https://image.mux.com/${playbackId}/thumbnail.jpg`,
+              }
+            : {}),
+        },
       });
     }
 

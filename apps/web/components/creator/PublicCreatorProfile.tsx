@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import NextLink from 'next/link';
 import Image from 'next/image';
@@ -37,6 +37,7 @@ import {
   Lock,
   ArrowRight,
   Flag,
+  PlayCircle,
 } from 'lucide-react';
 import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { PriceListModal } from '@/components/booking/PriceListModal';
@@ -48,7 +49,6 @@ import { CollectionCard } from '@/components/content/CollectionCard';
 import { CollectionModal } from '@/components/content/CollectionModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
-import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
 import { ReportContentModal } from '@/components/content/ReportContentModal';
 import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
@@ -233,7 +233,26 @@ export function PublicCreatorProfile({
   const [collectionSubscriptionOpen, setCollectionSubscriptionOpen] = useState(false);
   const [verifiedCollectionIds, setVerifiedCollectionIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'Content' | 'Journal' | 'About'>('Content');
+  const [trackedViewIds, setTrackedViewIds] = useState<Set<string>>(new Set());
   const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
+
+  useEffect(() => {
+    if (!playingVideoId || trackedViewIds.has(playingVideoId)) return;
+
+    const content = [...regularContent, ...tutorials, ...tutorialCollections.flatMap((c) => c.videos)].find(
+      (item) => item.id === playingVideoId
+    );
+    if (!content?.muxPlaybackId) return;
+
+    const timer = window.setTimeout(() => {
+      setTrackedViewIds((prev) => new Set([...prev, playingVideoId]));
+      void fetch(`/api/content/${playingVideoId}/views`, { method: 'POST' }).catch(() => {});
+    }, 10_000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [playingVideoId, trackedViewIds, regularContent, tutorials, tutorialCollections]);
 
   const handleServiceSelect = (item: PriceListItem) => {
     // Validate that creator has availability before opening booking modal
@@ -983,10 +1002,13 @@ function ContentCard({ content, onClick, isVerified, isPlaying, onReport }: Cont
   const showLock = isPremium && !isVerified;
   const showPlayIcon = content.type === 'video';
   const isCollectionContent = Boolean(content.collectionId && content.collection);
+  const generatedThumbnailUrl = content.muxPlaybackId
+    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg`
+    : null;
   const thumbnailUrl = getThumbnailUrl({
     id: content.id,
     title: content.title,
-    thumbnailUrl: content.thumbnailUrl,
+    thumbnailUrl: content.thumbnailUrl || generatedThumbnailUrl,
   });
 
   const formatPrice = (priceInKobo: number) => {
@@ -1004,9 +1026,18 @@ function ContentCard({ content, onClick, isVerified, isPlaying, onReport }: Cont
             src={thumbnailUrl}
             alt={content.title}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            onError={(event) => {
+              if (content.muxPlaybackId) {
+                event.currentTarget.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=0`;
+                return;
+              }
+              event.currentTarget.style.display = 'none';
+            }}
           />
         ) : (
-          <DefaultThumbnail title={content.title} />
+          <div className="h-full w-full bg-muted flex items-center justify-center">
+            <PlayCircle className="w-12 h-12 text-muted-foreground opacity-40" />
+          </div>
         )}
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
           {showLock ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { BookOpen, ArrowLeft, Play, Lock, Video, Library, Flag } from 'lucide-react';
+import { BookOpen, ArrowLeft, Play, Lock, Video, Library, Flag, PlayCircle } from 'lucide-react';
 import { PremiumAccessModal } from './PremiumAccessModal';
 import { MuxVideoPlayer } from '@/components/ui/mux-player';
 import { CollectionSubscriptionModal } from './CollectionSubscriptionModal';
@@ -84,6 +84,7 @@ export function TutorialsPage({
   const [verifiedContentIds, setVerifiedContentIds] = useState<Set<string>>(new Set());
   const [verifiedCollectionIds, setVerifiedCollectionIds] = useState<Set<string>>(new Set());
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [trackedViewIds, setTrackedViewIds] = useState<Set<string>>(new Set());
   
   // Collection subscription modal state
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
@@ -93,6 +94,21 @@ export function TutorialsPage({
   const [tutorialModalOpen, setTutorialModalOpen] = useState(false);
   const [selectedTutorial, setSelectedTutorial] = useState<Content | null>(null);
   const [reportContentId, setReportContentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!playingVideoId || trackedViewIds.has(playingVideoId)) return;
+    const content = [...freeTutorials, ...paidTutorials].find((item) => item.id === playingVideoId);
+    if (!content?.muxPlaybackId) return;
+
+    const timer = window.setTimeout(() => {
+      setTrackedViewIds((prev) => new Set([...prev, playingVideoId]));
+      void fetch(`/api/content/${playingVideoId}/views`, { method: 'POST' }).catch(() => {});
+    }, 10_000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [playingVideoId, trackedViewIds, freeTutorials, paidTutorials]);
 
   const handleContentClick = (content: Content) => {
     // Free content - play directly
@@ -488,10 +504,13 @@ function TutorialCard({
 }: TutorialCardProps) {
   const isPremium = content.accessType !== 'free';
   const showLock = isPremium && !isVerified;
+  const generatedThumbnailUrl = content.muxPlaybackId
+    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg`
+    : null;
   const thumbnailUrl = getThumbnailUrl({
     id: content.id,
     title: content.title,
-    thumbnailUrl: content.thumbnailUrl,
+    thumbnailUrl: content.thumbnailUrl || generatedThumbnailUrl,
   });
 
   const formatPrice = (priceInKobo: number) => {
@@ -509,9 +528,18 @@ function TutorialCard({
             src={thumbnailUrl}
             alt={content.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+            onError={(event) => {
+              if (content.muxPlaybackId) {
+                event.currentTarget.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=0`;
+                return;
+              }
+              event.currentTarget.style.display = 'none';
+            }}
           />
         ) : (
-          <DefaultThumbnail title={content.title} />
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <PlayCircle className="w-12 h-12 text-muted-foreground opacity-40" />
+          </div>
         )}
         {content.type === 'video' && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
