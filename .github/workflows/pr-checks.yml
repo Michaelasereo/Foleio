@@ -32,8 +32,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NEXTAUTH_SECRET: ci_secret_placeholder
-          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_placeholder
-          PAYSTACK_SECRET_KEY: sk_test_placeholder
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: paystack_public_key_placeholder
+          PAYSTACK_SECRET_KEY: paystack_secret_key_placeholder
           NEXT_PUBLIC_APP_URL: https://staging-foleio.netlify.app
           ANTHROPIC_API_KEY: placeholder
           RESEND_API_KEY: placeholder
@@ -71,8 +71,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NEXTAUTH_SECRET: ci_secret_placeholder
-          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_placeholder
-          PAYSTACK_SECRET_KEY: sk_test_placeholder
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: paystack_public_key_placeholder
+          PAYSTACK_SECRET_KEY: paystack_secret_key_placeholder
           NEXT_PUBLIC_APP_URL: https://staging-foleio.netlify.app
           ANTHROPIC_API_KEY: placeholder
           RESEND_API_KEY: placeholder

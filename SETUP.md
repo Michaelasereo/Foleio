@@ -40,8 +40,8 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 DATABASE_URL=postgresql://postgres:Adenike2026#@db.xdwocaugiyjtbbzwpbid.supabase.co:5432/postgres
 
 # Paystack
-PAYSTACK_SECRET_KEY=sk_test_7aa0743dfee641a4d71276d2e4702e6b54eac86a
-NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_49a9c5ec8ea929319a9db9fe278a6e43ab1fc3c4
+PAYSTACK_SECRET_KEY=your_paystack_secret_key
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 
 # Resend
@@ -56,10 +56,10 @@ DATABASE_URL=postgresql://postgres:Adenike2026#@db.xdwocaugiyjtbbzwpbid.supabase
 
 ### 1.3 Paystack Setup
 
-Your Paystack test API keys are configured:
+Configure your Paystack API keys:
 ```env
-PAYSTACK_SECRET_KEY=sk_test_7aa0743dfee641a4d71276d2e4702e6b54eac86a
-NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_49a9c5ec8ea929319a9db9fe278a6e43ab1fc3c4
+PAYSTACK_SECRET_KEY=your_paystack_secret_key
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 ```
 

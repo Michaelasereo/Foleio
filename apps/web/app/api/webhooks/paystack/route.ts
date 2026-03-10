@@ -12,6 +12,141 @@ import { formatNaira } from '@foleio/utils';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
+async function ensureFanUserByEmail(email?: string | null, fullName?: string | null) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  return prisma.user.upsert({
+    where: { email: normalizedEmail },
+    update: {},
+    create: {
+      email: normalizedEmail,
+      fullName: fullName || null,
+      isCreator: false,
+      emailVerified: true,
+    },
+    select: { id: true, email: true },
+  });
+}
+
+async function syncFanAccessRecordsFromCharge(eventData: any) {
+  const metadata = eventData?.metadata || {};
+  const type = String(metadata?.type || '').toLowerCase();
+  const reference = String(eventData?.reference || '');
+  const amountInKobo = Number(eventData?.amount || 0);
+
+  const fanEmail = String(
+    metadata?.subscriber_email ||
+      metadata?.email ||
+      eventData?.customer?.email ||
+      ''
+  )
+    .trim()
+    .toLowerCase();
+  const fanName = String(eventData?.customer?.name || '').trim() || null;
+  const creatorId = String(metadata?.creatorId || metadata?.creator_id || '').trim() || null;
+  const planId = String(metadata?.plan_id || metadata?.planId || '').trim() || null;
+  const contentId = String(metadata?.contentId || metadata?.content_id || '').trim() || null;
+  const collectionId = String(metadata?.collectionId || metadata?.collection_id || '').trim() || null;
+  const subscriptionType = String(metadata?.subscriptionType || metadata?.subscription_type || 'one_time');
+
+  const fanUser = await ensureFanUserByEmail(fanEmail, fanName);
+  const fanId = fanUser?.id || null;
+
+  if ((type === 'subscription' || type === 'fan_subscription') && fanId && creatorId) {
+    const existing = await prisma.fanSubscription.findFirst({
+      where: { fanId, creatorId },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await prisma.fanSubscription.update({
+        where: { id: existing.id },
+        data: {
+          status: 'active',
+          planId: planId || undefined,
+          paystackAuthorizationCode: eventData?.authorization?.authorization_code || undefined,
+          paystackSubscriptionId: eventData?.subscription?.subscription_code || undefined,
+          lastPaymentDate: new Date(),
+          nextPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          metadata: {
+            reference,
+          },
+        },
+      });
+    } else {
+      await prisma.fanSubscription.create({
+        data: {
+          fanId,
+          creatorId,
+          planId: planId || undefined,
+          status: 'active',
+          paystackAuthorizationCode: eventData?.authorization?.authorization_code || undefined,
+          paystackSubscriptionId: eventData?.subscription?.subscription_code || undefined,
+          lastPaymentDate: new Date(),
+          nextPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          metadata: {
+            reference,
+          },
+        },
+      });
+    }
+  }
+
+  if (type === 'tutorial_purchase' && contentId && fanEmail) {
+    await prisma.tutorialPurchase.upsert({
+      where: {
+        contentId_email: {
+          contentId,
+          email: fanEmail,
+        },
+      },
+      create: {
+        contentId,
+        email: fanEmail,
+        paymentReference: reference || undefined,
+      },
+      update: {
+        paymentReference: reference || undefined,
+      },
+    });
+  }
+
+  if (type === 'collection_subscription' && collectionId && fanEmail) {
+    await prisma.collectionSubscription.upsert({
+      where: {
+        collectionId_email: {
+          collectionId,
+          email: fanEmail,
+        },
+      },
+      create: {
+        collectionId,
+        email: fanEmail,
+        subscriptionType: subscriptionType === 'recurring' ? 'recurring' : 'one_time',
+        status: 'active',
+        paymentReference: reference || undefined,
+      },
+      update: {
+        status: 'active',
+        subscriptionType: subscriptionType === 'recurring' ? 'recurring' : 'one_time',
+        paymentReference: reference || undefined,
+      },
+    });
+  }
+
+  if (fanId && creatorId && amountInKobo > 0 && (type === 'subscription' || type === 'fan_subscription')) {
+    await prisma.transaction.updateMany({
+      where: { reference },
+      data: { userId: fanId, creatorId },
+    });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Apply rate limiting for webhook endpoint (generous limits for Paystack)
@@ -231,6 +366,9 @@ async function handleChargeSuccess(eventData: any) {
         },
       });
     }
+
+    // Ensure fan-facing records exist for dashboard visibility after payment.
+    await syncFanAccessRecordsFromCharge(eventData);
 
     // Create payment record
     await (prisma as any).payment.create({

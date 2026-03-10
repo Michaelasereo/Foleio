@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFanSession } from '@/lib/fan-auth/session';
 import { getFanDashboardData } from '@/lib/fan-auth/data';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = getFanSession(request);

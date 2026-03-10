@@ -26,10 +26,10 @@ RESEND_FROM_EMAIL=noreply@foleio.ng
 
 ## Paystack Credentials
 
-Your Paystack test API keys:
+Your Paystack API keys:
 ```env
-PAYSTACK_SECRET_KEY=sk_test_7aa0743dfee641a4d71276d2e4702e6b54eac86a
-NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_49a9c5ec8ea929319a9db9fe278a6e43ab1fc3c4
+PAYSTACK_SECRET_KEY=your_paystack_secret_key
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 ```
 
@@ -40,7 +40,7 @@ PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 1. ✅ Supabase URL and Keys - Provided above
 2. ✅ Database Connection String - Provided above
 3. ✅ Resend API Key - Provided above
-4. ✅ Paystack Test Keys - Provided above
+4. ✅ Paystack Keys - Provided above
 5. ⏳ Paystack Webhook Secret - Set up in Paystack dashboard (for webhooks)
 6. ⏳ Cloudflare credentials - Get from https://cloudflare.com (optional for dev)
 

@@ -2,15 +2,21 @@ import { prisma } from '@foleio/database';
 
 export async function getFanDashboardData(email: string) {
   const normalizedEmail = email.toLowerCase();
-  const fanUser = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: { id: true },
-  });
+  let fanUser: { id: string } | null = null;
+  try {
+    fanUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error('[fan-dashboard] user lookup failed:', error);
+  }
 
-  const [subscriptions, bookings, tutorials, collections] = await Promise.all([
-    fanUser
-      ? prisma.fanSubscription.findMany({
-          where: { fanId: fanUser.id },
+  let subscriptions: any[] = [];
+  try {
+    subscriptions = fanUser
+      ? await prisma.fanSubscription.findMany({
+          where: { fanId: fanUser.id, status: 'active' },
           include: {
             creator: {
               select: {
@@ -30,8 +36,15 @@ export async function getFanDashboardData(email: string) {
           },
           orderBy: { createdAt: 'desc' },
         })
-      : Promise.resolve([]),
-    prisma.booking.findMany({
+      : [];
+  } catch (error) {
+    console.error('[fan-dashboard] subscriptions query failed:', error);
+    subscriptions = [];
+  }
+
+  let bookings: any[] = [];
+  try {
+    bookings = await prisma.booking.findMany({
       where: { customerEmail: normalizedEmail },
       include: {
         creator: {
@@ -47,8 +60,15 @@ export async function getFanDashboardData(email: string) {
         },
       },
       orderBy: { createdAt: 'desc' },
-    }),
-    prisma.tutorialPurchase.findMany({
+    });
+  } catch (error) {
+    console.error('[fan-dashboard] bookings query failed:', error);
+    bookings = [];
+  }
+
+  let tutorials: any[] = [];
+  try {
+    tutorials = await prisma.tutorialPurchase.findMany({
       where: { email: normalizedEmail },
       include: {
         content: {
@@ -66,9 +86,16 @@ export async function getFanDashboardData(email: string) {
         },
       },
       orderBy: { createdAt: 'desc' },
-    }),
-    prisma.collectionSubscription.findMany({
-      where: { email: normalizedEmail },
+    });
+  } catch (error) {
+    console.error('[fan-dashboard] tutorial purchases query failed:', error);
+    tutorials = [];
+  }
+
+  let collections: any[] = [];
+  try {
+    collections = await prisma.collectionSubscription.findMany({
+      where: { email: normalizedEmail, status: 'active' },
       include: {
         collection: {
           select: {
@@ -85,8 +112,11 @@ export async function getFanDashboardData(email: string) {
         },
       },
       orderBy: { createdAt: 'desc' },
-    }),
-  ]);
+    });
+  } catch (error) {
+    console.error('[fan-dashboard] collection subscriptions query failed:', error);
+    collections = [];
+  }
 
   return {
     subscriptions,

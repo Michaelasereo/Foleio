@@ -8,7 +8,7 @@
 const crypto = require('crypto');
 
 // Replace with your actual values
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || 'sk_test_your_secret_key_here';
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || '';
 const WEBHOOK_URL = 'http://localhost:3000/api/webhooks/paystack';
 
 // Sample booking payment webhook payload
@@ -92,8 +92,13 @@ console.log('   - invoice.payment_succeeded');
 console.log('\n5. Copy your webhook secret key and set it as PAYSTACK_SECRET_KEY in your .env\n');
 
 console.log('🔧 Environment Variables Needed:');
-console.log('NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_your_public_key_here');
-console.log('PAYSTACK_SECRET_KEY=sk_test_your_secret_key_here\n');
+console.log('NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=<your_paystack_public_key>');
+console.log('PAYSTACK_SECRET_KEY=<your_paystack_secret_key>\n');
+
+if (!PAYSTACK_SECRET_KEY) {
+  console.error('❌ PAYSTACK_SECRET_KEY is not set. Export it in your environment before running this script.');
+  process.exit(1);
+}
 
 // Run test if requested
 if (process.argv.includes('--test')) {

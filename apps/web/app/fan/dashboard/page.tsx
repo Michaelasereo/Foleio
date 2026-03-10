@@ -6,6 +6,9 @@ import { getFanDashboardData } from '@/lib/fan-auth/data';
 import { StatusBadge } from '@/components/fan/StatusBadge';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
+
 export default async function FanDashboardPage() {
   const cookieStore = await cookies();
   const session = getFanSessionFromCookieValue(cookieStore.get('fan_session')?.value);
