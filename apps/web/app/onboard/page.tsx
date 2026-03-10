@@ -36,6 +36,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { OnboardingAssistant } from '@/components/ai/OnboardingAssistant';
+import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 
 const step1Schema = z.object({
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
@@ -357,12 +358,11 @@ export default function OnboardingPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="makeup">Makeup</SelectItem>
-                          <SelectItem value="fashion">Fashion</SelectItem>
-                          <SelectItem value="fitness">Fitness</SelectItem>
-                          <SelectItem value="food">Food</SelectItem>
-                          <SelectItem value="lifestyle">Lifestyle</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          {INDUSTRY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

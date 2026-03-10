@@ -52,6 +52,7 @@ import { useRouter } from 'next/navigation';
 import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
 import { ReportContentModal } from '@/components/content/ReportContentModal';
 import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
+import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import foleioLogo from '../../../../foleio-logo.png';
 
 interface Content {
@@ -363,6 +364,8 @@ export function PublicCreatorProfile({
   const hasMorePaidTutorials = paidTutorials.length > 6;
   const isStarterPlan =
     !creator.platformPlan || creator.platformPlan.toUpperCase() === 'STARTER';
+  const industryLabel =
+    INDUSTRY_OPTIONS.find((option) => option.value === creator.category)?.label || creator.category;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -436,7 +439,7 @@ export function PublicCreatorProfile({
 
               <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/15">
-                  {creator.category}
+                  {industryLabel}
                 </Badge>
                 <span>{liveStats?.subscriberCount ?? 0} Subscribers</span>
                 <span>{liveStats?.contentCount ?? 0} Published posts</span>

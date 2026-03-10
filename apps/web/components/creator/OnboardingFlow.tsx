@@ -13,6 +13,7 @@ import { CheckCircle, User, Palette, Link as LinkIcon, Upload, DollarSign } from
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, type PlatformPlan } from '@/lib/utils/plan-limits';
+import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 
 interface OnboardingFlowProps {
   onComplete?: () => void;
@@ -211,15 +212,11 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 required
               >
-                <option value="makeup">Makeup Artist</option>
-                <option value="hair">Hair Stylist</option>
-                <option value="fashion">Fashion Designer</option>
-                <option value="fitness">Fitness Coach</option>
-                <option value="cooking">Chef/Cooking</option>
-                <option value="music">Musician</option>
-                <option value="art">Artist</option>
-                <option value="photography">Photographer</option>
-                <option value="other">Other</option>
+                {INDUSTRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

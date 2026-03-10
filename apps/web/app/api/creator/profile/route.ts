@@ -5,6 +5,49 @@ import { getPlanLimits } from '@/lib/utils/plan-limits';
 
 export const dynamic = 'force-dynamic';
 
+export async function GET() {
+  try {
+    const supabase = await createRouteHandlerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { userId: user.id },
+      select: {
+        displayName: true,
+        username: true,
+        bio: true,
+        avatarUrl: true,
+        category: true,
+        instagramHandle: true,
+        tiktokHandle: true,
+      },
+    });
+
+    if (!creator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      creator: {
+        ...creator,
+        industry: creator.category ?? '',
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: 'Failed to fetch profile', details: error?.message },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: Request) {
   try {
     const supabase = await createRouteHandlerClient();
@@ -25,6 +68,7 @@ export async function PATCH(request: Request) {
       avatarUrl?: string | null;
       instagramHandle?: string | null;
       tiktokHandle?: string | null;
+      category?: string | null;
     } = {};
 
     if (typeof body.username === 'string') {
@@ -90,6 +134,12 @@ export async function PATCH(request: Request) {
       data.tiktokHandle = null;
     }
 
+    if (typeof body.industry === 'string') {
+      data.category = body.industry.trim();
+    } else if (body.industry === null) {
+      data.category = null;
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
@@ -103,6 +153,7 @@ export async function PATCH(request: Request) {
         displayName: true,
         bio: true,
         avatarUrl: true,
+        category: true,
         instagramHandle: true,
         tiktokHandle: true,
       },

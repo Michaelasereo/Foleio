@@ -1,0 +1,18 @@
+export const INDUSTRY_OPTIONS = [
+  { value: 'content_creator', label: 'Content Creator' },
+  { value: 'medical', label: 'Medical' },
+  { value: 'photography', label: 'Photography' },
+  { value: 'lifestyle', label: 'Lifestyle and Vlogs' },
+  { value: 'makeup', label: 'Makeup' },
+  { value: 'coaching', label: 'Coaching' },
+  { value: 'fitness', label: 'Fitness' },
+  { value: 'travel', label: 'Travel and Lifestyle' },
+  { value: 'fashion', label: 'Fashion' },
+  { value: 'food', label: 'Food' },
+  { value: 'music', label: 'Music' },
+  { value: 'writer', label: 'Writer' },
+  { value: 'business', label: 'Business' },
+  { value: 'tech', label: 'Tech' },
+  { value: 'education', label: 'Education' },
+  { value: 'other', label: 'Other' },
+] as const;

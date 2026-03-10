@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { ProfileCardModal } from '@/components/creator/ProfileCardModal';
 import { ProfileCardPreview } from '@/components/creator/ProfileCardPreview';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
+import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 
 type SettingsTab = 'profile' | 'subscription' | 'notifications' | 'billing' | 'security';
 
@@ -27,6 +28,7 @@ interface AccountSettingsTabsProps {
     username: string;
     displayName: string;
     bio?: string | null;
+    category?: string | null;
     avatarUrl?: string | null;
     instagramHandle?: string | null;
     tiktokHandle?: string | null;
@@ -52,6 +54,7 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
   const [username, setUsername] = useState(creator.username || '');
   const [displayName, setDisplayName] = useState(creator.displayName || '');
   const [bio, setBio] = useState(creator.bio || '');
+  const [industry, setIndustry] = useState(creator.category || '');
   const [instagramHandle, setInstagramHandle] = useState(creator.instagramHandle || '');
   const [tiktokHandle, setTiktokHandle] = useState(creator.tiktokHandle || '');
 
@@ -65,6 +68,41 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
     }
     return undefined;
   }, [searchParams]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadProfileSettings() {
+      try {
+        const response = await fetch('/api/creator/profile', {
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !isMounted) return;
+        const profile = payload?.creator || {};
+        setUsername(profile.username ?? creator.username ?? '');
+        setDisplayName(profile.displayName ?? creator.displayName ?? '');
+        setBio(profile.bio ?? creator.bio ?? '');
+        setIndustry(profile.industry ?? creator.category ?? '');
+        setInstagramHandle(profile.instagramHandle ?? creator.instagramHandle ?? '');
+        setTiktokHandle(profile.tiktokHandle ?? creator.tiktokHandle ?? '');
+        setAvatarUrl(profile.avatarUrl ?? creator.avatarUrl ?? null);
+      } catch {
+        // Keep existing server-provided values if profile fetch fails.
+      }
+    }
+    void loadProfileSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    creator.avatarUrl,
+    creator.bio,
+    creator.category,
+    creator.displayName,
+    creator.instagramHandle,
+    creator.tiktokHandle,
+    creator.username,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -221,6 +259,7 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
           username: username.trim(),
           displayName: displayName.trim(),
           bio: bio.trim(),
+          industry,
           avatarUrl: avatarUrl || null,
           instagramHandle: instagramHandle.trim(),
           tiktokHandle: tiktokHandle.trim(),
@@ -431,6 +470,25 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
                 placeholder="Tell your audience who you are..."
                 className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Category</label>
+              <select
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none"
+              >
+                <option value="">Select your category</option>
+                {INDUSTRY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                This shows on your public profile
+              </p>
             </div>
 
             <div>

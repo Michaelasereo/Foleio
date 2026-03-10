@@ -62,6 +62,7 @@ export default async function SettingsPage() {
           username: creator.username,
           displayName: creator.displayName,
           bio: creator.bio,
+          category: creator.category,
           avatarUrl: creator.avatarUrl,
           instagramHandle: creator.instagramHandle,
           tiktokHandle: creator.tiktokHandle,
