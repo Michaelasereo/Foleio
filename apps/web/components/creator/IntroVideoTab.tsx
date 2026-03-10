@@ -65,6 +65,17 @@ export function IntroVideoTab({
   const [renameValue, setRenameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const parseSafeJson = async (response: Response) => {
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text) as any;
+    } catch {
+      console.error('[intro-upload] Non-JSON response:', text);
+      throw new Error('Server returned an unexpected response. Please try again.');
+    }
+  };
+
   // Get the selected video details for preview
   const selectedVideo = videoOptions.find(v => v.id === selectedVideoId);
 
@@ -179,12 +190,10 @@ export function IntroVideoTab({
         body: formData,
       });
 
+      const data = await parseSafeJson(response);
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
+        throw new Error(data.error || 'Upload failed');
       }
-
-      const data = await response.json();
 
       // Poll for video processing
       if (data.data?.muxUploadId) {
@@ -192,34 +201,48 @@ export function IntroVideoTab({
         const maxAttempts = 60;
         
         const pollStatus = async () => {
-          const statusResponse = await fetch(`/api/upload/status/${data.data.muxUploadId}`);
-          const statusData = await statusResponse.json();
-          
-          if (statusData.ready && statusData.contentId) {
-            // Video is ready, set it as intro video
-            const result = await setIntroVideo(statusData.contentId);
-            if (result.success) {
-              toast({
-                title: 'Success',
-                description: 'Video uploaded and set as intro video',
-              });
-              router.refresh();
+          try {
+            const statusResponse = await fetch(`/api/upload/status/${data.data.muxUploadId}`);
+            const statusData = await parseSafeJson(statusResponse);
+
+            if (!statusResponse.ok) {
+              throw new Error(statusData.error || 'Failed to check upload status');
             }
-            setIsUploading(false);
-          } else if (statusData.error) {
+
+            if (statusData.ready && statusData.contentId) {
+              // Video is ready, set it as intro video
+              const result = await setIntroVideo(statusData.contentId);
+              if (result.success) {
+                toast({
+                  title: 'Success',
+                  description: 'Video uploaded and set as intro video',
+                });
+                router.refresh();
+              }
+              setIsUploading(false);
+            } else if (statusData.error) {
+              toast({
+                title: 'Error',
+                description: statusData.error,
+                variant: 'destructive',
+              });
+              setIsUploading(false);
+            } else if (attempts < maxAttempts) {
+              attempts++;
+              setTimeout(pollStatus, 2000);
+            } else {
+              toast({
+                title: 'Timeout',
+                description: 'Video processing is taking longer than expected',
+                variant: 'destructive',
+              });
+              setIsUploading(false);
+            }
+          } catch (pollError: any) {
+            console.error('Status polling error:', pollError);
             toast({
-              title: 'Error',
-              description: statusData.error,
-              variant: 'destructive',
-            });
-            setIsUploading(false);
-          } else if (attempts < maxAttempts) {
-            attempts++;
-            setTimeout(pollStatus, 2000);
-          } else {
-            toast({
-              title: 'Timeout',
-              description: 'Video processing is taking longer than expected',
+              title: 'Upload failed',
+              description: pollError?.message || 'Could not verify upload status. Please try again.',
               variant: 'destructive',
             });
             setIsUploading(false);
