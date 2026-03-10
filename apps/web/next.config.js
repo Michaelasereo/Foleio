@@ -27,6 +27,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.githubusercontent.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'image.mux.com',
+      },
     ],
     formats: ['image/avif', 'image/webp'],
   },

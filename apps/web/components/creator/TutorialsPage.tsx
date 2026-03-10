@@ -505,7 +505,7 @@ function TutorialCard({
   const isPremium = content.accessType !== 'free';
   const showLock = isPremium && !isVerified;
   const generatedThumbnailUrl = content.muxPlaybackId
-    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg`
+    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`
     : null;
   const thumbnailUrl = getThumbnailUrl({
     id: content.id,
@@ -527,13 +527,16 @@ function TutorialCard({
           <img
             src={thumbnailUrl}
             alt={content.title}
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
             onError={(event) => {
-              if (content.muxPlaybackId) {
-                event.currentTarget.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=0`;
+              const target = event.currentTarget;
+              if (content.muxPlaybackId && !target.src.includes('time=1')) {
+                target.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`;
                 return;
               }
-              event.currentTarget.style.display = 'none';
+              target.style.display = 'none';
             }}
           />
         ) : (

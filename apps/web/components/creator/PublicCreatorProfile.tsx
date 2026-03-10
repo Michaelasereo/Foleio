@@ -1003,7 +1003,7 @@ function ContentCard({ content, onClick, isVerified, isPlaying, onReport }: Cont
   const showPlayIcon = content.type === 'video';
   const isCollectionContent = Boolean(content.collectionId && content.collection);
   const generatedThumbnailUrl = content.muxPlaybackId
-    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg`
+    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`
     : null;
   const thumbnailUrl = getThumbnailUrl({
     id: content.id,
@@ -1025,13 +1025,16 @@ function ContentCard({ content, onClick, isVerified, isPlaying, onReport }: Cont
           <img
             src={thumbnailUrl}
             alt={content.title}
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
             onError={(event) => {
-              if (content.muxPlaybackId) {
-                event.currentTarget.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=0`;
+              const target = event.currentTarget;
+              if (content.muxPlaybackId && !target.src.includes('time=1')) {
+                target.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`;
                 return;
               }
-              event.currentTarget.style.display = 'none';
+              target.style.display = 'none';
             }}
           />
         ) : (

@@ -23,7 +23,7 @@ export function getThumbnailUrl(content: {
     return content.thumbnailUrl;
   }
   if (content.muxPlaybackId) {
-    return `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg`;
+    return `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`;
   }
   return null;
 }
