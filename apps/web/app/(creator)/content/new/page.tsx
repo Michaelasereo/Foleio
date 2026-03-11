@@ -267,9 +267,20 @@ export default function NewContentPage() {
         );
       }
 
-      const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
+      const allowedTypesByContentType: Record<string, string[]> = {
+        video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'],
+        image: ['image/jpeg', 'image/png', 'image/webp'],
+        pdf: ['application/pdf'],
+      };
+      const allowedTypes = allowedTypesByContentType[contentType] || [];
       if (!allowedTypes.includes(file.type)) {
-        throw new Error(`Unsupported file type: ${file.type}. Allowed: MP4, WebM, MOV, MKV`);
+        throw new Error(
+          contentType === 'video'
+            ? `Unsupported file type: ${file.type}. Allowed: MP4, WebM, MOV, MKV`
+            : contentType === 'image'
+              ? `Unsupported file type: ${file.type}. Allowed: JPEG, PNG, WebP`
+              : `Unsupported file type: ${file.type}. Allowed: PDF`
+        );
       }
 
       if (contentType === 'video') {

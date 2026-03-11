@@ -449,7 +449,14 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => window.open(`/creator/${creator.username}/content/${item.id}`, '_blank')}
+                  onClick={() =>
+                    window.open(
+                      item.isPublished
+                        ? `/creator/${creator.username}/content/${item.id}`
+                        : `/dashboard/content/${item.id}/edit`,
+                      '_blank'
+                    )
+                  }
                 >
                   View
                 </Button>

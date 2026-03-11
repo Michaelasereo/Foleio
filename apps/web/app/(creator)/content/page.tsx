@@ -147,7 +147,7 @@ export default async function ContentPage() {
         </TabsList>
         <TabsContent value="content" className="mt-6">
           <ContentList
-            content={content}
+            content={serializeForClient(content)}
             creator={serializeForClient(creator)}
             collections={collections.map((collection) => ({
               id: collection.id,
