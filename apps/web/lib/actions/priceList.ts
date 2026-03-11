@@ -6,9 +6,12 @@ import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const priceListItemSchema = z.object({
+  serviceType: z.enum(['general', 'coaching', 'consultation']).default('general'),
   category: z.string().optional().nullable(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().nullable(),
+  sessionDescription: z.string().optional().nullable(),
+  calendlyLink: z.string().url('Enter a valid URL').optional().nullable().or(z.literal('')),
   price: z.number().min(0, 'Price must be positive'),
   durationMinutes: z.number().optional().nullable(),
   orderIndex: z.number().optional(),
@@ -76,11 +79,17 @@ export async function createPriceListItem(data: PriceListItemInput) {
     const item = await prisma.priceListItem.create({
       data: {
         creatorId: creator.id,
+        serviceType: data.serviceType || 'general',
         category: data.category || null,
         name: data.name,
         description: data.description || null,
+        sessionDescription: data.sessionDescription || null,
+        calendlyLink: data.calendlyLink || null,
         price: data.price,
-        durationMinutes: data.durationMinutes || null,
+        durationMinutes:
+          data.serviceType === 'coaching' || data.serviceType === 'consultation'
+            ? data.durationMinutes || null
+            : null,
         orderIndex: data.orderIndex ?? (maxOrder?.orderIndex || 0) + 1,
         categoryOrderIndex: categoryOrderIndex || 0,
       },
@@ -125,10 +134,18 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
       where: { id: itemId },
       data: {
         ...(data.category !== undefined && { category: data.category || null }),
+        ...(data.serviceType !== undefined && { serviceType: data.serviceType }),
         ...(data.name && { name: data.name }),
         ...(data.description !== undefined && { description: data.description || null }),
+        ...(data.sessionDescription !== undefined && { sessionDescription: data.sessionDescription || null }),
+        ...(data.calendlyLink !== undefined && { calendlyLink: data.calendlyLink || null }),
         ...(data.price !== undefined && { price: data.price }),
-        ...(data.durationMinutes !== undefined && { durationMinutes: data.durationMinutes || null }),
+        ...(data.durationMinutes !== undefined && {
+          durationMinutes:
+            data.serviceType === 'coaching' || data.serviceType === 'consultation'
+              ? data.durationMinutes || null
+              : null,
+        }),
         ...(data.orderIndex !== undefined && { orderIndex: data.orderIndex }),
         ...(data.categoryOrderIndex !== undefined && { categoryOrderIndex: data.categoryOrderIndex }),
       },

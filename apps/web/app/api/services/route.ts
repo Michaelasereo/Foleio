@@ -42,6 +42,9 @@ export async function GET(request: Request) {
         category: service.category,
         name: service.name,
         description: service.description,
+        serviceType: service.serviceType,
+        sessionDescription: service.sessionDescription,
+        calendlyLink: service.calendlyLink,
         price: service.price,
         durationMinutes: service.durationMinutes,
         orderIndex: service.orderIndex,
@@ -96,7 +99,10 @@ export async function POST(request: Request) {
       name,
       description,
       price,
-      durationMinutes
+      durationMinutes,
+      serviceType,
+      calendlyLink,
+      sessionDescription,
     } = body;
 
     // Validate required fields
@@ -138,11 +144,28 @@ export async function POST(request: Request) {
     const service = await prisma.priceListItem.create({
       data: {
         creatorId: creator.id,
+        serviceType:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? serviceType
+            : 'general',
         category: category?.trim() || null,
         name: name.trim(),
         description: description?.trim(),
+        sessionDescription:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? sessionDescription?.trim() || null
+            : null,
+        calendlyLink:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? calendlyLink?.trim() || null
+            : null,
         price: parseInt(price),
-        durationMinutes: durationMinutes ? parseInt(durationMinutes) : null,
+        durationMinutes:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? durationMinutes
+              ? parseInt(durationMinutes)
+              : null
+            : null,
         orderIndex,
         categoryOrderIndex,
         isActive: true
@@ -162,6 +185,9 @@ export async function POST(request: Request) {
       category: service.category,
       name: service.name,
       description: service.description,
+      serviceType: service.serviceType,
+      sessionDescription: service.sessionDescription,
+      calendlyLink: service.calendlyLink,
       price: service.price,
       durationMinutes: service.durationMinutes,
       orderIndex: service.orderIndex,

@@ -71,7 +71,7 @@ const linkTypeOptions = [
   { value: 'youtube', label: 'YouTube', icon: Youtube },
   { value: 'twitter', label: 'Twitter/X', icon: Twitter },
   { value: 'tiktok', label: 'TikTok', icon: Link },
-  { value: 'price_list', label: 'Price List', icon: FileText },
+  { value: 'price_list', label: 'Services', icon: FileText },
   { value: 'custom', label: 'Custom Link', icon: Link },
 ];
 
@@ -169,7 +169,7 @@ export function CreatorLinksManager() {
     form.setValue('linkType', value as any);
     
     if (value === 'price_list') {
-      form.setValue('label', 'View Price List');
+      form.setValue('label', 'View Services');
       form.setValue('url', '#price-list'); // Special marker
     }
   }
@@ -274,7 +274,7 @@ export function CreatorLinksManager() {
                   )}
                   {selectedLinkType === 'price_list' && (
                     <p className="text-sm text-muted-foreground">
-                      This will open your price list modal on your public profile.
+                      This will open your services modal on your public profile.
                     </p>
                   )}
                   <DialogFooter>

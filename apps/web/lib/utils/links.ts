@@ -28,7 +28,7 @@ export const LINK_TYPES = [
   { value: 'tiktok', label: 'TikTok' },
   { value: 'twitter', label: 'Twitter / X' },
   { value: 'youtube', label: 'YouTube' },
-  { value: 'price_list', label: 'Price List' },
+  { value: 'price_list', label: 'Services' },
   { value: 'custom', label: 'Custom Link' },
 ] as const;
 

@@ -47,6 +47,9 @@ export async function PUT(
       description,
       price,
       durationMinutes,
+      serviceType,
+      calendlyLink,
+      sessionDescription,
       isActive
     } = body;
 
@@ -69,11 +72,28 @@ export async function PUT(
     const updatedService = await prisma.priceListItem.update({
       where: { id },
       data: {
+        serviceType:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? serviceType
+            : 'general',
         category: category?.trim() || null,
         name: name.trim(),
         description: description?.trim(),
+        sessionDescription:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? sessionDescription?.trim() || null
+            : null,
+        calendlyLink:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? calendlyLink?.trim() || null
+            : null,
         price: parseInt(price),
-        durationMinutes: durationMinutes ? parseInt(durationMinutes) : null,
+        durationMinutes:
+          serviceType === 'coaching' || serviceType === 'consultation'
+            ? durationMinutes
+              ? parseInt(durationMinutes)
+              : null
+            : null,
         isActive: isActive !== undefined ? isActive : existingService.isActive
       },
       include: {
@@ -91,6 +111,9 @@ export async function PUT(
       category: updatedService.category,
       name: updatedService.name,
       description: updatedService.description,
+      serviceType: updatedService.serviceType,
+      sessionDescription: updatedService.sessionDescription,
+      calendlyLink: updatedService.calendlyLink,
       price: updatedService.price,
       durationMinutes: updatedService.durationMinutes,
       orderIndex: updatedService.orderIndex,

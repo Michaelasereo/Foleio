@@ -28,9 +28,12 @@ import { Calendar, Clock, ArrowLeft, Check, Loader2 } from 'lucide-react';
 
 interface PriceListItem {
   id: string;
+  serviceType?: string | null;
   category: string | null;
   name: string;
   description: string | null;
+  sessionDescription?: string | null;
+  calendlyLink?: string | null;
   price: number;
   durationMinutes: number | null;
 }

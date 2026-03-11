@@ -11,6 +11,7 @@ import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, getPlanLimits } from '@/lib/utils/plan-limits';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
 import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
+import { cn } from '@/lib/utils';
 import {
   Search,
   LayoutGrid,
@@ -22,6 +23,7 @@ import {
   FolderInput,
   Trash2,
   GripVertical,
+  FileText,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { EditContentModal } from '@/components/content/EditContentModal';
@@ -64,7 +66,7 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [filterType, setFilterType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [tab, setTab] = useState<'published' | 'drafts'>('published');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -134,15 +136,40 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
           item.accessType !== 'free' &&
           (item.tutorialPrice ?? 0) > 0);
 
-      const matchStatus =
-        filterStatus === 'all' ||
-        (filterStatus === 'published' && item.isPublished) ||
-        (filterStatus === 'draft' && !item.isPublished);
-
-      return matchSearch && matchType && matchStatus;
+      return matchSearch && matchType;
     });
     return sortContent(filtered, sortBy);
-  }, [items, search, filterType, filterStatus, sortBy]);
+  }, [items, search, filterType, sortBy]);
+
+  const published = useMemo(
+    () => filteredContent.filter((item) => item.isPublished),
+    [filteredContent]
+  );
+  const drafts = useMemo(
+    () => filteredContent.filter((item) => !item.isPublished),
+    [filteredContent]
+  );
+  const visibleContent = tab === 'published' ? published : drafts;
+
+  const allPublishedCount = useMemo(
+    () => items.filter((item) => item.isPublished).length,
+    [items]
+  );
+  const allDraftCount = useMemo(
+    () => items.filter((item) => !item.isPublished).length,
+    [items]
+  );
+
+  function formatRelativeDate(value: string | Date) {
+    const date = new Date(value);
+    const diffMs = Date.now() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return 'just now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return formatDate(date);
+  }
 
   async function handleTogglePublish(item: any) {
     setOpenMenu(null);
@@ -168,6 +195,21 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
         )
       );
     }
+  }
+
+  async function handlePublishDraft(itemId: string) {
+    const response = await fetch(`/api/creator/content/${itemId}/publish`, {
+      method: 'POST',
+    });
+    if (!response.ok) return;
+    setItems((prev: any[]) =>
+      prev.map((entry) =>
+        entry.id === itemId
+          ? { ...entry, isPublished: true, publishedAt: new Date().toISOString() }
+          : entry
+      )
+    );
+    setTab('published');
   }
 
   function handleMoveToCollection(item: any) {
@@ -232,6 +274,42 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="w-full">
+          <div className="mb-3 flex w-fit gap-1 rounded-xl bg-muted p-1">
+            <button
+              onClick={() => setTab('published')}
+              className={cn(
+                'rounded-lg px-4 py-2 text-sm font-medium transition-all',
+                tab === 'published'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              type="button"
+            >
+              Published
+              <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+                {allPublishedCount}
+              </span>
+            </button>
+            <button
+              onClick={() => setTab('drafts')}
+              className={cn(
+                'rounded-lg px-4 py-2 text-sm font-medium transition-all',
+                tab === 'drafts'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              type="button"
+            >
+              Drafts
+              {allDraftCount > 0 ? (
+                <span className="ml-2 rounded-full bg-yellow-100 px-1.5 py-0.5 text-xs text-yellow-700">
+                  {allDraftCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        </div>
         <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -268,16 +346,6 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
           <option value="paid">Paid</option>
         </select>
 
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value="all">Published & Draft</option>
-          <option value="published">Published only</option>
-          <option value="draft">Drafts only</option>
-        </select>
-
         <div className="flex items-center gap-1 rounded-lg border border-border p-1">
           <button
             onClick={() => setView('grid')}
@@ -295,12 +363,70 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
       </div>
 
       <p className="mb-4 text-sm text-muted-foreground">
-        {filteredContent.length} of {items.length} videos
+        {visibleContent.length} of {items.length} videos
         {search ? ` matching "${search}"` : ''}
       </p>
 
-      <div className={view === 'grid' ? 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' : 'space-y-3'}>
-        {filteredContent.map((item) => (
+      {tab === 'drafts' && drafts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+            <FileText className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="mb-2 font-semibold">No drafts yet</h3>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Save content as a draft to continue editing before publishing.
+          </p>
+        </div>
+      ) : null}
+
+      {tab === 'drafts' && drafts.length > 0 ? (
+        <div className="space-y-3">
+          {drafts.map((draft) => (
+            <div
+              key={draft.id}
+              className="group flex items-center gap-4 rounded-2xl border border-border bg-white p-4"
+            >
+              <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-muted">
+                {getThumbnailUrl(draft) ? (
+                  <img
+                    src={getThumbnailUrl(draft) || ''}
+                    alt={draft.title}
+                    crossOrigin="anonymous"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-muted">
+                    <FileText className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="absolute left-1 top-1 rounded-md bg-yellow-400 px-1.5 py-0.5 text-xs font-bold text-yellow-900">
+                  Draft
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-foreground">
+                  {draft.title || 'Untitled draft'}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Last edited {formatRelativeDate(draft.updatedAt || draft.createdAt)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                <Button variant="outline" size="sm" onClick={() => setEditingContent(draft)}>
+                  Edit
+                </Button>
+                <Button size="sm" onClick={() => handlePublishDraft(draft.id)}>
+                  Publish
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {tab === 'published' ? (
+        <div className={view === 'grid' ? 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' : 'space-y-3'}>
+          {published.map((item) => (
           <Card
             key={item.id}
             className={`overflow-visible ${view === 'list' ? 'p-0' : ''}`}
@@ -473,8 +599,9 @@ export function ContentList({ content, creator, collections = [] }: ContentListP
               </div>
             </div>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       {items.length === 0 && (
         <Card>

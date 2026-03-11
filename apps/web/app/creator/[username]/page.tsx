@@ -164,6 +164,10 @@ export default async function CreatorPublicPage({
         },
         orderBy: { publishedAt: 'desc' },
       },
+      products: {
+        where: { status: 'active' },
+        select: { id: true },
+      },
     },
   });
 
@@ -379,6 +383,7 @@ export default async function CreatorPublicPage({
       tutorialCollections={serializeForClient(tutorialCollections)}
       journalEntries={serializeForClient(creator.journalEntries)}
       groupedPriceList={serializeForClient(groupedPriceList)}
+      hasActiveProducts={creator.products.length > 0}
     />
   );
 }

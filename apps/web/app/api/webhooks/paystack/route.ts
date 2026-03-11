@@ -5,7 +5,7 @@ import { webhookQueue, queues } from '@/lib/queue/queue-manager';
 import { withRateLimit, rateLimiters } from '@/lib/rate-limit/rate-limiter';
 import { prisma } from '@foleio/database';
 import { sendSubscriptionConfirmation } from '@/lib/email/send';
-import { sendEmail } from '@/lib/email/resend';
+import { sendEmail, sendOrderConfirmationEmail } from '@/lib/email/resend';
 import { paymentFailedTemplate, payoutConfirmationTemplate } from '@/lib/email/templates/nudges';
 import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
 import { formatNaira } from '@foleio/utils';
@@ -351,6 +351,59 @@ async function handleChargeSuccess(eventData: any) {
         if (process.env.NODE_ENV === 'production') {
           throw error;
         }
+      }
+      return;
+    }
+
+    if (metadata?.type === 'shop_order' && metadata?.orderId) {
+      try {
+        const updatedOrder = await prisma.order.update({
+          where: { id: metadata.orderId },
+          data: { status: 'confirmed' },
+          include: {
+            creator: { select: { displayName: true } },
+            items: {
+              include: {
+                product: { select: { name: true } },
+              },
+            },
+            deliveryTier: true,
+          },
+        });
+
+        const deliveryAddress = (updatedOrder.deliveryAddress || {}) as Record<string, string>;
+        const recipientEmail = String(deliveryAddress.email || '').trim();
+        if (recipientEmail) {
+          void sendOrderConfirmationEmail({
+            email: recipientEmail,
+            fanName: deliveryAddress.name,
+            orderId: updatedOrder.id,
+            items: updatedOrder.items.map((item) => ({
+              name: item.product?.name || 'Product',
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+            deliveryAddress: {
+              address: deliveryAddress.address,
+              city: deliveryAddress.city,
+              state: deliveryAddress.state,
+            },
+            deliveryTier: updatedOrder.deliveryTier
+              ? {
+                  name: updatedOrder.deliveryTier.name,
+                  estimatedDays: updatedOrder.deliveryTier.estimatedDays || undefined,
+                }
+              : null,
+            subtotal: updatedOrder.subtotal,
+            deliveryFee: updatedOrder.deliveryFee,
+            total: updatedOrder.total,
+            creatorName: updatedOrder.creator.displayName,
+          });
+        }
+
+        console.log('[webhook] shop order confirmed:', metadata.orderId);
+      } catch (err) {
+        console.error('[webhook] shop order update failed:', err);
       }
       return;
     }

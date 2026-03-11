@@ -49,8 +49,8 @@ export default function AddDummyDataPage() {
           <CardDescription>
             This will add:
             <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>2 Price List Items (Full Makeup Application, Bridal Makeup Package)</li>
-              <li>4 Creator Links (Instagram, TikTok, YouTube, Price List)</li>
+              <li>2 Services (Full Makeup Application, Bridal Makeup Package)</li>
+              <li>4 Creator Links (Instagram, TikTok, YouTube, Services)</li>
               <li>3 Tutorial Videos</li>
               <li>2 Regular Content Items</li>
               <li>1 Intro Video (set to first tutorial)</li>
@@ -87,7 +87,7 @@ export default function AddDummyDataPage() {
                 <p className="text-sm font-medium text-green-900">Success!</p>
               </div>
               <div className="text-sm text-green-800 space-y-1">
-                <p>✅ Price List Items: {result.data?.priceListItems || 0}</p>
+                <p>✅ Services: {result.data?.priceListItems || 0}</p>
                 <p>✅ Creator Links: {result.data?.links || 0}</p>
                 <p>✅ Tutorial Videos: {result.data?.tutorials || 0}</p>
                 <p>✅ Regular Content: {result.data?.regularContent || 0}</p>

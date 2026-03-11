@@ -144,3 +144,107 @@ export async function sendWelcomeEmail({
     return { success: false };
   }
 }
+
+type OrderConfirmationEmailProps = {
+  email: string;
+  fanName?: string;
+  orderId: string;
+  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+  deliveryAddress: {
+    address?: string;
+    city?: string;
+    state?: string;
+  };
+  deliveryTier?: {
+    name?: string;
+    estimatedDays?: string;
+  } | null;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  creatorName: string;
+};
+
+export async function sendOrderConfirmationEmail({
+  email,
+  fanName,
+  orderId,
+  items,
+  deliveryAddress,
+  deliveryTier,
+  subtotal,
+  deliveryFee,
+  total,
+  creatorName,
+}: OrderConfirmationEmailProps) {
+  if (!canSendEmails()) {
+    console.log('📧 Email skipped (dev mode):', `Order confirmed — ${creatorName}`, email);
+    return { success: true };
+  }
+
+  const itemsHtml = items
+    .map(
+      (item) =>
+        `<tr>
+          <td style="padding:8px 0;font-size:14px;color:#1C1008;">${item.quantity}x ${item.name}</td>
+          <td style="padding:8px 0;font-size:14px;color:#1C1008;text-align:right;">₦${(
+            (item.unitPrice * item.quantity) /
+            100
+          ).toLocaleString('en-NG')}</td>
+        </tr>`
+    )
+    .join('');
+
+  try {
+    await resend.emails.send({
+      from: 'Foleio <hello@foleio.com>',
+      to: email,
+      subject: `Order confirmed — ${creatorName}'s Shop 🎉`,
+      html: baseEmailTemplate({
+        previewText: "Your order has been confirmed. Here's your summary.",
+        body: `
+          <h1 style="font-size:28px;color:#1C1008;margin:0 0 12px;">Order Confirmed! 🎉</h1>
+          <p style="font-size:15px;color:#6B5E52;line-height:1.6;">
+            Hi ${fanName || 'there'}, your order from <strong>${creatorName}</strong> has been confirmed.
+          </p>
+
+          <div style="margin:20px 0;padding:16px;border:1px solid #F0EAE0;border-radius:12px;">
+            <p style="margin:0 0 10px;font-size:13px;color:#9E8E82;">Order ID</p>
+            <p style="margin:0;font-weight:700;color:#1C1008;">#${orderId.slice(-8).toUpperCase()}</p>
+          </div>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+            ${itemsHtml}
+          </table>
+
+          <div style="border-top:1px solid #F0EAE0;padding-top:12px;margin-bottom:16px;">
+            <p style="margin:4px 0;font-size:14px;color:#6B5E52;">Subtotal: ₦${(subtotal / 100).toLocaleString('en-NG')}</p>
+            <p style="margin:4px 0;font-size:14px;color:#6B5E52;">Delivery: ₦${(deliveryFee / 100).toLocaleString('en-NG')}</p>
+            <p style="margin:8px 0 0;font-size:16px;font-weight:700;color:#1C1008;">Total: ₦${(total / 100).toLocaleString('en-NG')}</p>
+          </div>
+
+          <div style="margin:20px 0;padding:16px;border:1px solid #F0EAE0;border-radius:12px;">
+            <p style="margin:0 0 8px;font-size:13px;color:#9E8E82;">Delivery</p>
+            <p style="margin:0;font-size:14px;color:#1C1008;">
+              ${deliveryAddress.address || ''} ${deliveryAddress.city || ''} ${deliveryAddress.state || ''}
+            </p>
+            <p style="margin:6px 0 0;font-size:13px;color:#6B5E52;">
+              ${deliveryTier?.name || 'Digital delivery'} ${deliveryTier?.estimatedDays ? `· ${deliveryTier.estimatedDays}` : ''}
+            </p>
+          </div>
+
+          <div style="text-align:center;margin:24px 0;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL}/fan/dashboard"
+              style="display:inline-block;background:#F97316;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;">
+              Track your order →
+            </a>
+          </div>
+        `,
+      }),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Order confirmation email send error:', error);
+    return { success: false };
+  }
+}

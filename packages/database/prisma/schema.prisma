@@ -166,6 +166,9 @@ model Creator {
   platformSubscriptions PlatformSubscription[]
   creatorLinks      CreatorLink[]
   priceListItems    PriceListItem[]
+  products          Product[]
+  deliveryTiers     DeliveryTier[]
+  orders            Order[]
   availability      CreatorAvailability[]
   bookings          Booking[]
   emailSubscriptions EmailSubscription[]
@@ -586,9 +589,12 @@ model CreatorLink {
 model PriceListItem {
   id               String   @id @default(uuid())
   creatorId        String   @map("creator_id")
+  serviceType      String   @default("general") @map("service_type")
   category         String?  // Optional category/group name (e.g., "HOME SERVICE", "PHOTOSHOOT MAKEUP")
   name             String   // Item name (e.g., "MAINLAND 1", "ONE OUTFIT")
   description      String?  // Optional description/notes
+  sessionDescription String? @map("session_description")
+  calendlyLink     String?  @map("calendly_link")
   price            Int      // in kobo
   durationMinutes  Int?     @map("duration_minutes") // Estimated service duration
   orderIndex       Int      @default(0) @map("order_index") // Order within category
@@ -607,6 +613,103 @@ model PriceListItem {
   @@index([category])
   @@index([orderIndex])
   @@index([isActive])
+}
+
+// Shop products (physical or digital)
+model Product {
+  id             String   @id @default(uuid())
+  creatorId      String   @map("creator_id")
+  name           String
+  description    String?
+  price          Int      // in kobo
+  weight         Float?   // kg, for physical only
+  type           String   @default("physical") // physical | digital
+  imageUrl       String?  @map("image_url")
+  digitalFileUrl String?  @map("digital_file_url")
+  stock          Int?     // null = unlimited
+  status         String   @default("draft") // draft | active
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  creator      Creator          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  variants     ProductVariant[]
+  orderItems   OrderItem[]
+
+  @@map("products")
+  @@index([creatorId])
+  @@index([status])
+}
+
+model ProductVariant {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  name      String   // e.g. Size, Color, Scent
+  options   String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_variants")
+  @@index([productId])
+}
+
+model DeliveryTier {
+  id            String   @id @default(uuid())
+  creatorId     String   @map("creator_id")
+  name          String
+  description   String?
+  flatRate      Int      @map("flat_rate") // in kobo
+  estimatedDays String?  @map("estimated_days")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@map("delivery_tiers")
+  @@index([creatorId])
+}
+
+model Order {
+  id                String   @id @default(uuid())
+  fanId             String   @map("fan_id")
+  creatorId         String   @map("creator_id")
+  deliveryTierId    String?  @map("delivery_tier_id")
+  deliveryAddress   Json     @map("delivery_address") // {name,email,phone,address,city,state}
+  subtotal          Int      // in kobo
+  deliveryFee       Int      @map("delivery_fee") // in kobo
+  total             Int      // in kobo
+  status            String   @default("pending")
+  paystackReference String?  @map("paystack_reference")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  creator      Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  deliveryTier DeliveryTier? @relation(fields: [deliveryTierId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+
+  @@map("orders")
+  @@index([fanId])
+  @@index([creatorId])
+  @@index([deliveryTierId])
+  @@index([status])
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String   @map("order_id")
+  productId       String   @map("product_id")
+  variantSelected Json?    @map("variant_selected")
+  quantity        Int      @default(1)
+  unitPrice       Int      @map("unit_price") // in kobo at purchase time
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
 }
 
 // Creator Availability (available dates for booking)

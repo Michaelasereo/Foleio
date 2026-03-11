@@ -53,6 +53,7 @@ import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
 import { ReportContentModal } from '@/components/content/ReportContentModal';
 import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
+import { ShopTab } from '@/components/shop/ShopTab';
 import foleioLogo from '../../../../foleio-logo.png';
 
 interface Content {
@@ -85,9 +86,12 @@ interface CreatorLink {
 
 interface PriceListItem {
   id: string;
+  serviceType?: string | null;
   category: string | null;
   name: string;
   description: string | null;
+  sessionDescription?: string | null;
+  calendlyLink?: string | null;
   price: number;
   durationMinutes: number | null;
 }
@@ -157,6 +161,7 @@ interface PublicCreatorProfileProps {
     publishedAt: Date | null;
   }[];
   groupedPriceList: GroupedPriceList[];
+  hasActiveProducts: boolean;
 }
 
 interface TutorialCollection {
@@ -197,6 +202,7 @@ export function PublicCreatorProfile({
   tutorialCollections,
   journalEntries,
   groupedPriceList,
+  hasActiveProducts,
 }: PublicCreatorProfileProps) {
   const fetcher = async (url: string) => {
     const response = await fetch(url, { cache: 'no-store' });
@@ -233,7 +239,7 @@ export function PublicCreatorProfile({
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [collectionSubscriptionOpen, setCollectionSubscriptionOpen] = useState(false);
   const [verifiedCollectionIds, setVerifiedCollectionIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'Content' | 'Journal' | 'About'>('Content');
+  const [activeTab, setActiveTab] = useState<'Content' | 'Journal' | 'Shop' | 'About'>('Content');
   const [trackedViewIds, setTrackedViewIds] = useState<Set<string>>(new Set());
   const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
@@ -478,7 +484,7 @@ export function PublicCreatorProfile({
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
         <div className="mb-2 flex border-b border-border">
-          {(['Content', 'Journal', 'About'] as const).map((tab) => (
+          {(['Content', 'Journal', ...(hasActiveProducts ? (['Shop'] as const) : []), 'About'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -525,6 +531,8 @@ export function PublicCreatorProfile({
             </CardContent>
           </Card>
         ) : null}
+
+        {activeTab === 'Shop' ? <ShopTab username={creator.username} /> : null}
 
         {activeTab === 'Content' ? (
           <>

@@ -82,6 +82,8 @@ export async function sendBookingConfirmation(data: {
   amount: number;
   trackingToken: string;
   trackingUrl: string;
+  serviceType?: string | null;
+  calendlyLink?: string | null;
 }) {
   try {
     const { subject, html } = bookingConfirmationEmail(data);

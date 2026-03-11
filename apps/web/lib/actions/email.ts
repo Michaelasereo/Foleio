@@ -96,6 +96,8 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
       amount: booking.totalAmount / 100,
       trackingToken: booking.trackingToken,
       trackingUrl,
+      serviceType: booking.priceListItem.serviceType,
+      calendlyLink: booking.priceListItem.calendlyLink,
     });
 
     return { success: true, trackingUrl };

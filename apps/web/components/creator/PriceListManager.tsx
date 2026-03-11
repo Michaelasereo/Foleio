@@ -35,6 +35,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   createPriceListItem,
   updatePriceListItem,
@@ -44,9 +45,12 @@ import {
 } from '@/lib/actions/priceList';
 
 const priceItemSchema = z.object({
+  serviceType: z.enum(['general', 'coaching', 'consultation']).default('general'),
   category: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
+  sessionDescription: z.string().optional(),
+  calendlyLink: z.string().optional(),
   price: z.number().min(100, 'Minimum price is ₦1'),
   durationMinutes: z.number().optional(),
 });
@@ -55,9 +59,12 @@ type PriceItemInput = z.infer<typeof priceItemSchema>;
 
 interface PriceListItem {
   id: string;
+  serviceType: string | null;
   category: string | null;
   name: string;
   description: string | null;
+  sessionDescription: string | null;
+  calendlyLink: string | null;
   price: number;
   durationMinutes: number | null;
   orderIndex: number;
@@ -70,6 +77,24 @@ interface PriceListManagerProps {
   initialPriceList?: PriceListItem[];
 }
 
+const SERVICE_TYPES = [
+  {
+    value: 'general',
+    label: 'General',
+    description: 'Custom service with your standard flow.',
+  },
+  {
+    value: 'coaching',
+    label: 'Coaching / 1-on-1',
+    description: 'Structured sessions with duration and scheduling link.',
+  },
+  {
+    value: 'consultation',
+    label: 'Consultation',
+    description: 'Expert advice sessions with booking link.',
+  },
+] as const;
+
 export function PriceListManager({ creatorId, initialPriceList }: PriceListManagerProps) {
   const [items, setItems] = useState<PriceListItem[]>(initialPriceList || []);
   const [isLoading, setIsLoading] = useState(!initialPriceList);
@@ -80,13 +105,17 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
   const form = useForm<PriceItemInput>({
     resolver: zodResolver(priceItemSchema),
     defaultValues: {
+      serviceType: 'general',
       category: '',
       name: '',
       description: '',
+      sessionDescription: '',
+      calendlyLink: '',
       price: 0,
       durationMinutes: undefined,
     },
   });
+  const selectedServiceType = form.watch('serviceType');
 
   useEffect(() => {
     if (!initialPriceList) {
@@ -139,11 +168,18 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
   }
 
   function openEditDialog(item: PriceListItem) {
+    const normalizedServiceType =
+      item.serviceType === 'coaching' || item.serviceType === 'consultation'
+        ? item.serviceType
+        : 'general';
     setEditingItem(item);
     form.reset({
+      serviceType: normalizedServiceType,
       category: item.category || '',
       name: item.name,
       description: item.description || '',
+      sessionDescription: item.sessionDescription || '',
+      calendlyLink: item.calendlyLink || '',
       price: item.price,
       durationMinutes: item.durationMinutes || undefined,
     });
@@ -153,9 +189,12 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
   function openNewDialog() {
     setEditingItem(null);
     form.reset({
+      serviceType: 'general',
       category: '',
       name: '',
       description: '',
+      sessionDescription: '',
+      calendlyLink: '',
       price: 0,
       durationMinutes: undefined,
     });
@@ -184,9 +223,9 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Price List</CardTitle>
+            <CardTitle>Services</CardTitle>
             <CardDescription>
-              Manage your service offerings and prices for bookings
+              Manage your services and pricing for bookings
             </CardDescription>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -204,11 +243,41 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
                 <DialogDescription>
                   {editingItem
                     ? 'Update the service details below.'
-                    : 'Add a new service to your price list.'}
+                    : 'Add a new service to your profile.'}
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="serviceType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service Type</FormLabel>
+                        <FormControl>
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                            {SERVICE_TYPES.map((type) => (
+                              <button
+                                key={type.value}
+                                type="button"
+                                onClick={() => field.onChange(type.value)}
+                                className={cn(
+                                  'rounded-xl border p-3 text-left transition-all',
+                                  field.value === type.value
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50'
+                                )}
+                              >
+                                <p className="text-sm font-medium">{type.label}</p>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{type.description}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="category"
@@ -280,29 +349,70 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="durationMinutes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Duration (minutes, optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="e.g., 60"
-                            {...field}
-                            value={field.value || ''}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value ? Number(e.target.value) : undefined
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {(selectedServiceType === 'coaching' || selectedServiceType === 'consultation') && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="durationMinutes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Session Duration</FormLabel>
+                            <FormControl>
+                              <select
+                                value={field.value || 60}
+                                onChange={(event) => field.onChange(Number(event.target.value))}
+                                className="w-full rounded-xl border border-border px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
+                              >
+                                <option value={30}>30 minutes</option>
+                                <option value={45}>45 minutes</option>
+                                <option value={60}>60 minutes</option>
+                                <option value={90}>90 minutes</option>
+                                <option value={120}>2 hours</option>
+                              </select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="sessionDescription"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>What&apos;s included in this session</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Briefly describe what fans will get in this session"
+                                rows={3}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="calendlyLink"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Your Calendly link</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="url"
+                                placeholder="https://calendly.com/yourname/session"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Optional. Fans will receive this link in their confirmation email.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
                   <DialogFooter>
                     <Button type="submit" disabled={isSaving}>
                       {isSaving ? 'Saving...' : editingItem ? 'Update' : 'Add Service'}
@@ -347,6 +457,9 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
                             {!item.isActive && (
                               <Badge variant="secondary">Inactive</Badge>
                             )}
+                            <Badge variant="outline" className="capitalize">
+                              {item.serviceType || 'general'}
+                            </Badge>
                           </div>
                           {item.description && (
                             <p className="text-sm text-muted-foreground">
@@ -358,6 +471,17 @@ export function PriceListManager({ creatorId, initialPriceList }: PriceListManag
                               {item.durationMinutes} mins
                             </p>
                           )}
+                          {(item.serviceType === 'coaching' || item.serviceType === 'consultation') &&
+                          item.calendlyLink ? (
+                            <a
+                              href={item.calendlyLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Preview meeting link →
+                            </a>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">

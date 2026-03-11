@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, CheckCircle2, Clock, TrendingUp, Wallet } from 'lucide-react';
+import { Building2, CheckCircle2, Clock, Download, TrendingUp, Wallet } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import {
   CartesianGrid,
@@ -43,6 +43,11 @@ type EarningsPayload = {
     platformFee?: number | string | null;
     reference?: string | null;
   }>;
+  stats?: {
+    totalEarnings: number;
+    totalPaidOut: number;
+    availableBalance: number;
+  };
 };
 
 const streamColors: Record<string, string> = {
@@ -68,6 +73,7 @@ export function EarningsDashboard() {
   const [requestError, setRequestError] = useState('');
   const [editingBank, setEditingBank] = useState(false);
   const [creatorBank, setCreatorBank] = useState<BankAccount | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   async function load(signal?: AbortSignal) {
     const response = await fetch('/api/creator/earnings', { cache: 'no-store', signal });
@@ -163,6 +169,22 @@ export function EarningsDashboard() {
       await load();
     } finally {
       setRequestLoading(false);
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const response = await fetch('/api/creator/earnings/export');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `foleio-statement-${new Date().toISOString().split('T')[0]}.html`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -404,7 +426,20 @@ export function EarningsDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Recent Transactions</CardTitle>
+            {data.transactions.length > 0 ? (
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                {exporting ? 'Generating...' : 'Export Statement'}
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
           {data.transactions.length === 0 ? (

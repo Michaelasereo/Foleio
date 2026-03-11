@@ -113,7 +113,7 @@ export default function CreatorAgreementPage() {
           </li>
           <li>
             Deliver booked services on the agreed date and as described in your
-            price list;
+            services list;
           </li>
           <li>
             Notify customers promptly if you are unable to fulfil a booking and

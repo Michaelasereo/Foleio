@@ -5,6 +5,7 @@ import { getFanSessionFromCookieValue } from '@/lib/fan-auth/session';
 import { getFanDashboardData } from '@/lib/fan-auth/data';
 import { StatusBadge } from '@/components/fan/StatusBadge';
 import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
+import { OrderStatusTracker } from '@/components/shop/OrderStatusTracker';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,7 @@ export default async function FanDashboardPage() {
         <p className="text-sm text-muted-foreground">{session.email}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-semibold">{data.subscriptions.length}</p>
           <p className="text-xs text-muted-foreground">Subscriptions</p>
@@ -55,6 +56,10 @@ export default async function FanDashboardPage() {
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-semibold">{purchases.length}</p>
           <p className="text-xs text-muted-foreground">Purchases</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <p className="text-2xl font-semibold">{data.orders.length}</p>
+          <p className="text-xs text-muted-foreground">Orders</p>
         </div>
       </div>
 
@@ -108,6 +113,37 @@ export default async function FanDashboardPage() {
                 >
                   View Content
                 </Link>
+              </div>
+            </div>
+          ))
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-2xl">Orders</h2>
+        {data.orders.length === 0 ? (
+          <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+            No shop orders yet
+          </p>
+        ) : (
+          data.orders.slice(0, 6).map((order) => (
+            <div key={order.id} className="rounded-xl border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">Order #{order.id.slice(-8).toUpperCase()}</p>
+                  <p className="text-sm text-muted-foreground">{order.creator.displayName}</p>
+                </div>
+                <p className="font-semibold">₦{(order.total / 100).toLocaleString('en-NG')}</p>
+              </div>
+              <div className="mt-2 space-y-1">
+                {order.items.map((item: any) => (
+                  <p key={item.id} className="text-sm text-muted-foreground">
+                    {item.quantity}x {item.product?.name || 'Product'}
+                  </p>
+                ))}
+              </div>
+              <div className="mt-3">
+                <OrderStatusTracker status={order.status} />
               </div>
             </div>
           ))

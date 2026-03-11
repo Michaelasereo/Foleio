@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       prisma.creatorLink.create({
         data: {
           creatorId: creator.id,
-          label: 'View Price List',
+          label: 'View Services',
           url: '#price-list',
           linkType: 'price_list',
           icon: 'file-text',

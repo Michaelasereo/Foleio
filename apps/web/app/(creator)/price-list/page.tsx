@@ -21,10 +21,10 @@ export default async function PriceListPage() {
     if (!creator) {
       return (
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Price List</h1>
+          <h1 className="text-3xl font-bold">Services</h1>
           <p className="text-muted-foreground">
             Finish setting up your creator profile in Settings to manage your
-            service price list.
+            services.
           </p>
         </div>
       );
@@ -38,9 +38,9 @@ export default async function PriceListPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Price List</h1>
+          <h1 className="text-3xl font-bold">Services</h1>
           <p className="text-muted-foreground">
-            Manage your service offerings and prices for bookings
+            Manage your service offerings and pricing for bookings
           </p>
         </div>
 
@@ -52,13 +52,13 @@ export default async function PriceListPage() {
     );
   } catch {
     // Avoid hard-crashing the route when DB is temporarily unavailable.
-    console.warn('Price list page data lookup failed (non-fatal).');
+    console.warn('Services page data lookup failed (non-fatal).');
 
     return (
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Price List</h1>
+        <h1 className="text-3xl font-bold">Services</h1>
         <p className="text-muted-foreground">
-          We could not load your price list right now. Please try again in a
+          We could not load your services right now. Please try again in a
           moment.
         </p>
       </div>

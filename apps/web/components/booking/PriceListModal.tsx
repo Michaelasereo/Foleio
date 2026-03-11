@@ -16,9 +16,12 @@ import { Clock } from 'lucide-react';
 
 interface PriceListItem {
   id: string;
+  serviceType?: string | null;
   category: string | null;
   name: string;
   description: string | null;
+  sessionDescription?: string | null;
+  calendlyLink?: string | null;
   price: number;
   durationMinutes: number | null;
 }
@@ -66,9 +69,9 @@ export function PriceListModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Price List</DialogTitle>
+          <DialogTitle>Services</DialogTitle>
           <DialogDescription>
-            Select a service from {creatorName}&apos;s price list
+            Select a service from {creatorName}&apos;s offerings
           </DialogDescription>
         </DialogHeader>
 

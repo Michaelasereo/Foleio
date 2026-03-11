@@ -24,6 +24,7 @@ import {
   LogOut,
   ChevronDown,
   Link2,
+  ShoppingBag,
   type LucideIcon,
 } from 'lucide-react';
 import foleioLogo from '../../../../foleio-logo.png';
@@ -61,6 +62,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
       { label: 'Services', href: '/price-list', icon: FileText },
+      { label: 'Shop', href: '/services/shop', icon: ShoppingBag },
       { label: 'Content', href: '/content', icon: Video, tourId: 'content' },
       { label: 'Journal', href: '/journal', icon: BookOpen, tourId: 'journal' },
       {
