@@ -364,7 +364,13 @@ async function handleChargeSuccess(eventData: any) {
             creator: { select: { displayName: true } },
             items: {
               include: {
-                product: { select: { name: true } },
+                product: {
+                  select: {
+                    name: true,
+                    type: true,
+                    digitalFileUrl: true,
+                  },
+                },
               },
             },
             deliveryTier: true,
@@ -382,6 +388,8 @@ async function handleChargeSuccess(eventData: any) {
               name: item.product?.name || 'Product',
               quantity: item.quantity,
               unitPrice: item.unitPrice,
+              type: (item.product?.type as 'physical' | 'digital' | null) || null,
+              digitalFileUrl: item.product?.digitalFileUrl || null,
             })),
             deliveryAddress: {
               address: deliveryAddress.address,

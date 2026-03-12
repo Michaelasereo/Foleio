@@ -359,6 +359,11 @@ export function IntroVideoTab({
             {videoOptions.map((video) => {
               const isSelected = selectedVideoId === video.id;
               const isCurrent = currentIntroVideo?.id === video.id;
+              const thumbnailSrc =
+                video.thumbnailUrl ||
+                (video.muxPlaybackId
+                  ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.jpg?time=1`
+                  : null);
               return (
                 <Card
                   key={video.id}
@@ -368,11 +373,21 @@ export function IntroVideoTab({
                   onClick={() => setSelectedVideoId(video.id)}
                 >
                   <div className="aspect-video bg-muted relative group">
-                    {video.thumbnailUrl ? (
+                    {thumbnailSrc ? (
                       <img
-                        src={video.thumbnailUrl}
+                        src={thumbnailSrc}
                         alt={video.title}
+                        crossOrigin="anonymous"
+                        referrerPolicy="no-referrer"
                         className="w-full h-full object-cover"
+                        onError={(event) => {
+                          const target = event.currentTarget;
+                          if (video.muxPlaybackId && !target.src.includes('time=1')) {
+                            target.src = `https://image.mux.com/${video.muxPlaybackId}/thumbnail.jpg?time=1`;
+                            return;
+                          }
+                          target.style.display = 'none';
+                        }}
                       />
                     ) : (
                       <DefaultThumbnail title={video.title} />

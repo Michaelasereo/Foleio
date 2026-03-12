@@ -3,6 +3,8 @@ import { PrismaClient } from '@foleio/database';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({
   username: z.string().min(1),

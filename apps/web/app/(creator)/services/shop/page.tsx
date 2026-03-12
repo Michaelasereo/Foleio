@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Loader2, Upload, FileText, Image as ImageIcon } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 type Variant = {
   id?: string;
@@ -69,21 +70,27 @@ function emptyProductForm() {
     type: 'physical' as 'physical' | 'digital',
     imageUrl: '',
     digitalFileUrl: '',
+    digitalFileName: '',
     stock: '',
     status: 'draft' as 'draft' | 'active',
     variants: [] as Variant[],
   };
 }
 
-export default function CreatorShopPage() {
+export function CreatorShopManager() {
+  const { toast } = useToast();
   const [tab, setTab] = useState<'products' | 'orders' | 'delivery'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveryTiers, setDeliveryTiers] = useState<DeliveryTier[]>([]);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [productForm, setProductForm] = useState(emptyProductForm());
   const [tierForm, setTierForm] = useState({ id: '', name: '', description: '', flatRate: '', estimatedDays: '' });
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   async function fetchProducts() {
     const response = await fetch('/api/creator/products', { cache: 'no-store' });
@@ -127,6 +134,7 @@ export default function CreatorShopPage() {
       type: product.type,
       imageUrl: product.imageUrl || '',
       digitalFileUrl: product.digitalFileUrl || '',
+      digitalFileName: product.digitalFileUrl ? product.digitalFileUrl.split('/').pop() || '' : '',
       stock: product.stock === null ? '' : String(product.stock),
       status: product.status,
       variants: product.variants || [],
@@ -181,6 +189,84 @@ export default function CreatorShopPage() {
       }),
     });
     if (response.ok) await fetchProducts();
+  }
+
+  async function uploadProductFile(file: File, type: 'product-image' | 'digital-product') {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+
+    const response = await fetch('/api/creator/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || 'Upload failed');
+    }
+    return data as { url: string; fileName?: string };
+  }
+
+  async function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Please upload an image file', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Image must be under 5MB', variant: 'destructive' });
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const uploaded = await uploadProductFile(file, 'product-image');
+      setProductForm((prev) => ({ ...prev, imageUrl: uploaded.url }));
+      toast({ title: 'Product image uploaded' });
+    } catch (error: any) {
+      toast({
+        title: 'Image upload failed',
+        description: error?.message || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      event.target.value = '';
+    }
+  }
+
+  async function handlePdfUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast({ title: 'Only PDF files are supported', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: 'PDF must be under 50MB', variant: 'destructive' });
+      return;
+    }
+
+    setIsUploadingPdf(true);
+    try {
+      const uploaded = await uploadProductFile(file, 'digital-product');
+      setProductForm((prev) => ({
+        ...prev,
+        digitalFileUrl: uploaded.url,
+        digitalFileName: uploaded.fileName || file.name,
+      }));
+      toast({ title: 'PDF uploaded successfully' });
+    } catch (error: any) {
+      toast({
+        title: 'PDF upload failed',
+        description: error?.message || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingPdf(false);
+      event.target.value = '';
+    }
   }
 
   function addVariant() {
@@ -545,11 +631,47 @@ export default function CreatorShopPage() {
               onChange={(event) => setProductForm((prev) => ({ ...prev, price: event.target.value }))}
               required
             />
-            <Input
-              placeholder="Cover image URL"
-              value={productForm.imageUrl}
-              onChange={(event) => setProductForm((prev) => ({ ...prev, imageUrl: event.target.value }))}
-            />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Product Image</p>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => imageInputRef.current?.click()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') imageInputRef.current?.click();
+                }}
+                className={cn(
+                  'relative w-full max-w-[220px] aspect-square cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed',
+                  isUploadingImage ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:border-primary/40'
+                )}
+              >
+                {productForm.imageUrl ? (
+                  <img src={productForm.imageUrl} alt="Product" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground">
+                    {isUploadingImage ? (
+                      <>
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="h-8 w-8" />
+                        Click to upload image
+                        <span className="text-[11px] text-muted-foreground/70">JPG, PNG, WebP up to 5MB</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+            </div>
             <Input
               type="number"
               placeholder="Stock (leave empty for unlimited)"
@@ -564,11 +686,62 @@ export default function CreatorShopPage() {
                 onChange={(event) => setProductForm((prev) => ({ ...prev, weight: event.target.value }))}
               />
             ) : (
-              <Input
-                placeholder="Digital file URL"
-                value={productForm.digitalFileUrl}
-                onChange={(event) => setProductForm((prev) => ({ ...prev, digitalFileUrl: event.target.value }))}
-              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Digital Product File (PDF only)</p>
+                {productForm.digitalFileUrl ? (
+                  <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-blue-900">
+                        {productForm.digitalFileName || 'digital-product.pdf'}
+                      </p>
+                      <p className="text-xs text-blue-700">PDF uploaded</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => pdfInputRef.current?.click()}>
+                      Replace
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => pdfInputRef.current?.click()}
+                    className={cn(
+                      'w-full rounded-xl border-2 border-dashed p-6 text-center',
+                      isUploadingPdf ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:border-primary/40'
+                    )}
+                  >
+                    {isUploadingPdf ? (
+                      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        Uploading PDF...
+                      </span>
+                    ) : (
+                      <span className="inline-flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                        <Upload className="h-6 w-6" />
+                        Click to upload your PDF
+                        <span className="text-xs text-muted-foreground/70">Up to 50MB</span>
+                      </span>
+                    )}
+                  </button>
+                )}
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handlePdfUpload}
+                  className="hidden"
+                />
+                {productForm.digitalFileUrl ? (
+                  <a
+                    href={productForm.digitalFileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Preview uploaded PDF URL
+                  </a>
+                ) : null}
+              </div>
             )}
 
             <div>
@@ -638,4 +811,8 @@ export default function CreatorShopPage() {
       </Dialog>
     </div>
   );
+}
+
+export default function CreatorShopPage() {
+  return <CreatorShopManager />;
 }

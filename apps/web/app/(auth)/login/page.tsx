@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -41,6 +41,20 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    if (!redirecting) return;
+    const timer = window.setTimeout(() => {
+      setRedirecting(false);
+      setIsLoading(false);
+      toast({
+        title: 'Dashboard is taking longer than expected',
+        description: 'You can retry login in a moment if this persists.',
+        variant: 'destructive',
+      });
+    }, 15000);
+    return () => window.clearTimeout(timer);
+  }, [redirecting, toast]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),

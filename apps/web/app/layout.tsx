@@ -60,6 +60,9 @@ export default function RootLayout({
           {children}
           <footer className="px-6 py-6">
             <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+              <Link href="/about" className="hover:text-foreground">
+                About
+              </Link>
               <Link href="/legal/terms" className="hover:text-foreground">
                 Terms of Service
               </Link>

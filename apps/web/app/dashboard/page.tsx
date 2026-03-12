@@ -1,11 +1,20 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { cookies, headers } from 'next/headers';
+import { prisma } from '@foleio/database';
 import { CreatorDashboard } from '@/components/creator/Dashboard';
 import { OnboardingGateModal } from '@/components/creator/OnboardingGateModal';
 import { getCreatorAnalytics, getRecentSubscriptions, getContentMetrics } from '@/lib/actions/analytics';
 
 export const revalidate = 0;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -15,65 +24,62 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  // Fetch creator data with proper cookie handling
-  let creator = null;
+  // Fetch creator directly from DB to avoid slow internal API roundtrip on first load.
+  let creator: {
+    id: string;
+    username: string;
+    displayName: string;
+    category: string;
+    platformPlan: string | null;
+    contentCount: number;
+    hasSeenWelcome: boolean;
+    hasCompletedTour: boolean;
+  } | null = null;
   try {
-    // Build origin from incoming request so local/dev works reliably.
-    const headerStore = await headers();
-    const host = headerStore.get('x-forwarded-host') || headerStore.get('host');
-    const protocol = headerStore.get('x-forwarded-proto') || 'http';
-    const appOrigin =
-      host
-        ? `${protocol}://${host}`
-        : process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
+    const dbCreator = await withTimeout(
+      prisma.creator.findUnique({
+        where: { userId: user.id },
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          category: true,
+          platformPlan: true,
+        },
+      }),
+      3000
+    );
 
-    // Forward cookies for the API call
-    const cookieStore = await cookies();
-    const cookieString = cookieStore.getAll()
-      .map(cookie => `${cookie.name}=${cookie.value}`)
-      .join('; ');
-
-    const creatorRes = await fetch(`${appOrigin}/api/creator/me`, {
-      headers: {
-        Cookie: cookieString,
-        'Content-Type': 'application/json'
-      },
-      cache: 'no-store'
-    });
-
-    if (creatorRes.ok) {
-      creator = await creatorRes.json();
-
-      // Convert serialized numbers back to numbers for client components
-      if (creator) {
-        // Convert financial fields back to numbers
-        creator.balance = parseFloat(creator.balance) || 0;
-        creator.pendingBalance = parseFloat(creator.pendingBalance) || 0;
-        creator.totalEarnings = parseFloat(creator.totalEarnings) || 0;
-        creator.monthlyEarnings = parseFloat(creator.monthlyEarnings) || 0;
-        creator.payoutThreshold = parseFloat(creator.payoutThreshold) || 0;
-        creator.currentBalance = parseFloat(creator.currentBalance) || 0;
-        creator.chargebackRate = parseFloat(creator.chargebackRate) || 0;
-
-        // Convert content prices and earnings
-        if (creator.content) {
-          creator.content = creator.content.map((item: any) => ({
-            ...item,
-            price: parseFloat(item.price) || 0,
-            earnings: parseFloat(item.earnings) || 0
-          }));
-        }
-
-        // Convert upload sizes (BigInt strings back to numbers)
-        if (creator.uploads) {
-          creator.uploads = creator.uploads.map((upload: any) => ({
-            ...upload,
-            size: parseInt(upload.size) || 0
-          }));
-        }
+    if (dbCreator) {
+      const contentCount = await withTimeout(
+        prisma.content.count({
+          where: { creatorId: dbCreator.id, isPublished: true },
+        }),
+        3000
+      );
+      creator = {
+        ...dbCreator,
+        contentCount,
+        hasSeenWelcome: false,
+        hasCompletedTour: false,
+      };
+      try {
+        const flags = await withTimeout(
+          prisma.$queryRaw<
+            Array<{ has_seen_welcome: boolean | null; has_completed_tour: boolean | null }>
+          >`
+            SELECT has_seen_welcome, has_completed_tour
+            FROM creators
+            WHERE id = ${dbCreator.id}
+            LIMIT 1
+          `,
+          2500
+        );
+        creator.hasSeenWelcome = flags[0]?.has_seen_welcome ?? false;
+        creator.hasCompletedTour = flags[0]?.has_completed_tour ?? false;
+      } catch {
+        // Non-fatal: keep defaults if flags are unavailable.
       }
-    } else {
-      console.error('Failed to fetch creator:', await creatorRes.text());
     }
   } catch (error) {
     console.error('Error fetching creator:', error);
@@ -94,8 +100,14 @@ export default async function DashboardPage() {
     creator.displayName &&
     creator.category; // Basic profile info is sufficient
 
-  // Fetch real analytics data
-  const analytics = await getCreatorAnalytics(creator.id) || {
+  // Fetch analytics in parallel so one slow query does not block full page render.
+  const [analyticsResult, recentSubscriptionsResult, contentMetricsResult] = await Promise.all([
+    withTimeout(getCreatorAnalytics(creator.id), 3500).catch(() => null),
+    withTimeout(getRecentSubscriptions(creator.id), 3500).catch(() => []),
+    withTimeout(getContentMetrics(creator.id), 3500).catch(() => ({ topContent: [] })),
+  ]);
+
+  const analytics = analyticsResult || {
     totalViews: 0,
     contentCount: 0,
     subscriberCount: 0,
@@ -109,9 +121,8 @@ export default async function DashboardPage() {
     },
     engagementRate: '0.0',
   };
-
-  const recentSubscriptions = await getRecentSubscriptions(creator.id) || [];
-  const contentMetrics = await getContentMetrics(creator.id) || { topContent: [] };
+  const recentSubscriptions = recentSubscriptionsResult || [];
+  const contentMetrics = contentMetricsResult || { topContent: [] };
 
   return (
     <CreatorDashboard

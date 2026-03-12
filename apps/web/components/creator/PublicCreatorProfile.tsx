@@ -54,6 +54,7 @@ import { ReportContentModal } from '@/components/content/ReportContentModal';
 import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { ShopTab } from '@/components/shop/ShopTab';
+import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import foleioLogo from '../../../../foleio-logo.png';
 
 interface Content {
@@ -392,19 +393,12 @@ export function PublicCreatorProfile({
       <div className="max-w-4xl mx-auto px-4 relative">
         <div className="-mt-16 md:-mt-20 relative z-10">
           {/* Avatar - Left aligned, overlapping banner */}
-          <div className="mb-4 h-32 w-32 flex-shrink-0 overflow-hidden rounded-full border-[3px] border-primary bg-muted md:h-36 md:w-36">
-            {creator.avatarUrl ? (
-              <img
-                src={creator.avatarUrl}
-                alt={creator.displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-                <div className="flex h-full w-full items-center justify-center text-4xl font-bold text-muted-foreground">
-                {creator.displayName.charAt(0)}
-              </div>
-            )}
-          </div>
+          <CreatorAvatar
+            src={creator.avatarUrl}
+            name={creator.displayName}
+            size={144}
+            className="mb-4 border-[3px] border-primary md:h-36 md:w-36"
+          />
 
           {/* Info and Action Buttons Container */}
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">

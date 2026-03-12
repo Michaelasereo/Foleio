@@ -5,6 +5,7 @@ import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile'
 import { serializeForClient } from '@/lib/utils';
 import { getAvailabilityWithBookings } from '@/lib/actions/availability';
 
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
@@ -71,9 +72,10 @@ export default async function CreatorPublicPage({
 }) {
   const { username } = await params;
 
-  const creator = await prisma.creator.findUnique({
-    where: { username, isPublic: true },
-    include: {
+  try {
+    const creator = await prisma.creator.findUnique({
+      where: { username, isPublic: true },
+      include: {
       creatorPlans: {
         where: { isActive: true },
         orderBy: { orderIndex: 'asc' },
@@ -168,14 +170,14 @@ export default async function CreatorPublicPage({
         where: { status: 'active' },
         select: { id: true },
       },
-    },
-  });
+      },
+    });
 
-  if (!creator) {
-    notFound();
-  }
+    if (!creator) {
+      notFound();
+    }
 
-  let sectionsByCollectionId = new Map<string, Array<{
+    let sectionsByCollectionId = new Map<string, Array<{
     id: string;
     title: string;
     orderIndex: number;
@@ -192,14 +194,14 @@ export default async function CreatorPublicPage({
         type: string;
       };
     }>;
-  }>>();
+    }>>();
 
-  try {
-    const collectionIds = creator.collections.map((collection) => collection.id);
-    if (collectionIds.length > 0) {
-      const sections = await prisma.section.findMany({
-        where: { collectionId: { in: collectionIds } },
-        select: {
+    try {
+      const collectionIds = creator.collections.map((collection) => collection.id);
+      if (collectionIds.length > 0) {
+        const sections = await prisma.section.findMany({
+          where: { collectionId: { in: collectionIds } },
+          select: {
           id: true,
           title: true,
           orderIndex: true,
@@ -222,46 +224,46 @@ export default async function CreatorPublicPage({
             },
             orderBy: { orderIndex: 'asc' },
           },
-        },
-        orderBy: { orderIndex: 'asc' },
-      });
-
-      sectionsByCollectionId = sections.reduce((acc, section) => {
-        const list = acc.get(section.collectionId) ?? [];
-        list.push({
-          id: section.id,
-          title: section.title,
-          orderIndex: section.orderIndex,
-          sectionContents: section.sectionContents,
+          },
+          orderBy: { orderIndex: 'asc' },
         });
-        acc.set(section.collectionId, list);
-        return acc;
-      }, new Map<string, Array<{
-        id: string;
-        title: string;
-        orderIndex: number;
-        sectionContents: Array<{
-          content: {
-            id: string;
-            title: string;
-            description: string | null;
-            thumbnailUrl: string | null;
-            muxAssetId: string | null;
-            muxPlaybackId: string | null;
-            createdAt: Date;
-            isPublished: boolean;
-            type: string;
-          };
-        }>;
-      }>>());
-    }
-  } catch {
-    // Keep profile visible even if section tables are unavailable.
-    sectionsByCollectionId = new Map();
-  }
 
-  // Build collection videos from both direct links and section-linked content.
-  const tutorialCollections = creator.collections
+        sectionsByCollectionId = sections.reduce((acc, section) => {
+          const list = acc.get(section.collectionId) ?? [];
+          list.push({
+            id: section.id,
+            title: section.title,
+            orderIndex: section.orderIndex,
+            sectionContents: section.sectionContents,
+          });
+          acc.set(section.collectionId, list);
+          return acc;
+        }, new Map<string, Array<{
+          id: string;
+          title: string;
+          orderIndex: number;
+          sectionContents: Array<{
+            content: {
+              id: string;
+              title: string;
+              description: string | null;
+              thumbnailUrl: string | null;
+              muxAssetId: string | null;
+              muxPlaybackId: string | null;
+              createdAt: Date;
+              isPublished: boolean;
+              type: string;
+            };
+          }>;
+        }>>());
+      }
+    } catch {
+      // Keep profile visible even if section tables are unavailable.
+      sectionsByCollectionId = new Map();
+    }
+
+    // Build collection videos from both direct links and section-linked content.
+    const tutorialCollections = creator.collections
     .map((collection: (typeof creator.collections)[0]) => {
       const videosById = new Map<
         string,
@@ -335,57 +337,70 @@ export default async function CreatorPublicPage({
     })
     .filter((collection: { videos: any[] }) => collection.videos.length > 0);
 
-  const collectionVideoIds = new Set(
-    tutorialCollections.flatMap((collection: { videos: Array<{ id: string }> }) =>
-      collection.videos.map((video) => video.id)
-    )
-  );
+    const collectionVideoIds = new Set(
+      tutorialCollections.flatMap((collection: { videos: Array<{ id: string }> }) =>
+        collection.videos.map((video) => video.id)
+      )
+    );
 
-  // Separate content by category and keep collection videos out of standalone cards.
-  const regularContent = creator.content.filter(
-    (c: typeof creator.content[0]) => c.contentCategory === 'content' && !c.collectionId
-  );
-  const tutorials = creator.content.filter(
-    (c: typeof creator.content[0]) =>
-      c.contentCategory === 'tutorial' &&
-      !c.collectionId &&
-      !collectionVideoIds.has(c.id)
-  );
+    // Separate content by category and keep collection videos out of standalone cards.
+    const regularContent = creator.content.filter(
+      (c: typeof creator.content[0]) => c.contentCategory === 'content' && !c.collectionId
+    );
+    const tutorials = creator.content.filter(
+      (c: typeof creator.content[0]) =>
+        c.contentCategory === 'tutorial' &&
+        !c.collectionId &&
+        !collectionVideoIds.has(c.id)
+    );
 
-  // Group price list items by category
-  const groupedPriceList = groupPriceListByCategory(creator.priceListItems);
+    // Group price list items by category
+    const groupedPriceList = groupPriceListByCategory(creator.priceListItems);
 
-  // Get availability with booking counts (for next 3 months)
-  const startDate = new Date();
-  const endDate = new Date();
-  endDate.setMonth(endDate.getMonth() + 3);
-  const availabilityResult = await getAvailabilityWithBookings(creator.id, startDate, endDate);
-  const availabilityWithCounts = availabilityResult.success && availabilityResult.data 
-    ? availabilityResult.data 
-    : [];
+    // Get availability with booking counts (for next 3 months)
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + 3);
+    const availabilityResult = await getAvailabilityWithBookings(creator.id, startDate, endDate);
+    const availabilityWithCounts = availabilityResult.success && availabilityResult.data
+      ? availabilityResult.data
+      : [];
 
-  // Serialize data for client component (especially dates)
-  const serializedCreator = serializeForClient({
-    ...creator,
-    // Keep public stats accurate even if cached model counters drift.
-    contentCount: creator.content.length,
-    availability: availabilityWithCounts.map(avail => ({
-      ...avail,
-      date: avail.date.toISOString(),
-    })),
-  });
+    // Serialize data for client component (especially dates)
+    const serializedCreator = serializeForClient({
+      ...creator,
+      // Keep public stats accurate even if cached model counters drift.
+      contentCount: creator.content.length,
+      availability: availabilityWithCounts.map((avail) => ({
+        ...avail,
+        date: avail.date.toISOString(),
+      })),
+    });
 
-  return (
-    <PublicCreatorProfile
-      creator={serializedCreator as any}
-      regularContent={serializeForClient(regularContent)}
-      tutorials={serializeForClient(tutorials)}
-      tutorialCollections={serializeForClient(tutorialCollections)}
-      journalEntries={serializeForClient(creator.journalEntries)}
-      groupedPriceList={serializeForClient(groupedPriceList)}
-      hasActiveProducts={creator.products.length > 0}
-    />
-  );
+    return (
+      <PublicCreatorProfile
+        creator={serializedCreator as any}
+        regularContent={serializeForClient(regularContent)}
+        tutorials={serializeForClient(tutorials)}
+        tutorialCollections={serializeForClient(tutorialCollections)}
+        journalEntries={serializeForClient(creator.journalEntries)}
+        groupedPriceList={serializeForClient(groupedPriceList)}
+        hasActiveProducts={creator.products.length > 0}
+      />
+    );
+  } catch (error) {
+    console.error('[public-profile] failed to load:', error);
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
+          <p className="text-muted-foreground">
+            Could not load this profile. Please try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
 }
 
 // Helper function to group price list items by category

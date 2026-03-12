@@ -9,6 +9,7 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { formatNaira } from '@foleio/utils';
+import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import {
   LayoutDashboard,
   Video,
@@ -24,7 +25,6 @@ import {
   LogOut,
   ChevronDown,
   Link2,
-  ShoppingBag,
   type LucideIcon,
 } from 'lucide-react';
 import foleioLogo from '../../../../foleio-logo.png';
@@ -62,7 +62,6 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
       { label: 'Services', href: '/price-list', icon: FileText },
-      { label: 'Shop', href: '/services/shop', icon: ShoppingBag },
       { label: 'Content', href: '/content', icon: Video, tourId: 'content' },
       { label: 'Journal', href: '/journal', icon: BookOpen, tourId: 'journal' },
       {
@@ -179,19 +178,12 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
       {/* Creator Profile Quick View */}
       <div className="border-b border-border/60 p-4" data-tour="creator-profile">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex-shrink-0">
-            {creator.avatarUrl ? (
-              <img
-                src={creator.avatarUrl}
-                alt={creator.displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-sm font-bold text-muted-foreground">
-                {creator.displayName.charAt(0)}
-              </div>
-            )}
-          </div>
+          <CreatorAvatar
+            src={creator.avatarUrl}
+            name={creator.displayName}
+            size={40}
+            className="border border-border/60"
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate font-body font-medium text-foreground">
               {creator.displayName}

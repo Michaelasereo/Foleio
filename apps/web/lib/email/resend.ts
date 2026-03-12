@@ -149,7 +149,13 @@ type OrderConfirmationEmailProps = {
   email: string;
   fanName?: string;
   orderId: string;
-  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    type?: 'physical' | 'digital' | null;
+    digitalFileUrl?: string | null;
+  }>;
   deliveryAddress: {
     address?: string;
     city?: string;
@@ -182,7 +188,12 @@ export async function sendOrderConfirmationEmail({
     return { success: true };
   }
 
-  const itemsHtml = items
+  const digitalItems = items.filter(
+    (item) => item.type === 'digital' && Boolean(item.digitalFileUrl)
+  );
+  const physicalItems = items.filter((item) => item.type !== 'digital');
+
+  const itemsHtml = physicalItems
     .map(
       (item) =>
         `<tr>
@@ -213,9 +224,45 @@ export async function sendOrderConfirmationEmail({
             <p style="margin:0;font-weight:700;color:#1C1008;">#${orderId.slice(-8).toUpperCase()}</p>
           </div>
 
+          ${
+            digitalItems.length > 0
+              ? `
+          <div style="background:#EFF6FF;border-radius:14px;padding:20px 24px;margin:0 0 20px;">
+            <p style="font-size:13px;font-weight:700;color:#1E40AF;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px;">
+              Your Digital Downloads
+            </p>
+            ${digitalItems
+              .map(
+                (item) => `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #DBEAFE;">
+                <div>
+                  <p style="font-size:14px;font-weight:600;color:#1C1008;margin:0 0 2px;">${item.name}</p>
+                  <p style="font-size:12px;color:#6B5E52;margin:0;">PDF download</p>
+                </div>
+                <a href="${item.digitalFileUrl || '#'}" style="background:#3B5FDB;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;text-decoration:none;">
+                  Download →
+                </a>
+              </div>
+            `
+              )
+              .join('')}
+            <p style="font-size:11px;color:#6B7280;margin:12px 0 0;">
+              Save this email to access your downloads later.
+            </p>
+          </div>
+          `
+              : ''
+          }
+
+          ${
+            physicalItems.length > 0
+              ? `
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
             ${itemsHtml}
           </table>
+          `
+              : ''
+          }
 
           <div style="border-top:1px solid #F0EAE0;padding-top:12px;margin-bottom:16px;">
             <p style="margin:4px 0;font-size:14px;color:#6B5E52;">Subtotal: ₦${(subtotal / 100).toLocaleString('en-NG')}</p>
@@ -223,6 +270,9 @@ export async function sendOrderConfirmationEmail({
             <p style="margin:8px 0 0;font-size:16px;font-weight:700;color:#1C1008;">Total: ₦${(total / 100).toLocaleString('en-NG')}</p>
           </div>
 
+          ${
+            physicalItems.length > 0
+              ? `
           <div style="margin:20px 0;padding:16px;border:1px solid #F0EAE0;border-radius:12px;">
             <p style="margin:0 0 8px;font-size:13px;color:#9E8E82;">Delivery</p>
             <p style="margin:0;font-size:14px;color:#1C1008;">
@@ -232,13 +282,22 @@ export async function sendOrderConfirmationEmail({
               ${deliveryTier?.name || 'Digital delivery'} ${deliveryTier?.estimatedDays ? `· ${deliveryTier.estimatedDays}` : ''}
             </p>
           </div>
+          `
+              : ''
+          }
 
+          ${
+            physicalItems.length > 0
+              ? `
           <div style="text-align:center;margin:24px 0;">
             <a href="${process.env.NEXT_PUBLIC_APP_URL}/fan/dashboard"
               style="display:inline-block;background:#F97316;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;">
               Track your order →
             </a>
           </div>
+          `
+              : ''
+          }
         `,
       }),
     });

@@ -4,6 +4,15 @@ import { prisma } from '@foleio/database';
 
 export const dynamic = 'force-dynamic';
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
+}
+
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -21,21 +30,31 @@ export async function GET() {
 
     let creator: { id: string; hasCompletedOnboarding: boolean } | null = null;
     try {
-      creator = await prisma.creator.findUnique({
-        where: { userId: user.id },
-        select: {
-          id: true,
-          hasCompletedOnboarding: true,
-        },
-      });
+      creator = await withTimeout(
+        prisma.creator.findUnique({
+          where: { userId: user.id },
+          select: {
+            id: true,
+            hasCompletedOnboarding: true,
+          },
+        }),
+        2500
+      );
     } catch {
-      const legacyCreator = await prisma.creator.findUnique({
-        where: { userId: user.id },
-        select: { id: true },
-      });
-      creator = legacyCreator
-        ? { id: legacyCreator.id, hasCompletedOnboarding: true }
-        : null;
+      try {
+        const legacyCreator = await withTimeout(
+          prisma.creator.findUnique({
+            where: { userId: user.id },
+            select: { id: true },
+          }),
+          2500
+        );
+        creator = legacyCreator
+          ? { id: legacyCreator.id, hasCompletedOnboarding: true }
+          : null;
+      } catch {
+        creator = null;
+      }
     }
 
     return NextResponse.json({
