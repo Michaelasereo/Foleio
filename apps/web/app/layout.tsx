@@ -29,6 +29,39 @@ export const metadata: Metadata = {
   title: 'Foleio - Your work. Your world. Your Foleio.',
   description: 'Foleio is the creative portfolio platform for Nigerian creators — monetize your content, offer services, and build your world.',
   keywords: ['creator platform', 'Nigeria', 'subscription', 'content creator'],
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+      { url: '/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+    shortcut: '/favicon.ico',
+  },
+  openGraph: {
+    images: [
+      {
+        url: 'https://foleio.com/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Foleio — Creator platform for Nigerians',
+      },
+      {
+        url: 'https://foleio.com/og-default.png',
+        width: 1200,
+        height: 630,
+        alt: 'Foleio',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['https://foleio.com/og-image.png'],
+  },
+  manifest: '/site.webmanifest',
 };
 
 export default function RootLayout({
