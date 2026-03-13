@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getFanSessionFromCookieValue } from '@/lib/fan-auth/session';
@@ -161,7 +162,14 @@ export default async function FanDashboardPage() {
             <div key={item.id} className="rounded-xl border bg-card p-4 flex items-start gap-3">
               <div className="w-24 overflow-hidden rounded-md">
                 {item.thumbnailUrl ? (
-                  <img src={item.thumbnailUrl} alt={item.title} className="aspect-video w-full object-cover" />
+                  <Image
+                    src={item.thumbnailUrl}
+                    alt={item.title}
+                    width={320}
+                    height={180}
+                    className="aspect-video w-full object-cover"
+                    unoptimized
+                  />
                 ) : (
                   <DefaultThumbnail title={item.title} size="sm" />
                 )}

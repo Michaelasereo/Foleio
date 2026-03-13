@@ -1,26 +1,28 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Building2, CheckCircle2, Clock, Download, TrendingUp, Wallet } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
-import {
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PayoutModal } from '@/components/creator/PayoutModal';
 import { PayoutScheduleSettings } from '@/components/creator/PayoutScheduleSettings';
 import { BankSetupForm, type BankAccount } from '@/components/creator/BankSetupForm';
+
+const EarningsCharts = dynamic(
+  () => import('@/components/creator/EarningsCharts').then((mod) => mod.EarningsCharts),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid gap-4 lg:grid-cols-5">
+        <div className="h-80 animate-pulse rounded-2xl border border-stone-100 bg-stone-100/70 lg:col-span-3" />
+        <div className="h-80 animate-pulse rounded-2xl border border-stone-100 bg-stone-100/70 lg:col-span-2" />
+      </div>
+    ),
+  }
+);
 
 type EarningsPayload = {
   creator: {
@@ -374,55 +376,7 @@ export function EarningsDashboard() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Last 6 months earnings</CardTitle>
-          </CardHeader>
-          <CardContent className="h-72 rounded-xl bg-[#FFF8EE] p-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.monthlyEarnings}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="amount" stroke="#F97316" strokeWidth={3} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Revenue breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={streamRows} dataKey="amount" nameKey="label" outerRadius={76}>
-                    {streamRows.map((item) => (
-                      <Cell key={item.type} fill={item.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            {streamRows.map((row) => (
-              <div key={row.type} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
-                  <span>{row.label}</span>
-                </div>
-                <span className="text-muted-foreground">
-                  {formatNaira(row.amount / 100)} ({row.percent}%)
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      <EarningsCharts monthlyEarnings={data.monthlyEarnings} streamRows={streamRows} />
 
       <Card>
         <CardHeader>

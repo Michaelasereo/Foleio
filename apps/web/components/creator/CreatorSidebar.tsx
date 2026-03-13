@@ -127,7 +127,7 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
     if (href === '/dashboard') {
       return pathname === '/dashboard';
     }
-    return pathname.startsWith(href);
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   async function handleLogout() {

@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -411,7 +412,14 @@ export function CreatorShopManager() {
                 <div className="flex items-start gap-3">
                   <div className="h-14 w-14 overflow-hidden rounded-lg bg-muted">
                     {product.imageUrl ? (
-                      <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+                      <Image
+                        src={product.imageUrl}
+                        alt={product.name}
+                        width={56}
+                        height={56}
+                        className="h-full w-full object-cover"
+                        unoptimized
+                      />
                     ) : null}
                   </div>
                   <div>
@@ -646,7 +654,14 @@ export function CreatorShopManager() {
                 )}
               >
                 {productForm.imageUrl ? (
-                  <img src={productForm.imageUrl} alt="Product" className="h-full w-full object-cover" />
+                  <Image
+                    src={productForm.imageUrl}
+                    alt="Product"
+                    width={440}
+                    height={440}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                  />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground">
                     {isUploadingImage ? (

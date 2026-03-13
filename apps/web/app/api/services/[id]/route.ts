@@ -5,6 +5,15 @@ import { prisma } from '@foleio/database';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -22,10 +31,13 @@ export async function PUT(
     }
 
     // Check ownership
-    const existingService = await prisma.priceListItem.findUnique({
-      where: { id },
-      include: { creator: { select: { userId: true } } }
-    });
+    const existingService = await withTimeout(
+      prisma.priceListItem.findUnique({
+        where: { id },
+        include: { creator: { select: { userId: true } } }
+      }),
+      3000
+    );
 
     if (!existingService) {
       return NextResponse.json(
@@ -70,41 +82,44 @@ export async function PUT(
     }
 
     // Update service
-    const updatedService = await prisma.priceListItem.update({
-      where: { id },
-      data: {
-        serviceType:
-          serviceType === 'coaching' || serviceType === 'consultation'
-            ? serviceType
-            : 'general',
-        category: category?.trim() || null,
-        name: name.trim(),
-        description: description?.trim(),
-        sessionDescription:
-          serviceType === 'coaching' || serviceType === 'consultation'
-            ? sessionDescription?.trim() || null
-            : null,
-        calendlyLink:
-          serviceType === 'coaching' || serviceType === 'consultation'
-            ? calendlyLink?.trim() || null
-            : null,
-        price: parseInt(price),
-        durationMinutes:
-          serviceType === 'coaching' || serviceType === 'consultation'
-            ? durationMinutes
-              ? parseInt(durationMinutes)
-              : null
-            : null,
-        isActive: isActive !== undefined ? isActive : existingService.isActive
-      },
-      include: {
-        _count: {
-          select: {
-            bookings: true
+    const updatedService = await withTimeout(
+      prisma.priceListItem.update({
+        where: { id },
+        data: {
+          serviceType:
+            serviceType === 'coaching' || serviceType === 'consultation'
+              ? serviceType
+              : 'general',
+          category: category?.trim() || null,
+          name: name.trim(),
+          description: description?.trim(),
+          sessionDescription:
+            serviceType === 'coaching' || serviceType === 'consultation'
+              ? sessionDescription?.trim() || null
+              : null,
+          calendlyLink:
+            serviceType === 'coaching' || serviceType === 'consultation'
+              ? calendlyLink?.trim() || null
+              : null,
+          price: parseInt(price),
+          durationMinutes:
+            serviceType === 'coaching' || serviceType === 'consultation'
+              ? durationMinutes
+                ? parseInt(durationMinutes)
+                : null
+              : null,
+          isActive: isActive !== undefined ? isActive : existingService.isActive
+        },
+        include: {
+          _count: {
+            select: {
+              bookings: true
+            }
           }
         }
-      }
-    });
+      }),
+      3500
+    );
 
     // Serialize response
     const serializedService = {
@@ -134,8 +149,11 @@ export async function PUT(
 
   } catch (error: any) {
     console.error('Service update error:', error);
+    const timeoutMessage = String(error?.message || '').toLowerCase().includes('timed out')
+      ? 'Database is temporarily unavailable. Please retry.'
+      : error.message;
     return NextResponse.json(
-      { error: 'Failed to update service', details: error.message },
+      { error: 'Failed to update service', details: timeoutMessage },
       { status: 500 }
     );
   }
@@ -158,10 +176,13 @@ export async function DELETE(
     }
 
     // Check ownership
-    const service = await prisma.priceListItem.findUnique({
-      where: { id },
-      include: { creator: { select: { userId: true } } }
-    });
+    const service = await withTimeout(
+      prisma.priceListItem.findUnique({
+        where: { id },
+        include: { creator: { select: { userId: true } } }
+      }),
+      3000
+    );
 
     if (!service) {
       return NextResponse.json(
@@ -178,9 +199,12 @@ export async function DELETE(
     }
 
     // Check if service has bookings
-    const bookingCount = await prisma.booking.count({
-      where: { priceListItemId: id }
-    });
+    const bookingCount = await withTimeout(
+      prisma.booking.count({
+        where: { priceListItemId: id }
+      }),
+      3000
+    );
 
     if (bookingCount > 0) {
       return NextResponse.json(
@@ -190,9 +214,12 @@ export async function DELETE(
     }
 
     // Delete service
-    await prisma.priceListItem.delete({
-      where: { id }
-    });
+    await withTimeout(
+      prisma.priceListItem.delete({
+        where: { id }
+      }),
+      3000
+    );
 
     return NextResponse.json({
       success: true,
@@ -201,8 +228,11 @@ export async function DELETE(
 
   } catch (error: any) {
     console.error('Service delete error:', error);
+    const timeoutMessage = String(error?.message || '').toLowerCase().includes('timed out')
+      ? 'Database is temporarily unavailable. Please retry.'
+      : error.message;
     return NextResponse.json(
-      { error: 'Failed to delete service', details: error.message },
+      { error: 'Failed to delete service', details: timeoutMessage },
       { status: 500 }
     );
   }

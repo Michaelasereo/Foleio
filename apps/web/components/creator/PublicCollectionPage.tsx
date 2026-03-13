@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -158,10 +159,13 @@ export function PublicCollectionPage({ creator, collection }: PublicCollectionPa
           {/* Thumbnail */}
           {collection.thumbnailUrl && (
             <div className="md:w-1/3">
-              <img
+              <Image
                 src={collection.thumbnailUrl}
                 alt={collection.title}
+                width={640}
+                height={360}
                 className="w-full aspect-video object-cover rounded-lg"
+                unoptimized
               />
             </div>
           )}
@@ -195,10 +199,13 @@ export function PublicCollectionPage({ creator, collection }: PublicCollectionPa
             {/* Creator */}
             <div className="flex items-center gap-3 mb-6">
               {creator.avatarUrl ? (
-                <img
+                <Image
                   src={creator.avatarUrl}
                   alt={creator.displayName}
+                  width={40}
+                  height={40}
                   className="w-10 h-10 rounded-full"
+                  unoptimized
                 />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold">
@@ -377,7 +384,14 @@ function ContentRow({ content, index, hasAccess, onClick }: ContentRowProps) {
     >
       <div className="h-12 w-20 flex-shrink-0 overflow-hidden rounded">
         {content.thumbnailUrl ? (
-          <img src={content.thumbnailUrl} alt={content.title} className="h-full w-full object-cover" />
+          <Image
+            src={content.thumbnailUrl}
+            alt={content.title}
+            width={320}
+            height={192}
+            className="h-full w-full object-cover"
+            unoptimized
+          />
         ) : (
           <DefaultThumbnail title={content.title} size="sm" />
         )}

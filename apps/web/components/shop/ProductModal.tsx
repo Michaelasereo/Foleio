@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Image from 'next/image';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -49,7 +50,14 @@ export function ProductModal({
         <div className="space-y-4">
           <div className="aspect-square overflow-hidden rounded-xl bg-muted">
             {product.imageUrl ? (
-              <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+              <Image
+                src={product.imageUrl}
+                alt={product.name}
+                width={720}
+                height={720}
+                className="h-full w-full object-cover"
+                unoptimized
+              />
             ) : null}
           </div>
           <div>

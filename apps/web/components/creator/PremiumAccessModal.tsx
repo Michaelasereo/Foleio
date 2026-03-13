@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -214,7 +215,14 @@ export function PremiumAccessModal({
             <div className="rounded-lg border bg-muted/50 p-4">
               <div className="flex items-start gap-3">
                 {content.thumbnailUrl && (
-                  <img src={content.thumbnailUrl} alt={content.title} className="w-16 h-12 object-cover rounded" />
+                  <Image
+                    src={content.thumbnailUrl}
+                    alt={content.title}
+                    width={64}
+                    height={48}
+                    className="h-12 w-16 object-cover rounded"
+                    unoptimized
+                  />
                 )}
                 {!content.thumbnailUrl && (
                   <div className="w-16 overflow-hidden rounded">
