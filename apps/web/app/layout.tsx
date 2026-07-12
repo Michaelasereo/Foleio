@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { DM_Sans, Playfair_Display } from 'next/font/google';
+import localFont from 'next/font/local';
+import { Playfair_Display } from 'next/font/google';
 import Link from 'next/link';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ChunkRecovery } from '@/components/chunk-recovery';
@@ -20,9 +21,26 @@ const playfairDisplay = Playfair_Display({
   variable: '--font-display',
 });
 
-const dmSans = DM_Sans({
-  subsets: ['latin'],
+const interTight = localFont({
+  src: [
+    {
+      path: '../public/Font/InterTight-Light.ttf',
+      weight: '300',
+      style: 'normal',
+    },
+    {
+      path: '../public/Font/InterTight-Regular.ttf',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: '../public/Font/InterTight-Medium.ttf',
+      weight: '500',
+      style: 'normal',
+    },
+  ],
   variable: '--font-body',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -78,7 +96,7 @@ export default function RootLayout({
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
       <body
-        className={`${dmSans.variable} ${playfairDisplay.variable} ${
+        className={`${interTight.variable} ${playfairDisplay.variable} ${
           showStagingBanner ? 'pt-8' : ''
         }`}
       >

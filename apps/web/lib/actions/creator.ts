@@ -29,8 +29,18 @@ const creatorCoreSelect = {
 
 const onboardingStep1Schema = z.object({
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(30, 'Username must be less than 30 characters')
+    .regex(
+      /^[a-z0-9_-]+$/,
+      'Username can only contain lowercase letters, numbers, hyphens, and underscores'
+    )
+    .optional(),
   bio: z.string().optional(),
   category: z.string().default('makeup'),
+  useCases: z.array(z.string()).optional(),
   instagramHandle: z.string().optional(),
   tiktokHandle: z.string().optional(),
 });
@@ -92,22 +102,29 @@ export async function createCreatorProfile(
       },
     });
 
-    // Generate username from display name
-    const username = step1Data.displayName
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
+    // Prefer claimed username; otherwise generate from display name
+    const username = (
+      step1Data.username ||
+      step1Data.displayName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+    ).toLowerCase();
 
-    // Check if username exists
     const existingCreatorWithUsername = await prisma.creator.findUnique({
       where: { username },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
 
-    const finalUsername = existingCreatorWithUsername
-      ? `${username}-${Date.now()}`
-      : username;
+    if (
+      existingCreatorWithUsername &&
+      existingCreatorWithUsername.userId !== session.user.id
+    ) {
+      return { success: false, error: 'That username is already taken' };
+    }
+
+    const finalUsername = username;
 
     // Create or update creator profile (idempotent for repeated onboarding submits)
     const existingCreatorForUser = await prisma.creator.findUnique({
@@ -133,7 +150,10 @@ export async function createCreatorProfile(
     const creator = existingCreatorForUser
       ? await prisma.creator.update({
           where: { id: existingCreatorForUser.id },
-          data: creatorData,
+          data: {
+            ...creatorData,
+            username: finalUsername,
+          },
           select: creatorCoreSelect,
         })
       : await prisma.creator.create({

@@ -31,7 +31,13 @@ Your Paystack API keys:
 PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
+# Platform fee kept on booking/subaccount split charges (Paystack percentage_charge). Default: 5
+FOLEIO_PLATFORM_FEE_PERCENT=5
 ```
+
+**Webhook:** subscribe to `charge.success` at `https://your-domain.com/api/webhooks/paystack`.
+
+**Ops note:** Paystack business activation (Phase 1) is required for live subaccount settlements — configure in the Paystack dashboard; no app code.
 
 **Note:** You'll need to set up a webhook secret in your Paystack dashboard for production. For development, you can use a placeholder or generate one.
 

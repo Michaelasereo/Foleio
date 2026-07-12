@@ -43,6 +43,8 @@ DATABASE_URL=postgresql://postgres:Adenike2026#@db.xdwocaugiyjtbbzwpbid.supabase
 PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
+# Platform fee on subaccount split (default 5). Settlement: auto (T+1) via Paystack.
+FOLEIO_PLATFORM_FEE_PERCENT=5
 
 # Resend
 RESEND_API_KEY=re_66rgwPZ1_93xPfReWa1KdYMGD5ckW7QVY
@@ -61,12 +63,14 @@ Configure your Paystack API keys:
 PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
+FOLEIO_PLATFORM_FEE_PERCENT=5
 ```
 
 **Webhook Setup (for production):**
 1. Go to https://dashboard.paystack.com/#/settings/developer
-2. Set up a webhook URL: `https://your-domain.com/api/webhooks/paystack`
+2. Set up a webhook URL: `https://your-domain.com/api/webhooks/paystack` (events: `charge.success`)
 3. Copy the webhook secret and add it to `PAYSTACK_WEBHOOK_SECRET`
+4. Ensure your Paystack business is activated for live subaccount settlements (ops / Phase 1)
 
 For local development, you can use ngrok to expose your local server for webhook testing.
 

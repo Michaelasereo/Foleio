@@ -179,6 +179,7 @@ export default function AdminCreatorsPage() {
                   <TableRow>
                     <TableHead>Creator</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead>Payments</TableHead>
                     <TableHead>Content</TableHead>
                     <TableHead>Subscribers</TableHead>
                     <TableHead>Earnings</TableHead>
@@ -213,6 +214,22 @@ export default function AdminCreatorsPage() {
                         </div>
                       </TableCell>
                       <TableCell>{relativeDate(creator.createdAt)}</TableCell>
+                      <TableCell>
+                        {creator.paymentsReady ? (
+                          <div className="space-y-1">
+                            <Badge className={`border ${statusBadgeClass('active')}`}>
+                              Subaccount ready
+                            </Badge>
+                            <p className="font-mono text-[10px] text-muted-foreground">
+                              {(creator.paystackSubaccountCode || '').slice(0, 12)}…
+                            </p>
+                          </div>
+                        ) : (
+                          <Badge className={`border ${statusBadgeClass('pending')}`}>
+                            {creator.hasBankAccount ? creator.subaccountStatus : 'No bank'}
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{creator.contentCount}</TableCell>
                       <TableCell>{creator.activeSubscribers}</TableCell>
                       <TableCell>{formatMoneyFromKobo(creator.totalEarned)}</TableCell>
@@ -268,6 +285,14 @@ export default function AdminCreatorsPage() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <p className="text-muted-foreground">Joined</p>
                     <p>{relativeDate(creator.createdAt)}</p>
+                    <p className="text-muted-foreground">Payments</p>
+                    <p>
+                      {creator.paymentsReady
+                        ? 'Subaccount ready'
+                        : creator.hasBankAccount
+                          ? creator.subaccountStatus
+                          : 'No bank'}
+                    </p>
                     <p className="text-muted-foreground">Content</p>
                     <p>{creator.contentCount}</p>
                     <p className="text-muted-foreground">Subscribers</p>

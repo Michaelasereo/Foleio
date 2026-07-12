@@ -391,10 +391,22 @@ export default async function CreatorPublicPage({
   } catch (error) {
     console.error('[public-profile] failed to load:', error);
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
-          <p className="text-muted-foreground">
+      <div
+        className="flex min-h-screen items-center justify-center px-4"
+        style={{ background: '#1a1816', fontFamily: 'var(--font-body), sans-serif' }}
+      >
+        <div className="mx-auto max-w-md text-center">
+          <h1
+            style={{
+              margin: 0,
+              color: '#f4f4f5',
+              fontSize: 24,
+              fontWeight: 600,
+            }}
+          >
+            Something went wrong
+          </h1>
+          <p style={{ marginTop: 12, color: '#adadad', fontSize: 14, fontWeight: 500 }}>
             Could not load this profile. Please try again.
           </p>
         </div>

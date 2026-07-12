@@ -55,6 +55,7 @@
     "bullmq": "^5.12.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "critters": "^0.0.25",
     "dompurify": "^3.3.2",
     "file-type": "^19.0.0",
     "html2canvas": "^1.4.1",

@@ -1,4 +1,4 @@
-import { FanSupportChat } from '@/components/ai/FanSupportChat';
+import { TryFoleioFab } from '@/components/creator/TryFoleioFab';
 
 export default function PublicCreatorLayout({
   children,
@@ -8,7 +8,7 @@ export default function PublicCreatorLayout({
   return (
     <>
       {children}
-      <FanSupportChat />
+      <TryFoleioFab />
     </>
   );
 }

@@ -35,6 +35,19 @@ interface CreateSubaccountParams {
   primary_contact_email: string;
   primary_contact_name: string;
   primary_contact_phone: string;
+  settlement_schedule?: 'auto' | 'manual';
+}
+
+interface UpdateSubaccountParams {
+  subaccount_code: string;
+  business_name?: string;
+  settlement_bank?: string;
+  account_number?: string;
+  percentage_charge?: number;
+  primary_contact_email?: string;
+  primary_contact_name?: string;
+  primary_contact_phone?: string;
+  settlement_schedule?: 'auto' | 'manual';
 }
 
 interface CreateTransferRecipientParams {
@@ -180,12 +193,38 @@ export const paystack = {
         primary_contact_email: params.primary_contact_email,
         primary_contact_name: params.primary_contact_name,
         primary_contact_phone: params.primary_contact_phone,
+        settlement_schedule: params.settlement_schedule || 'auto',
       }),
     });
 
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message || 'Failed to create subaccount');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Update an existing subaccount (bank details, fee, settlement schedule)
+   */
+  async updateSubaccount(params: UpdateSubaccountParams) {
+    const { subaccount_code, ...rest } = params;
+    const response = await fetch(`${PAYSTACK_BASE_URL}/subaccount/${subaccount_code}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...rest,
+        settlement_schedule: rest.settlement_schedule || 'auto',
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update subaccount');
     }
 
     return response.json();

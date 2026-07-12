@@ -17,6 +17,12 @@ export type CreatorHealthRow = {
   completedBookings: number;
   healthScore: number;
   healthStatus: CreatorHealthStatus;
+  /** Paystack subaccount payment readiness */
+  paystackSubaccountCode: string | null;
+  subaccountStatus: string;
+  payoutMethod: string;
+  paymentsReady: boolean;
+  hasBankAccount: boolean;
 };
 
 function getHealthStatus(score: number): CreatorHealthStatus {
@@ -24,6 +30,8 @@ function getHealthStatus(score: number): CreatorHealthStatus {
   if (score >= 40) return 'at_risk';
   return 'inactive';
 }
+
+const SUCCESS_TX = ['success', 'SUCCESS', 'completed', 'COMPLETED', 'paid', 'PAID'];
 
 export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
   const creators = await prisma.creator.findMany({
@@ -35,13 +43,14 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
         select: { id: true },
       },
       transactions: {
-        where: { status: 'success' },
+        where: { status: { in: SUCCESS_TX } },
         select: { creatorEarnings: true, createdAt: true },
       },
       bookings: {
         where: { status: 'completed' },
         select: { id: true },
       },
+      bankAccount: { select: { id: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -70,6 +79,11 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
     if (lastContentDate && lastContentDate >= twoWeeksAgo) healthScore += 20;
     if (completedBookings > 0) healthScore += 20;
 
+    const subaccountStatus = String(creator.subaccountStatus || 'INACTIVE');
+    const paystackSubaccountCode = creator.paystackSubaccountCode || null;
+    const paymentsReady =
+      Boolean(paystackSubaccountCode) && subaccountStatus === 'ACTIVE';
+
     return {
       id: creator.id,
       username: creator.username,
@@ -85,6 +99,11 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
       completedBookings,
       healthScore,
       healthStatus: getHealthStatus(healthScore),
+      paystackSubaccountCode,
+      subaccountStatus,
+      payoutMethod: String(creator.payoutMethod || 'SCHEDULED_BULK'),
+      paymentsReady,
+      hasBankAccount: Boolean(creator.bankAccount),
     };
   });
 }

@@ -1,81 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import useSWR from 'swr';
-import NextLink from 'next/link';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Calendar,
-  Video,
-  Image as ImageIcon,
-  FileText,
-  Link2,
-  Mail,
-  Play,
-  Eye,
-  BookOpen,
-  Star,
-  CreditCard,
-  Lock,
-  ArrowRight,
-  Flag,
-  PlayCircle,
-} from 'lucide-react';
-import { MuxVideoPlayer } from '@/components/ui/mux-player';
+import { useState } from 'react';
+import { BadgeCheck, Calendar, Link2 } from 'lucide-react';
 import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
-import { SubscriptionModal } from '@/components/creator/SubscriptionModal';
-import { PremiumAccessModal } from '@/components/creator/PremiumAccessModal';
-import { CollectionSubscriptionModal } from '@/components/creator/CollectionSubscriptionModal';
-import { CollectionCard } from '@/components/content/CollectionCard';
-import { CollectionModal } from '@/components/content/CollectionModal';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useRouter } from 'next/navigation';
-import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
-import { ReportContentModal } from '@/components/content/ReportContentModal';
-import { JournalEntryCard } from '@/components/journal/JournalEntryCard';
+import { authCss } from '@/components/auth/styles';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
-import { ShopTab } from '@/components/shop/ShopTab';
 import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
-import foleioLogo from '../../../../foleio-logo.png';
-
-interface Content {
-  id: string;
-  title: string;
-  description: string | null;
-  type: string;
-  thumbnailUrl: string | null;
-  viewCount: number;
-  createdAt: Date;
-  accessType: string;
-  contentCategory: string;
-  muxAssetId: string | null;
-  muxPlaybackId: string | null;
-  tutorialPrice?: number | null;
-  collectionId?: string | null;
-  collection?: {
-    id: string;
-    title: string;
-  } | null;
-}
 
 interface CreatorLink {
   id: string;
@@ -111,13 +42,6 @@ interface Availability {
   isFullyBooked?: boolean;
 }
 
-interface CreatorPlan {
-  id: string;
-  name: string;
-  price: number;
-  description: string | null;
-}
-
 interface Creator {
   id: string;
   username: string;
@@ -130,978 +54,642 @@ interface Creator {
   tiktokHandle: string | null;
   subscriberCount: number;
   contentCount: number;
-  introVideo: {
-    id: string;
-    title: string;
-    muxAssetId: string | null;
-  muxPlaybackId: string | null;
-    thumbnailUrl: string | null;
-    description: string | null;
-  } | null;
+  introVideo: unknown;
   creatorLinks: CreatorLink[];
   priceListItems: PriceListItem[];
   availability: Availability[];
-  creatorPlans: CreatorPlan[];
+  creatorPlans: unknown[];
   platformPlan?: string | null;
+  paystackSubaccountCode?: string | null;
+  subaccountStatus?: string | null;
 }
 
 interface PublicCreatorProfileProps {
   creator: Creator;
-  regularContent: Content[];
-  tutorials: Content[];
-  tutorialCollections: TutorialCollection[];
-  journalEntries: {
-    id: string;
-    slug: string;
-    title: string;
-    subtitle: string | null;
-    coverImage: string | null;
-    tags: string[];
-    readTime: number;
-    viewCount: number;
-    publishedAt: Date | null;
-  }[];
+  regularContent?: unknown[];
+  tutorials?: unknown[];
+  tutorialCollections?: unknown[];
+  journalEntries?: unknown[];
   groupedPriceList: GroupedPriceList[];
-  hasActiveProducts: boolean;
+  hasActiveProducts?: boolean;
 }
 
-interface TutorialCollection {
-  id: string;
-  title: string;
-  description: string | null;
-  thumbnailUrl: string | null;
-  price: number | null;
-  subscriptionPrice: number | null;
-  sections?: {
-    id: string;
-    title: string;
-    videos: {
-      id: string;
-      title: string;
-      description: string | null;
-      thumbnailUrl: string | null;
-      muxAssetId: string | null;
-      muxPlaybackId: string | null;
-      createdAt: Date;
-    }[];
-  }[];
-  videos: {
-    id: string;
-    title: string;
-    description: string | null;
-    thumbnailUrl: string | null;
-    muxAssetId: string | null;
-    muxPlaybackId: string | null;
-    createdAt: Date;
-  }[];
+const publicProfileCss = `
+${authCss}
+
+body:has(.foleio-public-root) footer { display: none !important; }
+
+.foleio-public-root {
+  min-height: 100vh;
+  background: #1a1816;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.foleio-public-banner {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #1a1816;
+}
+.foleio-public-banner.has-image {
+  height: 160px;
+}
+@media (min-width: 768px) {
+  .foleio-public-banner.has-image { height: 200px; }
+}
+.foleio-public-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.foleio-public-shell {
+  width: 100%;
+  max-width: 929px;
+  margin: 0 auto;
+  padding: 18px 24px 48px;
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.foleio-public-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  align-items: start;
+  width: 100%;
+}
+@media (min-width: 900px) {
+  .foleio-public-columns {
+    grid-template-columns: minmax(240px, 333px) minmax(0, 542px);
+    gap: clamp(24px, 4vw, 54px);
+  }
+}
+
+.foleio-public-left,
+.foleio-public-right {
+  width: 100%;
+  min-width: 0;
+}
+.foleio-public-right {
+  max-width: 542px;
+}
+@media (max-width: 899px) {
+  .foleio-public-left {
+    max-width: 333px;
+  }
+}
+
+.foleio-public-root .foleio-auth-stub-thumb.is-avatar {
+  background: transparent;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.foleio-public-root .foleio-auth-stub-thumb.is-avatar > * {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 4px !important;
+  background: #2b2b2b !important;
+}
+.foleio-public-root .foleio-auth-stub-thumb.is-avatar span {
+  color: #adadad !important;
+  font-weight: 500 !important;
+}
+.foleio-public-root .foleio-auth-stub-name {
+  color: #f4f4f5;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin: 0;
+}
+.foleio-public-root .foleio-auth-stub-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+}
+.foleio-public-root .foleio-auth-stub-category {
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.foleio-public-bio {
+  margin: 14px 0 0;
+  color: #adadad;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.foleio-public-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #fff;
+  border-radius: 10px;
+  background: #fff;
+  color: #001035;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 14px;
+}
+.foleio-public-cta:hover { opacity: 0.92; }
+.foleio-public-cta svg {
+  width: 16px;
+  height: 16px;
+}
+
+.foleio-public-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.foleio-public-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #212121;
+  color: #f4f4f5;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.foleio-public-link:hover {
+  background: #2a2a2a;
+}
+.foleio-public-link svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #adadad;
+}
+
+.foleio-public-panel {
+  padding: 16px;
+  border-radius: 12px;
+  background: #212121;
+}
+.foleio-public-panel-title {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 16px;
+  font-weight: 600;
+}
+.foleio-public-panel-meta {
+  margin: 6px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.foleio-public-group {
+  margin-top: 14px;
+}
+.foleio-public-group-label {
+  margin: 0 0 8px;
+  color: #828282;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.foleio-public-service {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.foleio-public-service:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+@media (min-width: 540px) {
+  .foleio-public-service {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+.foleio-public-service-main {
+  min-width: 0;
+  flex: 1;
+}
+.foleio-public-service-name {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 14px;
+  font-weight: 500;
+}
+.foleio-public-service-desc {
+  margin: 4px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.foleio-public-service-meta {
+  margin: 4px 0 0;
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+}
+.foleio-public-service-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.foleio-public-service-price {
+  color: #f4f4f5;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.foleio-public-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: transparent;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.foleio-public-btn-outline:hover { opacity: 0.9; }
+
+.foleio-public-empty {
+  margin: 14px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+}
+`;
+
+const SAMPLE_BIO =
+  'Soft glam, bridal, and editorial makeup for clients who want skin that looks like skin — polished, not painted. Sessions in Lagos, with travel for shoots and wedding parties.';
+
+function isPlaceholderBio(bio?: string | null) {
+  const value = bio?.trim() || '';
+  if (!value) return true;
+  if (value.length < 12) return true;
+  // Repeated characters / keyboard mash
+  if (/^(.)\1+$/i.test(value)) return true;
+  if (!/[aeiou]/i.test(value) && value.length < 20) return true;
+  return false;
+}
+
+const SAMPLE_LINKS: Array<{ id: string; label: string; url: string }> = [
+  { id: 'sample-ig', label: 'Instagram', url: 'https://instagram.com' },
+  { id: 'sample-tiktok', label: 'TikTok', url: 'https://tiktok.com' },
+  { id: 'sample-portfolio', label: 'Portfolio', url: 'https://foleio.com' },
+];
+
+const SAMPLE_GROUPED: GroupedPriceList[] = [
+  {
+    category: null,
+    items: [
+      {
+        id: 'sample-soft-glam',
+        category: null,
+        name: 'Soft glam session',
+        description: 'Natural everyday glam with skin-first finish. Includes lashes.',
+        price: 4500000,
+        durationMinutes: 90,
+      },
+      {
+        id: 'sample-bridal',
+        category: null,
+        name: 'Bridal makeup',
+        description: 'Full bridal look with trial option. Travel available in Lagos.',
+        price: 12000000,
+        durationMinutes: 150,
+      },
+      {
+        id: 'sample-editorial',
+        category: null,
+        name: 'Editorial / shoot',
+        description: 'Creative looks for campaigns, lookbooks, and content days.',
+        price: 8000000,
+        durationMinutes: 120,
+      },
+    ],
+  },
+];
+
+function buildSampleAvailability(): Availability[] {
+  const dates: Availability[] = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  for (let i = 2; i <= 16; i += 2) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    dates.push({
+      id: `sample-avail-${i}`,
+      date,
+      isAvailable: true,
+      maxBookings: 3,
+      bookingCount: i % 4 === 0 ? 1 : 0,
+      isFullyBooked: false,
+    });
+  }
+  return dates;
 }
 
 export function PublicCreatorProfile({
   creator,
-  regularContent,
-  tutorials,
-  tutorialCollections,
-  journalEntries,
   groupedPriceList,
-  hasActiveProducts,
 }: PublicCreatorProfileProps) {
-  const fetcher = async (url: string) => {
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) throw new Error('Failed to fetch stats');
-    return response.json();
-  };
-  const { data: liveStats } = useSWR(
-    `/api/creators/${creator.username}/stats`,
-    fetcher,
-    {
-      refreshInterval: 60000,
-      fallbackData: {
-        subscriberCount: creator.subscriberCount || 0,
-        contentCount: creator.contentCount || 0,
-      },
-    }
-  );
-
-  const router = useRouter();
   const [priceListOpen, setPriceListOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<PriceListItem | null>(null);
-  const [subscribeOpen, setSubscribeOpen] = useState(false);
-  const [subscribeEmail, setSubscribeEmail] = useState('');
-  const [isSubscribing, setIsSubscribing] = useState(false);
-  const [subscribeSuccess, setSubscribeSuccess] = useState(false);
-  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
-  const [premiumAccessOpen, setPremiumAccessOpen] = useState(false);
-  const [selectedPremiumContent, setSelectedPremiumContent] = useState<Content | null>(null);
-  const [reportContentId, setReportContentId] = useState<string | null>(null);
-  const [verifiedContentIds, setVerifiedContentIds] = useState<Set<string>>(new Set());
-  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
-  const [selectedCollection, setSelectedCollection] = useState<TutorialCollection | null>(null);
-  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
-  const [collectionSubscriptionOpen, setCollectionSubscriptionOpen] = useState(false);
-  const [verifiedCollectionIds, setVerifiedCollectionIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'Content' | 'Journal' | 'Shop' | 'About'>('Content');
-  const [trackedViewIds, setTrackedViewIds] = useState<Set<string>>(new Set());
+  const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null);
+
   const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
-  useEffect(() => {
-    if (!playingVideoId || trackedViewIds.has(playingVideoId)) return;
+  const formatPrice = (priceInKobo: number) =>
+    new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+    }).format(priceInKobo / 100);
 
-    const content = [...regularContent, ...tutorials, ...tutorialCollections.flatMap((c) => c.videos)].find(
-      (item) => item.id === playingVideoId
-    );
-    if (!content?.muxPlaybackId) return;
+  const usingSampleServices = groupedPriceList.length === 0;
+  const displayGrouped = usingSampleServices ? SAMPLE_GROUPED : groupedPriceList;
+  const displayPriceListItems = displayGrouped.flatMap((group) => group.items);
+  const displayAvailability = usingSampleServices
+    ? buildSampleAvailability()
+    : creator.availability;
 
-    const timer = window.setTimeout(() => {
-      setTrackedViewIds((prev) => new Set([...prev, playingVideoId]));
-      void fetch(`/api/content/${playingVideoId}/views`, { method: 'POST' }).catch(() => {});
-    }, 10_000);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [playingVideoId, trackedViewIds, regularContent, tutorials, tutorialCollections]);
+  function openServiceDrawer(serviceId?: string) {
+    setPreselectedServiceId(serviceId || null);
+    setPriceListOpen(true);
+  }
 
   const handleServiceSelect = (item: PriceListItem) => {
-    // Validate that creator has availability before opening booking modal
-    if (creator.availability.length === 0) {
-      alert('This creator currently has no available dates for booking. Please check back later.');
-      return;
-    }
-
     setSelectedService(item);
     setPriceListOpen(false);
+    setPreselectedServiceId(null);
     setBookingOpen(true);
   };
 
   const handleBackToServices = () => {
     setBookingOpen(false);
+    const currentId = selectedService?.id || null;
     setSelectedService(null);
+    setPreselectedServiceId(currentId);
     setPriceListOpen(true);
   };
 
-  const handleContentClick = (content: Content) => {
-    if (content.collectionId) {
-      router.push(`/creator/${creator.username}/tutorials?tab=paid`);
-      return;
-    }
+  const hasPriceList = displayPriceListItems.length > 0;
+  const hasAvailability = displayAvailability.length > 0;
+  const paymentsReady =
+    Boolean(creator.paystackSubaccountCode) &&
+    creator.subaccountStatus === 'ACTIVE';
+  // Sample preview can still open the drawer; live bookings require Paystack subaccount
+  const canBook =
+    hasPriceList &&
+    hasAvailability &&
+    (usingSampleServices || paymentsReady);
 
-    if (content.accessType === 'free') {
-      // Free content - play directly
-      if (content.type === 'video' && content.muxPlaybackId) {
-        setPlayingVideoId(content.id);
-      }
-    } else {
-      // Premium content - check if verified
-      if (verifiedContentIds.has(content.id)) {
-        // Already verified - play
-        if (content.type === 'video' && content.muxPlaybackId) {
-          setPlayingVideoId(content.id);
-        }
-      } else {
-        // Need verification
-        setSelectedPremiumContent(content);
-        setPremiumAccessOpen(true);
-      }
-    }
-  };
-
-  const handleCollectionClick = (collection: TutorialCollection) => {
-    setSelectedCollection(collection);
-    setCollectionModalOpen(true);
-  };
-
-  const handleCollectionPlayVideo = (videoId: string) => {
-    setCollectionModalOpen(false);
-    setPlayingVideoId(videoId);
-  };
-
-  const handlePremiumAccessVerified = (contentId: string) => {
-    setVerifiedContentIds(prev => new Set([...prev, contentId]));
-    setPremiumAccessOpen(false);
-    // Now play the content
-    const content = [...regularContent, ...tutorials].find(c => c.id === contentId);
-    if (content?.type === 'video' && content?.muxPlaybackId) {
-      setPlayingVideoId(contentId);
-    }
-  };
-
-  async function handleSubscribe(e: React.FormEvent) {
-    e.preventDefault();
-    setIsSubscribing(true);
-    try {
-      const response = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          creatorId: creator.id,
-          email: subscribeEmail,
-        }),
-      });
-      
-      if (response.ok) {
-        setSubscribeSuccess(true);
-        setSubscribeEmail('');
-      }
-    } catch (error) {
-      console.error('Subscribe error:', error);
-    }
-    setIsSubscribing(false);
-  }
-
-  const formatPrice = (priceInKobo: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(priceInKobo / 100);
-  };
-
-  const hasPriceList = creator.priceListItems.length > 0;
-  const hasAvailability = creator.availability.length > 0;
-  const hasPlans = creator.creatorPlans.length > 0;
-
-  // Separate tutorials by access type
-  const freeTutorials = tutorials.filter(t => t.accessType === 'free');
-  const paidTutorials = tutorials.filter(t => t.accessType !== 'free');
-  
-  // Limit to 6 per tab
-  const freeTutorialsDisplay = freeTutorials.slice(0, 6);
-  const paidTutorialsDisplay = paidTutorials.slice(0, 6);
-  const hasMoreFreeTutorials = freeTutorials.length > 6;
-  const hasMorePaidTutorials = paidTutorials.length > 6;
-  const isStarterPlan =
-    !creator.platformPlan || creator.platformPlan.toUpperCase() === 'STARTER';
   const industryLabel =
-    INDUSTRY_OPTIONS.find((option) => option.value === creator.category)?.label || creator.category;
+    INDUSTRY_OPTIONS.find((option) => option.value === creator.category)?.label ||
+    creator.category;
+  const categoryHashtag = industryLabel
+    ? `#${industryLabel.replace(/[^a-zA-Z0-9]+/g, '')}`
+    : '';
+
+  const realLinks = [
+    creator.instagramHandle
+      ? {
+          id: 'instagram',
+          label: 'Instagram',
+          url: `https://instagram.com/${creator.instagramHandle.replace(/^@/, '')}`,
+        }
+      : null,
+    creator.tiktokHandle
+      ? {
+          id: 'tiktok',
+          label: 'TikTok',
+          url: `https://tiktok.com/@${creator.tiktokHandle.replace(/^@/, '')}`,
+        }
+      : null,
+    ...(Array.isArray(creator.creatorLinks)
+      ? creator.creatorLinks
+          .filter((link) => link.url && link.url !== '#price-list')
+          .map((link) => ({
+            id: link.id,
+            label: link.label || 'Link',
+            url: normalizeUrl(link.url),
+          }))
+      : []),
+  ].filter(Boolean) as Array<{ id: string; label: string; url: string }>;
+
+  const socialLinks = realLinks.length > 0 ? realLinks : SAMPLE_LINKS;
+  const displayBio = isPlaceholderBio(creator.bio) ? SAMPLE_BIO : creator.bio!.trim();
+
+  const servicesMeta = usingSampleServices
+    ? 'Sample services for preview — publish your own from Bookings.'
+    : canBook
+      ? 'Choose a service to book a date.'
+      : hasPriceList && !paymentsReady
+        ? 'Payments not set up yet — booking will open once the creator connects a bank account.'
+        : hasPriceList
+          ? 'Services are listed below. Booking opens when dates are available.'
+          : 'No services published yet.';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      {/* Banner */}
-      <div className="relative h-48 md:h-64">
-        {creator.bannerUrl ? (
-          <img
-            src={creator.bannerUrl}
-            alt={`${creator.displayName} banner`}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-r from-background via-card to-primary/20" />
-        )}
-      </div>
+    <div className="foleio-public-root">
+      <style dangerouslySetInnerHTML={{ __html: publicProfileCss }} />
 
-      {/* Profile Header */}
-      <div className="max-w-4xl mx-auto px-4 relative">
-        <div className="-mt-16 md:-mt-20 relative z-10">
-          {/* Avatar - Left aligned, overlapping banner */}
-          <CreatorAvatar
-            src={creator.avatarUrl}
-            name={creator.displayName}
-            size={144}
-            className="mb-4 border-[3px] border-primary md:h-36 md:w-36"
-          />
+      {creator.bannerUrl ? (
+        <div className="foleio-public-banner has-image">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={creator.bannerUrl} alt="" />
+        </div>
+      ) : null}
 
-          {/* Info and Action Buttons Container */}
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            {/* Info */}
-            <div className="flex-1">
-              <div className="mb-3 flex flex-wrap items-center gap-3">
-                <div>
-                  <h1 className="font-display text-3xl md:text-4xl">{creator.displayName}</h1>
-                  <p className="font-body text-base text-muted-foreground">@{creator.username}</p>
-                </div>
-                <Button variant="outline" onClick={() => setSubscribeOpen(true)} size="sm">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Subscribe
-                </Button>
-              </div>
-
-              {creator.bio && (
-                <p className="mb-4 text-base leading-relaxed">{creator.bio}</p>
-              )}
-              {Array.isArray(creator.creatorLinks) && creator.creatorLinks.length > 0 && (
-                <div className="mt-3 mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {creator.creatorLinks
-                    .filter((link) => link.url && link.url !== '#price-list')
-                    .map((link) => (
-                      <a
-                        key={link.id}
-                        href={normalizeUrl(link.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-primary"
-                      >
-                        <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-                        <span className="font-medium">{link.label || 'Link'}</span>
-                      </a>
-                    ))}
-                </div>
-              )}
-
-              <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/15">
-                  {industryLabel}
-                </Badge>
-                <span>{liveStats?.subscriberCount ?? 0} Subscribers</span>
-                <span>{liveStats?.contentCount ?? 0} Published posts</span>
+      <div className="foleio-public-shell">
+        <div className="foleio-public-columns">
+          <aside className="foleio-public-left">
+            <div className="foleio-auth-preview" aria-hidden>
+              <div className="foleio-auth-preview-bars">
+                <div className="foleio-auth-preview-bar" />
+                <div className="foleio-auth-preview-bar" />
+                <div className="foleio-auth-preview-bar" />
               </div>
             </div>
 
-            {/* Action Buttons - Aligned at top with name */}
-            <div className="flex flex-wrap gap-2">
-              {hasPriceList && hasAvailability && (
-                <Button
-                  onClick={() => setPriceListOpen(true)}
-                  variant="outline"
-                  size="sm"
-                  className="border-accent text-accent hover:bg-accent/10"
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Book Service
-                </Button>
-              )}
-              {hasPlans && (
-                <Button
-                  variant="default"
-                  onClick={() => setSubscriptionModalOpen(true)}
-                  size="sm"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Premium Subscription
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        <div className="mb-2 flex border-b border-border">
-          {(['Content', 'Journal', ...(hasActiveProducts ? (['Shop'] as const) : []), 'About'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`border-b-2 px-6 py-3 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-              type="button"
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === 'Journal' ? (
-          <div className="space-y-6">
-            {journalEntries.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground">
-                <BookOpen className="mx-auto mb-3 h-8 w-8 opacity-30" />
-                <p>No journal entries yet.</p>
+            <div className="foleio-auth-stub">
+              <div className="foleio-auth-stub-main">
+                <div className="foleio-auth-stub-thumb is-avatar">
+                  <CreatorAvatar
+                    src={creator.avatarUrl}
+                    name={creator.displayName}
+                    size={42}
+                  />
+                </div>
+                <div className="foleio-auth-stub-meta">
+                  <h1 className="foleio-auth-stub-name">{creator.displayName}</h1>
+                  {categoryHashtag ? (
+                    <p className="foleio-auth-stub-category">{categoryHashtag}</p>
+                  ) : null}
+                </div>
               </div>
-            ) : (
-              journalEntries.map((entry) => (
-                <JournalEntryCard
-                  key={entry.id}
-                  entry={entry}
-                  creator={{ username: creator.username }}
-                />
-              ))
-            )}
-          </div>
-        ) : null}
+              <div className="foleio-auth-stub-badge" aria-label="Verified">
+                <BadgeCheck className="h-6 w-6" strokeWidth={1.5} />
+              </div>
+            </div>
 
-        {activeTab === 'About' ? (
-          <Card className="border-border/70 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle>About {creator.displayName}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                {creator.bio || 'No bio yet.'}
+            {displayBio ? <p className="foleio-public-bio">{displayBio}</p> : null}
+
+            {canBook ? (
+              <button
+                type="button"
+                className="foleio-public-cta"
+                onClick={() => openServiceDrawer()}
+              >
+                <Calendar strokeWidth={1.75} />
+                Book service
+              </button>
+            ) : hasPriceList && !usingSampleServices && !paymentsReady ? (
+              <p className="foleio-public-panel-meta" style={{ marginTop: 4 }}>
+                Payments not set up yet
               </p>
-            </CardContent>
-          </Card>
-        ) : null}
+            ) : null}
+          </aside>
 
-        {activeTab === 'Shop' ? <ShopTab username={creator.username} /> : null}
+          <div className="foleio-public-right">
+            <section className="foleio-public-panel">
+              <h2 className="foleio-public-panel-title">Services</h2>
+              <p className="foleio-public-panel-meta">{servicesMeta}</p>
 
-        {activeTab === 'Content' ? (
-          <>
-        {/* Intro Video Section */}
-        {creator.introVideo && creator.introVideo.muxPlaybackId && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Video className="h-5 w-5" />
-                Introduction
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-                <MuxVideoPlayer
-                  playbackId={creator.introVideo.muxPlaybackId}
-                  assetId={creator.introVideo.muxAssetId || undefined}
-                  title="Creator Introduction"
-                  className="w-full h-full"
-                />
-              </div>
-              {creator.introVideo.title && (
-                <h3 className="mt-4 font-semibold">{creator.introVideo.title}</h3>
-              )}
-              {creator.introVideo.description && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {creator.introVideo.description}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Subscription Plans */}
-        {hasPlans && (
-          <section className="space-y-4">
-            <h2 className="text-2xl">Subscribe to {creator.displayName}</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {creator.creatorPlans.map((plan) => (
-                <Card key={plan.id} className="border-border/70 bg-card shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <CardDescription className="text-2xl font-semibold text-primary">
-                      {formatPrice(plan.price)}
-                      <span className="ml-1 text-sm font-normal text-muted-foreground">/month</span>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <span className="mt-0.5 text-primary">✓</span>
-                        <span>{plan.description || 'Exclusive creator-only perks and premium access.'}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="mt-0.5 text-primary">✓</span>
-                        <span>Priority updates and fresh content drops.</span>
-                      </li>
-                    </ul>
-                    <Button
-                      onClick={() => setSubscriptionModalOpen(true)}
-                      className="w-full border border-accent bg-accent text-accent-foreground hover:bg-accent/90"
-                    >
-                      Subscribe
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Services / Price List */}
-        {groupedPriceList.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl">Book a Service</h2>
-            <Card className="border-border/70 bg-card shadow-sm">
-              <CardContent className="space-y-4 pt-6">
-                {groupedPriceList.map((group, index) => (
-                  <div key={`${group.category ?? 'general'}-${index}`} className="space-y-2">
-                    {group.category && (
-                      <h3 className="text-sm uppercase tracking-wide text-muted-foreground">
-                        {group.category}
-                      </h3>
-                    )}
+              {displayGrouped.length === 0 ? (
+                <p className="foleio-public-empty">Check back soon for booking options.</p>
+              ) : (
+                displayGrouped.map((group) => (
+                  <div key={group.category || 'uncategorized'} className="foleio-public-group">
+                    {group.category ? (
+                      <h3 className="foleio-public-group-label">{group.category}</h3>
+                    ) : null}
                     {group.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex flex-col gap-3 rounded-[var(--radius)] border border-border/60 p-4 md:flex-row md:items-center md:justify-between"
-                      >
-                        <div className="space-y-1">
-                          <p className="font-medium text-foreground">{item.name}</p>
-                          {item.description && (
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
-                          )}
-                          {item.durationMinutes && (
-                            <p className="text-xs text-muted-foreground">{item.durationMinutes} min</p>
-                          )}
+                      <div key={item.id} className="foleio-public-service">
+                        <div className="foleio-public-service-main">
+                          <p className="foleio-public-service-name">{item.name}</p>
+                          {item.description ? (
+                            <p className="foleio-public-service-desc">{item.description}</p>
+                          ) : null}
+                          {item.durationMinutes ? (
+                            <p className="foleio-public-service-meta">
+                              {item.durationMinutes} min
+                            </p>
+                          ) : null}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-primary">{formatPrice(item.price)}</span>
-                          <Button
-                            size="sm"
-                            onClick={() => handleServiceSelect(item)}
-                            className="bg-accent text-accent-foreground hover:bg-accent/90"
-                          >
-                            Book
-                          </Button>
+                        <div className="foleio-public-service-side">
+                          <span className="foleio-public-service-price">
+                            {formatPrice(item.price)}
+                          </span>
+                          {canBook ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openServiceDrawer(item.id)}
+                            >
+                              Book
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     ))}
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          </section>
-        )}
+                ))
+              )}
+            </section>
 
-        {/* Tutorial Collections */}
-        {tutorialCollections.length > 0 && (
-          <Card className="border-border/70 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-2xl">
-                <BookOpen className="h-5 w-5" />
-                Collections
-              </CardTitle>
-              <CardDescription>
-                Access grouped tutorials from {creator.displayName}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {tutorialCollections.map((collection) => (
-                  <CollectionCard
-                    key={collection.id}
-                    collection={collection}
-                    onClick={() => handleCollectionClick(collection)}
-                  />
+            {socialLinks.length > 0 ? (
+              <div className="foleio-public-links">
+                {socialLinks.map((link) => (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="foleio-public-link"
+                  >
+                    <Link2 strokeWidth={1.75} />
+                    {link.label}
+                  </a>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Standalone Tutorials Section */}
-        {tutorials.length > 0 && (
-          <Card className="border-border/70 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-2xl">
-                <BookOpen className="h-5 w-5" />
-                Standalone Tutorials
-              </CardTitle>
-              <CardDescription>
-                Learn from {creator.displayName}&apos;s tutorial videos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="free" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="free">
-                    Free ({freeTutorials.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="paid">
-                    Paid ({paidTutorials.length})
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="free" className="mt-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {freeTutorialsDisplay.map((content) => (
-                      <ContentCard 
-                        key={content.id} 
-                        content={content} 
-                        onClick={() => handleContentClick(content)}
-                        isVerified={verifiedContentIds.has(content.id)}
-                        isPlaying={playingVideoId === content.id}
-                        onReport={() => setReportContentId(content.id)}
-                      />
-                    ))}
-                  </div>
-                  {hasMoreFreeTutorials && (
-                    <div className="mt-6 text-center">
-                      <Button
-                        variant="outline"
-                        onClick={() => router.push(`/creator/${creator.username}/tutorials?tab=free`)}
-                      >
-                        View More Free Tutorials
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="paid" className="mt-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {paidTutorialsDisplay.map((content) => (
-                      <ContentCard 
-                        key={content.id} 
-                        content={content} 
-                        onClick={() => handleContentClick(content)}
-                        isVerified={verifiedContentIds.has(content.id)}
-                        isPlaying={playingVideoId === content.id}
-                        onReport={() => setReportContentId(content.id)}
-                      />
-                    ))}
-                  </div>
-                  {hasMorePaidTutorials && (
-                    <div className="mt-6 text-center">
-                      <Button
-                        variant="outline"
-                        onClick={() => router.push(`/creator/${creator.username}/tutorials?tab=paid`)}
-                      >
-                        View More Paid Tutorials
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Regular Content Section */}
-        {regularContent.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl">Content</h2>
-            <Card className="border-border/70 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5" />
-                Content
-              </CardTitle>
-              <CardDescription>
-                Exclusive content from {creator.displayName}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {regularContent.map((content) => (
-                  <ContentCard 
-                    key={content.id} 
-                    content={content}
-                    onClick={() => handleContentClick(content)}
-                    isVerified={verifiedContentIds.has(content.id)}
-                    isPlaying={playingVideoId === content.id}
-                    onReport={() => setReportContentId(content.id)}
-                  />
-                ))}
-              </div>
-            </CardContent>
-            </Card>
-          </section>
-        )}
-          </>
-        ) : null}
+            ) : null}
+          </div>
+        </div>
       </div>
 
-      {/* Price List Modal */}
-      <PriceListModal
-        open={priceListOpen}
-        onOpenChange={setPriceListOpen}
-        priceList={groupedPriceList}
-        onSelectItem={handleServiceSelect}
-        creatorName={creator.displayName}
-      />
+      {hasPriceList ? (
+        <PriceListModal
+          open={priceListOpen}
+          onOpenChange={(open) => {
+            setPriceListOpen(open);
+            if (!open) setPreselectedServiceId(null);
+          }}
+          priceList={displayGrouped}
+          onSelectItem={handleServiceSelect}
+          creatorName={creator.displayName}
+          initialSelectedId={preselectedServiceId}
+        />
+      ) : null}
 
-      {/* Booking Modal */}
-      {selectedService && (
+      {selectedService ? (
         <BookingModal
           open={bookingOpen}
-          onOpenChange={setBookingOpen}
+          onOpenChange={(open) => {
+            setBookingOpen(open);
+            if (!open) setSelectedService(null);
+          }}
           selectedService={selectedService}
           creatorId={creator.id}
           creatorName={creator.displayName}
-          availableDates={creator.availability}
+          availableDates={displayAvailability}
           onBack={handleBackToServices}
-        />
-      )}
-
-      {/* Subscription Modal (Paid Plans) */}
-      <SubscriptionModal
-        open={subscriptionModalOpen}
-        onOpenChange={setSubscriptionModalOpen}
-        creator={creator}
-        plans={creator.creatorPlans}
-      />
-
-      {/* Premium Access Modal */}
-      {selectedPremiumContent && (
-        <PremiumAccessModal
-          open={premiumAccessOpen}
-          onOpenChange={setPremiumAccessOpen}
-          content={selectedPremiumContent}
-          creatorName={creator.displayName}
-          onVerified={handlePremiumAccessVerified}
-        />
-      )}
-
-      {/* Collection Preview + Access Modal */}
-      <CollectionModal
-        isOpen={collectionModalOpen}
-        onClose={() => setCollectionModalOpen(false)}
-        collection={selectedCollection}
-        hasAccess={selectedCollection ? verifiedCollectionIds.has(selectedCollection.id) : false}
-        onAccessGranted={() => {
-          if (!selectedCollection) return;
-          setVerifiedCollectionIds((prev) => new Set([...prev, selectedCollection.id]));
-        }}
-        onPlayVideo={handleCollectionPlayVideo}
-        onPurchaseRequired={() => {
-          setCollectionModalOpen(false);
-          setCollectionSubscriptionOpen(true);
-        }}
-      />
-
-      {/* Collection Purchase Modal */}
-      {selectedCollection ? (
-        <CollectionSubscriptionModal
-          open={collectionSubscriptionOpen}
-          onOpenChange={setCollectionSubscriptionOpen}
-          collection={{
-            id: selectedCollection.id,
-            title: selectedCollection.title,
-            description: selectedCollection.description,
-            thumbnailUrl: selectedCollection.thumbnailUrl,
-            price: selectedCollection.price,
-            subscriptionPrice: selectedCollection.subscriptionPrice,
-            subscriptionType: selectedCollection.subscriptionPrice ? 'recurring' : 'one_time',
-            enrolledCount: selectedCollection.videos.length,
-          }}
-          creatorName={creator.displayName}
-          onSuccess={() => {
-            setVerifiedCollectionIds((prev) => new Set([...prev, selectedCollection.id]));
-          }}
+          isPreview={usingSampleServices}
         />
       ) : null}
-
-      {/* Video Player Modal */}
-      <Dialog open={!!playingVideoId} onOpenChange={() => setPlayingVideoId(null)}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden">
-          {playingVideoId && (() => {
-            const collectionVideos = tutorialCollections.flatMap((collection) => collection.videos);
-            const content = [...regularContent, ...tutorials, ...collectionVideos].find(c => c.id === playingVideoId);
-            if (!content?.muxPlaybackId) return null;
-            return (
-              <>
-                <div className="aspect-video bg-black">
-                  <MuxVideoPlayer
-                    playbackId={content.muxPlaybackId}
-                    assetId={content.muxAssetId || undefined}
-                    title={content.title}
-                    className="w-full h-full"
-                  />
-                </div>
-                <div className="p-4">
-                  <h3 className="font-semibold">{content.title}</h3>
-                  {content.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{content.description}</p>
-                  )}
-                </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* Subscribe Dialog (Email Newsletter) */}
-      <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Subscribe to {creator.displayName}</DialogTitle>
-            <DialogDescription>
-              Get notified about new content and updates
-            </DialogDescription>
-          </DialogHeader>
-          {subscribeSuccess ? (
-            <div className="py-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                <Mail className="h-8 w-8 text-green-600" />
-              </div>
-              <p className="font-semibold">You&apos;re subscribed!</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Check your email for confirmation.
-              </p>
-              <div className="mt-4">
-                <NextLink
-                  href="/fan/dashboard"
-                  className="text-sm font-medium text-accent hover:underline"
-                >
-                  View your fan dashboard →
-                </NextLink>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubscribe} className="space-y-4">
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                value={subscribeEmail}
-                onChange={(e) => setSubscribeEmail(e.target.value)}
-                required
-              />
-              <DialogFooter>
-                <Button type="submit" disabled={isSubscribing} className="w-full">
-                  {isSubscribing ? 'Subscribing...' : 'Subscribe'}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {isStarterPlan && (
-        <div className="w-full border-t border-border mt-16 py-6 flex flex-col items-center gap-3">
-          <a
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 group"
-          >
-            <span className="text-muted-foreground text-sm">Powered by</span>
-            <Image
-              src={foleioLogo}
-              alt="Foleio"
-              className="h-7 w-auto transition-opacity group-hover:opacity-80"
-              priority={false}
-            />
-          </a>
-          <p className="text-xs text-muted-foreground text-center max-w-xs">
-            The home for Nigerian creators — sell content, offer services, and build your world.
-          </p>
-          <a
-            href="/signup"
-            className="text-xs font-medium text-accent underline underline-offset-2 hover:opacity-80 transition-opacity"
-          >
-            Are you a creator? Start your Foleio →
-          </a>
-        </div>
-      )}
-
-      {reportContentId ? (
-        <ReportContentModal
-          open={Boolean(reportContentId)}
-          onOpenChange={(open) => {
-            if (!open) setReportContentId(null);
-          }}
-          contentId={reportContentId}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-// Content Card Component
-interface ContentCardProps {
-  content: Content;
-  onClick: () => void;
-  isVerified: boolean;
-  isPlaying: boolean;
-  onReport: () => void;
-}
-
-function ContentCard({ content, onClick, isVerified, isPlaying, onReport }: ContentCardProps) {
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'video':
-        return <Video className="h-4 w-4" />;
-      case 'image':
-        return <ImageIcon className="h-4 w-4" />;
-      case 'pdf':
-        return <FileText className="h-4 w-4" />;
-      default:
-        return <FileText className="h-4 w-4" />;
-    }
-  };
-
-  const isPremium = content.accessType !== 'free';
-  const showLock = isPremium && !isVerified;
-  const showPlayIcon = content.type === 'video';
-  const isCollectionContent = Boolean(content.collectionId && content.collection);
-  const generatedThumbnailUrl = content.muxPlaybackId
-    ? `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`
-    : null;
-  const thumbnailUrl = getThumbnailUrl({
-    id: content.id,
-    title: content.title,
-    thumbnailUrl: content.thumbnailUrl || generatedThumbnailUrl,
-  });
-
-  const formatPrice = (priceInKobo: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(priceInKobo / 100);
-  };
-
-  return (
-    <div className="group cursor-pointer" onClick={onClick}>
-      <div className="relative aspect-video overflow-hidden rounded-[var(--radius)] bg-muted shadow-sm">
-        {thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={content.title}
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            onError={(event) => {
-              const target = event.currentTarget;
-              if (content.muxPlaybackId && !target.src.includes('time=1')) {
-                target.src = `https://image.mux.com/${content.muxPlaybackId}/thumbnail.jpg?time=1`;
-                return;
-              }
-              target.style.display = 'none';
-            }}
-          />
-        ) : (
-          <div className="h-full w-full bg-muted flex items-center justify-center">
-            <PlayCircle className="w-12 h-12 text-muted-foreground opacity-40" />
-          </div>
-        )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-          {showLock ? (
-            <Lock className="h-12 w-12 text-primary" />
-          ) : showPlayIcon ? (
-            <Play className="h-12 w-12 text-primary" />
-          ) : (
-            <Eye className="h-10 w-10 text-primary" />
-          )}
-        </div>
-        <div className="absolute top-2 right-2">
-          {isCollectionContent ? (
-            <Badge variant="outline" className="bg-background/80">
-              <BookOpen className="h-3 w-3 mr-1" />
-              {content.collection?.title}
-            </Badge>
-          ) : (
-            <Badge variant={content.accessType === 'free' ? 'secondary' : 'default'}>
-              {content.accessType === 'free'
-                ? 'Free'
-                : content.tutorialPrice && content.tutorialPrice > 0
-                  ? formatPrice(content.tutorialPrice)
-                  : 'Premium'}
-            </Badge>
-          )}
-        </div>
-        {showLock && (
-          <div className="absolute bottom-2 left-2">
-            <Lock className="h-4 w-4 text-white drop-shadow-md" />
-          </div>
-        )}
-      </div>
-      <div className="mt-2">
-        <h4 className="font-medium line-clamp-1">{content.title}</h4>
-        {isCollectionContent ? (
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <Lock className="h-3 w-3" />
-            Subscribe to {content.collection?.title} to access
-          </p>
-        ) : null}
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          {getTypeIcon(content.type)}
-          {content.viewCount} views
-        </p>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onReport();
-          }}
-          className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-red-500"
-        >
-          <Flag className="h-3 w-3" />
-          Report
-        </button>
-      </div>
     </div>
   );
 }

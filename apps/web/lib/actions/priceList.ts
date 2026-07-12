@@ -5,6 +5,12 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
+const addonSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  price: z.number().min(0),
+});
+
 const priceListItemSchema = z.object({
   serviceType: z.enum(['general', 'coaching', 'consultation']).default('general'),
   category: z.string().optional().nullable(),
@@ -14,6 +20,7 @@ const priceListItemSchema = z.object({
   calendlyLink: z.string().url('Enter a valid URL').optional().nullable().or(z.literal('')),
   price: z.number().min(0, 'Price must be positive'),
   durationMinutes: z.number().optional().nullable(),
+  addons: z.array(addonSchema).optional(),
   orderIndex: z.number().optional(),
   categoryOrderIndex: z.number().optional(),
 });
@@ -86,15 +93,14 @@ export async function createPriceListItem(data: PriceListItemInput) {
         sessionDescription: data.sessionDescription || null,
         calendlyLink: data.calendlyLink || null,
         price: data.price,
-        durationMinutes:
-          data.serviceType === 'coaching' || data.serviceType === 'consultation'
-            ? data.durationMinutes || null
-            : null,
+        durationMinutes: data.durationMinutes || null,
+        addons: data.addons ?? [],
         orderIndex: data.orderIndex ?? (maxOrder?.orderIndex || 0) + 1,
         categoryOrderIndex: categoryOrderIndex || 0,
       },
     });
 
+    revalidatePath('/bookings');
     revalidatePath('/settings');
     return { success: true, data: item };
   } catch (error) {
@@ -141,16 +147,15 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
         ...(data.calendlyLink !== undefined && { calendlyLink: data.calendlyLink || null }),
         ...(data.price !== undefined && { price: data.price }),
         ...(data.durationMinutes !== undefined && {
-          durationMinutes:
-            data.serviceType === 'coaching' || data.serviceType === 'consultation'
-              ? data.durationMinutes || null
-              : null,
+          durationMinutes: data.durationMinutes || null,
         }),
+        ...(data.addons !== undefined && { addons: data.addons }),
         ...(data.orderIndex !== undefined && { orderIndex: data.orderIndex }),
         ...(data.categoryOrderIndex !== undefined && { categoryOrderIndex: data.categoryOrderIndex }),
       },
     });
 
+    revalidatePath('/bookings');
     revalidatePath('/settings');
     return { success: true, data: item };
   } catch (error) {
@@ -190,6 +195,7 @@ export async function deletePriceListItem(itemId: string) {
       where: { id: itemId },
     });
 
+    revalidatePath('/bookings');
     revalidatePath('/settings');
     return { success: true };
   } catch (error) {
@@ -232,6 +238,7 @@ export async function togglePriceListItemActive(itemId: string) {
       },
     });
 
+    revalidatePath('/bookings');
     revalidatePath('/settings');
     return { success: true, data: item };
   } catch (error) {

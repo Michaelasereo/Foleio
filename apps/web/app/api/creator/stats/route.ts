@@ -5,6 +5,21 @@ import { prisma } from '@foleio/database';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const ACTIVE_BOOKING_STATUSES = [
+  'pending',
+  'paid',
+  'first_payout_done',
+  'service_day',
+  'completed',
+];
+
+const PAID_BOOKING_STATUSES = [
+  'paid',
+  'first_payout_done',
+  'service_day',
+  'completed',
+];
+
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -46,58 +61,52 @@ export async function GET() {
       59,
       999
     );
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     const [
-      currentMonthContentStats,
-      prevMonthContentStats,
-      allPublishedContentStats,
-      publishedCollectionsCount,
-      currentMonthSubscriptions,
-      prevMonthSubscriptions,
-      subscriptionStats,
+      totalBookings,
+      monthBookings,
+      prevMonthBookings,
+      upcomingBookings,
+      completedBookings,
       currentMonthTransactions,
       prevMonthTransactions,
-      topContent,
+      recentBookings,
+      bookingsByService,
     ] = await Promise.all([
-      prisma.content.aggregate({
+      prisma.booking.count({
         where: {
           creatorId: creator.id,
-          createdAt: { gte: currentMonthStart, lte: currentMonthEnd },
+          status: { in: ACTIVE_BOOKING_STATUSES },
         },
-        _sum: { viewCount: true },
       }),
-      prisma.content.aggregate({
+      prisma.booking.count({
         where: {
           creatorId: creator.id,
-          createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
-        },
-        _sum: { viewCount: true },
-      }),
-      prisma.content.aggregate({
-        where: { creatorId: creator.id },
-        _sum: { viewCount: true },
-        _count: { id: true },
-      }),
-      prisma.collection.count({
-        where: { creatorId: creator.id, isPublished: true },
-      }),
-      prisma.fanSubscription.count({
-        where: {
-          creatorId: creator.id,
-          status: 'active',
+          status: { in: ACTIVE_BOOKING_STATUSES },
           createdAt: { gte: currentMonthStart, lte: currentMonthEnd },
         },
       }),
-      prisma.fanSubscription.count({
+      prisma.booking.count({
         where: {
           creatorId: creator.id,
-          status: 'active',
+          status: { in: ACTIVE_BOOKING_STATUSES },
           createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
         },
       }),
-      prisma.fanSubscription.aggregate({
-        where: { creatorId: creator.id, status: 'active' },
-        _count: { id: true },
+      prisma.booking.count({
+        where: {
+          creatorId: creator.id,
+          bookingDate: { gte: today },
+          status: { notIn: ['cancelled', 'refunded'] },
+        },
+      }),
+      prisma.booking.count({
+        where: {
+          creatorId: creator.id,
+          status: 'completed',
+        },
       }),
       prisma.transaction.findMany({
         where: {
@@ -105,7 +114,7 @@ export async function GET() {
           status: 'success',
           createdAt: { gte: currentMonthStart, lte: currentMonthEnd },
         },
-        select: { netAmount: true },
+        select: { netAmount: true, amount: true },
       }),
       prisma.transaction.findMany({
         where: {
@@ -115,16 +124,32 @@ export async function GET() {
         },
         select: { netAmount: true },
       }),
-      prisma.content.findMany({
-        where: { creatorId: creator.id },
-        orderBy: { viewCount: 'desc' },
+      prisma.booking.findMany({
+        where: {
+          creatorId: creator.id,
+          status: { in: PAID_BOOKING_STATUSES },
+        },
+        orderBy: { createdAt: 'desc' },
         take: 5,
         select: {
           id: true,
-          title: true,
-          type: true,
-          viewCount: true,
+          customerName: true,
+          totalAmount: true,
+          status: true,
+          bookingDate: true,
+          priceListItem: { select: { name: true } },
         },
+      }),
+      prisma.booking.groupBy({
+        by: ['priceListItemId'],
+        where: {
+          creatorId: creator.id,
+          status: { in: ACTIVE_BOOKING_STATUSES },
+        },
+        _count: { id: true },
+        _sum: { totalAmount: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5,
       }),
     ]);
 
@@ -144,27 +169,46 @@ export async function GET() {
       return `${sign}${change.toFixed(1)}%`;
     };
 
-    const viewsCurrent = Number(currentMonthContentStats._sum.viewCount || 0);
-    const viewsPrevious = Number(prevMonthContentStats._sum.viewCount || 0);
-    const totalViews = Number(allPublishedContentStats._sum.viewCount || 0);
-    const subscriberCount = Number(subscriptionStats._count.id || 0);
-    const engagementRate =
-      subscriberCount > 0 ? ((totalViews / subscriberCount) * 100).toFixed(1) : '0.0';
+    const serviceIds = bookingsByService.map((row) => row.priceListItemId);
+    const services = serviceIds.length
+      ? await prisma.priceListItem.findMany({
+          where: { id: { in: serviceIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const serviceNameById = new Map(services.map((s) => [s.id, s.name]));
+
+    const averageBookingValue =
+      completedBookings + monthBookings > 0 && totalBookings > 0
+        ? Math.round(
+            (await prisma.booking.aggregate({
+              where: {
+                creatorId: creator.id,
+                status: { in: PAID_BOOKING_STATUSES },
+              },
+              _avg: { totalAmount: true },
+            }))._avg.totalAmount || 0
+          )
+        : 0;
 
     return NextResponse.json({
-      totalViews,
-      contentCount: Number(allPublishedContentStats._count.id || 0),
-      collectionCount: publishedCollectionsCount, // published only (no drafts)
-      subscriberCount,
+      totalBookings,
+      monthBookings,
+      upcomingBookings,
+      completedBookings,
       totalRevenue: currentMonthRevenue,
-      engagementRate,
+      averageBookingValue,
       percentageChanges: {
         earnings: calculatePercentageChange(currentMonthRevenue, prevMonthRevenue),
-        subscribers: calculatePercentageChange(currentMonthSubscriptions, prevMonthSubscriptions),
-        views: calculatePercentageChange(viewsCurrent, viewsPrevious),
-        engagement: null,
+        bookings: calculatePercentageChange(monthBookings, prevMonthBookings),
       },
-      topContent,
+      recentBookings,
+      topServices: bookingsByService.map((row) => ({
+        id: row.priceListItemId,
+        name: serviceNameById.get(row.priceListItemId) || 'Service',
+        bookingCount: row._count.id,
+        revenue: Number(row._sum.totalAmount || 0),
+      })),
     });
   } catch (error: any) {
     return NextResponse.json(

@@ -7,20 +7,12 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -39,7 +31,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, GripVertical, Link, Instagram, Youtube, Twitter, FileText } from 'lucide-react';
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  GripVertical,
+  Link,
+  Instagram,
+  Youtube,
+  Twitter,
+  FileText,
+} from 'lucide-react';
 import {
   createCreatorLink,
   updateCreatorLink,
@@ -79,9 +81,9 @@ function getLinkIcon(linkType: string) {
   const option = linkTypeOptions.find((o) => o.value === linkType);
   if (option) {
     const Icon = option.icon;
-    return <Icon className="h-4 w-4" />;
+    return <Icon />;
   }
-  return <Link className="h-4 w-4" />;
+  return <Link />;
 }
 
 export function CreatorLinksManager() {
@@ -149,7 +151,7 @@ export function CreatorLinksManager() {
     form.reset({
       label: link.label,
       url: link.url,
-      linkType: link.linkType as any,
+      linkType: link.linkType as LinkInput['linkType'],
     });
     setIsDialogOpen(true);
   }
@@ -164,189 +166,175 @@ export function CreatorLinksManager() {
     setIsDialogOpen(true);
   }
 
-  // Auto-fill URL pattern based on link type
   function handleLinkTypeChange(value: string) {
-    form.setValue('linkType', value as any);
-    
+    form.setValue('linkType', value as LinkInput['linkType']);
+
     if (value === 'price_list') {
       form.setValue('label', 'View Services');
-      form.setValue('url', '#price-list'); // Special marker
+      form.setValue('url', '#price-list');
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Links</CardTitle>
-            <CardDescription>
-              Add links to display on your public profile (like Linktree)
-            </CardDescription>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openNewDialog}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Link
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingLink ? 'Edit Link' : 'Add New Link'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingLink
-                    ? 'Update the link details below.'
-                    : 'Add a new link to your profile.'}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="linkType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Link Type</FormLabel>
-                        <Select
-                          onValueChange={handleLinkTypeChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select link type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {linkTypeOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                <div className="flex items-center gap-2">
-                                  <option.icon className="h-4 w-4" />
-                                  {option.label}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="label"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Label</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Follow me on Instagram" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {selectedLinkType !== 'price_list' && (
-                    <FormField
-                      control={form.control}
-                      name="url"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>URL</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder={
-                                selectedLinkType === 'instagram'
-                                  ? 'https://instagram.com/yourhandle'
-                                  : 'https://...'
-                              }
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Full URL including https://
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  {selectedLinkType === 'price_list' && (
-                    <p className="text-sm text-muted-foreground">
-                      This will open your services modal on your public profile.
-                    </p>
-                  )}
-                  <DialogFooter>
-                    <Button type="submit" disabled={isSaving}>
-                      {isSaving ? 'Saving...' : editingLink ? 'Update' : 'Add Link'}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+    <div className="foleio-dash-panel">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 4,
+        }}
+      >
+        <div>
+          <h2 className="foleio-dash-panel-title">Links</h2>
+          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
+            Add links to display on your public profile
+          </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Loading...
-          </div>
-        ) : links.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No links added yet.</p>
-            <p className="text-sm">Add links to your social profiles and important pages.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {links.map((link) => (
-              <div
-                key={link.id}
-                className={`flex items-center justify-between p-3 rounded-lg border ${
-                  link.isActive ? 'bg-background' : 'bg-muted/50 opacity-60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                  <div className="flex items-center gap-2">
-                    {getLinkIcon(link.linkType)}
-                    <div>
-                      <span className="font-medium">{link.label}</span>
-                      {link.url !== '#price-list' && (
-                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                          {link.url}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={link.isActive}
-                    onCheckedChange={() => handleToggleActive(link.id)}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEditDialog(link)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(link.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+        <button type="button" className="foleio-dash-btn-primary" onClick={openNewDialog}>
+          <Plus className="h-4 w-4" />
+          Add link
+        </button>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingLink ? 'Edit Link' : 'Add New Link'}</DialogTitle>
+            <DialogDescription>
+              {editingLink
+                ? 'Update the link details below.'
+                : 'Add a new link to your profile.'}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="linkType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Link Type</FormLabel>
+                    <Select onValueChange={handleLinkTypeChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select link type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {linkTypeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex items-center gap-2">
+                              <option.icon className="h-4 w-4" />
+                              {option.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="label"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Label</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Follow me on Instagram" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {selectedLinkType !== 'price_list' && (
+                <FormField
+                  control={form.control}
+                  name="url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={
+                            selectedLinkType === 'instagram'
+                              ? 'https://instagram.com/yourhandle'
+                              : 'https://...'
+                          }
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>Full URL including https://</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {selectedLinkType === 'price_list' && (
+                <p className="text-sm text-muted-foreground">
+                  This will open your services modal on your public profile.
+                </p>
+              )}
+              <DialogFooter>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? 'Saving...' : editingLink ? 'Update' : 'Add Link'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {isLoading ? (
+        <p className="foleio-dash-empty">Loading…</p>
+      ) : links.length === 0 ? (
+        <p className="foleio-dash-empty">
+          No links yet. Add social profiles and important pages.
+        </p>
+      ) : (
+        <div className="foleio-dash-settings-stack" style={{ marginTop: 12 }}>
+          {links.map((link) => (
+            <div
+              key={link.id}
+              className={`foleio-dash-link-row${link.isActive ? '' : ' is-off'}`}
+            >
+              <div className="foleio-dash-link-main">
+                <GripVertical style={{ cursor: 'grab' }} />
+                {getLinkIcon(link.linkType)}
+                <div className="foleio-dash-link-copy">
+                  <strong>{link.label}</strong>
+                  {link.url !== '#price-list' ? <span>{link.url}</span> : null}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <div className="foleio-dash-link-actions">
+                <Switch
+                  checked={link.isActive}
+                  onCheckedChange={() => handleToggleActive(link.id)}
+                />
+                <button
+                  type="button"
+                  className="foleio-dash-icon-btn"
+                  aria-label="Edit link"
+                  onClick={() => openEditDialog(link)}
+                >
+                  <Pencil />
+                </button>
+                <button
+                  type="button"
+                  className="foleio-dash-icon-btn"
+                  aria-label="Delete link"
+                  onClick={() => handleDelete(link.id)}
+                >
+                  <Trash2 />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
-

@@ -1,11 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Load environment variables directly
-const supabaseUrl = 'https://xdwocaugiyjtbbzwpbid.supabase.co';
-const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhkd29jYXVnaXlqdGJiendwYmlkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NzQzODkwNCwiZXhwIjoyMDgzMDE0OTA0fQ.8LY924Gg8tYmC-AvDNcOraxIpOdkEHD5nKkywfFrn-I';
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const TEST_EMAIL = process.env.SEED_TEST_EMAIL ?? 'test@creator.com';
+const TEST_PASSWORD = process.env.SEED_TEST_PASSWORD ?? 'password123';
 
 async function main() {
   console.log('🌱 Seeding database...');
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Ensure these are set in your environment.'
+    );
+  }
 
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
@@ -17,8 +26,8 @@ async function main() {
   // Create a test user
   try {
     const { data, error } = await supabase.auth.admin.createUser({
-      email: 'test@creator.com',
-      password: 'password123',
+      email: TEST_EMAIL,
+      password: TEST_PASSWORD,
       email_confirm: true, // Skip email confirmation for testing
     });
 
@@ -31,6 +40,10 @@ async function main() {
     } else {
       console.log('✅ Created test user:', data.user?.email);
     }
+
+    console.log(`\n🔑 Test login credentials:`);
+    console.log(`   Email:    ${TEST_EMAIL}`);
+    console.log(`   Password: ${TEST_PASSWORD}\n`);
   } catch (error) {
     console.error('❌ Error creating test user:', error);
   }

@@ -38,7 +38,7 @@ export async function GET() {
             hasCompletedOnboarding: true,
           },
         }),
-        2500
+        15000
       );
     } catch {
       try {
@@ -47,7 +47,7 @@ export async function GET() {
             where: { userId: user.id },
             select: { id: true },
           }),
-          2500
+          15000
         );
         creator = legacyCreator
           ? { id: legacyCreator.id, hasCompletedOnboarding: true }

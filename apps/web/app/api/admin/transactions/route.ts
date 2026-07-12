@@ -10,11 +10,23 @@ export async function GET(request: Request) {
   const page = Math.max(1, Number(searchParams.get('page') || '1'));
   const type = searchParams.get('type') || '';
   const status = searchParams.get('status') || '';
+  const paymentType = searchParams.get('paymentType') || '';
   const q = searchParams.get('q') || '';
 
+  const statusFilter = status
+    ? status.toLowerCase() === 'success'
+      ? { status: { in: ['success', 'SUCCESS', 'completed', 'COMPLETED', 'paid', 'PAID'] } }
+      : status.toLowerCase() === 'pending'
+        ? { status: { in: ['pending', 'PENDING'] } }
+        : status.toLowerCase() === 'failed'
+          ? { status: { in: ['failed', 'FAILED'] } }
+          : { status }
+    : {};
+
   const where = {
+    ...statusFilter,
     ...(type ? { type } : {}),
-    ...(status ? { status } : {}),
+    ...(paymentType ? { paymentType: paymentType as 'DIRECT_SUBACCOUNT' | 'PLATFORM_HELD' } : {}),
     ...(q
       ? {
           OR: [

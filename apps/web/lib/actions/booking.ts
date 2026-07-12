@@ -221,6 +221,116 @@ export async function confirmBookingPayment(bookingId: string, paymentReference:
   }
 }
 
+function platformFeePercent(): number {
+  const raw = Number(process.env.FOLEIO_PLATFORM_FEE_PERCENT ?? '5');
+  if (!Number.isFinite(raw) || raw < 0 || raw > 100) return 5;
+  return raw;
+}
+
+/**
+ * Idempotent earnings ledger row for a paid booking.
+ * Subaccount path: Paystack already split funds — mark released, no Foleio balance credit.
+ */
+export async function recordBookingPaymentTransaction(opts: {
+  bookingId: string;
+  reference: string;
+  paymentType?: 'DIRECT_SUBACCOUNT' | 'PLATFORM_HELD';
+  gatewayResponse?: unknown;
+}) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: opts.bookingId },
+      include: {
+        priceListItem: { select: { name: true } },
+        creator: {
+          select: {
+            id: true,
+            paystackSubaccountCode: true,
+            payoutMethod: true,
+            subaccountStatus: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      return { error: 'Booking not found' };
+    }
+
+    const isSubaccount =
+      opts.paymentType === 'DIRECT_SUBACCOUNT' ||
+      booking.creator.payoutMethod === 'DIRECT_SUBACCOUNT' ||
+      Boolean(booking.creator.paystackSubaccountCode);
+
+    const paymentType = isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD';
+    const amount = Number(booking.totalAmount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return { error: 'Invalid booking amount' };
+    }
+
+    const feePct = platformFeePercent();
+    const platformFee = Math.round(amount * (feePct / 100));
+    const creatorEarnings = Math.max(0, amount - platformFee);
+
+    const metadata = {
+      type: 'booking',
+      bookingId: booking.id,
+      service: booking.priceListItem?.name || 'Booking',
+      paymentType,
+      platformFeePercent: feePct,
+    };
+
+    const transaction = await prisma.transaction.upsert({
+      where: { reference: opts.reference },
+      create: {
+        reference: opts.reference,
+        creatorId: booking.creatorId,
+        amount: BigInt(Math.round(amount)),
+        creatorEarnings: BigInt(Math.round(creatorEarnings)),
+        platformFee: BigInt(Math.round(platformFee)),
+        feeAmount: BigInt(Math.round(platformFee)),
+        netAmount: BigInt(Math.round(creatorEarnings)),
+        status: 'SUCCESS',
+        paymentType,
+        type: 'booking',
+        fundsReleased: isSubaccount,
+        fundsReleasedAt: isSubaccount ? new Date() : null,
+        gateway: 'paystack',
+        gatewayResponse: (opts.gatewayResponse as object) || {},
+        metadata,
+      },
+      update: {
+        status: 'SUCCESS',
+        creatorEarnings: BigInt(Math.round(creatorEarnings)),
+        platformFee: BigInt(Math.round(platformFee)),
+        feeAmount: BigInt(Math.round(platformFee)),
+        netAmount: BigInt(Math.round(creatorEarnings)),
+        paymentType,
+        fundsReleased: isSubaccount ? true : undefined,
+        fundsReleasedAt: isSubaccount ? new Date() : undefined,
+        gatewayResponse: (opts.gatewayResponse as object) || undefined,
+        metadata,
+      },
+    });
+
+    // Subaccount: advance past escrow "first payout" without crediting Foleio ledger
+    if (isSubaccount && booking.status === 'paid') {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: 'first_payout_done',
+          firstPayoutTransactionId: transaction.id,
+        },
+      });
+    }
+
+    return { success: true, data: transaction, paymentType, creatorEarnings, platformFee };
+  } catch (error) {
+    console.error('Error recording booking transaction:', error);
+    return { error: 'Failed to record booking earnings' };
+  }
+}
+
 // Process first payout (60%) to creator - called after payment confirmation
 export async function processFirstPayout(bookingId: string) {
   try {

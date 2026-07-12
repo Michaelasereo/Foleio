@@ -6,12 +6,13 @@ Run through this before every staging → main merge.
 - [ ] Creator can sign up and complete onboarding
 - [ ] Creator dashboard loads without errors
 - [ ] Fan can visit a public creator profile
-- [ ] Fan can subscribe and pay
-- [ ] Booking flow works end to end
-- [ ] Creator payout request works
-- [ ] Admin dashboard loads
+- [ ] Fan can subscribe and pay (if product still live)
+- [ ] **Booking E2E (subaccount):** bank save → ACTIVE subaccount → public Book → pay → booking confirmed → Earnings shows transaction / Settled to bank
+- [ ] Public Book blocked when creator has no ACTIVE subaccount (“Payments not set up yet”)
+- [ ] Admin dashboard loads (creators show payment readiness; transactions filterable by Subaccount split)
 - [ ] Mobile experience looks correct
 - [ ] No console errors on key pages
+- [ ] Playwright: `pnpm --filter web test:e2e` (admin smoke + subaccount API smokes)
 
 ## Schema changes (db:push was run)
 - [ ] db:push ran on staging database first
@@ -19,11 +20,13 @@ Run through this before every staging → main merge.
 - [ ] Existing creator data intact
 - [ ] Existing transactions intact
 
-## Payment changes
-- [ ] Paystack webhook receives test events
-- [ ] Transaction recorded in database correctly
-- [ ] Creator balance updates correctly
-- [ ] Payout flow unaffected
+## Payment changes (Paystack subaccount)
+- [ ] `FOLEIO_PLATFORM_FEE_PERCENT` set in prod (default 5)
+- [ ] Paystack business activated for live subaccount settlements
+- [ ] Webhook URL: `https://your-domain.com/api/webhooks/paystack` (`charge.success`)
+- [ ] Test charge creates `Transaction` with `paymentType: DIRECT_SUBACCOUNT`
+- [ ] Creator share settles via Paystack (not Foleio withdraw)
+- [ ] Legacy withdraw UI removed from Dashboard / Earnings
 
 ## Auth changes
 - [ ] Creator login works
@@ -33,11 +36,13 @@ Run through this before every staging → main merge.
 
 ## Email changes
 - [ ] Test email received from Resend
+- [ ] Booking confirmation email after successful pay
 - [ ] Email formatting correct on mobile
 - [ ] Links in emails work correctly
 
 ## After deploying to production
 - [ ] Check Netlify deploy log — no build errors
-- [ ] Check admin dashboard — transactions showing
+- [ ] Check admin → Transactions (booking + Subaccount split)
+- [ ] Check admin → Creators (Payments column)
 - [ ] Check Supabase — no error spike
-- [ ] Smoke test one full flow on live URL
+- [ ] Smoke test one full booking payment on live URL

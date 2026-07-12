@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -12,14 +12,9 @@ import { formatNaira } from '@foleio/utils';
 import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import {
   LayoutDashboard,
-  Video,
-  Sparkles,
-  FileText,
-  BookOpen,
   Calendar as CalendarIcon,
   BarChart3,
   Wallet,
-  CreditCard,
   Settings2,
   ExternalLink,
   LogOut,
@@ -53,7 +48,7 @@ type NavItem = {
   tourId?: string;
   disabled?: boolean;
   tooltip?: string;
-  subItems?: { label: string; href: string; queryTab?: string }[];
+  subItems?: { label: string; href: string; queryTab?: string; matchPath?: string }[];
 };
 
 const navGroups: { title: string; items: NavItem[] }[] = [
@@ -61,25 +56,20 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     title: 'Workspace',
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
-      { label: 'Services', href: '/price-list', icon: FileText },
-      { label: 'Content', href: '/content', icon: Video, tourId: 'content' },
-      { label: 'Journal', href: '/journal', icon: BookOpen, tourId: 'journal' },
-      {
-        label: 'Brand Deals',
-        icon: Sparkles,
-        disabled: true,
-        tooltip:
-          'Coming soon — brands will discover and hire you directly on Foleio',
-      },
       {
         label: 'Bookings',
         href: '/bookings',
         icon: CalendarIcon,
         subItems: [
           {
-            label: 'Availability',
+            label: 'Manage availability',
             href: '/bookings?tab=availability',
             queryTab: 'availability',
+          },
+          {
+            label: 'Services',
+            href: '/price-list',
+            matchPath: '/price-list',
           },
         ],
       },
@@ -91,10 +81,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   },
   {
     title: 'Payments',
-    items: [
-      { label: 'Earnings', href: '/earnings', icon: Wallet, tourId: 'earnings' },
-      { label: 'Billing', href: '/billing', icon: CreditCard },
-    ],
+    items: [{ label: 'Earnings', href: '/earnings', icon: Wallet, tourId: 'earnings' }],
   },
 ];
 
@@ -103,29 +90,23 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [journalDraftCount, setJournalDraftCount] = useState(0);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({
-    Bookings: pathname.startsWith('/bookings'),
+    Bookings: pathname.startsWith('/bookings') || pathname.startsWith('/price-list'),
   });
   const currentBookingsTab = searchParams.get('tab');
 
   useEffect(() => {
-    async function loadDraftCount() {
-      try {
-        const response = await fetch('/api/journal/drafts-count');
-        if (!response.ok) return;
-        const data = await response.json();
-        setJournalDraftCount(Number(data.count || 0));
-      } catch {
-        setJournalDraftCount(0);
-      }
+    if (pathname.startsWith('/bookings') || pathname.startsWith('/price-list')) {
+      setExpandedNav((prev) => ({ ...prev, Bookings: true }));
     }
-    void loadDraftCount();
-  }, []);
+  }, [pathname]);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
       return pathname === '/dashboard';
+    }
+    if (href === '/bookings') {
+      return pathname.startsWith('/bookings') || pathname.startsWith('/price-list');
     }
     return pathname === href || pathname.startsWith(`${href}/`);
   };
@@ -189,9 +170,9 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
               {creator.displayName}
             </p>
             <p className="text-xs text-muted-foreground truncate">@{creator.username}</p>
-            <Link href="/billing" className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${planBadgeClass}`}>
+            <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${planBadgeClass}`}>
               {planLabel}
-            </Link>
+            </span>
           </div>
         </div>
         <Link
@@ -272,11 +253,6 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
                       {formatNaira(availableBalance / 100)}
                     </span>
                   ) : null}
-                  {item.href === '/journal' && journalDraftCount > 0 ? (
-                    <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      {journalDraftCount}
-                    </span>
-                  ) : null}
                   {item.subItems?.length ? (
                     <button
                       type="button"
@@ -300,9 +276,11 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
                 </div>
                   {item.subItems?.length && expandedNav[item.label]
                     ? item.subItems.map((subItem) => {
-                        const subActive =
-                          pathname === '/bookings' &&
-                          subItem.queryTab === currentBookingsTab;
+                        const subActive = subItem.matchPath
+                          ? pathname === subItem.matchPath ||
+                            pathname.startsWith(`${subItem.matchPath}/`)
+                          : pathname === '/bookings' &&
+                            subItem.queryTab === currentBookingsTab;
                         return (
                           <Link
                             key={subItem.href}

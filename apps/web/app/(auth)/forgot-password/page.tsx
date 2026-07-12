@@ -6,14 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -22,8 +14,16 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { MailCheck } from 'lucide-react';
+import { AuthLumaLayout } from '@/components/auth/AuthLumaLayout';
+import {
+  authButtonClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authMutedClass,
+} from '@/components/auth/styles';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -81,62 +81,62 @@ export default function ForgotPasswordPage() {
 
   if (isSuccess) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Check your email</CardTitle>
-          <CardDescription>
-            We've sent a password reset link to your email address
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild className="w-full">
-            <Link href="/login">Back to login</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <AuthLumaLayout
+        title="Check your email"
+        subtitle="We've sent a password reset link to your inbox."
+      >
+        <div className="py-2 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
+            <MailCheck className="h-7 w-7 text-white/80" />
+          </div>
+          <p className={`mb-6 text-sm ${authMutedClass}`}>
+            Follow the link in the email to set a new password.
+          </p>
+          <Link href="/login" className={authButtonClass}>
+            Back to login
+          </Link>
+        </div>
+      </AuthLumaLayout>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Forgot password</CardTitle>
-        <CardDescription>
-          Enter your email address and we'll send you a reset link
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Sending...' : 'Send reset link'}
-            </Button>
-            <div className="text-center text-sm">
-              <Link href="/login" className="text-primary hover:underline">
-                Back to login
-              </Link>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+    <AuthLumaLayout
+      title="Forgot password"
+      subtitle="Enter your email and we'll send you a reset link."
+      footerExtra={
+        <p className={authMutedClass}>
+          <Link href="/login" className={authLinkClass}>
+            Back to login
+          </Link>
+        </p>
+      }
+    >
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem className="space-y-1.5">
+                <FormLabel className={authLabelClass}>Email</FormLabel>
+                <FormControl>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    className={authInputClass}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <button type="submit" className={authButtonClass} disabled={isLoading}>
+            {isLoading ? 'Sending…' : 'Send reset link'}
+          </button>
+        </form>
+      </Form>
+    </AuthLumaLayout>
   );
 }
-

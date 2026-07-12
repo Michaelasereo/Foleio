@@ -1,6 +1,23 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+function matchesPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** Public creator deep links that belong to content monetization (MVP-hidden). */
+function isHiddenPublicCreatorDeepLink(pathname: string) {
+  // /creator/[username]/content|collections|journal|tutorials[...]
+  return /^\/creator\/[^/]+\/(content|collections|journal|tutorials)(\/|$)/.test(
+    pathname
+  );
+}
+
+function creatorUsernameFromPath(pathname: string) {
+  const match = pathname.match(/^\/creator\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
 export async function middleware(request: NextRequest) {
   try {
     let supabaseResponse = NextResponse.next({
@@ -53,8 +70,27 @@ export async function middleware(request: NextRequest) {
       '/earnings',
       '/settings',
     ];
-    const isCreatorProtectedRoute = creatorProtectedPrefixes.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    const isCreatorProtectedRoute = creatorProtectedPrefixes.some((prefix) =>
+      matchesPrefix(pathname, prefix)
+    );
+
+    // MVP scope: hide content-monetization and marketplace surfaces.
+    // /price-list is intentionally NOT hidden (FR-3.1 services & pricing).
+    const sprintHiddenPrefixes = [
+      '/content',
+      '/collections',
+      '/journal',
+      '/services',
+      '/billing',
+      '/dashboard/content',
+      '/dashboard/collections',
+      '/fan',
+      '/creators',
+      '/subscriptions',
+      '/shop',
+    ];
+    const isSprintHiddenRoute = sprintHiddenPrefixes.some((prefix) =>
+      matchesPrefix(pathname, prefix)
     );
 
     const copyCookies = (response: NextResponse) => {
@@ -64,10 +100,41 @@ export async function middleware(request: NextRequest) {
       return response;
     };
 
-    if (isOnboardingRoute || isCreatorProtectedRoute) {
+    if (isHiddenPublicCreatorDeepLink(pathname)) {
+      const username = creatorUsernameFromPath(pathname);
+      const target = username ? `/creator/${username}` : '/';
+      return copyCookies(NextResponse.redirect(new URL(target, request.url)));
+    }
+
+    if (isSprintHiddenRoute) {
+      // Public/marketplace/fan routes → home; creator-tool routes → dashboard when authed.
+      const isPublicHide =
+        matchesPrefix(pathname, '/fan') ||
+        matchesPrefix(pathname, '/creators') ||
+        matchesPrefix(pathname, '/subscriptions') ||
+        matchesPrefix(pathname, '/shop');
+
+      if (isPublicHide) {
+        return copyCookies(NextResponse.redirect(new URL('/', request.url)));
+      }
+
       if (!user) {
+        return copyCookies(NextResponse.redirect(new URL('/login', request.url)));
+      }
+      return copyCookies(NextResponse.redirect(new URL('/dashboard', request.url)));
+    }
+
+    if (isOnboardingRoute || isCreatorProtectedRoute) {
+      const isOnboardingPreview =
+        isOnboardingRoute && request.nextUrl.searchParams.get('preview') === '1';
+
+      if (!user && !isOnboardingPreview) {
         const loginUrl = new URL('/login', request.url);
         return copyCookies(NextResponse.redirect(loginUrl));
+      }
+
+      if (isOnboardingPreview) {
+        return supabaseResponse;
       }
 
       const statusResponse = await fetch(
@@ -89,7 +156,15 @@ export async function middleware(request: NextRequest) {
           return copyCookies(NextResponse.redirect(new URL('/dashboard', request.url)));
         }
 
-        if (isCreatorProtectedRoute && !hasCompletedOnboarding) {
+        const isDashboardPreview =
+          request.nextUrl.pathname.startsWith('/dashboard') &&
+          request.nextUrl.searchParams.get('preview') === '1';
+
+        if (
+          isCreatorProtectedRoute &&
+          !hasCompletedOnboarding &&
+          !isDashboardPreview
+        ) {
           return copyCookies(NextResponse.redirect(new URL('/onboarding', request.url)));
         }
       }
@@ -111,6 +186,9 @@ export const config = {
     '/(creator)/:path*',
     '/content/:path*',
     '/collections/:path*',
+    '/journal/:path*',
+    '/services/:path*',
+    '/billing/:path*',
     '/bookings/:path*',
     '/availability/:path*',
     '/price-list/:path*',
@@ -119,8 +197,11 @@ export const config = {
     '/settings/:path*',
     '/onboard/:path*',
     '/onboarding/:path*',
-    '/(fan)/:path*',
+    '/fan/:path*',
+    '/creators/:path*',
+    '/subscriptions/:path*',
+    '/shop/:path*',
+    '/creator/:path*',
     '/admin/:path*',
   ],
 };
-

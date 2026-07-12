@@ -1,48 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useMemo, useState, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Calendar,
-  Clock,
-  User,
+  AlertTriangle,
+  CalendarClock,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  Loader2,
   Mail,
   Phone,
-  MapPin,
-  Check,
-  X,
-  AlertTriangle,
-  Loader2,
-  Plus,
-  Settings,
-  BarChart3,
-  Users,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Minus,
 } from 'lucide-react';
 import { completeService, processRefund, rejectRefund } from '@/lib/actions/booking';
-import { AvailabilityManager } from '@/components/booking/AvailabilityManager';
+import { AvailabilitySetupForm } from '@/components/booking/AvailabilitySetupForm';
+import { BookingsServicesManager } from '@/components/booking/BookingsServicesManager';
+import type { ServiceItem } from '@/components/booking/BookingsServicesManager';
 
 interface Creator {
   id: string;
   displayName: string;
   username: string;
 }
-
 
 interface Booking {
   id: string;
@@ -64,10 +43,13 @@ interface Booking {
   };
 }
 
+type PriceListItem = ServiceItem;
+
+type PrimaryView = 'bookings' | 'services' | 'availability';
+type StatusTab = 'upcoming' | 'disputed' | 'completed';
 
 interface UnifiedBookingsManagerProps {
   creator: Creator;
-  recentBookings: Booking[];
   upcomingBookings: Booking[];
   disputedBookings: Booking[];
   completedBookings: Booking[];
@@ -76,27 +58,121 @@ interface UnifiedBookingsManagerProps {
     date: string;
     isAvailable: boolean;
   }>;
+  priceList: PriceListItem[];
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  paid: 'Paid',
+  first_payout_done: 'Confirmed',
+  service_day: 'Service day',
+  completed: 'Completed',
+  disputed: 'Disputed',
+  refunded: 'Refunded',
+  cancelled: 'Cancelled',
+};
+
+function statusTone(status: string) {
+  if (status === 'disputed') return 'is-danger';
+  if (status === 'completed') return 'is-success';
+  if (status === 'refunded' || status === 'cancelled') return 'is-muted';
+  return 'is-info';
 }
 
 export function UnifiedBookingsManager({
   creator,
-  recentBookings,
   upcomingBookings,
   disputedBookings,
   completedBookings,
   availability,
+  priceList,
 }: UnifiedBookingsManagerProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialView: PrimaryView =
+    tabParam === 'availability'
+      ? 'availability'
+      : tabParam === 'services'
+        ? 'services'
+        : 'bookings';
+
+  const [primaryView, setPrimaryView] = useState<PrimaryView>(initialView);
+  const [statusTab, setStatusTab] = useState<StatusTab>('upcoming');
   const [loading, setLoading] = useState<string | null>(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [refundReason, setRefundReason] = useState('');
 
+  const totalBookings =
+    upcomingBookings.length + disputedBookings.length + completedBookings.length;
+
+  const stats = [
+    {
+      title: 'Total Bookings',
+      value: totalBookings.toLocaleString(),
+      hint: 'All time',
+      icon: CalendarDays,
+    },
+    {
+      title: 'Upcoming',
+      value: upcomingBookings.length.toLocaleString(),
+      hint: 'Active services',
+      icon: CalendarClock,
+    },
+    {
+      title: 'Completed',
+      value: completedBookings.length.toLocaleString(),
+      hint: 'Finished bookings',
+      icon: CheckCircle2,
+    },
+    {
+      title: 'Disputed',
+      value: disputedBookings.length.toLocaleString(),
+      hint: 'Needs attention',
+      icon: AlertTriangle,
+    },
+  ];
+
+  const statusTabs: Array<{ id: StatusTab; label: string; count: number }> = useMemo(
+    () => [
+      { id: 'upcoming', label: 'Upcoming', count: upcomingBookings.length },
+      { id: 'disputed', label: 'Disputed', count: disputedBookings.length },
+      { id: 'completed', label: 'Completed', count: completedBookings.length },
+    ],
+    [upcomingBookings.length, disputedBookings.length, completedBookings.length]
+  );
+
+  const formatPrice = (priceInKobo: number) =>
+    new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+    }).format(priceInKobo / 100);
+
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('en-NG', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+  const setView = (view: PrimaryView) => {
+    setPrimaryView(view);
+    const url =
+      view === 'availability'
+        ? '/bookings?tab=availability'
+        : view === 'services'
+          ? '/bookings?tab=services'
+          : '/bookings';
+    router.replace(url, { scroll: false });
+  };
+
   const handleCompleteService = async (bookingId: string) => {
     setLoading(bookingId);
     try {
       await completeService(bookingId);
-      window.location.reload(); // Refresh to show updated status
+      window.location.reload();
     } catch (error) {
       console.error('Error completing service:', error);
     } finally {
@@ -106,7 +182,6 @@ export function UnifiedBookingsManager({
 
   const handleRefundRequest = async () => {
     if (!selectedBooking || !refundReason.trim()) return;
-
     setLoading(selectedBooking.id);
     try {
       await processRefund(selectedBooking.id);
@@ -121,555 +196,281 @@ export function UnifiedBookingsManager({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-      pending: { label: 'Pending Payment', variant: 'outline' },
-      paid: { label: 'Paid', variant: 'default' },
-      first_payout_done: { label: 'Confirmed', variant: 'default' },
-      service_day: { label: 'Service Day', variant: 'default' },
-      completed: { label: 'Completed', variant: 'default' },
-      disputed: { label: 'Disputed', variant: 'destructive' },
-      refunded: { label: 'Refunded', variant: 'secondary' },
-      cancelled: { label: 'Cancelled', variant: 'secondary' },
-    };
-    const config = statusConfig[status] || { label: status, variant: 'outline' as const };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const formatPrice = (priceInKobo: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(priceInKobo / 100);
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-NG', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  // Calculate stats for overview - use ALL booking data for accurate metrics
-  const allBookings = [...upcomingBookings, ...disputedBookings, ...completedBookings];
-  const totalBookings = allBookings.length;
-  const totalRevenue = allBookings.reduce((sum, booking) => sum + booking.totalAmount, 0);
-  const activeBookings = upcomingBookings.length;
-
-  // Calculate additional metrics
-  const completedBookingsCount = completedBookings.length;
-  const disputedBookingsCount = disputedBookings.length;
-  const totalEarnings = totalRevenue;
-  const averageBookingValue = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
-
-  // Calculate monthly metrics (current month)
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  const monthlyBookings = allBookings.filter(booking => {
-    const bookingDate = new Date(booking.createdAt);
-    return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
-  });
-  const monthlyRevenue = monthlyBookings.reduce((sum, booking) => sum + booking.totalAmount, 0);
-
-  // Calculate previous month metrics for comparison
-  const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-  const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-  const prevMonthBookings = allBookings.filter(booking => {
-    const bookingDate = new Date(booking.createdAt);
-    return bookingDate.getMonth() === prevMonth && bookingDate.getFullYear() === prevYear;
-  });
-  const prevMonthRevenue = prevMonthBookings.reduce((sum, booking) => sum + booking.totalAmount, 0);
-
-  // Calculate percentage changes
-  const bookingChange = prevMonthBookings.length > 0
-    ? ((monthlyBookings.length - prevMonthBookings.length) / prevMonthBookings.length) * 100
-    : monthlyBookings.length > 0 ? 100 : 0;
-
-  const revenueChange = prevMonthRevenue > 0
-    ? ((monthlyRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
-    : monthlyRevenue > 0 ? 100 : 0;
-
-  // Helper function to format percentage change
-  const formatChange = (change: number) => {
-    const sign = change >= 0 ? '+' : '';
-    return `${sign}${change.toFixed(1)}%`;
-  };
-
-  // Helper function to get change color
-  const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-green-600';
-    if (change < 0) return 'text-red-600';
-    return 'text-gray-500';
-  };
-
-  // Helper function to render trend indicator
-  const renderTrendIndicator = (change: number, size: 'sm' | 'xs' = 'xs') => {
-    const sizeClasses = size === 'sm' ? 'h-4 w-4' : 'h-3 w-3';
-    const textSize = size === 'sm' ? 'text-sm' : 'text-xs';
-
-    if (change > 0) {
-      return (
-        <div className={`flex items-center gap-1 ${textSize} ${getChangeColor(change)}`}>
-          <TrendingUp className={sizeClasses} />
-          <span className="font-medium">{formatChange(change)}</span>
-        </div>
-      );
-    } else if (change < 0) {
-      return (
-        <div className={`flex items-center gap-1 ${textSize} ${getChangeColor(change)}`}>
-          <TrendingDown className={sizeClasses} />
-          <span className="font-medium">{formatChange(change)}</span>
-        </div>
-      );
-    } else {
-      return (
-        <div className={`flex items-center gap-1 ${textSize} text-gray-500`}>
-          <Minus className={sizeClasses} />
-          <span className="font-medium">0.0%</span>
-        </div>
-      );
+  const handleRejectRefund = async (bookingId: string) => {
+    setLoading(bookingId);
+    try {
+      await rejectRefund(bookingId);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error rejecting refund:', error);
+    } finally {
+      setLoading(null);
     }
   };
 
-  // Calculate completion rate
-  const completionRate = totalBookings > 0 ? Math.round((completedBookingsCount / totalBookings) * 100) : 0;
+  const renderBookingRow = (booking: Booking, actions?: ReactNode) => (
+    <div key={booking.id} className="foleio-dash-booking-row">
+      <div className="foleio-dash-booking-main">
+        <div className="foleio-dash-booking-top">
+          <span className="foleio-dash-sub-name">{booking.customerName}</span>
+          <span className={`foleio-dash-badge ${statusTone(booking.status)}`}>
+            {STATUS_LABELS[booking.status] || booking.status}
+          </span>
+        </div>
+        <div className="foleio-dash-booking-meta">
+          <span className="foleio-dash-sub-badge">
+            {booking.priceListItem?.name || 'Service'}
+          </span>
+          <span className="foleio-dash-sub-date">{formatDate(booking.bookingDate)}</span>
+        </div>
+        <div className="foleio-dash-booking-contacts">
+          <span>
+            <Mail className="h-3.5 w-3.5" strokeWidth={1.5} />
+            {booking.customerEmail}
+          </span>
+          <span>
+            <Phone className="h-3.5 w-3.5" strokeWidth={1.5} />
+            {booking.customerPhone}
+          </span>
+        </div>
+        {booking.notes ? (
+          <p className="foleio-dash-booking-notes">{booking.notes}</p>
+        ) : null}
+        {booking.disputeReason ? (
+          <div className="foleio-dash-dispute">
+            <p className="foleio-dash-dispute-label">Dispute reason</p>
+            <p className="foleio-dash-booking-notes">{booking.disputeReason}</p>
+          </div>
+        ) : null}
+        {actions ? <div className="foleio-dash-booking-actions">{actions}</div> : null}
+      </div>
+      <div className="foleio-dash-booking-amount">{formatPrice(booking.totalAmount)}</div>
+    </div>
+  );
 
-  const defaultBookingsTab =
-    searchParams.get('tab') === 'availability' ? 'availability' : 'upcoming';
+  const emptyCopy: Record<StatusTab, string> = {
+    upcoming: 'No upcoming bookings.',
+    disputed: 'No disputed bookings.',
+    completed: 'No completed bookings yet.',
+  };
+
+  const listForTab =
+    statusTab === 'upcoming'
+      ? upcomingBookings
+      : statusTab === 'disputed'
+        ? disputedBookings
+        : completedBookings;
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="bookings">Bookings</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
+    <div>
+      <div className="foleio-dash-header">
+        <div>
+          <h1 className="foleio-auth-title">Bookings</h1>
+          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+            Manage bookings, services, and availability
+          </p>
+        </div>
+      </div>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-2xl font-bold">{totalBookings}</div>
-                  {renderTrendIndicator(bookingChange)}
-                </div>
-                <p className="text-xs text-muted-foreground">All time bookings</p>
-              </CardContent>
-            </Card>
+      <div className="foleio-dash-tabs" role="tablist" aria-label="Bookings views">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={primaryView === 'bookings'}
+          className={`foleio-dash-tab${primaryView === 'bookings' ? ' is-active' : ''}`}
+          onClick={() => setView('bookings')}
+        >
+          Bookings
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={primaryView === 'services'}
+          className={`foleio-dash-tab${primaryView === 'services' ? ' is-active' : ''}`}
+          onClick={() => setView('services')}
+        >
+          Services
+          <span className="foleio-dash-tab-count">{priceList.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={primaryView === 'availability'}
+          className={`foleio-dash-tab${primaryView === 'availability' ? ' is-active' : ''}`}
+          onClick={() => setView('availability')}
+        >
+          Manage availability
+        </button>
+      </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-2xl font-bold">{formatPrice(totalEarnings)}</div>
-                  {renderTrendIndicator(revenueChange)}
-                </div>
-                <p className="text-xs text-muted-foreground">Lifetime earnings</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Bookings</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{activeBookings}</div>
-                <p className="text-xs text-muted-foreground">Upcoming services</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completed</CardTitle>
-                <Check className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{completedBookingsCount}</div>
-                <p className="text-xs text-muted-foreground">Successful services</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Secondary Metrics Row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">This Month</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-2xl font-bold">{monthlyBookings.length}</div>
-                  {renderTrendIndicator(bookingChange)}
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">{formatPrice(monthlyRevenue)} earned</p>
-                  {renderTrendIndicator(revenueChange)}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Avg. Booking Value</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatPrice(averageBookingValue)}</div>
-                <p className="text-xs text-muted-foreground">Per booking average</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
-                <Check className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{completionRate}%</div>
-                <p className="text-xs text-muted-foreground">Services completed</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Disputed</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-orange-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-600">{disputedBookingsCount}</div>
-                <p className="text-xs text-muted-foreground">Need attention</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent Bookings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Bookings</CardTitle>
-              <CardDescription>Your latest booking activity</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentBookings.slice(0, 5).map((booking) => (
-                  <div key={booking.id} className="flex items-center justify-between border-b pb-4 last:border-0">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{booking.customerName}</p>
-                        {getStatusBadge(booking.status)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {booking.priceListItem.name} • {formatDate(booking.bookingDate)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{formatPrice(booking.totalAmount)}</p>
-                    </div>
+      {primaryView === 'availability' ? (
+        <AvailabilitySetupForm
+          creatorId={creator.id}
+          availability={availability as any}
+        />
+      ) : primaryView === 'services' ? (
+        <BookingsServicesManager
+          creatorId={creator.id}
+          initialPriceList={priceList}
+        />
+      ) : (
+        <>
+          <div className="foleio-dash-stats">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div key={stat.title} className="foleio-dash-stat">
+                  <div className="foleio-dash-stat-top">
+                    <span className="foleio-dash-stat-label">{stat.title}</span>
+                    <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
                   </div>
-                ))}
-                {recentBookings.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">No recent bookings</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Bookings Management Tab */}
-        <TabsContent value="bookings" className="mt-6">
-          <Tabs defaultValue={defaultBookingsTab} className="w-full" key={defaultBookingsTab}>
-            <TabsList>
-              <TabsTrigger value="upcoming">Upcoming ({upcomingBookings.length})</TabsTrigger>
-              <TabsTrigger value="disputed">Disputed ({disputedBookings.length})</TabsTrigger>
-              <TabsTrigger value="completed">Completed ({completedBookings.length})</TabsTrigger>
-              <TabsTrigger value="availability">Availability</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="upcoming" className="mt-6">
-              <div className="space-y-4">
-                {upcomingBookings.map((booking) => (
-                  <Card key={booking.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{booking.customerName}</h3>
-                            {getStatusBadge(booking.status)}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Mail className="h-4 w-4" />
-                              {booking.customerEmail}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Phone className="h-4 w-4" />
-                              {booking.customerPhone}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-4 w-4" />
-                              {formatDate(booking.bookingDate)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <User className="h-4 w-4" />
-                              {booking.priceListItem.name}
-                            </div>
-                            <div className="font-semibold">{formatPrice(booking.totalAmount)}</div>
-                          </div>
-                          {booking.notes && (
-                            <p className="text-sm text-muted-foreground">{booking.notes}</p>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2">
-                          {['paid', 'first_payout_done'].includes(booking.status) && (
-                            <Button
-                              onClick={() => handleCompleteService(booking.id)}
-                              disabled={loading === booking.id}
-                              size="sm"
-                            >
-                              {loading === booking.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Check className="h-4 w-4" />
-                              )}
-                              Complete
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {upcomingBookings.length === 0 && (
-                  <Card>
-                    <CardContent className="pt-6 text-center py-12">
-                      <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No upcoming bookings</h3>
-                      <p className="text-muted-foreground">Your upcoming bookings will appear here</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="disputed" className="mt-6">
-              <div className="space-y-4">
-                {disputedBookings.map((booking) => (
-                  <Card key={booking.id} className="border-destructive">
-                    <CardContent className="pt-6">
-                      <div className="flex items-start gap-4">
-                        <AlertTriangle className="h-6 w-6 text-destructive shrink-0 mt-1" />
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{booking.customerName}</h3>
-                            {getStatusBadge(booking.status)}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {booking.priceListItem.name} • {formatDate(booking.bookingDate)}
-                          </p>
-                          {booking.disputeReason && (
-                            <div className="bg-destructive/10 p-3 rounded-md">
-                              <p className="text-sm font-medium mb-1">Dispute Reason:</p>
-                              <p className="text-sm">{booking.disputeReason}</p>
-                            </div>
-                          )}
-                          <div className="flex gap-2 pt-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedBooking(booking);
-                                setRefundDialogOpen(true);
-                              }}
-                              disabled={loading === booking.id}
-                            >
-                              Process Refund
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => rejectRefund(booking.id)}
-                              disabled={loading === booking.id}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {disputedBookings.length === 0 && (
-                  <Card>
-                    <CardContent className="pt-6 text-center py-12">
-                      <Check className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No disputed bookings</h3>
-                      <p className="text-muted-foreground">All your bookings are running smoothly</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="completed" className="mt-6">
-              <div className="space-y-4">
-                {completedBookings.map((booking) => (
-                  <Card key={booking.id}>
-                    <CardContent className="pt-6">
-                      <div className="opacity-75">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold">{booking.customerName}</h3>
-                              {getStatusBadge(booking.status)}
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {booking.priceListItem.name} • {formatDate(booking.bookingDate)}
-                            </p>
-                            <p className="text-sm font-medium">{formatPrice(booking.totalAmount)}</p>
-                          </div>
-                          <Check className="h-6 w-6 text-green-500" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {completedBookings.length === 0 && (
-                  <Card>
-                    <CardContent className="pt-6 text-center py-12">
-                      <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No completed bookings yet</h3>
-                      <p className="text-muted-foreground">Completed bookings will appear here</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="availability" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Availability Calendar</CardTitle>
-                  <CardDescription>
-                    Set your working hours and manage when clients can book with you
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-3 w-3 rounded-full bg-green-500" />
-                      <span>Available</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-3 w-3 rounded-full bg-red-500" />
-                      <span>Unavailable</span>
-                    </div>
-                  </div>
-                  <AvailabilityManager
-                    creatorId={creator.id}
-                    availability={availability as any}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-
-
-
-        {/* Analytics Tab */}
-        <TabsContent value="analytics" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Booking Trends</CardTitle>
-                <CardDescription>Your booking activity over time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4" />
-                  <p>Analytics coming soon</p>
+                  <div className="foleio-dash-stat-value">{stat.value}</div>
+                  <p className="foleio-dash-stat-change">{stat.hint}</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Service Performance</CardTitle>
-                <CardDescription>Track your service popularity and revenue</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4" />
-                  <p className="mb-2">Service analytics coming soon</p>
-                  <p className="text-sm">
-                    <a href="/price-list" className="text-primary hover:underline">
-                      Manage your services →
-                    </a>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+              );
+            })}
           </div>
-        </TabsContent>
-      </Tabs>
 
-      {/* Refund Dialog */}
-      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Process Refund</DialogTitle>
-            <DialogDescription>
-              Process a refund for {selectedBooking?.customerName}'s booking
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Refund Reason</label>
-              <textarea
-                className="w-full mt-1 p-3 border rounded-md"
-                rows={4}
-                placeholder="Explain why this refund is being processed..."
-                value={refundReason}
-                onChange={(e) => setRefundReason(e.target.value)}
-              />
+          <div className="foleio-dash-tabs" role="tablist" aria-label="Booking status">
+            {statusTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={statusTab === tab.id}
+                className={`foleio-dash-tab${statusTab === tab.id ? ' is-active' : ''}`}
+                onClick={() => setStatusTab(tab.id)}
+              >
+                {tab.label}
+                <span className="foleio-dash-tab-count">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="foleio-dash-panel">
+            <h2 className="foleio-dash-panel-title">
+              {statusTabs.find((t) => t.id === statusTab)?.label}
+            </h2>
+            <p className="foleio-dash-panel-meta">
+              {listForTab.length === 0
+                ? 'Nothing here yet'
+                : `${listForTab.length} booking${listForTab.length === 1 ? '' : 's'}`}
+            </p>
+            {listForTab.length === 0 ? (
+              <p className="foleio-dash-empty">{emptyCopy[statusTab]}</p>
+            ) : (
+              listForTab.map((booking) => {
+                if (statusTab === 'upcoming') {
+                  return renderBookingRow(
+                    booking,
+                    ['paid', 'first_payout_done'].includes(booking.status) ? (
+                      <button
+                        type="button"
+                        className="foleio-dash-btn-primary"
+                        onClick={() => handleCompleteService(booking.id)}
+                        disabled={loading === booking.id}
+                      >
+                        {loading === booking.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                        ) : (
+                          <Check className="h-4 w-4" strokeWidth={1.5} />
+                        )}
+                        Complete
+                      </button>
+                    ) : null
+                  );
+                }
+
+                if (statusTab === 'disputed') {
+                  return renderBookingRow(
+                    booking,
+                    <>
+                      <button
+                        type="button"
+                        className="foleio-dash-btn-outline"
+                        onClick={() => {
+                          setSelectedBooking(booking);
+                          setRefundDialogOpen(true);
+                        }}
+                        disabled={loading === booking.id}
+                      >
+                        Process refund
+                      </button>
+                      <button
+                        type="button"
+                        className="foleio-dash-btn-ghost"
+                        onClick={() => handleRejectRefund(booking.id)}
+                        disabled={loading === booking.id}
+                      >
+                        Reject
+                      </button>
+                    </>
+                  );
+                }
+
+                return renderBookingRow(booking);
+              })
+            )}
+          </div>
+        </>
+      )}
+
+      {refundDialogOpen ? (
+        <div className="foleio-dash-modal-backdrop" role="presentation">
+          <div
+            className="foleio-dash-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="refund-title"
+          >
+            <h2 id="refund-title" className="foleio-dash-panel-title">
+              Process refund
+            </h2>
+            <p className="foleio-dash-panel-meta">
+              Refund for {selectedBooking?.customerName}&apos;s booking
+            </p>
+            <label className="foleio-dash-stat-label" htmlFor="refund-reason">
+              Refund reason
+            </label>
+            <textarea
+              id="refund-reason"
+              className="foleio-dash-textarea"
+              rows={4}
+              placeholder="Explain why this refund is being processed..."
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+            />
+            <div className="foleio-dash-booking-actions" style={{ marginTop: 14 }}>
+              <button
+                type="button"
+                className="foleio-dash-btn-ghost"
+                onClick={() => {
+                  setRefundDialogOpen(false);
+                  setRefundReason('');
+                  setSelectedBooking(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="foleio-dash-btn-danger"
+                onClick={handleRefundRequest}
+                disabled={!refundReason.trim() || loading === selectedBooking?.id}
+              >
+                {loading === selectedBooking?.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                    Processing...
+                  </>
+                ) : (
+                  'Process refund'
+                )}
+              </button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRefundRequest}
-              disabled={!refundReason.trim() || loading === selectedBooking?.id}
-            >
-              {loading === selectedBooking?.id ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Process Refund'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      ) : null}
     </div>
   );
 }

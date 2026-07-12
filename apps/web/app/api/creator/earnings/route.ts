@@ -65,10 +65,25 @@ export async function GET() {
 
     const monthlyMap = new Map<string, number>();
     const streamMap = new Map<string, number>();
+    let ledgerEarnings = 0;
+    let settledToBank = 0;
+
     for (const tx of transactions) {
       const status = String(tx?.status || '');
       if (!SUCCESS_STATUSES.has(status)) {
         continue;
+      }
+
+      const rawAmount = Number(tx?.creatorEarnings ?? 0);
+      if (Number.isNaN(rawAmount)) continue;
+
+      const paymentType = String(tx?.paymentType || '');
+      const isSubaccount = paymentType === 'DIRECT_SUBACCOUNT';
+
+      if (isSubaccount) {
+        settledToBank += rawAmount;
+      } else {
+        ledgerEarnings += rawAmount;
       }
 
       const createdAt = tx?.createdAt ? new Date(tx.createdAt) : null;
@@ -76,8 +91,6 @@ export async function GET() {
         continue;
       }
 
-      const rawAmount = Number(tx?.creatorEarnings ?? 0);
-      if (Number.isNaN(rawAmount)) continue;
       const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
       monthlyMap.set(key, (monthlyMap.get(key) || 0) + rawAmount);
       const type = String(tx?.type || 'other');
@@ -93,17 +106,16 @@ export async function GET() {
       amount,
     }));
 
-    const totalEarningsFromTransactions = transactions
-      .filter((transaction) => SUCCESS_STATUSES.has(String(transaction?.status || '')))
-      .reduce((sum, transaction) => sum + Number(transaction?.creatorEarnings ?? 0), 0);
+    const totalEarningsFromTransactions = ledgerEarnings + settledToBank;
 
     const totalPaidOut = payouts
       .filter((payout) => SUCCESS_STATUSES.has(String(payout?.status || '')))
       .reduce((sum, payout) => sum + Number(payout?.amount ?? 0), 0);
 
+    // Only PLATFORM_HELD (and legacy) earnings are withdrawable from Foleio
     const availableBalanceFromTransactions = Math.max(
       0,
-      Number(totalEarningsFromTransactions) - Number(totalPaidOut)
+      Number(ledgerEarnings) - Number(totalPaidOut)
     );
 
     const payload = {
@@ -122,6 +134,8 @@ export async function GET() {
         totalEarnings: Number(totalEarningsFromTransactions || 0),
         totalPaidOut,
         availableBalance: availableBalanceFromTransactions,
+        settledToBank: Number(settledToBank || 0),
+        ledgerEarnings: Number(ledgerEarnings || 0),
       },
     };
 

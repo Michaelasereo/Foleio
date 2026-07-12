@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 export type BankAccount = {
   id: string;
@@ -27,8 +26,9 @@ export function BankSetupForm({
   onCancel?: () => void;
 }) {
   const [banks, setBanks] = useState<BankOption[]>([]);
-  const [selectedBankCode, setSelectedBankCode] = useState('');
-  const [selectedBankName, setSelectedBankName] = useState('');
+  const [banksLoading, setBanksLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [selectedBank, setSelectedBank] = useState<BankOption | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [verifiedName, setVerifiedName] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -36,168 +36,267 @@ export function BankSetupForm({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+    setBanksLoading(true);
     fetch('/api/creator/banks')
       .then((r) => r.json())
-      .then((d) => setBanks(d.banks || []))
-      .catch(() => setBanks([]));
+      .then((d) => {
+        if (!cancelled) setBanks(d.banks || []);
+      })
+      .catch(() => {
+        if (!cancelled) setBanks([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBanksLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const filteredBanks = useMemo(() => {
+    const sorted = [...banks].sort((a, b) => a.name.localeCompare(b.name));
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted.slice(0, 12);
+    return sorted.filter((bank) => bank.name.toLowerCase().includes(q)).slice(0, 12);
+  }, [banks, query]);
+
   useEffect(() => {
-    if (accountNumber.length === 10 && selectedBankCode) {
-      void handleVerify();
+    if (accountNumber.length !== 10 || !selectedBank) return;
+
+    let cancelled = false;
+    async function verify() {
+      setIsVerifying(true);
+      setVerifiedName('');
+      setError('');
+
+      try {
+        const res = await fetch('/api/creator/bank/verify-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountNumber,
+            bankCode: selectedBank!.code,
+          }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.accountName) {
+          setVerifiedName(data.accountName);
+        } else {
+          setError(data.error || 'Account not found. Check the number and bank.');
+        }
+      } catch {
+        if (!cancelled) setError('Could not verify account. Try again.');
+      } finally {
+        if (!cancelled) setIsVerifying(false);
+      }
     }
-  }, [accountNumber, selectedBankCode]);
 
-  async function handleVerify() {
-    setIsVerifying(true);
-    setVerifiedName('');
-    setError('');
-
-    const res = await fetch('/api/creator/bank/verify-account', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        accountNumber,
-        bankCode: selectedBankCode,
-      }),
-    });
-    const data = await res.json();
-
-    if (data.accountName) {
-      setVerifiedName(data.accountName);
-    } else {
-      setError('Account not found. Check the number and bank.');
-    }
-    setIsVerifying(false);
-  }
+    void verify();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountNumber, selectedBank]);
 
   async function handleSave() {
-    if (!verifiedName) return;
+    if (!verifiedName || !selectedBank) return;
     setIsSaving(true);
     setError('');
 
-    const res = await fetch('/api/creator/bank/save', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        accountNumber,
-        bankCode: selectedBankCode,
-        bankName: selectedBankName,
-        accountName: verifiedName,
-      }),
-    });
-    const data = await res.json();
+    try {
+      const res = await fetch('/api/creator/bank/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNumber,
+          bankCode: selectedBank.code,
+          bankName: selectedBank.name,
+          accountName: verifiedName,
+        }),
+      });
+      const data = await res.json();
 
-    if (data.bankAccount) {
-      onSaved(data.bankAccount);
-    } else {
+      if (data.bankAccount) {
+        onSaved(data.bankAccount);
+      } else {
+        setError(data.error || 'Failed to save. Please try again.');
+      }
+    } catch {
       setError('Failed to save. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-foreground">
-          Bank
-        </label>
-        <select
-          value={selectedBankCode}
-          onChange={(e) => {
-            setSelectedBankCode(e.target.value);
-            setSelectedBankName(
-              e.target.options[e.target.selectedIndex]?.text || ''
-            );
-            setVerifiedName('');
-          }}
-          className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
-        >
-          <option value="">Select your bank</option>
-          {banks
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map((bank) => (
-              <option key={bank.code} value={bank.code}>
-                {bank.name}
-              </option>
-            ))}
-        </select>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <label className="foleio-dash-field">
+        Search bank
+        <input
+          type="text"
+          className="foleio-dash-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="e.g. GTBank, Access, Zenith"
+          autoComplete="off"
+        />
+      </label>
+
+      <div className="foleio-dash-field">
+        <span>Bank</span>
+        {banksLoading ? (
+          <p className="foleio-dash-field-hint" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+            Loading banks…
+          </p>
+        ) : filteredBanks.length === 0 ? (
+          <p className="foleio-dash-field-hint">No banks match that search.</p>
+        ) : (
+          <div
+            role="listbox"
+            aria-label="Banks"
+            style={{
+              maxHeight: 180,
+              overflowY: 'auto',
+              borderRadius: 10,
+              background: '#1a1816',
+            }}
+          >
+            {filteredBanks.map((bank) => {
+              const selected = selectedBank?.code === bank.code;
+              return (
+                <button
+                  key={bank.code}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    setSelectedBank(bank);
+                    setVerifiedName('');
+                    setError('');
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '11px 14px',
+                    border: 'none',
+                    borderBottom: '1px solid #2b2b2b',
+                    background: selected ? '#2b2b2b' : 'transparent',
+                    color: selected ? '#f4f4f5' : '#adadad',
+                    fontFamily: 'var(--font-body), sans-serif',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {bank.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {selectedBank ? (
+          <p className="foleio-dash-field-hint">Selected: {selectedBank.name}</p>
+        ) : null}
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-foreground">
-          Account Number
-        </label>
+      <label className="foleio-dash-field">
+        Account number
         <input
           type="text"
           inputMode="numeric"
           maxLength={10}
+          className="foleio-dash-input"
           value={accountNumber}
           onChange={(e) => {
-            setAccountNumber(e.target.value.replace(/\D/g, ''));
+            setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10));
             setVerifiedName('');
             setError('');
           }}
           placeholder="0123456789"
-          className="w-full rounded-xl border border-border bg-background px-3 py-2.5 font-mono text-sm tracking-widest focus:border-primary focus:outline-none"
+          style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.12em' }}
+          disabled={!selectedBank}
         />
-      </div>
+        <p className="foleio-dash-field-hint">10-digit NUBAN — we verify the name automatically</p>
+      </label>
 
-      {isVerifying && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Verifying account...
-        </div>
-      )}
+      {isVerifying ? (
+        <p
+          className="foleio-dash-panel-meta"
+          style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+          Verifying account…
+        </p>
+      ) : null}
 
-      {verifiedName && !isVerifying && (
-        <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 p-3">
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600" />
+      {verifiedName && !isVerifying ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            padding: '12px 0 0',
+          }}
+        >
+          <CheckCircle2
+            className="h-4 w-4 shrink-0"
+            strokeWidth={1.5}
+            style={{ color: '#86efac', marginTop: 2 }}
+          />
           <div>
-            <p className="text-sm font-semibold text-green-800">{verifiedName}</p>
-            <p className="text-xs text-green-600">Account verified by Paystack</p>
+            <p style={{ margin: 0, color: '#f4f4f5', fontSize: 14, fontWeight: 600 }}>
+              {verifiedName}
+            </p>
+            <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
+              Name matched via Paystack — payouts go here
+            </p>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
-          <AlertCircle className="h-4 w-4 flex-shrink-0 text-red-500" />
-          <p className="text-sm text-red-700">{error}</p>
+      {error ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+          }}
+        >
+          <AlertCircle
+            className="h-4 w-4 shrink-0"
+            strokeWidth={1.5}
+            style={{ color: '#fca5a5', marginTop: 2 }}
+          />
+          <p style={{ margin: 0, color: '#fca5a5', fontSize: 13, fontWeight: 500 }}>{error}</p>
         </div>
-      )}
+      ) : null}
 
-      <div className="flex gap-3 pt-1">
+      <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
         {onCancel ? (
-          <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+          <button type="button" className="foleio-dash-btn-ghost" onClick={onCancel}>
             Cancel
-          </Button>
+          </button>
         ) : null}
-        <Button
+        <button
           type="button"
+          className="foleio-dash-btn-primary"
           onClick={handleSave}
           disabled={!verifiedName || isSaving}
-          className="flex-1"
+          style={{ flex: 1 }}
         >
           {isSaving ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
+              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+              Saving…
             </>
           ) : (
-            'Save Account'
+            'Save account'
           )}
-        </Button>
+        </button>
       </div>
-
-      <p className="text-center text-xs text-muted-foreground">
-        Your account is verified directly by Paystack - the same technology used
-        by Piggyvest and Cowrywise.
-      </p>
     </div>
   );
 }

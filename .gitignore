@@ -54,3 +54,7 @@ packages/database/prisma/migrations/
 # Sentry
 .sentryclirc
 
+
+test-results/
+apps/web/test-results/
+*.env.encoded

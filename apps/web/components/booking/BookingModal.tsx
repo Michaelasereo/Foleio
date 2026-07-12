@@ -1,19 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Form,
   FormControl,
@@ -22,9 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Calendar, Clock, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Calendar, Clock, ArrowLeft, Check, Loader2, X } from 'lucide-react';
 
 interface PriceListItem {
   id: string;
@@ -55,6 +43,7 @@ interface BookingModalProps {
   creatorName: string;
   availableDates: AvailabilityDate[];
   onBack: () => void;
+  isPreview?: boolean;
 }
 
 const bookingSchema = z.object({
@@ -70,6 +59,288 @@ type BookingInput = z.infer<typeof bookingSchema>;
 
 type Step = 'service' | 'date' | 'details' | 'payment' | 'success';
 
+const bookingDrawerCss = `
+.foleio-book-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.55);
+}
+.foleio-book-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100vw);
+  background: #212121;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+  animation: foleio-book-drawer-in 180ms ease-out;
+}
+@keyframes foleio-book-drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.foleio-book-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 0;
+  flex-shrink: 0;
+}
+.foleio-book-drawer-title {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.foleio-book-drawer-meta {
+  margin: 6px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.foleio-book-drawer-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #adadad;
+  cursor: pointer;
+}
+.foleio-book-drawer-close:hover { color: #f4f4f5; }
+.foleio-book-drawer-close svg { width: 18px; height: 18px; }
+.foleio-book-drawer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 24px;
+}
+.foleio-book-drawer-footer {
+  flex-shrink: 0;
+  padding: 16px 20px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.foleio-book-drawer-actions {
+  display: flex;
+  gap: 8px;
+}
+.foleio-book-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.foleio-book-btn.is-ghost {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #f4f4f5;
+}
+.foleio-book-btn.is-primary {
+  flex: 1;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #001035;
+}
+.foleio-book-btn:hover { opacity: 0.92; }
+.foleio-book-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.foleio-book-progress {
+  margin-top: 12px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.foleio-book-progress i {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.foleio-book-panel {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #1a1816;
+}
+.foleio-book-summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  color: #adadad;
+  font-size: 13px;
+  font-weight: 500;
+}
+.foleio-book-summary-row strong {
+  color: #f4f4f5;
+  font-size: 15px;
+  font-weight: 600;
+}
+.foleio-book-option-name {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 14px;
+  font-weight: 500;
+}
+.foleio-book-option-price {
+  color: #f4f4f5;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.foleio-book-option-desc {
+  margin: 6px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.foleio-book-option-meta {
+  margin: 8px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+}
+.foleio-book-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.foleio-book-date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.foleio-book-date {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #1a1816;
+  color: #f4f4f5;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.foleio-book-date strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.foleio-book-date span {
+  color: #828282;
+  font-size: 11px;
+  font-weight: 500;
+}
+.foleio-book-date em {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-style: normal;
+  color: #fca5a5;
+  font-size: 10px;
+  font-weight: 600;
+}
+.foleio-book-date.is-selected {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.foleio-book-date:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.foleio-book-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.foleio-book-label {
+  color: #adadad !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+.foleio-book-input,
+.foleio-book-textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #1a1816;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+}
+.foleio-book-textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+.foleio-book-input:focus,
+.foleio-book-textarea:focus {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+.foleio-book-input::placeholder,
+.foleio-book-textarea::placeholder {
+  color: #5c6070;
+}
+.foleio-book-center {
+  padding: 24px 8px;
+  text-align: center;
+}
+.foleio-book-drawer-empty {
+  margin: 24px 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+.foleio-book-success-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 999px;
+  background: rgba(134, 239, 172, 0.16);
+  color: #86efac;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+`;
+
+
+
 export function BookingModal({
   open,
   onOpenChange,
@@ -78,8 +349,9 @@ export function BookingModal({
   creatorName,
   availableDates,
   onBack,
+  isPreview = false,
 }: BookingModalProps) {
-  const [step, setStep] = useState<Step>('service');
+  const [step, setStep] = useState<Step>('date');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [allowMultipleDates, setAllowMultipleDates] = useState(false);
@@ -101,6 +373,18 @@ export function BookingModal({
       notes: '',
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      setStep('date');
+      setSelectedDate(null);
+      setSelectedDates([]);
+      setAllowMultipleDates(false);
+      setBookingLimitReached(false);
+      setBookingResult(null);
+      form.reset();
+    }
+  }, [open, selectedService.id, form]);
 
   const formatPrice = (priceInKobo: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -179,6 +463,10 @@ export function BookingModal({
   }
 
   async function onSubmit(data: BookingInput) {
+    if (isPreview) {
+      alert('This is sample preview content. Publish real services to start taking bookings.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       // Parse dates (support both single and multiple)
@@ -268,90 +556,148 @@ export function BookingModal({
     setIsSubmitting(false);
   }
 
-  async function initializePayment(booking: any, customerData: BookingInput) {
-    // Initialize Paystack popup
-    const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-    
-    console.log('🎯 Initializing payment...');
-    console.log('💳 Paystack Public Key:', paystackKey ? 'Found (' + paystackKey.substring(0, 15) + '...)' : 'NOT FOUND');
-    console.log('📦 Booking ID:', booking.id);
-    console.log('💰 Amount (kobo):', booking.totalAmount);
-    console.log('📧 Email:', customerData.customerEmail);
-    
-    if (!paystackKey) {
-      // For development/testing without Paystack
-      console.log('⚠️ No Paystack key, simulating payment...');
-      
-      // Simulate successful payment
-      setTimeout(async () => {
-        try {
-          const verifyResponse = await fetch('/api/bookings/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reference: `test_ref_${Date.now()}`,
-              bookingId: booking.id,
-            }),
-          });
-          
-          if (verifyResponse.ok) {
-            setStep('success');
-          } else {
-            const errorData = await verifyResponse.json();
-            console.error('Payment verification failed:', errorData);
-            alert('Payment simulation failed: ' + (errorData.error || 'Unknown error'));
-            setStep('details');
-          }
-        } catch (e) {
-          console.error('Payment verification error:', e);
-          alert('Payment simulation failed. Please try again.');
-          setStep('details');
+  async function verifyBookingPayment(paymentReference: string, bookingId: string) {
+    setIsSubmitting(true);
+    try {
+      const verifyResponse = await fetch('/api/bookings/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: paymentReference,
+          bookingId,
+        }),
+      });
+      const verifyData = await verifyResponse.json().catch(() => ({}));
+      if (verifyResponse.ok && verifyData.success) {
+        setStep('success');
+      } else {
+        alert(
+          `Payment verification failed: ${
+            verifyData.error || 'Unknown error'
+          }\n\nReference: ${paymentReference}`
+        );
+        setStep('details');
+      }
+    } catch (e) {
+      console.error('Payment verification error:', e);
+      alert(
+        `Payment verification error. Reference: ${paymentReference}. Please contact support.`
+      );
+      setStep('details');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function waitForPaystackPop(timeoutMs = 5000) {
+    // @ts-ignore
+    if (typeof window.PaystackPop !== 'undefined') return true;
+    return new Promise<boolean>((resolve) => {
+      const checkPaystack = setInterval(() => {
+        // @ts-ignore
+        if (typeof window.PaystackPop !== 'undefined') {
+          clearInterval(checkPaystack);
+          resolve(true);
         }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(checkPaystack);
+        // @ts-ignore
+        resolve(typeof window.PaystackPop !== 'undefined');
+      }, timeoutMs);
+    });
+  }
+
+  async function initializePayment(booking: any, customerData: BookingInput) {
+    const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+
+    // Server-side init with creator subaccount (split payment)
+    const initResponse = await fetch('/api/bookings/initialize-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: booking.id }),
+    });
+    const initData = await initResponse.json().catch(() => ({}));
+
+    if (!initResponse.ok) {
+      throw new Error(initData?.error || 'Failed to initialize payment');
+    }
+
+    const reference = initData.reference as string;
+    const accessCode = initData.access_code as string | undefined;
+    const authorizationUrl = initData.authorization_url as string | undefined;
+    const amount = Number(initData.amount ?? booking.totalAmount);
+    const email = (initData.email as string) || customerData.customerEmail;
+    const subaccount = initData.subaccount as string | undefined;
+    const publicKey = (initData.publicKey as string) || paystackKey;
+
+    if (!publicKey) {
+      // Dev fallback when no public key is configured
+      setTimeout(() => {
+        void verifyBookingPayment(
+          reference || `test_ref_${Date.now()}`,
+          booking.id
+        );
       }, 1000);
       return;
     }
 
-    // Check if Paystack script is loaded
-    // @ts-ignore
-    if (typeof window.PaystackPop === 'undefined') {
-      console.log('⏳ Waiting for Paystack script to load...');
-      // Wait for script to load
-      await new Promise<void>((resolve) => {
-        const checkPaystack = setInterval(() => {
-          // @ts-ignore
-          if (typeof window.PaystackPop !== 'undefined') {
-            clearInterval(checkPaystack);
-            resolve();
-          }
-        }, 100);
-        // Timeout after 5 seconds
-        setTimeout(() => {
-          clearInterval(checkPaystack);
-          resolve();
-        }, 5000);
-      });
+    const paystackReady = await waitForPaystackPop();
+
+    const onPaymentClose = () => {
+      setIsSubmitting(false);
+      setStep('details');
+    };
+
+    // Prefer resumeTransaction(access_code) — charge already includes subaccount split
+    if (paystackReady && accessCode) {
+      try {
+        // @ts-ignore
+        const popup = new window.PaystackPop();
+        if (typeof popup.resumeTransaction === 'function') {
+          popup.resumeTransaction(accessCode, {
+            onSuccess: (transaction: { reference?: string }) => {
+              void verifyBookingPayment(
+                transaction?.reference || reference,
+                booking.id
+              );
+            },
+            onCancel: onPaymentClose,
+            callback: (response: { reference: string }) => {
+              void verifyBookingPayment(response.reference || reference, booking.id);
+            },
+            onClose: onPaymentClose,
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('resumeTransaction unavailable, falling back to setup', e);
+      }
     }
 
-    // @ts-ignore
-    if (typeof window.PaystackPop === 'undefined') {
-      console.error('❌ Paystack script failed to load');
-      alert('Payment system is not available. Please refresh the page and try again.');
+    if (!paystackReady) {
+      if (authorizationUrl) {
+        window.location.href = authorizationUrl;
+        return;
+      }
+      alert('Payment system is not available. Please refresh and try again.');
       setStep('details');
       return;
     }
 
-    console.log('✅ Paystack script loaded, opening payment popup...');
-
-    // @ts-ignore - Paystack is loaded from script
+    // Fallback: Inline setup with server reference + subaccount
+    // @ts-ignore
     const handler = window.PaystackPop.setup({
-      key: paystackKey,
-      email: customerData.customerEmail,
-      amount: booking.totalAmount, // already in kobo
+      key: publicKey,
+      email,
+      amount,
       currency: 'NGN',
-      ref: `booking_${booking.id}_${Date.now()}`,
+      ref: reference,
+      subaccount,
       metadata: {
         type: 'booking',
         bookingId: booking.id,
+        paymentType: 'DIRECT_SUBACCOUNT',
         custom_fields: [
           {
             display_name: 'Service',
@@ -360,177 +706,140 @@ export function BookingModal({
           },
         ],
       },
-      callback: async (response: { reference: string }) => {
-        console.log('✅ Payment successful! Reference:', response.reference);
-        setIsSubmitting(true);
-        try {
-          const verifyResponse = await fetch('/api/bookings/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reference: response.reference,
-              bookingId: booking.id,
-            }),
-          });
-
-          const verifyData = await verifyResponse.json();
-
-          if (verifyResponse.ok && verifyData.success) {
-            // Payment verified successfully
-            setStep('success');
-          } else {
-            const errorMessage = verifyData.error || 'Payment verification failed';
-            console.error('Payment verification failed:', errorMessage);
-            alert(`Payment verification failed: ${errorMessage}\n\nYour payment was successful, but we couldn't verify it automatically. Please contact support with your payment reference: ${response.reference}`);
-            setStep('details');
-          }
-        } catch (e) {
-          console.error('Payment verification error:', e);
-          alert(`Payment verification error. Your payment was successful (Reference: ${response.reference}), but we couldn't verify it automatically. Please contact support.`);
-          setStep('details');
-        } finally {
-          setIsSubmitting(false);
-        }
+      callback: (response: { reference: string }) => {
+        void verifyBookingPayment(response.reference, booking.id);
       },
-      onClose: () => {
-        console.log('❌ Payment popup closed by user');
-        // User closed the payment modal - check if payment was actually made
-        // For now, just go back to details
-        setIsSubmitting(false);
-        setStep('details');
-      },
+      onClose: onPaymentClose,
     });
 
     handler.openIframe();
   }
 
+
   function handleClose() {
+    onOpenChange(false);
+    setBookingLimitReached(false);
     if (step === 'success') {
-      onOpenChange(false);
-      // Reset state
-      setStep('service');
+      setStep('date');
       setSelectedDate(null);
       setSelectedDates([]);
       setAllowMultipleDates(false);
       setBookingResult(null);
-      setBookingLimitReached(false);
       form.reset();
-    } else {
-      onOpenChange(false);
-      setBookingLimitReached(false);
     }
   }
 
+  if (!open) return null;
+
+  const title =
+    step === 'success'
+      ? 'Booking confirmed'
+      : step === 'payment'
+        ? 'Payment'
+        : step === 'details'
+          ? 'Your details'
+          : 'Select a date';
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>
-            {step === 'success' ? 'Booking Confirmed!' : 'Book Service'}
-          </DialogTitle>
-          <DialogDescription>
-            {step === 'success'
-              ? `Your booking with ${creatorName} is confirmed`
-              : `Complete your booking with ${creatorName}`}
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Progress bar */}
-        {step !== 'success' && (
-          <Progress value={stepProgress[step]} className="h-2 flex-shrink-0" />
-        )}
-
-        <div className="flex-1 overflow-y-auto min-h-0">
-        {bookingLimitReached ? (
-          <div className="py-8 text-center">
-            <p className="mb-2 font-semibold text-foreground">
-              Bookings unavailable this month
+    <>
+      <style dangerouslySetInnerHTML={{ __html: bookingDrawerCss }} />
+      <div
+        className="foleio-book-drawer-backdrop"
+        onClick={handleClose}
+        aria-hidden
+      />
+      <aside
+        className="foleio-book-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="booking-drawer-title"
+      >
+        <div className="foleio-book-drawer-header">
+          <div>
+            <h2 id="booking-drawer-title" className="foleio-book-drawer-title">
+              {title}
+            </h2>
+            <p className="foleio-book-drawer-meta">
+              {selectedService.name} · {formatPrice(selectedService.price)}
+              {isPreview ? ' · Preview' : ''}
             </p>
-            <p className="text-sm text-muted-foreground">
-              This creator has reached their booking limit for this month. Please check back next month or contact them directly.
-            </p>
-          </div>
-        ) : null}
-
-        {/* Step: Service Summary */}
-        {step === 'service' && !bookingLimitReached && (
-          <div className="space-y-4 py-4">
-            <div className="bg-muted p-4 rounded-lg space-y-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-semibold">{selectedService.name}</h4>
-                  {selectedService.category && (
-                    <Badge variant="outline" className="mt-1">
-                      {selectedService.category}
-                    </Badge>
-                  )}
-                </div>
-                <span className="font-bold text-lg text-primary">
-                  {formatPrice(selectedService.price)}
-                </span>
+            {step !== 'success' ? (
+              <div className="foleio-book-progress" aria-hidden>
+                <i style={{ width: `${stepProgress[step]}%` }} />
               </div>
-              {selectedService.description && (
-                <p className="text-sm text-muted-foreground">
-                  {selectedService.description}
-                </p>
-              )}
-              {selectedService.durationMinutes && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  {selectedService.durationMinutes} minutes
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={onBack}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Change Service
-              </Button>
-              <Button onClick={() => setStep('date')}>
-                Select Date
-              </Button>
-            </div>
+            ) : null}
           </div>
-        )}
+          <button
+            type="button"
+            className="foleio-book-drawer-close"
+            aria-label="Close"
+            onClick={handleClose}
+          >
+            <X strokeWidth={1.75} />
+          </button>
+        </div>
 
-        {/* Step: Date Selection */}
-        {step === 'date' && !bookingLimitReached && (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Select Available Date{allowMultipleDates ? 's' : ''}
-              </h4>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setAllowMultipleDates(!allowMultipleDates);
-                  if (!allowMultipleDates) {
-                    setSelectedDates(selectedDate ? [selectedDate] : []);
-                  } else {
-                    setSelectedDate(null);
-                    setSelectedDates([]);
-                    form.setValue('bookingDate', '');
-                  }
-                }}
-              >
-                {allowMultipleDates ? 'Single Date' : 'Multiple Dates'}
-              </Button>
-            </div>
-
-            {availableDates.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                No available dates at the moment. Please check back later.
+        <div className="foleio-book-drawer-body">
+          {bookingLimitReached ? (
+            <div className="foleio-book-center">
+              <p className="foleio-book-option-name">Bookings unavailable this month</p>
+              <p className="foleio-book-option-desc">
+                This creator has reached their booking limit for this month. Please check back
+                next month.
               </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+            </div>
+          ) : null}
+
+          {step === 'date' && !bookingLimitReached ? (
+            <div>
+              <div className="foleio-book-panel" style={{ marginBottom: 14 }}>
+                <div className="foleio-book-summary-row">
+                  <div>
+                    <p className="foleio-book-option-name">{selectedService.name}</p>
+                    {selectedService.durationMinutes ? (
+                      <p className="foleio-book-option-meta">
+                        <Clock strokeWidth={1.75} />
+                        {selectedService.durationMinutes} min
+                      </p>
+                    ) : null}
+                  </div>
+                  <strong className="foleio-book-option-price">
+                    {formatPrice(selectedService.price)}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="foleio-book-toolbar">
+                <p className="foleio-book-option-name" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                  <Calendar strokeWidth={1.75} className="h-4 w-4" />
+                  Available date{allowMultipleDates ? 's' : ''}
+                </p>
+                <button
+                  type="button"
+                  className="foleio-book-btn is-ghost"
+                  style={{ height: 32, fontSize: 12 }}
+                  onClick={() => {
+                    setAllowMultipleDates(!allowMultipleDates);
+                    if (!allowMultipleDates) {
+                      setSelectedDates(selectedDate ? [selectedDate] : []);
+                    } else {
+                      setSelectedDate(null);
+                      setSelectedDates([]);
+                      form.setValue('bookingDate', '');
+                    }
+                  }}
+                >
+                  {allowMultipleDates ? 'Single date' : 'Multiple dates'}
+                </button>
+              </div>
+
+              {availableDates.length === 0 ? (
+                <p className="foleio-book-drawer-empty">No available dates right now.</p>
+              ) : (
+                <div className="foleio-book-date-grid">
                   {availableDates.map((d) => {
                     const dateStr = new Date(d.date).toISOString().split('T')[0];
-                    const isSelected = allowMultipleDates 
+                    const isSelected = allowMultipleDates
                       ? selectedDates.includes(dateStr)
                       : selectedDate === dateStr;
                     const isFullyBooked = d.isFullyBooked || false;
@@ -544,308 +853,274 @@ export function BookingModal({
                     return (
                       <button
                         key={d.id}
-                        onClick={() => !isDisabled && handleDateSelect(dateStr)}
+                        type="button"
                         disabled={isDisabled}
-                        className={`p-3 rounded-lg border text-left transition-all relative ${
-                          isDisabled
-                            ? 'opacity-50 cursor-not-allowed bg-muted border-muted'
-                            : isSelected
-                            ? 'border-primary bg-primary/10'
-                            : 'hover:border-primary/50 hover:bg-muted/50'
-                        }`}
+                        onClick={() => !isDisabled && handleDateSelect(dateStr)}
+                        className={`foleio-book-date${isSelected && !isDisabled ? ' is-selected' : ''}`}
                       >
-                        <div className="font-medium">
+                        <strong>
                           {new Date(d.date).toLocaleDateString('en-NG', {
                             weekday: 'short',
                             day: 'numeric',
                           })}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
+                        </strong>
+                        <span>
                           {new Date(d.date).toLocaleDateString('en-NG', {
                             month: 'short',
                             year: 'numeric',
                           })}
-                        </div>
-                        {d.maxBookings && (
-                          <div className="text-xs mt-1">
-                            {d.bookingCount || 0}/{d.maxBookings} booked
-                          </div>
-                        )}
-                        {isFullyBooked && (
-                          <div className="absolute top-1 right-1">
-                            <Badge variant="destructive" className="text-xs">Full</Badge>
-                          </div>
-                        )}
-                        {isPastDate && (
-                          <div className="absolute top-1 right-1">
-                            <Badge variant="secondary" className="text-xs">Past</Badge>
-                          </div>
-                        )}
-                        {isSelected && !isDisabled && (
-                          <div className="absolute top-1 right-1">
-                            <Check className="h-4 w-4 text-primary" />
-                          </div>
-                        )}
+                        </span>
+                        {isFullyBooked ? <em>Full</em> : null}
+                        {isPastDate ? <em>Past</em> : null}
+                        {isSelected && !isDisabled ? (
+                          <Check className="h-3.5 w-3.5" style={{ position: 'absolute', top: 8, right: 8 }} />
+                        ) : null}
                       </button>
                     );
                   })}
                 </div>
-                {allowMultipleDates && selectedDates.length > 0 && (
-                  <div className="bg-muted p-3 rounded-lg">
-                    <p className="text-sm font-medium mb-1">Selected Dates ({selectedDates.length}):</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedDates.map(dateStr => (
-                        <Badge key={dateStr} variant="secondary">
-                          {formatDate(new Date(dateStr))}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep('service')}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              {allowMultipleDates && (
-                <Button 
-                  onClick={handleContinueWithDates}
-                  disabled={selectedDates.length === 0}
-                >
-                  Continue ({selectedDates.length} selected)
-                </Button>
               )}
             </div>
-          </div>
-        )}
+          ) : null}
 
-        {/* Step: Customer Details */}
-        {step === 'details' && !bookingLimitReached && (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-              {/* Selected date(s) summary */}
-              {(selectedDate || selectedDates.length > 0) && (
-                <div className="bg-muted p-3 rounded-lg text-sm">
-                  <span className="text-muted-foreground">Selected Date{selectedDates.length > 1 ? 's' : ''}: </span>
-                  <div className="font-medium mt-1">
-                    {selectedDates.length > 0 
-                      ? selectedDates.map(dateStr => formatDate(new Date(dateStr))).join(', ')
-                      : selectedDate 
-                      ? formatDate(new Date(selectedDate))
-                      : ''}
+          {step === 'details' && !bookingLimitReached ? (
+            <Form {...form}>
+              <form id="booking-details-form" onSubmit={form.handleSubmit(onSubmit)} className="foleio-book-form">
+                {(selectedDate || selectedDates.length > 0) ? (
+                  <div className="foleio-book-panel">
+                    <p className="foleio-book-drawer-meta" style={{ margin: 0 }}>
+                      Selected date{selectedDates.length > 1 ? 's' : ''}
+                    </p>
+                    <p className="foleio-book-option-name" style={{ marginTop: 6 }}>
+                      {selectedDates.length > 0
+                        ? selectedDates.map((dateStr) => formatDate(new Date(dateStr))).join(', ')
+                        : selectedDate
+                          ? formatDate(new Date(selectedDate))
+                          : ''}
+                    </p>
                   </div>
+                ) : null}
+
+                <FormField
+                  control={form.control}
+                  name="customerName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="foleio-book-label">Your name</FormLabel>
+                      <FormControl>
+                        <input className="foleio-book-input" placeholder="Adaobi Okeke" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="customerEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="foleio-book-label">Email</FormLabel>
+                      <FormControl>
+                        <input
+                          className="foleio-book-input"
+                          type="email"
+                          placeholder="you@email.com"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="customerPhone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="foleio-book-label">Phone</FormLabel>
+                      <FormControl>
+                        <input
+                          className="foleio-book-input"
+                          type="tel"
+                          placeholder="08012345678"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="customerAddress"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="foleio-book-label">Service address</FormLabel>
+                      <FormControl>
+                        <textarea
+                          className="foleio-book-textarea"
+                          rows={3}
+                          placeholder="Full address for service delivery"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="foleio-book-label">Notes (optional)</FormLabel>
+                      <FormControl>
+                        <textarea
+                          className="foleio-book-textarea"
+                          rows={2}
+                          placeholder="Any special requests"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="foleio-book-panel">
+                  <div className="foleio-book-summary-row">
+                    <span>Total</span>
+                    <strong>{formatPrice(selectedService.price)}</strong>
+                  </div>
+                  <p className="foleio-book-option-desc" style={{ marginTop: 8 }}>
+                    60% paid to creator immediately. 40% after service completion.
+                  </p>
                 </div>
-              )}
+              </form>
+            </Form>
+          ) : null}
 
-              <FormField
-                control={form.control}
-                name="customerName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Your Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          {step === 'payment' && !bookingLimitReached ? (
+            <div className="foleio-book-center">
+              <Loader2 className="h-8 w-8 animate-spin" style={{ margin: '0 auto 12px', color: '#f4f4f5' }} />
+              <p className="foleio-book-option-name">Processing payment…</p>
+              <p className="foleio-book-option-desc">
+                Complete payment in the popup window. Check your popup blocker if it doesn’t open.
+              </p>
+            </div>
+          ) : null}
 
-              <FormField
-                control={form.control}
-                name="customerEmail"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="john@example.com"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="customerPhone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="tel"
-                        placeholder="08012345678"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Required for WhatsApp and phone calls
-                    </p>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="customerAddress"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Service Address *</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Enter full address for service delivery (e.g., 123 Main Street, Lagos Island, Lagos State)"
-                        rows={3}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Required for service delivery location
-                    </p>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Additional Notes (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Any special requests or requirements..."
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Payment summary */}
-              <div className="bg-muted p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Service:</span>
-                  <span>{selectedService.name}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Date:</span>
-                  <span>{selectedDate ? formatDate(new Date(selectedDate)) : '-'}</span>
-                </div>
-                <div className="border-t my-2" />
-                <div className="flex justify-between font-bold">
-                  <span>Total:</span>
-                  <span className="text-primary">
-                    {formatPrice(selectedService.price)}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  60% ({formatPrice(Math.floor(selectedService.price * 0.6))}) paid to creator immediately.
-                  40% paid after service completion.
+          {step === 'success' && bookingResult && !bookingLimitReached ? (
+            <div className="foleio-book-center">
+              <div className="foleio-book-success-icon">
+                <Check className="h-7 w-7" />
+              </div>
+              <p className="foleio-book-option-name">Booking confirmed</p>
+              <p className="foleio-book-option-desc">
+                Your booking with {creatorName} is confirmed. A tracking email is on the way.
+              </p>
+              <div className="foleio-book-panel" style={{ textAlign: 'left', marginTop: 16 }}>
+                <p className="foleio-book-option-desc">Service: {selectedService.name}</p>
+                <p className="foleio-book-option-desc">
+                  Date
+                  {selectedDates.length > 1 ? 's' : ''}:{' '}
+                  {selectedDates.length > 0
+                    ? selectedDates.map((dateStr) => formatDate(new Date(dateStr))).join(', ')
+                    : selectedDate
+                      ? formatDate(new Date(selectedDate))
+                      : 'N/A'}
+                </p>
+                <p className="foleio-book-option-desc">
+                  Amount: {formatPrice(selectedService.price)}
                 </p>
               </div>
+            </div>
+          ) : null}
+        </div>
 
-              <div className="flex justify-between">
-                <Button
+        <div className="foleio-book-drawer-footer">
+          {bookingLimitReached ? (
+            <button type="button" className="foleio-book-btn is-primary" onClick={handleClose}>
+              Close
+            </button>
+          ) : null}
+
+          {step === 'date' && !bookingLimitReached ? (
+            <div className="foleio-book-drawer-actions">
+              <button type="button" className="foleio-book-btn is-ghost" onClick={onBack}>
+                <ArrowLeft className="h-4 w-4" />
+                Services
+              </button>
+              {allowMultipleDates ? (
+                <button
                   type="button"
-                  variant="outline"
-                  onClick={() => setStep('date')}
+                  className="foleio-book-btn is-primary"
+                  disabled={selectedDates.length === 0}
+                  onClick={handleContinueWithDates}
                 >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    'Proceed to Payment'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        )}
+                  Continue ({selectedDates.length})
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="foleio-book-btn is-primary"
+                  disabled={!selectedDate}
+                  onClick={() => selectedDate && setStep('details')}
+                >
+                  Continue
+                </button>
+              )}
+            </div>
+          ) : null}
 
-        {/* Step: Payment Processing */}
-        {step === 'payment' && !bookingLimitReached && (
-          <div className="py-8 text-center space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p>Processing your payment...</p>
-            <p className="text-sm text-muted-foreground">
-              Please complete the payment in the popup window.
-            </p>
-            <p className="text-xs text-muted-foreground mt-4">
-              If the payment window doesn't open, please check your popup blocker settings.
-            </p>
-            <Button
-              variant="outline"
+          {step === 'details' && !bookingLimitReached ? (
+            <div className="foleio-book-drawer-actions">
+              <button
+                type="button"
+                className="foleio-book-btn is-ghost"
+                onClick={() => setStep('date')}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="submit"
+                form="booking-details-form"
+                className="foleio-book-btn is-primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing…
+                  </>
+                ) : (
+                  'Proceed to payment'
+                )}
+              </button>
+            </div>
+          ) : null}
+
+          {step === 'payment' && !bookingLimitReached ? (
+            <button
+              type="button"
+              className="foleio-book-btn is-ghost"
               onClick={() => {
                 setIsSubmitting(false);
                 setStep('details');
               }}
-              className="mt-4"
             >
-              Cancel Payment
-            </Button>
-          </div>
-        )}
+              Cancel payment
+            </button>
+          ) : null}
 
-        {/* Step: Success */}
-        {step === 'success' && bookingResult && !bookingLimitReached && (
-          <div className="py-8 text-center space-y-6">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-              <Check className="h-8 w-8 text-green-600" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-semibold">Booking Confirmed!</h3>
-              <p className="text-muted-foreground">
-                Your booking with {creatorName} has been confirmed.
-              </p>
-            </div>
-            <div className="bg-muted p-4 rounded-lg text-sm space-y-2">
-              <p>
-                <strong>Service:</strong> {selectedService.name}
-              </p>
-              <p>
-                <strong>Date{selectedDates.length > 1 ? 's' : ''}:</strong>{' '}
-                {selectedDates.length > 0
-                  ? selectedDates.map(dateStr => formatDate(new Date(dateStr))).join(', ')
-                  : selectedDate
-                  ? formatDate(new Date(selectedDate))
-                  : 'N/A'}
-              </p>
-              <p>
-                <strong>Amount Paid:</strong> {formatPrice(selectedService.price)}
-              </p>
-              {bookingResult?.trackingToken && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  <strong>Tracking Token:</strong> {bookingResult.trackingToken}
-                </p>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              A confirmation email with your tracking link has been sent to your email address.
-            </p>
-            <Button onClick={handleClose} className="w-full">
+          {step === 'success' && !bookingLimitReached ? (
+            <button type="button" className="foleio-book-btn is-primary" onClick={handleClose}>
               Done
-            </Button>
-          </div>
-        )}
+            </button>
+          ) : null}
         </div>
-      </DialogContent>
-    </Dialog>
+      </aside>
+    </>
   );
 }
-

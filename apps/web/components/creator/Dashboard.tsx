@@ -1,22 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
+  CalendarClock,
+  CalendarDays,
   DollarSign,
-  Users,
-  Video,
   TrendingUp,
-  Download,
 } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
@@ -24,68 +13,63 @@ import { WelcomeModal } from '@/components/creator/WelcomeModal';
 import { OnboardingGateModal } from '@/components/creator/OnboardingGateModal';
 import { TourTooltip, type TourStep } from '@/components/onboarding/TourTooltip';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
-import { getCreatorPlan, getPlanLimits } from '@/lib/utils/plan-limits';
+import { getCreatorPlan } from '@/lib/utils/plan-limits';
 import { useOnboardingTour } from '@/hooks/useOnboardingTour';
+
+type UpcomingBooking = {
+  id: string;
+  customerName: string;
+  bookingDate: string | Date;
+  totalAmount: number;
+  status: string;
+  priceListItem?: { name: string } | null;
+};
 
 interface CreatorDashboardProps {
   creator: any;
   profileIncomplete?: boolean;
   analytics: any;
-  recentSubscriptions: any[];
-  contentMetrics: any;
+  bookingStats: {
+    totalBookings: number;
+    upcomingBookings: number;
+  };
+  upcomingBookings: UpcomingBooking[];
 }
 
 export function CreatorDashboard({
   creator,
   profileIncomplete = false,
   analytics,
-  recentSubscriptions,
-  contentMetrics,
+  bookingStats,
+  upcomingBookings,
 }: CreatorDashboardProps) {
-  const router = useRouter();
   const [creatorState, setCreatorState] = useState(creator);
-  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
-  const { isActive, currentStep, startTour, nextStep, skipTour, completeTour } = useOnboardingTour();
+  const { isOpen, limitType, closeUpgradeModal } = useUpgradeModal();
+  const { isActive, currentStep, startTour, nextStep, skipTour, completeTour } =
+    useOnboardingTour();
   const hasStartedTourRef = useRef(false);
   const currentPlan = getCreatorPlan(creatorState.platformPlan ?? null);
-  const limits = getPlanLimits(creatorState.platformPlan ?? null);
-  const currentContentCount = Number(creatorState.contentCount || 0);
 
   const tourSteps = useMemo<TourStep[]>(
     () => [
       {
         target: '[data-tour="dashboard"]',
-        text: 'This is your home base. See your earnings, subscribers, and top content at a glance.',
-        position: 'right',
+        text: 'This is your home base. See your bookings, earnings, and performance at a glance.',
+        position: 'bottom',
       },
       {
-        target: '[data-tour="content"]',
-        text: 'Upload videos, PDFs, and files here. Organise them into collections for your fans.',
-        position: 'right',
-      },
-      {
-        target: '[data-tour="journal"]',
-        text: 'Write long-form posts for your audience. Think of it as your personal blog — free for all your fans to read.',
-        position: 'right',
-      },
-      {
-        target: '[data-tour="new-content"]',
-        text: 'Ready to upload? Hit this to add your first piece of content.',
+        target: '[data-tour="analytics"]',
+        text: 'See how you’re performing — views, engagement, and growth.',
         position: 'bottom',
       },
       {
         target: '[data-tour="earnings"]',
-        text: 'Track your revenue and request payouts here once you start earning.',
-        position: 'right',
-      },
-      {
-        target: '[data-tour="analytics"]',
-        text: 'See how your content is performing — views, engagement, and subscriber growth.',
-        position: 'right',
+        text: 'Track revenue and connect your bank so booking payments can settle to you.',
+        position: 'bottom',
       },
       {
         target: '[data-tour="creator-profile"]',
-        text: "Update your profile photo and share your profile card with your audience. Let them know you're live 🧡",
+        text: "Update your profile photo and share your profile card with your audience.",
         position: 'right',
       },
     ],
@@ -115,12 +99,11 @@ export function CreatorDashboard({
     startTour,
   ]);
 
-  // Format percentage change with proper styling
   const formatChange = (change: string | null | undefined) => {
-    if (!change) return '—';
-    const isPositive = change.startsWith('+');
-    const color = isPositive ? 'text-green-600' : change.startsWith('-') ? 'text-red-600' : 'text-gray-500';
-    return <span className={color}>{change}</span>;
+    if (!change) return { text: '—', tone: '' };
+    if (change.startsWith('+')) return { text: change, tone: 'is-up' };
+    if (change.startsWith('-')) return { text: change, tone: 'is-down' };
+    return { text: change, tone: '' };
   };
 
   const handleSkipTour = () => {
@@ -141,41 +124,33 @@ export function CreatorDashboard({
 
   const stats = [
     {
+      title: 'Total Bookings',
+      value: Number(bookingStats?.totalBookings || 0).toLocaleString(),
+      change: null as string | null,
+      icon: CalendarDays,
+    },
+    {
       title: 'Total Earnings',
       value: formatNaira(Number(analytics?.totalRevenue || 0) / 100),
       change: analytics?.percentageChanges?.earnings || null,
       icon: DollarSign,
-      valueColor: 'text-primary',
-      iconColor: 'text-primary/70',
     },
     {
-      title: 'Subscribers',
-      value: Number(analytics?.subscriberCount || 0).toLocaleString(),
-      change: analytics?.percentageChanges?.subscribers || null,
-      icon: Users,
-      valueColor: 'text-accent',
-      iconColor: 'text-accent/70',
-    },
-    {
-      title: 'Content Views',
-      value: (analytics?.totalViews || 0).toLocaleString(),
-      change: analytics?.percentageChanges?.views || null,
-      icon: Video,
-      valueColor: 'text-primary',
-      iconColor: 'text-primary/70',
+      title: 'Upcoming Bookings',
+      value: Number(bookingStats?.upcomingBookings || 0).toLocaleString(),
+      change: null as string | null,
+      icon: CalendarClock,
     },
     {
       title: 'Engagement Rate',
       value: `${analytics?.engagementRate || '0.0'}%`,
       change: analytics?.percentageChanges?.engagement || null,
       icon: TrendingUp,
-      valueColor: 'text-accent',
-      iconColor: 'text-accent/70',
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <div>
       {profileIncomplete ? (
         <OnboardingGateModal open userEmail={creatorState?.email || undefined} />
       ) : null}
@@ -190,129 +165,67 @@ export function CreatorDashboard({
           }
         />
       ) : null}
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl tracking-tight">
-            Welcome back, {creatorState.displayName}
-          </h1>
-          <p className="text-muted-foreground">
-            Here's what's happening with your creator account
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            data-tour="new-content"
-            onClick={() => {
-              if (currentContentCount >= limits.maxContent) {
-                showUpgradeModal('maxContent');
-                return;
-              }
-              router.push('/content/new');
-            }}
-          >
-            <Video className="mr-2 h-4 w-4" />
-            New Content
-          </Button>
-          <Button
-            variant="outline"
-            className="border-accent text-accent hover:bg-accent/10 hover:text-accent"
-            onClick={() => router.push('/earnings')}
-            disabled={Number(creatorState.currentBalance) < 1000}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Withdraw{' '}
-            {formatNaira(Number(creatorState.currentBalance) / 100)}
-          </Button>
-        </div>
+
+      <div className="foleio-dash-header">
+        <h1 className="foleio-auth-title">
+          Welcome back, {creatorState.displayName}
+        </h1>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="border-border/70 bg-card shadow-sm">
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-semibold ${stat.valueColor}`}>
-                {stat.value}
+      <div className="foleio-dash-stats">
+        {stats.map((stat) => {
+          const change = formatChange(stat.change);
+          const Icon = stat.icon;
+          return (
+            <div key={stat.title} className="foleio-dash-stat">
+              <div className="foleio-dash-stat-top">
+                <span className="foleio-dash-stat-label">{stat.title}</span>
+                <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {formatChange(stat.change)} from last month
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+              <div className="foleio-dash-stat-value">{stat.value}</div>
+              {stat.change !== null ? (
+                <p className={`foleio-dash-stat-change ${change.tone}`}>
+                  {change.text} from last month
+                </p>
+              ) : (
+                <p className="foleio-dash-stat-change">This account</p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Main Content */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Recent Subscribers */}
-        <Card className="lg:col-span-4 border-border/70 bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle>Recent Subscribers</CardTitle>
-            <CardDescription>
-              {recentSubscriptions.length} most recent active subscribers
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentSubscriptions.map((sub) => (
-                <div
-                  key={sub.id}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="font-medium">
-                      {sub.fan?.fullName || 'Anonymous'}
-                    </div>
-                    <Badge variant="secondary">
-                      {formatNaira((sub.plan?.price || 0) / 100)}/month
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {new Date(sub.createdAt).toLocaleDateString()}
-                  </div>
+      <div className="foleio-dash-panel">
+        <h2 className="foleio-dash-panel-title">Upcoming bookings this month</h2>
+        <p className="foleio-dash-panel-meta">
+          {upcomingBookings.length > 0
+            ? `Showing your next ${Math.min(upcomingBookings.length, 2)}`
+            : 'Your next bookings will show here'}
+        </p>
+        {upcomingBookings.length === 0 ? (
+          <p className="foleio-dash-empty">No upcoming bookings this month.</p>
+        ) : (
+          upcomingBookings.slice(0, 2).map((booking) => (
+            <div key={booking.id} className="foleio-dash-sub-row">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="foleio-dash-sub-name truncate">
+                  {booking.customerName}
+                </span>
+                <span className="foleio-dash-sub-badge w-fit">
+                  {booking.priceListItem?.name || 'Booking'}
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="foleio-dash-sub-date">
+                  {new Date(booking.bookingDate).toLocaleDateString()}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Content */}
-        <Card className="lg:col-span-3 border-border/70 bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle>Top Performing Content</CardTitle>
-            <CardDescription>
-              Your most viewed content overall
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {contentMetrics?.topContent?.map((content: any) => (
-                <div
-                  key={content.id}
-                  className="flex items-center justify-between"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {content.title}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {content.viewCount} views
-                    </p>
-                  </div>
-                  <Badge variant="outline">{content.type}</Badge>
+                <div className="foleio-dash-sub-name mt-1">
+                  {formatNaira(Number(booking.totalAmount || 0) / 100)}
                 </div>
-              ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          ))
+        )}
       </div>
 
       {limitType ? (
@@ -335,4 +248,3 @@ export function CreatorDashboard({
     </div>
   );
 }
-

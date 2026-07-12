@@ -598,6 +598,7 @@ model PriceListItem {
   calendlyLink     String?  @map("calendly_link")
   price            Int      // in kobo
   durationMinutes  Int?     @map("duration_minutes") // Estimated service duration
+  addons           Json     @default("[]") // [{ id, name, price }] price in kobo
   orderIndex       Int      @default(0) @map("order_index") // Order within category
   categoryOrderIndex Int    @default(0) @map("category_order_index") // Order of categories
   isActive         Boolean  @default(true) @map("is_active")

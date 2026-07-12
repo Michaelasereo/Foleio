@@ -67,13 +67,18 @@ const nextConfig = {
   // swcMinify: true, // Deprecated in Next.js 16 - minification is automatic
   // Security headers (handled by Netlify)
   async headers() {
+    const staticCache =
+      process.env.NODE_ENV === 'production'
+        ? 'public, max-age=31536000, immutable'
+        : 'no-store, must-revalidate';
+
     return [
       {
         source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: staticCache,
           },
         ],
       },

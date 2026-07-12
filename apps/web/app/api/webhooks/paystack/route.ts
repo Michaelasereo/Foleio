@@ -314,40 +314,58 @@ async function handleChargeSuccess(eventData: any) {
           return; // Don't fail for test webhooks
         }
 
-        if (booking.status !== 'pending') {
-          console.log(`⚠️ Booking already processed: ${metadata.bookingId} status: ${booking.status}`);
-          return; // Already processed, don't fail
-        }
-
-        // Import booking actions
-        const { confirmBookingPayment, processFirstPayout } = await import('@/lib/actions/booking');
+        const { confirmBookingPayment, processFirstPayout, recordBookingPaymentTransaction } =
+          await import('@/lib/actions/booking');
         const { sendBookingConfirmationEmail } = await import('@/lib/actions/email');
 
-        // Confirm the booking payment
-        const confirmResult = await confirmBookingPayment(booking.id, reference);
-        if (confirmResult.error) {
-          throw new Error(`Payment confirmation failed: ${confirmResult.error}`);
+        const usedSubaccount =
+          metadata?.paymentType === 'DIRECT_SUBACCOUNT' ||
+          Boolean(booking.creator?.paystackSubaccountCode) ||
+          booking.creator?.payoutMethod === 'DIRECT_SUBACCOUNT';
+
+        if (booking.status === 'pending') {
+          const confirmResult = await confirmBookingPayment(booking.id, reference);
+          if (confirmResult.error) {
+            throw new Error(`Payment confirmation failed: ${confirmResult.error}`);
+          }
+        } else {
+          console.log(
+            `⚠️ Booking already processed: ${metadata.bookingId} status: ${booking.status}`
+          );
         }
 
-        // Process first payout (60% to creator)
-        const payoutResult = await processFirstPayout(booking.id);
-        if (payoutResult.error) {
-          console.error('First payout error:', payoutResult.error);
-          // Don't fail the webhook, but log the error
+        const recordResult = await recordBookingPaymentTransaction({
+          bookingId: booking.id,
+          reference,
+          paymentType: usedSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+          gatewayResponse: eventData,
+        });
+        if (recordResult.error) {
+          console.error('Booking transaction record error:', recordResult.error);
         }
 
-        // Send confirmation email
-        try {
-          await sendBookingConfirmationEmail(booking.id);
-        } catch (emailError) {
-          console.error('Email sending error:', emailError);
-          // Don't fail the webhook for email errors
+        if (booking.status === 'pending' && !usedSubaccount) {
+          const payoutResult = await processFirstPayout(booking.id);
+          if (payoutResult.error) {
+            console.error('First payout error:', payoutResult.error);
+          }
+        } else if (usedSubaccount) {
+          console.log(
+            `⏭️ Skipping processFirstPayout for subaccount booking ${booking.id}`
+          );
+        }
+
+        if (booking.status === 'pending') {
+          try {
+            await sendBookingConfirmationEmail(booking.id);
+          } catch (emailError) {
+            console.error('Email sending error:', emailError);
+          }
         }
 
         console.log(`✅ Booking payment processed: ${reference} for booking ${metadata.bookingId}`);
       } catch (error: any) {
         console.error(`❌ Error processing booking payment: ${error.message}`);
-        // For development, don't fail the webhook completely
         if (process.env.NODE_ENV === 'production') {
           throw error;
         }
