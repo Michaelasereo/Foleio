@@ -25,6 +25,9 @@ export function ServiceWorkerRegistration() {
         .then((registration) => {
           console.log('Service Worker registered:', registration);
 
+          // Pull gallery/CDN SW fixes onto open tabs quickly after deploy.
+          void registration.update();
+
           // Listen for updates
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;

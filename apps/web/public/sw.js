@@ -1,9 +1,10 @@
 // Foleio Platform Service Worker
 // Provides offline support and caching for critical resources
 
-const CACHE_NAME = 'foleio-v1.0.0';
-const STATIC_CACHE = 'foleio-static-v1.0.0';
-const DYNAMIC_CACHE = 'foleio-dynamic-v1.0.0';
+// Bump on SW behavior changes so activate clears stale caches.
+const CACHE_NAME = 'foleio-v1.0.1';
+const STATIC_CACHE = 'foleio-static-v1.0.1';
+const DYNAMIC_CACHE = 'foleio-dynamic-v1.0.1';
 
 // Resources to cache immediately on install
 const STATIC_ASSETS = [
@@ -69,8 +70,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle different types of requests
-  if (request.method === 'GET') {
+  // Only intercept same-origin GETs. Cross-origin gallery/CDN URLs (R2 `.jpg`,
+  // etc.) must bypass the SW — no-cors image responses are opaque (`ok: false`)
+  // and the old handler returned a 503 Offline body, which showed broken images
+  // until a reload raced past the worker.
+  if (request.method === 'GET' && url.origin === self.location.origin) {
     if (isStaticAsset(url)) {
       event.respondWith(handleStaticRequest(request));
     } else if (isApiRequest(url)) {
@@ -79,7 +83,7 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// Check if request is for a static asset
+// Check if request is for a static asset (same-origin only; see fetch handler)
 function isStaticAsset(url) {
   return url.pathname.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
 }
