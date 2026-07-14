@@ -7,12 +7,18 @@ import {
 import { prisma } from '@foleio/database';
 import { ensureSeededAdminUser } from '@/lib/admin/seed-admin';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await ensureSeededAdminUser();
+  try {
+    await ensureSeededAdminUser();
+  } catch {
+    // Seed is best-effort; auth gate still works if DB is briefly unreachable.
+  }
   const isAuthed = await isAdminAuthedFromServerCookies();
 
   if (!isAuthed) {
@@ -21,12 +27,16 @@ export default async function AdminLayout({
 
   const adminId = await getAdminIdFromServerCookies();
   if (adminId) {
-    const admin = await (prisma as any).adminUser.findUnique({
-      where: { id: adminId },
-      select: { passwordMustChange: true, totpEnabled: true },
-    });
-    // Force login gate for incomplete security setup
-    if (admin && (!admin.totpEnabled || admin.passwordMustChange)) {
+    try {
+      const admin = await (prisma as any).adminUser.findUnique({
+        where: { id: adminId },
+        select: { passwordMustChange: true, totpEnabled: true },
+      });
+      // Force login gate for incomplete security setup
+      if (admin && (!admin.totpEnabled || admin.passwordMustChange)) {
+        return <AdminLoginGate />;
+      }
+    } catch {
       return <AdminLoginGate />;
     }
   }
