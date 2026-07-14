@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { BOOKINGS_PER_DAY } from '@/lib/booking/day-capacity';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { dates, isAvailable, maxBookings } = body;
+    const { dates, isAvailable } = body;
 
     // Validate required fields
     if (!dates || !Array.isArray(dates) || dates.length === 0) {
@@ -70,13 +71,18 @@ export async function POST(request: Request) {
       try {
         console.log(`Processing date: ${dateStr}`);
 
-        // Parse date and ensure it's date-only (no time)
-        const availabilityDate = new Date(dateStr);
+        // Always store as UTC midnight from YYYY-MM-DD (avoid local setHours skew).
+        const dayKey =
+          typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)
+            ? dateStr.slice(0, 10)
+            : new Date(dateStr).toISOString().slice(0, 10);
+        const availabilityDate = new Date(`${dayKey}T00:00:00.000Z`);
         if (isNaN(availabilityDate.getTime())) {
           console.error(`Invalid date string: ${dateStr}`);
           continue;
         }
-        availabilityDate.setHours(0, 0, 0, 0);
+
+        const capacity = isAvailable ? BOOKINGS_PER_DAY : null;
 
         console.log(`Normalized date: ${availabilityDate.toISOString()}`);
 
@@ -98,7 +104,7 @@ export async function POST(request: Request) {
             where: { id: existingAvailability.id },
             data: {
               isAvailable,
-              maxBookings: maxBookings || null
+              maxBookings: capacity,
             }
           });
           results.push(updatedRecord);
@@ -110,7 +116,7 @@ export async function POST(request: Request) {
               creatorId: creator.id,
               date: availabilityDate,
               isAvailable,
-              maxBookings: maxBookings || null
+              maxBookings: capacity,
             }
           });
           results.push(newRecord);

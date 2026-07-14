@@ -96,7 +96,18 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     }
 
     if (!customerResult.success) {
-      return { error: 'Failed to send customer confirmation email' };
+      return {
+        error:
+          ('error' in customerResult && customerResult.error) ||
+          'Failed to send customer confirmation email',
+      };
+    }
+
+    if (creatorEmail && creatorResult && !creatorResult.success) {
+      console.error(
+        `Booking ${bookingId}: customer email sent but creator notification failed`,
+        'error' in creatorResult ? creatorResult.error : undefined
+      );
     }
 
     return {

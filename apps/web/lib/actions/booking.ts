@@ -12,6 +12,7 @@ import {
 } from '@/lib/booking/deposit';
 import { computePolicyRefundKobo } from '@/lib/booking/cancellation-policy';
 import { feePercentForCreator } from '@/lib/billing/platform-fee';
+import { dayBookingCapacity } from '@/lib/booking/day-capacity';
 
 const createBookingSchema = z.object({
   creatorId: z.string().uuid(),
@@ -44,12 +45,15 @@ export async function createBookingRequest(data: CreateBookingInput) {
   }
 
   try {
-    const bookingDate = new Date(data.bookingDate);
-    const dateOnly = new Date(bookingDate.toISOString().split('T')[0]);
-    console.log('📅 Date parsing:', { 
-      input: data.bookingDate, 
-      bookingDate: bookingDate.toISOString(), 
-      dateOnly: dateOnly.toISOString() 
+    // Always store calendar days as UTC midnight YYYY-MM-DD to match CreatorAvailability.
+    const rawDate =
+      typeof data.bookingDate === 'string'
+        ? data.bookingDate.slice(0, 10)
+        : new Date(data.bookingDate).toISOString().slice(0, 10);
+    const dateOnly = new Date(`${rawDate}T00:00:00.000Z`);
+    console.log('📅 Date parsing:', {
+      input: data.bookingDate,
+      dateOnly: dateOnly.toISOString(),
     });
 
     // Note: Interactive transactions don't work with Supabase connection pooler (PgBouncer)
@@ -98,11 +102,8 @@ export async function createBookingRequest(data: CreateBookingInput) {
       return { error: 'Selected date is not available' };
     }
 
-    // Default: one booking per available day unless creator set a higher max.
-    const capacity =
-      availability.maxBookings && availability.maxBookings > 0
-        ? availability.maxBookings
-        : 1;
+    // One booking per available day (product rule).
+    const capacity = dayBookingCapacity(availability.maxBookings);
 
     const existingBookings = await prisma.booking.count({
       where: {
@@ -186,6 +187,26 @@ export async function createBookingRequest(data: CreateBookingInput) {
       },
     });
 
+    // Close the day on the public calendar once capacity is reached.
+    // Pending checkouts count so the slot can't stay selectable.
+    if (existingBookings + 1 >= capacity) {
+      await prisma.creatorAvailability.update({
+        where: {
+          creatorId_date: {
+            creatorId: data.creatorId,
+            date: dateOnly,
+          },
+        },
+        data: { isAvailable: false },
+      });
+    }
+
+    const username = booking.creator?.username;
+    revalidatePath('/bookings');
+    if (username) {
+      revalidatePath(`/creator/${username}`);
+    }
+
     return {
       success: true,
       data: booking,
@@ -267,6 +288,10 @@ export async function confirmBookingPayment(
           creator: true,
         },
       });
+      revalidatePath('/bookings');
+      if (updatedBooking.creator?.username) {
+        revalidatePath(`/creator/${updatedBooking.creator.username}`);
+      }
       return { success: true, data: updatedBooking, completedPayment: true as const };
     }
 
@@ -288,6 +313,10 @@ export async function confirmBookingPayment(
           creator: true,
         },
       });
+      revalidatePath('/bookings');
+      if (updatedBooking.creator?.username) {
+        revalidatePath(`/creator/${updatedBooking.creator.username}`);
+      }
       return {
         success: true,
         data: updatedBooking,
@@ -308,6 +337,11 @@ export async function confirmBookingPayment(
         creator: true,
       },
     });
+
+    revalidatePath('/bookings');
+    if (updatedBooking.creator?.username) {
+      revalidatePath(`/creator/${updatedBooking.creator.username}`);
+    }
 
     return { success: true, data: updatedBooking, completedPayment: true as const };
   } catch (error) {

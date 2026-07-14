@@ -108,6 +108,36 @@ export default async function SettingsPage() {
     console.warn('Settings billing lookup failed (non-fatal).');
   }
 
+  let gallerySectionId: string | null = null;
+  let galleryItems: Array<{
+    id: string;
+    imageUrl: string;
+    caption: string | null;
+    orderIndex: number;
+  }> = [];
+  try {
+    const section = await prisma.portfolioSection.findFirst({
+      where: { creatorId: creator.id },
+      orderBy: { orderIndex: 'asc' },
+      include: {
+        items: { orderBy: { orderIndex: 'asc' } },
+      },
+    });
+    if (section) {
+      gallerySectionId = section.id;
+      galleryItems = serializeForClient(
+        section.items.map((item) => ({
+          id: item.id,
+          imageUrl: item.imageUrl,
+          caption: item.caption,
+          orderIndex: item.orderIndex,
+        }))
+      );
+    }
+  } catch {
+    console.warn('Settings portfolio lookup failed (non-fatal).');
+  }
+
   return (
     <Suspense fallback={<SettingsLoading />}>
       <AccountSettingsTabs
@@ -123,9 +153,14 @@ export default async function SettingsPage() {
           twitterUrl,
           portfolioUrl,
         }}
+        userEmail={session.user.email}
         billing={{
           currentSubscription: currentSubscription as any,
           billingHistory: billingHistory as any[],
+        }}
+        portfolio={{
+          sectionId: gallerySectionId,
+          items: galleryItems,
         }}
       />
     </Suspense>

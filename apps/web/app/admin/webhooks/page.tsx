@@ -5,7 +5,6 @@ import { AlertTriangle, CheckCircle, Play, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
 import { statusBadgeClass } from '@/lib/admin/format';
@@ -33,7 +32,7 @@ interface ReconciliationStats {
   webhookLoggingAvailable: boolean;
 }
 
-export default function AdminWebhooksPage() {
+export default function AdminWebhooksPage({ embedded = false }: { embedded?: boolean }) {
   const [stats, setStats] = useState<ReconciliationStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -96,133 +95,124 @@ export default function AdminWebhooksPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-2xl font-semibold">Webhooks</h2>
-        <Button variant="outline" size="sm" onClick={loadStats}>
+        {!embedded ? <h2 className="foleio-admin-title">Webhooks</h2> : <span />}
+        <Button variant="outline" size="sm" className="border-white/10 bg-transparent" onClick={loadStats}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="bg-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Received Today</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{stats?.receivedToday || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Failed Today</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold text-red-600">{stats?.failedToday || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Retry Queue Size</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold text-amber-600">{stats?.retryQueueSize || 0}</p>
-          </CardContent>
-        </Card>
+        {[
+          { label: 'Received today', value: stats?.receivedToday || 0 },
+          { label: 'Failed today', value: stats?.failedToday || 0, danger: true },
+          { label: 'Retry queue', value: stats?.retryQueueSize || 0, warn: true },
+        ].map((card) => (
+          <div key={card.label} className="rounded-[14px] border border-white/5 bg-[#212121] p-4">
+            <p className="text-xs uppercase tracking-wide text-[#828282]">{card.label}</p>
+            <p
+              className={`mt-2 text-2xl font-semibold ${
+                card.danger ? 'text-red-400' : card.warn ? 'text-amber-400' : 'text-[#f4f4f5]'
+              }`}
+            >
+              {card.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      <Card className="bg-white">
-        <CardHeader>
-          <CardTitle>Reconciliation</CardTitle>
-          <CardDescription>Failed webhooks and manual retry controls</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-[14px] border border-white/5 bg-[#212121] p-5">
+        <h3 className="text-base font-semibold text-[#f4f4f5]">Reconciliation</h3>
+        <p className="mt-1 text-sm text-[#828282]">Failed webhooks and manual retry controls</p>
+        <div className="mt-4">
           {stats?.recentFailures?.length ? (
             <div className="max-h-[70vh] overflow-auto">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-slate-50">
-                <TableRow>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Attempts</TableHead>
-                  <TableHead>Error</TableHead>
-                  <TableHead>Failed At</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.recentFailures.map((webhook) => (
-                  <TableRow key={webhook.id}>
-                    <TableCell>
-                      <Badge variant="outline">{webhook.event}</Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{webhook.reference || 'N/A'}</TableCell>
-                    <TableCell>
-                      {webhook.amount ? `₦${(webhook.amount / 100).toLocaleString()}` : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`border ${statusBadgeClass('pending')}`}>
-                        {webhook.attempt}/{webhook.maxAttempts}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate" title={webhook.error}>
-                      {webhook.error}
-                    </TableCell>
-                    <TableCell>{new Date(webhook.failedAt).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => retryWebhook(webhook.id)}
-                        disabled={processing === webhook.id}
-                      >
-                        {processing === webhook.id ? (
-                          <RefreshCw className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Play className="h-3 w-3" />
-                        )}
-                        Retry
-                      </Button>
-                    </TableCell>
+                <TableHeader className="sticky top-0 z-10 bg-[#1a1816]">
+                  <TableRow className="border-white/5 hover:bg-transparent">
+                    <TableHead className="text-[#828282]">Event</TableHead>
+                    <TableHead className="text-[#828282]">Reference</TableHead>
+                    <TableHead className="text-[#828282]">Amount</TableHead>
+                    <TableHead className="text-[#828282]">Attempts</TableHead>
+                    <TableHead className="text-[#828282]">Error</TableHead>
+                    <TableHead className="text-[#828282]">Failed at</TableHead>
+                    <TableHead className="text-[#828282]">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
+                </TableHeader>
+                <TableBody>
+                  {stats.recentFailures.map((webhook) => (
+                    <TableRow key={webhook.id} className="border-white/5">
+                      <TableCell>
+                        <Badge variant="outline" className="border-white/10">
+                          {webhook.event}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{webhook.reference || 'N/A'}</TableCell>
+                      <TableCell>
+                        {webhook.amount ? `₦${(webhook.amount / 100).toLocaleString()}` : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`border ${statusBadgeClass('pending')}`}>
+                          {webhook.attempt}/{webhook.maxAttempts}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate" title={webhook.error}>
+                        {webhook.error}
+                      </TableCell>
+                      <TableCell>{new Date(webhook.failedAt).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-white/10 bg-transparent"
+                          onClick={() => retryWebhook(webhook.id)}
+                          disabled={processing === webhook.id}
+                        >
+                          {processing === webhook.id ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Play className="h-3 w-3" />
+                          )}
+                          Retry
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
               </Table>
             </div>
           ) : (
-            <Alert>
+            <Alert className="border-white/10 bg-white/[0.03] text-[#adadad]">
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>No failed webhooks found.</AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="bg-white">
-        <CardHeader>
-          <CardTitle>Latest Events</CardTitle>
-          <CardDescription>Last 20 webhook events received</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-[14px] border border-white/5 bg-[#212121] p-5">
+        <h3 className="text-base font-semibold text-[#f4f4f5]">Latest events</h3>
+        <p className="mt-1 text-sm text-[#828282]">Last 20 webhook events received</p>
+        <div className="mt-4">
           {stats?.webhookLoggingAvailable ? (
             <div className="space-y-2">
               {stats.webhookEvents.map((event) => (
-                <div key={event.id} className="rounded-md border p-2 text-sm">
-                  <p className="font-medium">{event.event}</p>
-                  <p className="text-xs text-muted-foreground">
+                <div key={event.id} className="rounded-md border border-white/5 p-2 text-sm">
+                  <p className="font-medium text-[#f4f4f5]">{event.event}</p>
+                  <p className="text-xs text-[#828282]">
                     {new Date(event.createdAt).toLocaleString()}
                   </p>
                 </div>
               ))}
             </div>
           ) : (
-            <Alert>
+            <Alert className="border-white/10 bg-white/[0.03] text-[#adadad]">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>Webhook logging coming soon.</AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -74,6 +74,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const existingSubaccount = await paystack.getSubaccount(subaccountCode);
+    if (!existingSubaccount) {
+      await prisma.creator.update({
+        where: { id: booking.creator.id },
+        data: { subaccountStatus: 'INACTIVE' },
+      });
+      return NextResponse.json(
+        {
+          error:
+            'This creator’s payout account is out of sync with Paystack (often a test/live key mismatch). They need to re-save their bank details in Settings → Payouts, then try again.',
+        },
+        { status: 400 }
+      );
+    }
+
     const amount =
       paymentKind === 'balance'
         ? Number(booking.balanceAmount)
@@ -85,24 +100,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid booking amount' }, { status: 400 });
     }
 
-    const paymentData = await paystack.initializePayment({
-      email: booking.customerEmail,
-      amount,
-      channels: ['card', 'bank', 'ussd'],
-      subaccount: subaccountCode,
-      metadata: {
-        type: 'booking',
-        bookingId: booking.id,
-        creatorId: booking.creatorId,
-        service: booking.priceListItem?.name || 'Booking',
-        paymentType: 'DIRECT_SUBACCOUNT',
-        paymentKind,
-        paymentPlan: booking.paymentPlan,
-      },
-      callback_url: `${
-        process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'
-      }/tracking/${booking.trackingToken || ''}`,
-    });
+    let paymentData;
+    try {
+      paymentData = await paystack.initializePayment({
+        email: booking.customerEmail,
+        amount,
+        channels: ['card', 'bank', 'ussd'],
+        subaccount: subaccountCode,
+        metadata: {
+          type: 'booking',
+          bookingId: booking.id,
+          creatorId: booking.creatorId,
+          service: booking.priceListItem?.name || 'Booking',
+          paymentType: 'DIRECT_SUBACCOUNT',
+          paymentKind,
+          paymentPlan: booking.paymentPlan,
+        },
+        callback_url: `${
+          process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'
+        }/tracking/${booking.trackingToken || ''}`,
+      });
+    } catch (initError) {
+      const message = initError instanceof Error ? initError.message : String(initError);
+      if (/invalid subaccount/i.test(message)) {
+        await prisma.creator.update({
+          where: { id: booking.creator.id },
+          data: { subaccountStatus: 'INACTIVE' },
+        });
+        return NextResponse.json(
+          {
+            error:
+              'Payment split failed: creator Paystack subaccount is invalid for this environment. Creator must re-save bank details in Settings.',
+          },
+          { status: 400 }
+        );
+      }
+      throw initError;
+    }
 
     if (!paymentData?.status || !paymentData?.data) {
       throw new Error(paymentData?.message || 'Payment initialization failed');

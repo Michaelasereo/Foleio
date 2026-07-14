@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export function CreatorAvatar({
@@ -14,12 +14,17 @@ export function CreatorAvatar({
   size?: number;
   className?: string;
 }) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
   useEffect(() => {
     setImgError(false);
     setImgLoaded(false);
+    const node = imgRef.current;
+    if (node?.complete && node.naturalWidth > 0) {
+      setImgLoaded(true);
+    }
   }, [src]);
 
   const showImage = Boolean(src) && !imgError;
@@ -45,11 +50,16 @@ export function CreatorAvatar({
         {initials}
       </span>
       {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={src || ''}
           alt={name || 'Avatar'}
+          referrerPolicy="no-referrer"
           onError={() => setImgError(true)}
-          onLoad={() => setImgLoaded(true)}
+          onLoad={(event) => {
+            if (event.currentTarget.naturalWidth > 0) setImgLoaded(true);
+          }}
           className={cn(
             'absolute inset-0 h-full w-full object-cover transition-opacity duration-200',
             imgLoaded ? 'opacity-100' : 'opacity-0'

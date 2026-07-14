@@ -231,6 +231,32 @@ export const paystack = {
   },
 
   /**
+   * Fetch a subaccount by code. Returns null when Paystack does not know the code
+   * (common when a test-mode ACCT_… is used against live keys, or vice versa).
+   */
+  async getSubaccount(subaccountCode: string) {
+    const response = await fetch(
+      `${PAYSTACK_BASE_URL}/subaccount/${encodeURIComponent(subaccountCode)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        },
+      }
+    );
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.status) {
+      return null;
+    }
+    return payload;
+  },
+
+  isTestMode() {
+    return String(PAYSTACK_SECRET_KEY || '').startsWith('sk_test');
+  },
+
+  /**
    * Get public key
    */
   getPublicKey() {

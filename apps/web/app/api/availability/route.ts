@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { BOOKINGS_PER_DAY } from '@/lib/booking/day-capacity';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { date, isAvailable, maxBookings } = body;
+    const { date, isAvailable } = body;
 
     // Validate required fields
     if (!date) {
@@ -99,9 +100,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parse date and ensure it's date-only (no time)
-    const availabilityDate = new Date(date);
-    availabilityDate.setHours(0, 0, 0, 0);
+    // Always store as UTC midnight from YYYY-MM-DD.
+    const dayKey =
+      typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)
+        ? date.slice(0, 10)
+        : new Date(date).toISOString().slice(0, 10);
+    const availabilityDate = new Date(`${dayKey}T00:00:00.000Z`);
+    const capacity = isAvailable ? BOOKINGS_PER_DAY : null;
 
     // Check if availability already exists for this date
     const existingAvailability = await prisma.creatorAvailability.findUnique({
@@ -119,7 +124,7 @@ export async function POST(request: Request) {
         where: { id: existingAvailability.id },
         data: {
           isAvailable,
-          maxBookings: maxBookings || null
+          maxBookings: capacity,
         }
       });
 
@@ -140,7 +145,7 @@ export async function POST(request: Request) {
           creatorId: creator.id,
           date: availabilityDate,
           isAvailable,
-          maxBookings: maxBookings || null
+          maxBookings: capacity,
         }
       });
 

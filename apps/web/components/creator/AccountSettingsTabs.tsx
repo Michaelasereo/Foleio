@@ -8,10 +8,17 @@ import { broadcastAvatarUpdated } from '@/lib/creator/profile-live';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 import { PortfolioGallerySettings } from '@/components/creator/PortfolioGallerySettings';
 import { BillingPage } from '@/components/creator/BillingPage';
+import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { parseSocialUrl } from '@/lib/creator/social-urls';
 
-type SettingsTab = 'profile' | 'notifications' | 'security' | 'portfolio' | 'billing';
+type SettingsTab =
+  | 'profile'
+  | 'notifications'
+  | 'security'
+  | 'portfolio'
+  | 'billing'
+  | 'support';
 
 const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'profile', label: 'Profile' },
@@ -19,6 +26,7 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'billing', label: 'Billing' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'security', label: 'Security' },
+  { id: 'support', label: 'Chat with us' },
 ];
 
 type SubscriptionRecord = {
@@ -50,11 +58,23 @@ interface AccountSettingsTabsProps {
     currentSubscription: SubscriptionRecord | null;
     billingHistory: SubscriptionRecord[];
   };
+  portfolio?: {
+    sectionId: string | null;
+    items: Array<{
+      id: string;
+      imageUrl: string;
+      caption: string | null;
+      orderIndex: number;
+    }>;
+  };
+  userEmail?: string | null;
 }
 
 export function AccountSettingsTabs({
   creator,
   billing,
+  portfolio,
+  userEmail,
 }: AccountSettingsTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,7 +107,8 @@ export function AccountSettingsTabs({
       tab === 'notifications' ||
       tab === 'security' ||
       tab === 'portfolio' ||
-      tab === 'billing'
+      tab === 'billing' ||
+      tab === 'support'
     ) {
       setActiveTab(tab);
     }
@@ -640,7 +661,12 @@ export function AccountSettingsTabs({
         </div>
       ) : null}
 
-      {activeTab === 'portfolio' ? <PortfolioGallerySettings /> : null}
+      {activeTab === 'portfolio' ? (
+        <PortfolioGallerySettings
+          initialSectionId={portfolio?.sectionId}
+          initialItems={portfolio?.items || []}
+        />
+      ) : null}
 
       {activeTab === 'billing' ? (
         <BillingPage
@@ -667,6 +693,13 @@ export function AccountSettingsTabs({
             Password and account security controls will appear here.
           </p>
         </div>
+      ) : null}
+
+      {activeTab === 'support' ? (
+        <SupportChatSettings
+          creatorName={displayName || creator.displayName}
+          creatorEmail={userEmail}
+        />
       ) : null}
     </>
   );

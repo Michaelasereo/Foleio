@@ -1,6 +1,7 @@
 import { prisma } from '@foleio/database';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
+import { feePercentForCreator } from '@/lib/billing/platform-fee';
 
 export type CreatorHealthStatus = 'healthy' | 'at_risk' | 'inactive';
 
@@ -19,12 +20,15 @@ export type CreatorHealthRow = {
   completedBookings: number;
   healthScore: number;
   healthStatus: CreatorHealthStatus;
-  /** Paystack subaccount payment readiness */
   paystackSubaccountCode: string | null;
   subaccountStatus: string;
   payoutMethod: string;
   paymentsReady: boolean;
   hasBankAccount: boolean;
+  bvnVerified: boolean;
+  platformPlan: string;
+  platformSubscriptionActive: boolean;
+  feePercent: number;
 };
 
 function getHealthStatus(score: number): CreatorHealthStatus {
@@ -50,15 +54,17 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
         select: { creatorEarnings: true, createdAt: true },
       },
       bookings: {
-        where: { status: 'completed' },
+        where: {
+          status: {
+            in: ['paid', 'first_payout_done', 'service_day', 'completed'],
+          },
+        },
         select: { id: true },
       },
       bankAccount: { select: { id: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
-
-  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
   return creators.map((creator) => {
     const publishedContent = creator.content.filter((item) => item.isPublished);
@@ -75,20 +81,30 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
       return sum + Number(value);
     }, 0);
 
-    let healthScore = 0;
-    if (contentCount > 0) healthScore += 20;
-    if (activeSubscribers > 0) healthScore += 20;
-    if (totalEarnedKobo > 0) healthScore += 20;
-    if (lastContentDate && lastContentDate >= twoWeeksAgo) healthScore += 20;
-    if (completedBookings > 0) healthScore += 20;
-
     const subaccountStatus = String(creator.subaccountStatus || 'INACTIVE');
     const paystackSubaccountCode = creator.paystackSubaccountCode || null;
-    const paymentsReady = isPaymentsReady({
-      bvnVerified: creator.bvnVerified,
-      paystackSubaccountCode,
-      subaccountStatus,
-    }, { requireKyc });
+    const paymentsReady = isPaymentsReady(
+      {
+        bvnVerified: creator.bvnVerified,
+        paystackSubaccountCode,
+        subaccountStatus,
+      },
+      { requireKyc }
+    );
+    const platformPlan = String(creator.platformPlan || 'FREE');
+    const platformSubscriptionActive = Boolean(creator.platformSubscriptionActive);
+    const feePercent = feePercentForCreator({
+      platformPlan,
+      platformSubscriptionActive,
+    });
+
+    let healthScore = 0;
+    if (paymentsReady) healthScore += 40;
+    else if (paystackSubaccountCode) healthScore += 15;
+    if (creator.bvnVerified || !requireKyc) healthScore += 15;
+    if (completedBookings > 0) healthScore += 25;
+    if (totalEarnedKobo > 0) healthScore += 10;
+    if (platformSubscriptionActive || platformPlan === 'PRO') healthScore += 10;
 
     return {
       id: creator.id,
@@ -110,6 +126,10 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
       payoutMethod: String(creator.payoutMethod || 'SCHEDULED_BULK'),
       paymentsReady,
       hasBankAccount: Boolean(creator.bankAccount),
+      bvnVerified: Boolean(creator.bvnVerified),
+      platformPlan,
+      platformSubscriptionActive,
+      feePercent,
     };
   });
 }

@@ -1,4 +1,4 @@
-import { resend, FROM_EMAIL } from './resend';
+import { resend, resolveFromEmail } from './resend';
 import { prisma } from '@foleio/database';
 import { subscriptionConfirmationEmail } from './templates/subscription-confirmation';
 import { contentPurchaseEmail } from './templates/content-purchase';
@@ -29,18 +29,30 @@ async function sendEmail(payload: {
   }
 
   try {
-    const attachments = payload.withLogo
-      ? [await getFoleioLogoAttachment()]
-      : undefined;
+    let attachments: Awaited<ReturnType<typeof getFoleioLogoAttachment>>[] | undefined;
+    if (payload.withLogo) {
+      try {
+        attachments = [await getFoleioLogoAttachment()];
+      } catch (logoError) {
+        console.warn('Foleio logo attachment unavailable; sending without logo', logoError);
+      }
+    }
 
-    await resend.emails.send({
-      from: FROM_EMAIL,
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
       ...(attachments ? { attachments } : {}),
     });
-    return { success: true };
+
+    // Resend returns { error } without throwing — treat that as failure.
+    if (error) {
+      console.error('Resend email send failed:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, id: data?.id };
   } catch (error) {
     console.error('Resend email send failed:', error);
     return { success: false };
@@ -336,9 +348,12 @@ export async function notifySubscribersNewEntry({
     if (!canSendEmails()) {
       continue;
     }
+    const fromEmail =
+      (process.env.RESEND_FROM_EMAIL || 'noreply@foleio.com').match(/[\w.+-]+@[\w.-]+/)?.[0] ||
+      'noreply@foleio.com';
     await resend.batch.send(
       batch.map((to) => ({
-        from: `${creatorName} via Foleio <noreply@foleio.com>`,
+        from: `${creatorName} via Foleio <${fromEmail}>`,
         to,
         subject: `📖 New journal entry: ${entryTitle}`,
         html: baseEmailTemplate({

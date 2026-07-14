@@ -1,5 +1,5 @@
 import { prisma } from '@foleio/database';
-import { resend, FROM_EMAIL } from '@/lib/email/resend';
+import { resend, resolveFromEmail } from '@/lib/email/resend';
 import {
   getFoleioLogoAttachment,
   FOLEIO_LOGO_CID,
@@ -82,7 +82,7 @@ export async function createAndSendAuthOtp(
     `${siteUrl.replace(/\/$/, '')}/invite/verify`;
 
   const { error } = await resend.emails.send({
-    from: FROM_EMAIL,
+    from: resolveFromEmail(),
     to: normalized,
     subject: isInvite ? inviteVerificationSubject : signupVerificationSubject,
     html: isInvite

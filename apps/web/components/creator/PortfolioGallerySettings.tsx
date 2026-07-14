@@ -9,6 +9,7 @@ import {
   getMyPortfolio,
 } from '@/lib/actions/portfolio';
 import { MAX_GALLERY_ITEMS } from '@/lib/creator/portfolio-gallery';
+import { RemoteImage } from '@/components/creator/RemoteImage';
 
 type GalleryItem = {
   id: string;
@@ -21,6 +22,7 @@ const SLOT_COUNT = MAX_GALLERY_ITEMS;
 
 function flattenItems(
   sections: Array<{
+    id?: string;
     items: Array<{
       id: string;
       imageUrl: string;
@@ -42,12 +44,22 @@ function flattenItems(
     .slice(0, SLOT_COUNT);
 }
 
-export function PortfolioGallerySettings() {
+type PortfolioGallerySettingsProps = {
+  initialSectionId?: string | null;
+  initialItems?: GalleryItem[];
+};
+
+export function PortfolioGallerySettings({
+  initialSectionId = null,
+  initialItems = [],
+}: PortfolioGallerySettingsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [sectionId, setSectionId] = useState('');
-  const [items, setItems] = useState<GalleryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const loadGen = useRef(0);
+  const [sectionId, setSectionId] = useState(initialSectionId || '');
+  const [items, setItems] = useState<GalleryItem[]>(initialItems);
+  const [loading, setLoading] = useState(initialItems.length === 0 && !initialSectionId);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
+  const [slotPreview, setSlotPreview] = useState<Record<number, string>>({});
   const [error, setError] = useState('');
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<GalleryItem | null>(null);
@@ -57,12 +69,14 @@ export function PortfolioGallerySettings() {
   const row2Unlocked = filledCount >= 3;
   const galleryLive = filledCount >= 3;
 
-  async function loadGallery(opts?: { initial?: boolean }) {
-    const isInitial = Boolean(opts?.initial);
-    if (isInitial) setLoading(true);
+  async function loadGallery(opts?: { blank?: boolean }) {
+    const gen = ++loadGen.current;
+    const blank = Boolean(opts?.blank) && items.length === 0;
+    if (blank) setLoading(true);
     setError('');
     try {
       const ensured = await ensureGallerySection();
+      if (gen !== loadGen.current) return;
       if (ensured.error || !ensured.data) {
         setError(ensured.error || 'Could not load gallery');
         return;
@@ -70,19 +84,25 @@ export function PortfolioGallerySettings() {
       setSectionId(ensured.data.id);
 
       const result = await getMyPortfolio();
+      if (gen !== loadGen.current) return;
       if (result.error || !result.data) {
         setError(result.error || 'Could not load gallery');
         return;
       }
 
       setItems(flattenItems(result.data));
+    } catch (err) {
+      if (gen !== loadGen.current) return;
+      setError(err instanceof Error ? err.message : 'Could not load gallery');
     } finally {
-      if (isInitial) setLoading(false);
+      if (gen === loadGen.current) setLoading(false);
     }
   }
 
   useEffect(() => {
-    void loadGallery({ initial: true });
+    // Soft refresh in background; avoid blanking if we already have SSR data.
+    void loadGallery({ blank: initialItems.length === 0 && !initialSectionId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -117,21 +137,8 @@ export function PortfolioGallerySettings() {
     setUploadingSlot(slot);
     setError('');
 
-    // Show local preview in the slot while upload finishes
     const previewUrl = URL.createObjectURL(file);
-    const tempId = `temp-${slot}`;
-    setItems((prev) => {
-      if (prev.length !== slot) return prev;
-      return [
-        ...prev,
-        {
-          id: tempId,
-          imageUrl: previewUrl,
-          caption: null,
-          orderIndex: slot + 1,
-        },
-      ];
-    });
+    setSlotPreview((prev) => ({ ...prev, [slot]: previewUrl }));
 
     try {
       const formData = new FormData();
@@ -157,10 +164,9 @@ export function PortfolioGallerySettings() {
       }
 
       const saved = result.data;
-      setItems((prev) => {
-        const withoutTemp = prev.filter((item) => item.id !== tempId);
-        return [
-          ...withoutTemp,
+      setItems((prev) =>
+        [
+          ...prev,
           {
             id: saved.id,
             imageUrl: saved.imageUrl,
@@ -169,13 +175,18 @@ export function PortfolioGallerySettings() {
           },
         ]
           .sort((a, b) => a.orderIndex - b.orderIndex)
-          .slice(0, SLOT_COUNT);
-      });
+          .slice(0, SLOT_COUNT)
+      );
     } catch (err) {
-      setItems((prev) => prev.filter((item) => item.id !== tempId));
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
-      URL.revokeObjectURL(previewUrl);
+      setSlotPreview((prev) => {
+        const next = { ...prev };
+        delete next[slot];
+        return next;
+      });
+      // Defer revoke so React can unmount the blob img first.
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 0);
       setUploadingSlot(null);
     }
   }
@@ -239,6 +250,7 @@ export function PortfolioGallerySettings() {
           const state = slotState(index);
           const item = state === 'filled' ? items[index] : null;
           const busy = uploadingSlot === index;
+          const preview = slotPreview[index];
 
           return (
             <button
@@ -272,8 +284,7 @@ export function PortfolioGallerySettings() {
               }}
             >
               {item ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <RemoteImage
                   src={item.imageUrl}
                   alt={item.caption || `Gallery photo ${index + 1}`}
                   style={{
@@ -283,7 +294,7 @@ export function PortfolioGallerySettings() {
                     display: 'block',
                   }}
                 />
-              ) : busy ? (
+              ) : preview || busy ? (
                 <span
                   style={{
                     display: 'flex',
@@ -291,8 +302,24 @@ export function PortfolioGallerySettings() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#adadad',
+                    position: 'relative',
                   }}
                 >
+                  {preview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={preview}
+                      alt=""
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        opacity: 0.55,
+                      }}
+                    />
+                  ) : null}
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </span>
               ) : state === 'locked' ? (
@@ -335,7 +362,15 @@ export function PortfolioGallerySettings() {
 
       {error ? (
         <p className="foleio-dash-panel-meta" style={{ color: '#fca5a5', marginTop: 12 }}>
-          {error}
+          {error}{' '}
+          <button
+            type="button"
+            className="foleio-dash-btn-ghost"
+            style={{ display: 'inline', padding: '0 6px' }}
+            onClick={() => void loadGallery({ blank: items.length === 0 })}
+          >
+            Retry
+          </button>
         </p>
       ) : null}
 
@@ -382,8 +417,7 @@ export function PortfolioGallerySettings() {
             >
               <X className="h-4 w-4" />
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <RemoteImage
               src={lightbox.imageUrl}
               alt={lightbox.caption || 'Gallery photo'}
               style={{

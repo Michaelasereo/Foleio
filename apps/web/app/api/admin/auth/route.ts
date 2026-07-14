@@ -1,14 +1,9 @@
-export async function POST(request: Request) {
-  const { password } = (await request.json()) as { password?: string };
-  if (!password || password !== process.env.ADMIN_SECRET) {
-    return Response.json({ error: 'Wrong password' }, { status: 401 });
-  }
+import { NextResponse } from 'next/server';
 
-  const res = Response.json({ success: true });
-  const maxAge = 7 * 24 * 60 * 60;
-  res.headers.set(
-    'Set-Cookie',
-    `admin_session=${process.env.ADMIN_SECRET}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Strict`
+/** Legacy password-only admin auth — use /api/admin/auth/login */
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Use email + password login at /api/admin/auth/login' },
+    { status: 410 }
   );
-  return res;
 }

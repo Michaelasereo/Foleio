@@ -1,32 +1,38 @@
 import { prisma } from '@foleio/database';
 import { deadLetterQueue, webhookQueue } from '@/lib/queue/queue-manager';
 import { isAdminAuthed } from '@/lib/admin/auth';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
+import { isPaymentsReady } from '@/lib/creator/payments-ready';
 
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const requireKyc = await isDojahKycRequired();
+
   const [
     totalCreators,
-    activeCreators,
-    totalFans,
+    creatorPaymentsSnap,
     totalTransactions,
     platformRevenue,
     totalPayouts,
     pendingPayouts,
-    totalBookings,
-    completedBookings,
-    disputedBookings,
+    bookingStatusGroups,
     waitlistCount,
-    platformSubscriptions,
     mrr,
+    proCreators,
     recentTransactions,
     transactionsLast30Days,
   ] = await Promise.all([
     prisma.creator.count(),
-    prisma.creator.count({ where: { contentCount: { gt: 0 } } }),
-    prisma.user.count({ where: { isCreator: false } }),
+    prisma.creator.findMany({
+      select: {
+        bvnVerified: true,
+        paystackSubaccountCode: true,
+        subaccountStatus: true,
+      },
+    }),
     prisma.transaction.count({ where: { status: 'success' } }),
     prisma.transaction.aggregate({
       where: { status: 'success' },
@@ -40,18 +46,24 @@ export async function GET(request: Request) {
       where: { status: { in: ['pending', 'processing'] } },
       _sum: { amount: true },
     }),
-    prisma.booking.count(),
-    prisma.booking.count({ where: { status: 'completed' } }),
-    prisma.booking.count({ where: { status: 'disputed' } }),
+    prisma.booking.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
     (async () => {
       const waitlistModel = (prisma as any).waitlistEntry;
       if (!waitlistModel) return 0;
-      return waitlistModel.count();
+      return waitlistModel.count({ where: { status: 'pending' } });
     })(),
-    prisma.fanSubscription.count({ where: { status: 'active' } }),
     prisma.platformSubscription.aggregate({
       where: { status: { in: ['active', 'trialing'] } },
       _sum: { amount: true },
+    }),
+    prisma.creator.count({
+      where: {
+        platformPlan: { in: ['PRO', 'PREMIUM'] },
+        platformSubscriptionActive: true,
+      },
     }),
     prisma.transaction.findMany({
       where: { status: 'success' },
@@ -75,6 +87,25 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'asc' },
     }),
   ]);
+
+  const paymentsReadyCreators = creatorPaymentsSnap.filter((c) =>
+    isPaymentsReady(
+      {
+        bvnVerified: c.bvnVerified,
+        paystackSubaccountCode: c.paystackSubaccountCode,
+        subaccountStatus: c.subaccountStatus,
+      },
+      { requireKyc }
+    )
+  ).length;
+
+  const bookingsByStatus: Record<string, number> = {};
+  let totalBookings = 0;
+  for (const row of bookingStatusGroups) {
+    const count = row._count._all;
+    bookingsByStatus[row.status] = count;
+    totalBookings += count;
+  }
 
   let failedWebhooks = 0;
   let retryQueueSize = 0;
@@ -126,18 +157,20 @@ export async function GET(request: Request) {
 
   return Response.json({
     totalCreators,
-    activeCreators,
-    totalFans,
+    paymentsReadyCreators,
+    paymentsReadyPct:
+      totalCreators > 0 ? Math.round((paymentsReadyCreators / totalCreators) * 100) : 0,
+    proCreators,
     totalTransactions,
     platformRevenue: Number(platformRevenue._sum.feeAmount || 0),
     totalPayouts: Number(totalPayouts._sum.amount || 0),
     pendingPayouts: Number(pendingPayouts._sum.amount || 0),
     totalBookings,
-    completedBookings,
-    disputedBookings,
+    completedBookings: bookingsByStatus.completed || 0,
+    disputedBookings: bookingsByStatus.disputed || 0,
+    pendingBookings: bookingsByStatus.pending || 0,
+    bookingsByStatus,
     waitlistCount,
-    failedWebhooks,
-    platformSubscriptions,
     mrr: Number(mrr._sum.amount || 0),
     recentTransactions,
     dailySeries,
@@ -145,6 +178,7 @@ export async function GET(request: Request) {
       receivedToday,
       failedToday,
       retryQueueSize,
+      failedWebhooks,
     },
   });
 }

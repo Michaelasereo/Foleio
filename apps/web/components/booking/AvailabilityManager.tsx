@@ -142,7 +142,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
         body: JSON.stringify({
           dates: dateStrings,
           isAvailable,
-          maxBookings: isAvailable ? 5 : null // Default max bookings when available
+          maxBookings: isAvailable ? 1 : null // One booking slot per day
         })
       });
 
@@ -182,7 +182,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
                 updated[existingIndex] = {
                   ...updated[existingIndex],
                   isAvailable,
-                  maxBookings: isAvailable ? 5 : null
+                  maxBookings: isAvailable ? 1 : null
                 };
               } else {
                 // Add new entry with temporary ID
@@ -190,7 +190,7 @@ export function AvailabilityManager({ creatorId, availability }: AvailabilityMan
                   id: `bulk-${dateStr}`,
                   date,
                   isAvailable,
-                  maxBookings: isAvailable ? 5 : null
+                  maxBookings: isAvailable ? 1 : null
                 });
               }
             });

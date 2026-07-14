@@ -85,6 +85,24 @@ PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxx
 
 For local development, you can use ngrok to expose your local server for webhook testing.
 
+### 1.3 Admin console auth
+
+Admin login uses email/password + Google Authenticator (TOTP), not the raw `ADMIN_SECRET` as a password.
+
+Add to `apps/web/.env.local`:
+
+```env
+# Still used as a fallback signing/encryption secret if the dedicated keys below are unset
+ADMIN_SECRET=a_long_random_string
+# Preferred session signing key for admin_session / admin_pre_2fa cookies
+ADMIN_SESSION_SECRET=another_long_random_string
+# Preferred AES key for encrypting TOTP secrets at rest
+ADMIN_TOTP_ENCRYPTION_KEY=yet_another_long_random_string
+ADMIN_NOTIFICATION_EMAIL=you@example.com
+```
+
+On first boot the app seeds `michaelasereo@gmail.com` / `password123` with `passwordMustChange=true`. Local only — change the password (and set up Authenticator) on first login. Never ship that seed password to production users as a permanent credential.
+
 ### 1.4 Dojah KYC (identity unlock)
 
 Creators unlock client booking in two steps: **(1) Dojah identity KYC**, then **(2) bank account** (Paystack subaccount/recipient). The public profile shows services anytime, but **Book** only appears when both pass (`bvnVerified` + active Paystack subaccount).

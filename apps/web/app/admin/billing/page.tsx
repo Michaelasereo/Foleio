@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
+  adminMutedClass,
+  adminPanelClass,
   adminTableCellClass,
   adminTableClass,
   adminTableContainerClass,
@@ -18,6 +20,8 @@ type PlatformSubscription = {
   id: string;
   amount: number;
   status: string;
+  feePercent?: number;
+  feeSynced?: boolean;
   trialEndsAt?: string | null;
   currentPeriodEnd?: string | null;
   createdAt: string;
@@ -25,6 +29,7 @@ type PlatformSubscription = {
     displayName?: string | null;
     username?: string | null;
     platformPlan?: string | null;
+    platformSubscriptionActive?: boolean | null;
     user?: { email?: string | null } | null;
   } | null;
 };
@@ -43,54 +48,43 @@ export default function AdminBillingPage() {
   }, []);
 
   const stats = useMemo(() => {
-    const byPlan = {
-      pro: platformSubs.filter((s) => (s.creator?.platformPlan || '').toUpperCase() === 'PRO'),
-      premium: platformSubs.filter(
-        (s) => (s.creator?.platformPlan || '').toUpperCase() === 'PREMIUM'
-      ),
-      starter: platformSubs.filter(
-        (s) =>
-          !s.creator?.platformPlan ||
-          ['STARTER', 'FREE'].includes((s.creator.platformPlan || '').toUpperCase())
-      ),
-    };
-    const proMrr = byPlan.pro.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-    const premiumMrr = byPlan.premium.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+    const active = platformSubs.filter((s) =>
+      ['active', 'trialing'].includes(String(s.status || '').toLowerCase())
+    );
+    const pro = active.filter((s) => (s.creator?.platformPlan || '').toUpperCase() === 'PRO');
+    const zeroFee = active.filter((s) => Number(s.feePercent) === 0);
+    const fiveFee = active.filter((s) => Number(s.feePercent) === 5 || Number(s.feePercent) > 0);
+    const proMrr = pro.reduce((sum, s) => sum + Number(s.amount || 0), 0);
     return {
-      proCount: byPlan.pro.length,
-      premiumCount: byPlan.premium.length,
-      starterCount: byPlan.starter.length,
+      proCount: pro.length,
       proMrr,
-      premiumMrr,
-      totalMrr: proMrr + premiumMrr,
+      zeroFee: zeroFee.length,
+      fiveFee: fiveFee.length,
+      activeCount: active.length,
     };
   }, [platformSubs]);
 
   return (
     <div className="space-y-5">
-      <h2 className="text-2xl font-semibold">Billing Plans</h2>
+      <div>
+        <h2 className="foleio-admin-title">Billing (Platform Pro)</h2>
+        <p className={`foleio-admin-meta ${adminMutedClass}`}>
+          Pro subscriptions and fee sync (0% vs 5%)
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div className="rounded-lg border bg-white p-4">
-          <p className="text-xs text-muted-foreground">Total on Pro</p>
-          <p className="text-2xl font-semibold">{stats.proCount}</p>
-          <p className="text-xs text-muted-foreground">{formatMoneyFromKobo(stats.proMrr)} MRR</p>
-        </div>
-        <div className="rounded-lg border bg-white p-4">
-          <p className="text-xs text-muted-foreground">Total on Premium</p>
-          <p className="text-2xl font-semibold">{stats.premiumCount}</p>
-          <p className="text-xs text-muted-foreground">
-            {formatMoneyFromKobo(stats.premiumMrr)} MRR
-          </p>
-        </div>
-        <div className="rounded-lg border bg-white p-4">
-          <p className="text-xs text-muted-foreground">Total on Starter / Free</p>
-          <p className="text-2xl font-semibold">{stats.starterCount}</p>
-        </div>
-        <div className="rounded-lg border bg-white p-4">
-          <p className="text-xs text-muted-foreground">Total Platform MRR</p>
-          <p className="text-2xl font-semibold">{formatMoneyFromKobo(stats.totalMrr)}</p>
-        </div>
+        {[
+          { label: 'Active Pro', value: String(stats.proCount) },
+          { label: 'Pro MRR', value: formatMoneyFromKobo(stats.proMrr) },
+          { label: '0% fee synced', value: String(stats.zeroFee) },
+          { label: 'Default fee (5%)', value: String(stats.fiveFee) },
+        ].map((card) => (
+          <div key={card.label} className={adminPanelClass}>
+            <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
+            <p className="mt-2 text-2xl font-semibold text-[#f4f4f5]">{card.value}</p>
+          </div>
+        ))}
       </div>
 
       <div className={adminTableContainerClass}>
@@ -102,37 +96,47 @@ export default function AdminBillingPage() {
                 <th className={adminTableCellClass}>Plan</th>
                 <th className={adminTableCellClass}>Status</th>
                 <th className={adminTableCellClass}>Amount</th>
-                <th className={adminTableCellClass}>Trial Ends</th>
-                <th className={adminTableCellClass}>Current Period End</th>
-                <th className={adminTableCellClass}>Joined Date</th>
+                <th className={adminTableCellClass}>Fee %</th>
+                <th className={adminTableCellClass}>Fee sync</th>
+                <th className={adminTableCellClass}>Period end</th>
+                <th className={adminTableCellClass}>Joined</th>
               </tr>
             </thead>
             <tbody>
               {platformSubs.map((sub) => {
-                const plan = (sub.creator?.platformPlan || 'Starter').toUpperCase();
+                const plan = (sub.creator?.platformPlan || 'FREE').toUpperCase();
                 return (
                   <tr key={sub.id} className={adminTableRowClass}>
                     <td className={adminTableCellClass}>
                       <p className="font-medium">{sub.creator?.displayName || 'Unknown Creator'}</p>
-                      <p className="text-xs text-muted-foreground">@{sub.creator?.username || 'n/a'}</p>
-                      <p className="text-xs text-muted-foreground">{sub.creator?.user?.email || '-'}</p>
+                      <p className={`text-xs ${adminMutedClass}`}>@{sub.creator?.username || 'n/a'}</p>
+                      <p className={`text-xs ${adminMutedClass}`}>{sub.creator?.user?.email || '—'}</p>
                     </td>
                     <td className={adminTableCellClass}>
-                      <Badge variant="outline">{plan}</Badge>
+                      <Badge variant="outline" className="border-white/10">
+                        {plan}
+                      </Badge>
                     </td>
                     <td className={adminTableCellClass}>
                       <Badge className={`border ${statusBadgeClass(sub.status)}`}>{sub.status}</Badge>
                     </td>
-                    <td className={adminTableCellClass}>{formatMoneyFromKobo(sub.amount)}/month</td>
+                    <td className={adminTableCellClass}>{formatMoneyFromKobo(sub.amount)}/mo</td>
+                    <td className={adminTableCellClass}>{Number(sub.feePercent ?? 5)}%</td>
                     <td className={adminTableCellClass}>
-                      {sub.trialEndsAt ? new Date(sub.trialEndsAt).toLocaleDateString() : '-'}
+                      <Badge
+                        className={`border ${statusBadgeClass(sub.feeSynced ? 'active' : 'pending')}`}
+                      >
+                        {sub.feeSynced ? 'Subaccount linked' : 'No subaccount'}
+                      </Badge>
                     </td>
                     <td className={adminTableCellClass}>
                       {sub.currentPeriodEnd
                         ? new Date(sub.currentPeriodEnd).toLocaleDateString()
-                        : '-'}
+                        : '—'}
                     </td>
-                    <td className={adminTableCellClass}>{new Date(sub.createdAt).toLocaleDateString()}</td>
+                    <td className={adminTableCellClass}>
+                      {new Date(sub.createdAt).toLocaleDateString()}
+                    </td>
                   </tr>
                 );
               })}

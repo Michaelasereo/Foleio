@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Calendar, Clock, ArrowLeft, Check, Download, Loader2, X } from 'lucide-react';
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ArrowLeft,
+  Check,
+  Download,
+  Loader2,
+  X,
+} from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 interface PriceListItem {
@@ -65,6 +75,34 @@ const bookingSchema = z.object({
 type BookingInput = z.infer<typeof bookingSchema>;
 
 type Step = 'service' | 'date' | 'details' | 'payment' | 'success';
+
+const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
+
+function toDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function availDateKey(value: string | Date) {
+  if (typeof value === 'string') return value.slice(0, 10);
+  return value.toISOString().slice(0, 10);
+}
+
+function buildMonthCells(year: number, month: number) {
+  const first = new Date(year, month, 1);
+  const startPad = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: Array<{ key: string; day: number } | null> = [];
+
+  for (let i = 0; i < startPad; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({ key: toDateKey(new Date(year, month, day)), day });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
 
 const bookingDrawerCss = `
 .foleio-book-drawer-backdrop {
@@ -241,50 +279,107 @@ const bookingDrawerCss = `
   gap: 10px;
   margin-bottom: 12px;
 }
-.foleio-book-date-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.foleio-book-date {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.foleio-book-cal {
+  margin-bottom: 4px;
   padding: 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #1a1816;
-  color: #f4f4f5;
-  text-align: left;
-  cursor: pointer;
-  font-family: inherit;
 }
-.foleio-book-date strong {
-  font-size: 13px;
+.foleio-book-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.foleio-book-cal-month {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 14px;
   font-weight: 600;
 }
-.foleio-book-date span {
+.foleio-book-cal-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #f4f4f5;
+  cursor: pointer;
+}
+.foleio-book-cal-nav:hover { background: #333; }
+.foleio-book-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+  color: #828282;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.foleio-book-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.foleio-book-cal-pad { min-height: 38px; }
+.foleio-book-cal-day {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #5c5c5c;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: not-allowed;
+}
+.foleio-book-cal-day.is-open {
+  background: #2a2a2a;
+  color: #f4f4f5;
+  cursor: pointer;
+}
+.foleio-book-cal-day.is-open:hover {
+  background: #333;
+}
+.foleio-book-cal-day.is-today.is-open:not(.is-selected) {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.foleio-book-cal-day.is-selected {
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+}
+.foleio-book-cal-day:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.foleio-book-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
   color: #828282;
   font-size: 11px;
   font-weight: 500;
 }
-.foleio-book-date em {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  font-style: normal;
-  color: #fca5a5;
-  font-size: 10px;
-  font-weight: 600;
+.foleio-book-cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
-.foleio-book-date.is-selected {
-  border-color: rgba(255, 255, 255, 0.28);
+.foleio-book-cal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #3a3a3a;
 }
-.foleio-book-date:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+.foleio-book-cal-dot.is-open { background: #2a2a2a; box-shadow: inset 0 0 0 1px #666; }
+.foleio-book-cal-dot.is-selected { background: #fff; }
 .foleio-book-form {
   display: flex;
   flex-direction: column;
@@ -433,6 +528,7 @@ export function BookingModal({
   const [step, setStep] = useState<Step>('date');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [openDates, setOpenDates] = useState<AvailabilityDate[]>(availableDates);
   const [allowMultipleDates, setAllowMultipleDates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingResult, setBookingResult] = useState<{
@@ -454,6 +550,27 @@ export function BookingModal({
   const paymentSucceededRef = useRef(false);
   const receiptCaptureRef = useRef<HTMLDivElement | null>(null);
 
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const openDateKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of openDates) {
+      set.add(availDateKey(d.date));
+    }
+    return set;
+  }, [openDates]);
+
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const year = viewMonth.getFullYear();
+  const month = viewMonth.getMonth();
+  const monthCells = useMemo(() => buildMonthCells(year, month), [year, month]);
+  const monthLabel = viewMonth.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
+
   const form = useForm<BookingInput>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
@@ -467,25 +584,45 @@ export function BookingModal({
   });
 
   useEffect(() => {
-    if (open) {
-      setStep('date');
-      setSelectedDate(null);
-      setSelectedDates([]);
-      setAllowMultipleDates(false);
-      setBookingLimitReached(false);
-      setBookingResult(null);
-      setSelectedAddonIds([]);
-      setPaymentPlan(
-        selectedService.depositType && selectedService.allowPayInFull === false
-          ? 'deposit'
-          : selectedService.depositType
-            ? 'deposit'
-            : 'full'
-      );
-      paymentSucceededRef.current = false;
-      form.reset();
+    if (!open) return;
+    setStep('date');
+    setSelectedDate(null);
+    setSelectedDates([]);
+    setAllowMultipleDates(false);
+    setBookingLimitReached(false);
+    setBookingResult(null);
+    setSelectedAddonIds([]);
+    setOpenDates(availableDates);
+    const keys = availableDates.map((d) => availDateKey(d.date)).sort();
+    if (keys.length > 0) {
+      const [y, m] = keys[0].split('-').map(Number);
+      setViewMonth(new Date(y, m - 1, 1));
+    } else {
+      const now = new Date();
+      setViewMonth(new Date(now.getFullYear(), now.getMonth(), 1));
     }
-  }, [open, selectedService.id, form]);
+    setPaymentPlan(
+      selectedService.depositType && selectedService.allowPayInFull === false
+        ? 'deposit'
+        : selectedService.depositType
+          ? 'deposit'
+          : 'full'
+    );
+    paymentSucceededRef.current = false;
+    form.reset();
+    // Only reset when the drawer opens or the booked service changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedService.id]);
+
+  function removeBookedDateFromCalendar(dateKey: string) {
+    setOpenDates((prev) =>
+      prev.filter((d) => availDateKey(d.date) !== dateKey)
+    );
+  }
+
+  function shiftMonth(delta: number) {
+    setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  }
 
   const serviceAddons = Array.isArray(selectedService.addons)
     ? selectedService.addons
@@ -543,7 +680,7 @@ export function BookingModal({
   };
 
   function handleDateSelect(dateStr: string) {
-    const dateObj = availableDates.find(d => {
+    const dateObj = openDates.find(d => {
       const dStr = new Date(d.date).toISOString().split('T')[0];
       return dStr === dateStr;
     });
@@ -622,7 +759,7 @@ export function BookingModal({
         }
 
         // Check if date has availability
-        const availableDate = availableDates.find(d => {
+        const availableDate = openDates.find(d => {
           const dateObj = new Date(d.date);
           dateObj.setHours(0, 0, 0, 0);
           return dateObj.getTime() === selectedDateObj.getTime();
@@ -687,6 +824,7 @@ export function BookingModal({
       
       // Proceed to payment
       setStep('payment');
+      removeBookedDateFromCalendar(firstDate);
 
       // Initialize Paystack payment
       await initializePayment(result.booking, data);
@@ -1011,7 +1149,7 @@ export function BookingModal({
               <div className="foleio-book-toolbar">
                 <p className="foleio-book-option-name" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                   <Calendar strokeWidth={1.75} className="h-4 w-4" />
-                  Available date{allowMultipleDates ? 's' : ''}
+                  Pick a date
                 </p>
                 <button
                   type="button"
@@ -1032,53 +1170,98 @@ export function BookingModal({
                 </button>
               </div>
 
-              {availableDates.length === 0 ? (
-                <p className="foleio-book-drawer-empty">No available dates right now.</p>
-              ) : (
-                <div className="foleio-book-date-grid">
-                  {availableDates.map((d) => {
-                    const dateStr = new Date(d.date).toISOString().split('T')[0];
-                    const isSelected = allowMultipleDates
-                      ? selectedDates.includes(dateStr)
-                      : selectedDate === dateStr;
-                    const isFullyBooked = d.isFullyBooked || false;
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const dateObj = new Date(d.date);
-                    dateObj.setHours(0, 0, 0, 0);
-                    const isPastDate = dateObj < today;
-                    const isDisabled = isFullyBooked || isPastDate;
+              <div className="foleio-book-cal">
+                  <div className="foleio-book-cal-header">
+                    <button
+                      type="button"
+                      className="foleio-book-cal-nav"
+                      onClick={() => shiftMonth(-1)}
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+                    </button>
+                    <h3 className="foleio-book-cal-month">{monthLabel}</h3>
+                    <button
+                      type="button"
+                      className="foleio-book-cal-nav"
+                      onClick={() => shiftMonth(1)}
+                      aria-label="Next month"
+                    >
+                      <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+                    </button>
+                  </div>
 
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => !isDisabled && handleDateSelect(dateStr)}
-                        className={`foleio-book-date${isSelected && !isDisabled ? ' is-selected' : ''}`}
-                      >
-                        <strong>
-                          {new Date(d.date).toLocaleDateString('en-NG', {
-                            weekday: 'short',
-                            day: 'numeric',
-                          })}
-                        </strong>
-                        <span>
-                          {new Date(d.date).toLocaleDateString('en-NG', {
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
-                        {isFullyBooked ? <em>Full</em> : null}
-                        {isPastDate ? <em>Past</em> : null}
-                        {isSelected && !isDisabled ? (
-                          <Check className="h-3.5 w-3.5" style={{ position: 'absolute', top: 8, right: 8 }} />
-                        ) : null}
-                      </button>
-                    );
-                  })}
+                  <div className="foleio-book-cal-weekdays">
+                    {WEEKDAY_LABELS.map((label) => (
+                      <span key={label}>{label}</span>
+                    ))}
+                  </div>
+
+                  <div className="foleio-book-cal-grid">
+                    {monthCells.map((cell, index) => {
+                      if (!cell) {
+                        return <span key={`pad-${index}`} className="foleio-book-cal-pad" />;
+                      }
+
+                      const isOpen = openDateKeys.has(cell.key);
+                      const isPast = cell.key < todayKey;
+                      const canSelect = isOpen && !isPast;
+                      const isSelected = allowMultipleDates
+                        ? selectedDates.includes(cell.key)
+                        : selectedDate === cell.key;
+
+                      return (
+                        <button
+                          key={cell.key}
+                          type="button"
+                          disabled={!canSelect}
+                          onClick={() => canSelect && handleDateSelect(cell.key)}
+                          className={[
+                            'foleio-book-cal-day',
+                            canSelect ? 'is-open' : '',
+                            isSelected ? 'is-selected' : '',
+                            cell.key === todayKey ? 'is-today' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          aria-pressed={isSelected}
+                          aria-label={`${cell.key}${canSelect ? ', available' : ', unavailable'}${isSelected ? ', selected' : ''}`}
+                        >
+                          {cell.day}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="foleio-book-cal-legend">
+                    <span>
+                      <i className="foleio-book-cal-dot is-open" /> Available
+                    </span>
+                    <span>
+                      <i className="foleio-book-cal-dot is-selected" /> Selected
+                    </span>
+                    <span>
+                      <i className="foleio-book-cal-dot" /> Unavailable
+                    </span>
+                  </div>
                 </div>
-              )}
+
+              {openDateKeys.size === 0 ? (
+                <p className="foleio-book-drawer-empty" style={{ marginTop: 12 }}>
+                  No available dates right now.
+                </p>
+              ) : null}
+
+              {(selectedDate || selectedDates.length > 0) ? (
+                <p className="foleio-book-option-meta" style={{ marginTop: 12 }}>
+                  Selected:{' '}
+                  {selectedDates.length > 0
+                    ? selectedDates.map((dateStr) => formatDate(new Date(`${dateStr}T12:00:00`))).join(', ')
+                    : selectedDate
+                      ? formatDate(new Date(`${selectedDate}T12:00:00`))
+                      : ''}
+                </p>
+              ) : null}
             </div>
           ) : null}
 

@@ -40,7 +40,7 @@ type TxResponse = {
   totalPages: number;
 };
 
-export default function AdminTransactionsPage() {
+export default function AdminTransactionsPage({ embedded = false }: { embedded?: boolean }) {
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [paymentType, setPaymentType] = useState('');
@@ -75,16 +75,16 @@ export default function AdminTransactionsPage() {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-2xl font-semibold">Transactions</h2>
+      {!embedded ? <h2 className="foleio-admin-title">Transactions</h2> : null}
 
-      <div className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-5">
+      <div className="grid gap-3 rounded-[14px] border border-white/5 bg-[#212121] p-4 md:grid-cols-5">
         <select
           value={type}
           onChange={(e) => {
             setPage(1);
             setType(e.target.value);
           }}
-          className="h-10 rounded-md border px-3 text-sm"
+          className="h-10 rounded-md border border-white/10 bg-[#1a1816] px-3 text-sm text-[#f4f4f5]"
         >
           <option value="">All Types</option>
           <option value="subscription">Subscription</option>
@@ -100,7 +100,7 @@ export default function AdminTransactionsPage() {
             setPage(1);
             setPaymentType(e.target.value);
           }}
-          className="h-10 rounded-md border px-3 text-sm"
+          className="h-10 rounded-md border border-white/10 bg-[#1a1816] px-3 text-sm text-[#f4f4f5]"
         >
           <option value="">All splits</option>
           <option value="DIRECT_SUBACCOUNT">Subaccount split</option>
@@ -113,7 +113,7 @@ export default function AdminTransactionsPage() {
             setPage(1);
             setStatus(e.target.value);
           }}
-          className="h-10 rounded-md border px-3 text-sm"
+          className="h-10 rounded-md border border-white/10 bg-[#1a1816] px-3 text-sm text-[#f4f4f5]"
         >
           <option value="">All Status</option>
           <option value="success">Success</option>
@@ -122,7 +122,7 @@ export default function AdminTransactionsPage() {
         </select>
 
         <Input
-          className="md:col-span-2"
+          className="md:col-span-2 border-white/10 bg-[#1a1816] text-[#f4f4f5]"
           placeholder="Search creator, fan email, or reference"
           value={query}
           onChange={(e) => {
@@ -202,13 +202,19 @@ export default function AdminTransactionsPage() {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{showingLabel}</p>
+        <p className="text-sm text-[#828282]">{showingLabel}</p>
         <div className="flex items-center gap-2">
-          <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <Button
+            variant="outline"
+            className="border-white/10 bg-transparent"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
             Previous
           </Button>
           <Button
             variant="outline"
+            className="border-white/10 bg-transparent"
             disabled={!data?.totalPages || page >= data.totalPages}
             onClick={() => setPage((p) => p + 1)}
           >

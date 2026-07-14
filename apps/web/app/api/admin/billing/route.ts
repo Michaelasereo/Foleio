@@ -6,6 +6,8 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { feePercentForCreator } = await import('@/lib/billing/platform-fee');
+
   const platformSubs = await prisma.platformSubscription.findMany({
     include: {
       creator: {
@@ -13,6 +15,8 @@ export async function GET(request: Request) {
           displayName: true,
           username: true,
           platformPlan: true,
+          platformSubscriptionActive: true,
+          paystackSubaccountCode: true,
           user: { select: { email: true } },
         },
       },
@@ -20,5 +24,22 @@ export async function GET(request: Request) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return Response.json({ platformSubs });
+  const enriched = platformSubs.map((sub) => {
+    const platformPlan = sub.creator?.platformPlan || 'FREE';
+    const platformSubscriptionActive = Boolean(
+      sub.creator?.platformSubscriptionActive ||
+        ['active', 'trialing'].includes(String(sub.status || '').toLowerCase())
+    );
+    const feePercent = feePercentForCreator({
+      platformPlan,
+      platformSubscriptionActive,
+    });
+    return {
+      ...sub,
+      feePercent,
+      feeSynced: Boolean(sub.creator?.paystackSubaccountCode),
+    };
+  });
+
+  return Response.json({ platformSubs: enriched });
 }

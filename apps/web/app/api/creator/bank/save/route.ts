@@ -82,31 +82,38 @@ export async function POST(request: Request) {
     let subaccountCode = creator.paystackSubaccountCode;
     let subaccountStatus: 'ACTIVE' | 'PENDING_CREATION' | 'INACTIVE' = 'PENDING_CREATION';
 
+    const subaccountPayload = {
+      business_name: contactName,
+      settlement_bank: body.bankCode,
+      account_number: body.accountNumber,
+      percentage_charge: percentageCharge,
+      primary_contact_email: contactEmail,
+      primary_contact_name: contactName,
+      primary_contact_phone: contactPhone,
+      settlement_schedule: 'auto' as const,
+    };
+
     try {
+      // Stored codes from the other Paystack mode (test vs live) look valid in our DB
+      // but Paystack returns "Invalid Subaccount". Drop and recreate in that case.
+      if (subaccountCode) {
+        const existing = await paystack.getSubaccount(subaccountCode);
+        if (!existing) {
+          console.warn(
+            `[bank/save] subaccount ${subaccountCode} missing in current Paystack mode; creating a new one`
+          );
+          subaccountCode = null;
+        }
+      }
+
       if (subaccountCode) {
         await paystack.updateSubaccount({
           subaccount_code: subaccountCode,
-          business_name: contactName,
-          settlement_bank: body.bankCode,
-          account_number: body.accountNumber,
-          percentage_charge: percentageCharge,
-          primary_contact_email: contactEmail,
-          primary_contact_name: contactName,
-          primary_contact_phone: contactPhone,
-          settlement_schedule: 'auto',
+          ...subaccountPayload,
         });
         subaccountStatus = 'ACTIVE';
       } else {
-        const created = await paystack.createSubaccount({
-          business_name: contactName,
-          settlement_bank: body.bankCode,
-          account_number: body.accountNumber,
-          percentage_charge: percentageCharge,
-          primary_contact_email: contactEmail,
-          primary_contact_name: contactName,
-          primary_contact_phone: contactPhone,
-          settlement_schedule: 'auto',
-        });
+        const created = await paystack.createSubaccount(subaccountPayload);
         subaccountCode = created?.data?.subaccount_code || null;
         if (!subaccountCode) {
           throw new Error(created?.message || 'Paystack did not return a subaccount code');
@@ -115,14 +122,39 @@ export async function POST(request: Request) {
       }
     } catch (subaccountError: any) {
       console.error('[bank/save] subaccount error:', subaccountError);
-      return NextResponse.json(
-        {
-          error:
-            subaccountError?.message ||
-            'Bank saved locally but Paystack subaccount setup failed. Please try again.',
-        },
-        { status: 400 }
-      );
+      const message = String(subaccountError?.message || '');
+      const looksInvalid =
+        /invalid subaccount/i.test(message) || /subaccount.*(not found|does not exist)/i.test(message);
+
+      if (looksInvalid) {
+        try {
+          const created = await paystack.createSubaccount(subaccountPayload);
+          subaccountCode = created?.data?.subaccount_code || null;
+          if (subaccountCode) {
+            subaccountStatus = 'ACTIVE';
+          } else {
+            throw new Error(created?.message || 'Paystack did not return a subaccount code');
+          }
+        } catch (recreateError: any) {
+          return NextResponse.json(
+            {
+              error:
+                recreateError?.message ||
+                'Paystack subaccount setup failed. Please try again.',
+            },
+            { status: 400 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          {
+            error:
+              subaccountError?.message ||
+              'Bank saved locally but Paystack subaccount setup failed. Please try again.',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const bankAccount = await (prisma as any).bankAccount.upsert({

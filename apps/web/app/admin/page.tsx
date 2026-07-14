@@ -3,11 +3,12 @@
 import { useEffect, useMemo } from 'react';
 import {
   AlertTriangle,
+  Calendar,
   Clock,
   CreditCard,
   Crown,
+  ShieldCheck,
   TrendingUp,
-  UserCheck,
   Users,
 } from 'lucide-react';
 import useSWR from 'swr';
@@ -21,20 +22,31 @@ import {
   YAxis,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatMoneyFromKobo, formatRelativeTime, transactionTypeBadgeClass } from '@/lib/admin/format';
-import { createClient } from '@/lib/supabase/client';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
+import {
+  adminMutedClass,
+  adminPanelClass,
+  formatMoneyFromKobo,
+  formatRelativeTime,
+  transactionTypeBadgeClass,
+} from '@/lib/admin/format';
+import { createClient } from '@/lib/supabase/client';
 
 type StatsPayload = {
   totalCreators: number;
-  activeCreators: number;
+  paymentsReadyCreators: number;
+  paymentsReadyPct: number;
+  proCreators: number;
   totalTransactions: number;
   platformRevenue: number;
   pendingPayouts: number;
   disputedBookings: number;
+  pendingBookings: number;
+  completedBookings: number;
+  totalBookings: number;
   waitlistCount: number;
   mrr: number;
+  bookingsByStatus?: Record<string, number>;
   dailySeries: Array<{ date: string; platformRevenue: number; creatorEarnings: number }>;
   recentTransactions: Array<{
     id: string;
@@ -80,143 +92,180 @@ export default function AdminOverviewPage() {
   const cards = useMemo(
     () => [
       {
-        label: 'Platform Revenue',
+        label: 'Creators',
+        value: Number(stats?.totalCreators || 0),
+        icon: Users,
+        color: 'text-sky-400',
+      },
+      {
+        label: 'Payments ready',
+        value: Number(stats?.paymentsReadyPct || 0),
+        formatter: (value: number) => `${value}%`,
+        hint: `${stats?.paymentsReadyCreators || 0} ready`,
+        icon: ShieldCheck,
+        color: 'text-emerald-400',
+      },
+      {
+        label: 'Pro MRR',
+        value: Number(stats?.mrr || 0),
+        formatter: (value: number) => formatMoneyFromKobo(value),
+        hint: `${stats?.proCreators || 0} on Pro`,
+        icon: Crown,
+        color: 'text-amber-400',
+      },
+      {
+        label: 'Platform fees',
         value: Number(stats?.platformRevenue || 0),
         formatter: (value: number) => formatMoneyFromKobo(value),
         icon: TrendingUp,
-        color: 'text-green-600',
+        color: 'text-emerald-400',
       },
       {
-        label: 'MRR',
-        value: Number(stats?.mrr || 0),
-        formatter: (value: number) => formatMoneyFromKobo(value),
-        icon: Crown,
-        color: 'text-orange-600',
+        label: 'Bookings',
+        value: Number(stats?.totalBookings || 0),
+        hint: `${stats?.completedBookings || 0} completed`,
+        icon: Calendar,
+        color: 'text-orange-400',
       },
       {
-        label: 'Total Creators',
-        value: Number(stats?.totalCreators || 0),
-        icon: Users,
-        color: 'text-blue-600',
-      },
-      {
-        label: 'Active Creators',
-        value: Number(stats?.activeCreators || 0),
-        icon: UserCheck,
-        color: 'text-blue-600',
-      },
-      {
-        label: 'Total Transactions',
-        value: Number(stats?.totalTransactions || 0),
-        icon: CreditCard,
-        color: 'text-purple-600',
-      },
-      {
-        label: 'Pending Payouts',
-        value: Number(stats?.pendingPayouts || 0),
-        formatter: (value: number) => formatMoneyFromKobo(value),
+        label: 'Pending bookings',
+        value: Number(stats?.pendingBookings || 0),
         icon: Clock,
-        color: 'text-amber-600',
+        color: 'text-amber-400',
       },
       {
-        label: 'Disputed Bookings',
+        label: 'Disputed',
         value: Number(stats?.disputedBookings || 0),
         icon: AlertTriangle,
-        color: 'text-red-600',
+        color: 'text-red-400',
       },
       {
-        label: 'Waitlist Signups',
+        label: 'Invites pending',
         value: Number(stats?.waitlistCount || 0),
-        icon: Clock,
-        color: 'text-teal-600',
+        icon: CreditCard,
+        color: 'text-teal-400',
       },
     ],
     [stats]
   );
 
+  const statusChips = useMemo(() => {
+    const map = stats?.bookingsByStatus || {};
+    const keys = [
+      'pending',
+      'deposit_paid',
+      'paid',
+      'first_payout_done',
+      'service_day',
+      'completed',
+      'disputed',
+      'refunded',
+    ];
+    return keys
+      .map((key) => ({ key, count: Number(map[key] || 0) }))
+      .filter((row) => row.count > 0);
+  }, [stats]);
+
   if (isLoading) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading admin overview...</div>;
+    return <div className={`p-2 text-sm ${adminMutedClass}`}>Loading admin overview…</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-foreground">Overview</h2>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="foleio-admin-title">Overview</h2>
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
           Live
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
-          <Card key={card.label} className="border-border/70 bg-white shadow-sm">
-            <CardContent className="flex items-center justify-between p-5">
+          <div key={card.label} className={adminPanelClass}>
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{card.label}</p>
-                <p className="mt-2 text-2xl font-semibold">
+                <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-[#f4f4f5]">
                   <AnimatedCount value={card.value} format={card.formatter} />
                 </p>
+                {card.hint ? <p className={`mt-1 text-xs ${adminMutedClass}`}>{card.hint}</p> : null}
               </div>
-              <card.icon className={`h-6 w-6 ${card.color}`} />
-            </CardContent>
-          </Card>
+              <card.icon className={`h-5 w-5 ${card.color}`} />
+            </div>
+          </div>
         ))}
       </div>
 
-      <Card className="bg-white shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Revenue (Last 30 Days)</CardTitle>
-        </CardHeader>
-        <CardContent className="h-80">
+      {statusChips.length ? (
+        <div className={`${adminPanelClass} flex flex-wrap gap-2`}>
+          <p className={`w-full text-xs uppercase tracking-wide ${adminMutedClass}`}>
+            Bookings by status
+          </p>
+          {statusChips.map((chip) => (
+            <span
+              key={chip.key}
+              className="rounded-lg bg-[#252321] px-3 py-1.5 text-xs text-[#adadad]"
+            >
+              {chip.key.replace(/_/g, ' ')} · {chip.count}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className={adminPanelClass}>
+        <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">Revenue (last 30 days)</h3>
+        <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={stats?.dailySeries || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#201e1c" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 12, fill: '#828282' }}
                 tickFormatter={(value) => value.slice(5)}
               />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="platformRevenue" stroke="#f97316" strokeWidth={2} />
-              <Line type="monotone" dataKey="creatorEarnings" stroke="#2563eb" strokeWidth={2} />
+              <YAxis tick={{ fontSize: 12, fill: '#828282' }} />
+              <Tooltip
+                contentStyle={{
+                  background: '#212121',
+                  border: '1px solid #201e1c',
+                  borderRadius: 8,
+                }}
+              />
+              <Line type="monotone" dataKey="platformRevenue" stroke="#f59e0b" strokeWidth={2} />
+              <Line type="monotone" dataKey="creatorEarnings" stroke="#38bdf8" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="bg-white shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      <div className={adminPanelClass}>
+        <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">Recent activity</h3>
+        <div className="space-y-2">
           {(stats?.recentTransactions || []).map((tx) => (
             <div
               key={tx.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#252321] p-3"
             >
               <div className="flex items-center gap-2">
                 <Badge className={`border ${transactionTypeBadgeClass(tx.type)}`}>
                   {tx.type?.replace('_', ' ')}
                 </Badge>
-                <span className="font-medium">{formatMoneyFromKobo(tx.amount)}</span>
+                <span className="font-medium text-[#f4f4f5]">{formatMoneyFromKobo(tx.amount)}</span>
               </div>
-              <div className="text-sm text-muted-foreground">
-                {tx.creator?.displayName || 'Unknown creator'} - {tx.user?.email || 'No email'}
+              <div className={`text-sm ${adminMutedClass}`}>
+                {tx.creator?.displayName || 'Unknown creator'} — {tx.user?.email || 'No email'}
               </div>
-              <span
-                className="text-xs text-muted-foreground"
-                title={new Date(tx.createdAt).toLocaleString()}
-              >
+              <span className={`text-xs ${adminMutedClass}`} title={new Date(tx.createdAt).toLocaleString()}>
                 {formatRelativeTime(tx.createdAt)}
               </span>
             </div>
           ))}
           {!stats?.recentTransactions?.length ? (
-            <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+            <p className={`text-sm ${adminMutedClass}`}>No recent activity yet.</p>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

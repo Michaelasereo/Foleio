@@ -1082,3 +1082,18 @@ model MilestoneLog {
   @@map("milestone_logs")
 }
 
+/// Platform operator accounts (separate from creator/fan User)
+model AdminUser {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  passwordHash       String   @map("password_hash")
+  totpSecretEnc      String?  @map("totp_secret_enc")
+  totpEnabled        Boolean  @default(false) @map("totp_enabled")
+  passwordMustChange Boolean  @default(true) @map("password_must_change")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+  @@index([email])
+}
+

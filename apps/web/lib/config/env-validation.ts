@@ -42,6 +42,8 @@ export function validateEnvironment(): EnvValidationResult {
     'REDIS_URL',
     'SENTRY_DSN',
     'NODE_ENV',
+    'ADMIN_SESSION_SECRET',
+    'ADMIN_TOTP_ENCRYPTION_KEY',
     'NEXT_PUBLIC_DOJAH_APP_ID',
     'NEXT_PUBLIC_DOJAH_PUBLIC_KEY',
     'NEXT_PUBLIC_DOJAH_WIDGET_ID',

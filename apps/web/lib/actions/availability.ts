@@ -3,6 +3,7 @@
 import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { BOOKINGS_PER_DAY, dayBookingCapacity } from '@/lib/booking/day-capacity';
 
 // Set available dates for a creator
 export async function setAvailabilityDates(dates: Date[]) {
@@ -34,13 +35,13 @@ export async function setAvailabilityDates(dates: Date[]) {
           },
           update: {
             isAvailable: true,
-            maxBookings: 1,
+            maxBookings: BOOKINGS_PER_DAY,
           },
           create: {
             creatorId: creator.id,
             date: new Date(date.toISOString().split('T')[0]),
             isAvailable: true,
-            maxBookings: 1,
+            maxBookings: BOOKINGS_PER_DAY,
           },
         });
       })
@@ -57,7 +58,7 @@ export async function setAvailabilityDates(dates: Date[]) {
 }
 
 // Add a single available date
-export async function addAvailabilityDate(date: Date, maxBookings?: number) {
+export async function addAvailabilityDate(date: Date, _maxBookings?: number) {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
   
@@ -83,13 +84,13 @@ export async function addAvailabilityDate(date: Date, maxBookings?: number) {
       },
       update: {
         isAvailable: true,
-        maxBookings: maxBookings && maxBookings > 0 ? maxBookings : 1,
+        maxBookings: BOOKINGS_PER_DAY,
       },
       create: {
         creatorId: creator.id,
         date: new Date(date.toISOString().split('T')[0]),
         isAvailable: true,
-        maxBookings: maxBookings && maxBookings > 0 ? maxBookings : 1,
+        maxBookings: BOOKINGS_PER_DAY,
       },
     });
 
@@ -245,8 +246,7 @@ export async function getAvailabilityWithBookings(
     const availabilityWithCounts = availability.map((avail) => {
       const key = avail.date.toISOString().slice(0, 10);
       const bookingCount = bookingCountByDate.get(key) ?? 0;
-      // Default capacity is 1 booking per day when creator didn't set a max.
-      const capacity = avail.maxBookings && avail.maxBookings > 0 ? avail.maxBookings : 1;
+      const capacity = dayBookingCapacity(avail.maxBookings);
       const isFullyBooked = bookingCount >= capacity;
 
       return {
@@ -267,8 +267,8 @@ export async function getAvailabilityWithBookings(
   }
 }
 
-// Update max bookings for a date
-export async function updateAvailabilityMaxBookings(date: Date, maxBookings: number | null) {
+// Update max bookings for a date (forced to one slot / day for now)
+export async function updateAvailabilityMaxBookings(date: Date, _maxBookings: number | null) {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
   
@@ -293,7 +293,7 @@ export async function updateAvailabilityMaxBookings(date: Date, maxBookings: num
         },
       },
       data: {
-        maxBookings,
+        maxBookings: BOOKINGS_PER_DAY,
       },
     });
 

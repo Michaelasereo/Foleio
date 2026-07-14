@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             displayName: true,
+            payoutMethod: true,
+            paystackSubaccountCode: true,
             user: { select: { email: true } },
             bankAccount: true,
           },

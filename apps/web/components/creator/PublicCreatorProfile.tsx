@@ -15,6 +15,7 @@ import {
 } from '@/lib/creator/social-urls';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { publicGalleryItems } from '@/lib/creator/portfolio-gallery';
+import { RemoteImage } from '@/components/creator/RemoteImage';
 
 interface CreatorLink {
   id: string;
@@ -449,7 +450,7 @@ function buildSampleAvailability(): Availability[] {
       id: `sample-avail-${i}`,
       date,
       isAvailable: true,
-      maxBookings: 3,
+      maxBookings: 1,
       bookingCount: i % 4 === 0 ? 1 : 0,
       isFullyBooked: false,
     });
@@ -472,6 +473,38 @@ export function PublicCreatorProfile({
     imageUrl: string;
     caption: string | null;
   } | null>(null);
+  const [liveSections, setLiveSections] = useState(portfolioSections);
+
+  useEffect(() => {
+    setLiveSections(portfolioSections);
+  }, [portfolioSections]);
+
+  // Soft-nav / Router Cache can serve a stale public payload after gallery uploads.
+  // Refresh from a no-store API so images appear without a hard reload.
+  useEffect(() => {
+    let cancelled = false;
+    const username = creator.username;
+    if (!username) return;
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/public/creators/${encodeURIComponent(username)}/gallery`, {
+          cache: 'no-store',
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { sections?: PortfolioSectionPublic[] };
+        if (!cancelled && Array.isArray(data.sections)) {
+          setLiveSections(data.sections);
+        }
+      } catch {
+        // Keep SSR sections.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creator.username]);
 
   useEffect(() => {
     if (!galleryLightbox) return;
@@ -482,7 +515,7 @@ export function PublicCreatorProfile({
     return () => window.removeEventListener('keydown', onKey);
   }, [galleryLightbox]);
 
-  const galleryItems = publicGalleryItems(portfolioSections);
+  const galleryItems = publicGalleryItems(liveSections);
 
   const formatPrice = (priceInKobo: number) =>
     new Intl.NumberFormat('en-NG', {
@@ -678,20 +711,20 @@ export function PublicCreatorProfile({
                       style={{
                         padding: 0,
                         border: 'none',
-                        background: 'transparent',
+                        background: '#2b2b2b',
                         cursor: 'pointer',
                         borderRadius: 10,
                         overflow: 'hidden',
+                        aspectRatio: '1',
                       }}
                       aria-label={item.caption || 'View gallery photo'}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <RemoteImage
                         src={item.imageUrl}
                         alt={item.caption || 'Gallery photo'}
                         style={{
                           width: '100%',
-                          aspectRatio: '1',
+                          height: '100%',
                           objectFit: 'cover',
                           display: 'block',
                         }}
@@ -871,8 +904,7 @@ export function PublicCreatorProfile({
             >
               <X className="h-4 w-4" />
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <RemoteImage
               src={galleryLightbox.imageUrl}
               alt={galleryLightbox.caption || 'Gallery photo'}
               style={{

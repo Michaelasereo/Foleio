@@ -17,35 +17,47 @@ export function formatRelativeTime(date?: string | Date | null): string {
 
 export function statusBadgeClass(status?: string | null): string {
   const normalized = String(status || '').toLowerCase();
-  if (['active', 'success', 'completed', 'paid'].includes(normalized)) {
-    return 'bg-green-100 text-green-800 border-green-200';
+  if (['active', 'success', 'completed', 'paid', 'healthy'].includes(normalized)) {
+    return 'bg-emerald-500/15 text-emerald-300 border-[#201e1c]';
   }
-  if (['pending', 'processing', 'trialing'].includes(normalized)) {
-    return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (
+    ['pending', 'processing', 'trialing', 'deposit_paid', 'first_payout_done', 'service_day'].includes(
+      normalized
+    )
+  ) {
+    return 'bg-amber-500/15 text-amber-300 border-[#201e1c]';
   }
-  if (['failed', 'disputed', 'cancelled', 'canceled', 'refunded'].includes(normalized)) {
-    return 'bg-red-100 text-red-800 border-red-200';
+  if (['failed', 'disputed', 'cancelled', 'canceled', 'refunded', 'inactive'].includes(normalized)) {
+    return 'bg-red-500/15 text-red-300 border-[#201e1c]';
   }
-  if (normalized === 'past_due') {
-    return 'bg-orange-100 text-orange-800 border-orange-200';
+  if (normalized === 'past_due' || normalized === 'at_risk') {
+    return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
   }
-  return 'bg-slate-100 text-slate-800 border-slate-200';
+  return 'bg-white/10 text-[#adadad] border-[#201e1c]';
 }
 
 export function transactionTypeBadgeClass(type?: string | null): string {
   const normalized = String(type || '').toLowerCase();
-  if (normalized === 'subscription') return 'bg-blue-100 text-blue-800 border-blue-200';
-  if (normalized === 'booking') return 'bg-orange-100 text-orange-800 border-orange-200';
-  if (normalized === 'one_time') return 'bg-green-100 text-green-800 border-green-200';
-  if (normalized === 'payout') return 'bg-purple-100 text-purple-800 border-purple-200';
-  if (normalized === 'refund') return 'bg-red-100 text-red-800 border-red-200';
-  return 'bg-slate-100 text-slate-800 border-slate-200';
+  if (normalized === 'subscription') return 'bg-sky-500/15 text-sky-300 border-[#201e1c]';
+  if (normalized === 'booking') return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
+  if (normalized === 'one_time') return 'bg-emerald-500/15 text-emerald-300 border-[#201e1c]';
+  if (normalized === 'payout') return 'bg-violet-500/15 text-violet-300 border-[#201e1c]';
+  if (normalized === 'refund') return 'bg-red-500/15 text-red-300 border-[#201e1c]';
+  return 'bg-white/10 text-[#adadad] border-[#201e1c]';
 }
 
-export const adminTableContainerClass = 'overflow-hidden rounded-lg border bg-white';
+export const adminPanelClass = 'foleio-admin-panel';
+export const adminTableContainerClass =
+  'overflow-hidden rounded-[14px] border border-[#201e1c] bg-[#212121]';
 export const adminTableScrollClass = 'max-h-[70vh] overflow-auto';
-export const adminTableClass = 'w-full text-sm';
-export const adminTableHeadClass = 'sticky top-0 z-10 bg-slate-50';
-export const adminTableHeadingRowClass = 'text-left text-xs uppercase text-muted-foreground';
-export const adminTableCellClass = 'px-3 py-2';
-export const adminTableRowClass = 'border-t hover:bg-slate-50';
+export const adminTableClass = 'w-full text-sm text-[#f4f4f5]';
+export const adminTableHeadClass = 'sticky top-0 z-10 bg-[#1a1816]';
+export const adminTableHeadingRowClass = 'text-left text-xs uppercase tracking-wide text-[#828282]';
+export const adminTableCellClass = 'px-3 py-2.5';
+export const adminTableRowClass = 'border-t border-[#201e1c] hover:bg-white/[0.03]';
+export const adminMutedClass = 'text-[#828282]';
+export const adminInputClass =
+  'rounded-lg border border-[#201e1c] bg-[#1a1816] px-3 py-2 text-sm text-[#f4f4f5] placeholder:text-[#666] focus:outline-none focus:ring-1 focus:ring-[#2a2826]';
+export const adminTabActiveClass = 'bg-white/10 text-[#f4f4f5]';
+export const adminTabIdleClass =
+  'border border-[#201e1c] bg-transparent text-[#adadad] hover:bg-white/5';

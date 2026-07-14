@@ -2,7 +2,16 @@ import { Resend } from 'resend';
 import { baseEmailTemplate } from './base-template';
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
-export const FROM_EMAIL = 'Foleio <noreply@foleio.com>';
+
+/** Prefer RESEND_FROM_EMAIL (verified domain in Resend). */
+export function resolveFromEmail() {
+  const raw = (process.env.RESEND_FROM_EMAIL || '').trim();
+  if (!raw) return 'Foleio <noreply@foleio.com>';
+  if (raw.includes('<')) return raw;
+  return `Foleio <${raw}>`;
+}
+
+export const FROM_EMAIL = resolveFromEmail();
 
 function canSendEmails() {
   return (
@@ -26,8 +35,17 @@ export async function sendEmail({
   }
 
   try {
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { success: true };
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
+      to,
+      subject,
+      html,
+    });
+    if (error) {
+      console.error('Email send error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, id: data?.id };
   } catch (error) {
     console.error('Email send error:', error);
     return { success: false };
@@ -51,8 +69,8 @@ export async function sendWelcomeEmail({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
   try {
-    await resend.emails.send({
-      from: 'Foleio <hello@foleio.com>',
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
       to: email,
       subject: `Welcome to Foleio, ${displayName} 🧡`,
       html: baseEmailTemplate({
@@ -138,7 +156,12 @@ export async function sendWelcomeEmail({
       }),
     });
 
-    return { success: true };
+    if (error) {
+      console.error('Welcome email send error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, id: data?.id };
   } catch (error) {
     console.error('Welcome email send error:', error);
     return { success: false };
@@ -207,8 +230,8 @@ export async function sendOrderConfirmationEmail({
     .join('');
 
   try {
-    await resend.emails.send({
-      from: 'Foleio <hello@foleio.com>',
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
       to: email,
       subject: `Order confirmed — ${creatorName}'s Shop 🎉`,
       html: baseEmailTemplate({
@@ -301,7 +324,11 @@ export async function sendOrderConfirmationEmail({
         `,
       }),
     });
-    return { success: true };
+    if (error) {
+      console.error('Order confirmation email send error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, id: data?.id };
   } catch (error) {
     console.error('Order confirmation email send error:', error);
     return { success: false };

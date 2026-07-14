@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { unstable_noStore as noStore } from 'next/cache';
 import { prisma } from '@foleio/database';
 import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile';
 import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
@@ -9,6 +10,7 @@ import { isDojahKycRequired } from '@/lib/config/platform-settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function generateMetadata({
   params,
@@ -72,6 +74,7 @@ export default async function CreatorPublicPage({
 }: {
   params: Promise<{ username: string }>;
 }) {
+  noStore();
   const { username } = await params;
 
   try {
@@ -178,8 +181,6 @@ export default async function CreatorPublicPage({
     if (!creator) {
       notFound();
     }
-
-    // Keep the rest of the profile load in its own try so notFound() is never caught.
     let sectionsByCollectionId = new Map<string, Array<{
     id: string;
     title: string;
