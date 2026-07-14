@@ -29,7 +29,6 @@ export function validateEnvironment(): EnvValidationResult {
     'NEXTAUTH_URL',
     'NEXTAUTH_SECRET',
     'PAYSTACK_PRO_PLAN_CODE',
-    'PAYSTACK_PREMIUM_PLAN_CODE',
     'RESEND_API_KEY',
     'ANTHROPIC_API_KEY',
     'CRON_SECRET',
