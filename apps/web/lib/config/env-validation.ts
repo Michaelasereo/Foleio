@@ -128,10 +128,16 @@ export function validateAndExit(): void {
     const isDev = process.env.NODE_ENV !== 'production';
     console.error('❌ CRITICAL: Missing required environment variables:');
     result.missing.forEach((key) => console.error(`   - ${key}`));
-    console.error('\n💡 Please set these variables in your .env.local file');
-    // In local/dev, don't kill the whole Next process on a transient miss
-    // (HMR/worker race). Fail hard in production only.
-    if (!isDev) {
+    console.error('\n💡 Please set these variables in your .env.local / Netlify env');
+
+    // Never process.exit in serverless (Netlify/Lambda) — that kills the
+    // whole function isolate and surfaces as "An unknown error has occurred".
+    const isServerless =
+      Boolean(process.env.NETLIFY) ||
+      Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+      Boolean(process.env.LAMBDA_TASK_ROOT);
+
+    if (!isDev && !isServerless) {
       process.exit(1);
     }
     return;

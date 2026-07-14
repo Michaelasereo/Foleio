@@ -179,6 +179,7 @@ export default async function CreatorPublicPage({
       notFound();
     }
 
+    // Keep the rest of the profile load in its own try so notFound() is never caught.
     let sectionsByCollectionId = new Map<string, Array<{
     id: string;
     title: string;
@@ -396,6 +397,16 @@ export default async function CreatorPublicPage({
       />
     );
   } catch (error) {
+    // notFound()/redirect() throw special Next errors — must rethrow.
+    if (
+      error &&
+      typeof error === 'object' &&
+      'digest' in error &&
+      typeof (error as { digest?: unknown }).digest === 'string' &&
+      String((error as { digest: string }).digest).startsWith('NEXT_')
+    ) {
+      throw error;
+    }
     console.error('[public-profile] failed to load:', error);
     return (
       <FoleioStatusPage
