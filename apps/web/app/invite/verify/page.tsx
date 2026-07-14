@@ -116,7 +116,8 @@ function InviteVerifyInner() {
           );
         }
         toast({ title: 'Welcome', description: 'Your invite is activated.' });
-        router.replace('/dashboard');
+        // Hard nav so session cookies settle; onboard creates the Creator profile.
+        window.location.assign('/onboard');
         return;
       }
 

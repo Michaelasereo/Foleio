@@ -154,7 +154,23 @@ export default function LoginPage() {
 
       didStartRedirect = true;
       setRedirecting(true);
-      window.location.assign('/dashboard');
+
+      let nextPath = '/dashboard';
+      try {
+        const statusRes = await fetch('/api/auth/onboarding-status', {
+          cache: 'no-store',
+        });
+        const status = (await statusRes.json().catch(() => ({}))) as {
+          hasCompletedOnboarding?: boolean;
+          hasCreator?: boolean;
+        };
+        if (!status.hasCreator || !status.hasCompletedOnboarding) {
+          nextPath = '/onboard';
+        }
+      } catch {
+        // Fall through to dashboard; layout redirects if Creator is missing.
+      }
+      window.location.assign(nextPath);
     } catch {
       toast({
         title: 'Error',
@@ -173,7 +189,7 @@ export default function LoginPage() {
       <EmailVerificationCodeStep
         email={pendingVerifyEmail}
         password={pendingVerifyPassword}
-        nextPath="/dashboard"
+        nextPath="/onboard"
         onBack={() => {
           setPendingVerifyEmail(null);
           setPendingVerifyPassword('');

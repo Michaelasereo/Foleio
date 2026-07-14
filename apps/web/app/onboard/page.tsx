@@ -80,7 +80,12 @@ export default function OnboardingPage() {
         });
 
         if (!response.ok) {
-          router.replace('/login');
+          toast({
+            title: 'Couldn’t verify account',
+            description: 'Refresh and try again.',
+            variant: 'destructive',
+          });
+          setIsCheckingAccess(false);
           return;
         }
 
@@ -110,7 +115,11 @@ export default function OnboardingPage() {
           setUsername(normalizeUsername(metaUsername));
         }
       } catch {
-        router.replace('/login');
+        toast({
+          title: 'Couldn’t verify account',
+          description: 'Refresh and try again.',
+          variant: 'destructive',
+        });
         return;
       } finally {
         setIsCheckingAccess(false);

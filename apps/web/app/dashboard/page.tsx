@@ -107,8 +107,12 @@ export default async function DashboardPage({
     }
   }
 
-  // Design review: never block on onboarding / welcome gates.
+  // Authenticated users without a Creator profile must finish /onboard first.
+  // Preview mode (?preview=1) still uses the stub for design review.
   if (!creator) {
+    if (user && !isPreview) {
+      redirect('/onboard');
+    }
     creator = {
       ...PREVIEW_CREATOR,
       email: user?.email || PREVIEW_CREATOR.email,

@@ -62,13 +62,16 @@ export async function GET() {
       hasCreator: Boolean(creator),
       hasCompletedOnboarding: creator?.hasCompletedOnboarding ?? false,
     });
-  } catch {
+  } catch (error) {
+    console.error('onboarding-status failed:', error);
     return NextResponse.json(
       {
         authenticated: false,
+        hasCreator: false,
         hasCompletedOnboarding: false,
+        error: 'status_unavailable',
       },
-      { status: 200 }
+      { status: 503 }
     );
   }
 }
