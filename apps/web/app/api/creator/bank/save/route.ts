@@ -4,12 +4,8 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { createTransferRecipient } from '@/lib/services/paystack';
 import { paystack } from '@/lib/paystack';
 import { serializePrismaObject } from '@/lib/utils/serialization';
-
-function platformFeePercent() {
-  const raw = Number(process.env.FOLEIO_PLATFORM_FEE_PERCENT ?? '5');
-  if (!Number.isFinite(raw) || raw < 0 || raw > 100) return 5;
-  return raw;
-}
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
+import { feePercentForCreator } from '@/lib/billing/platform-fee';
 
 export async function POST(request: Request) {
   try {
@@ -40,7 +36,10 @@ export async function POST(request: Request) {
         id: true,
         displayName: true,
         username: true,
+        bvnVerified: true,
         paystackSubaccountCode: true,
+        platformPlan: true,
+        platformSubscriptionActive: true,
         user: {
           select: {
             email: true,
@@ -51,6 +50,16 @@ export async function POST(request: Request) {
     });
     if (!creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    if ((await isDojahKycRequired()) && !creator.bvnVerified) {
+      return NextResponse.json(
+        {
+          error:
+            'Complete identity verification (Step 1) before adding a bank account.',
+        },
+        { status: 400 }
+      );
     }
 
     const recipient = await createTransferRecipient(
@@ -68,7 +77,7 @@ export async function POST(request: Request) {
     const contactEmail = creator.user?.email || user.email || `${creator.username}@foleio.com`;
     const contactName = creator.displayName || body.accountName;
     const contactPhone = creator.user?.phoneNumber || '08000000000';
-    const percentageCharge = platformFeePercent();
+    const percentageCharge = feePercentForCreator(creator);
 
     let subaccountCode = creator.paystackSubaccountCode;
     let subaccountStatus: 'ACTIVE' | 'PENDING_CREATION' | 'INACTIVE' = 'PENDING_CREATION';

@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@foleio/database';
 import { paystack } from '@/lib/paystack';
+import { isPaymentsReady } from '@/lib/creator/payments-ready';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
 
 const schema = z.object({
   bookingId: z.string().uuid(),
+  paymentKind: z.enum(['initial', 'balance']).default('initial'),
 });
 
 export async function POST(request: NextRequest) {
@@ -18,12 +21,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { bookingId, paymentKind } = validation.data;
+
     const booking = await prisma.booking.findUnique({
-      where: { id: validation.data.bookingId },
+      where: { id: bookingId },
       include: {
         creator: {
           select: {
             id: true,
+            bvnVerified: true,
             paystackSubaccountCode: true,
             subaccountStatus: true,
           },
@@ -38,15 +44,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    if (booking.status !== 'pending') {
+    if (paymentKind === 'initial' && booking.status !== 'pending') {
       return NextResponse.json(
         { error: 'Booking is not awaiting payment' },
         { status: 400 }
       );
     }
 
+    if (paymentKind === 'balance' && booking.status !== 'deposit_paid') {
+      return NextResponse.json(
+        { error: 'Booking is not awaiting balance payment' },
+        { status: 400 }
+      );
+    }
+
     const subaccountCode = booking.creator.paystackSubaccountCode;
-    if (!subaccountCode || booking.creator.subaccountStatus !== 'ACTIVE') {
+    if (
+      !isPaymentsReady(booking.creator, {
+        requireKyc: await isDojahKycRequired(),
+      }) ||
+      !subaccountCode
+    ) {
       return NextResponse.json(
         {
           error:
@@ -56,7 +74,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const amount = Number(booking.totalAmount);
+    const amount =
+      paymentKind === 'balance'
+        ? Number(booking.balanceAmount)
+        : booking.paymentPlan === 'deposit' && booking.balanceAmount > 0
+          ? Number(booking.depositAmount)
+          : Number(booking.totalAmount);
+
     if (!Number.isFinite(amount) || amount < 100) {
       return NextResponse.json({ error: 'Invalid booking amount' }, { status: 400 });
     }
@@ -72,6 +96,8 @@ export async function POST(request: NextRequest) {
         creatorId: booking.creatorId,
         service: booking.priceListItem?.name || 'Booking',
         paymentType: 'DIRECT_SUBACCOUNT',
+        paymentKind,
+        paymentPlan: booking.paymentPlan,
       },
       callback_url: `${
         process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'
@@ -82,7 +108,6 @@ export async function POST(request: NextRequest) {
       throw new Error(paymentData?.message || 'Payment initialization failed');
     }
 
-    // Persist reference early so webhook/verify can correlate
     await prisma.booking.update({
       where: { id: booking.id },
       data: {
@@ -97,6 +122,7 @@ export async function POST(request: NextRequest) {
       reference: paymentData.data.reference,
       subaccount: subaccountCode,
       amount,
+      paymentKind,
       email: booking.customerEmail,
       publicKey: paystack.getPublicKey(),
     });

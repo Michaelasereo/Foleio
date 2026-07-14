@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Calendar, Clock, ArrowLeft, Check, Loader2, X } from 'lucide-react';
+import { Calendar, Clock, ArrowLeft, Check, Download, Loader2, X } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 interface PriceListItem {
   id: string;
@@ -24,6 +25,12 @@ interface PriceListItem {
   calendlyLink?: string | null;
   price: number;
   durationMinutes: number | null;
+  addons?: Array<{ id: string; name: string; price: number }> | null;
+  inclusions?: string[] | null;
+  coverImageUrl?: string | null;
+  depositType?: string | null;
+  depositValue?: number | null;
+  allowPayInFull?: boolean | null;
 }
 
 interface AvailabilityDate {
@@ -337,6 +344,78 @@ const bookingDrawerCss = `
   align-items: center;
   justify-content: center;
 }
+.foleio-book-success {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.foleio-book-receipt-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #212121;
+}
+.foleio-book-success-copy {
+  text-align: center;
+}
+.foleio-book-success-copy .foleio-book-option-name {
+  margin-bottom: 6px;
+}
+.foleio-book-receipt {
+  background: #1a1816;
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.foleio-book-receipt-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.foleio-book-receipt-label {
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.foleio-book-receipt-value {
+  color: #f4f4f5;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+.foleio-book-receipt-value.is-strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.foleio-book-receipt-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 2px 0;
+}
+.foleio-book-track-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 40px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f4f4f5;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.foleio-book-track-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
 `;
 
 
@@ -359,8 +438,21 @@ export function BookingModal({
   const [bookingResult, setBookingResult] = useState<{
     trackingToken?: string;
     bookingId?: string;
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+    notes?: string;
+    bookingDate?: string;
+    amount?: number;
+    paymentReference?: string;
   } | null>(null);
   const [bookingLimitReached, setBookingLimitReached] = useState(false);
+  const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false);
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [paymentPlan, setPaymentPlan] = useState<'full' | 'deposit'>('full');
+  const paymentSucceededRef = useRef(false);
+  const receiptCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const form = useForm<BookingInput>({
     resolver: zodResolver(bookingSchema),
@@ -382,9 +474,49 @@ export function BookingModal({
       setAllowMultipleDates(false);
       setBookingLimitReached(false);
       setBookingResult(null);
+      setSelectedAddonIds([]);
+      setPaymentPlan(
+        selectedService.depositType && selectedService.allowPayInFull === false
+          ? 'deposit'
+          : selectedService.depositType
+            ? 'deposit'
+            : 'full'
+      );
+      paymentSucceededRef.current = false;
       form.reset();
     }
   }, [open, selectedService.id, form]);
+
+  const serviceAddons = Array.isArray(selectedService.addons)
+    ? selectedService.addons
+    : [];
+  const addonsTotal = serviceAddons
+    .filter((addon) => selectedAddonIds.includes(addon.id))
+    .reduce((sum, addon) => sum + Number(addon.price || 0), 0);
+  const packageTotal = Number(selectedService.price) + addonsTotal;
+  const depositEnabled = Boolean(selectedService.depositType);
+  const allowPayInFull = selectedService.allowPayInFull !== false;
+
+  let depositPreview = packageTotal;
+  if (depositEnabled && selectedService.depositType === 'percent') {
+    const pct = Math.min(100, Math.max(1, Number(selectedService.depositValue) || 0));
+    depositPreview = Math.floor((packageTotal * pct) / 100);
+  } else if (depositEnabled && selectedService.depositType === 'fixed') {
+    depositPreview = Math.min(
+      packageTotal,
+      Math.max(0, Number(selectedService.depositValue) || 0)
+    );
+  }
+  const chargeNowPreview =
+    depositEnabled && paymentPlan === 'deposit' && depositPreview < packageTotal
+      ? depositPreview
+      : packageTotal;
+
+  function toggleAddon(id: string) {
+    setSelectedAddonIds((prev) =>
+      prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]
+    );
+  }
 
   const formatPrice = (priceInKobo: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -525,6 +657,8 @@ export function BookingModal({
           customerAddress: data.customerAddress,
           bookingDate: firstDate,
           notes: data.notes,
+          paymentPlan: depositEnabled ? paymentPlan : 'full',
+          selectedAddonIds,
         }),
       });
 
@@ -542,6 +676,13 @@ export function BookingModal({
       setBookingResult({
         trackingToken: result.trackingToken,
         bookingId: result.booking.id,
+        customerName: data.customerName,
+        customerEmail: data.customerEmail,
+        customerPhone: data.customerPhone,
+        customerAddress: data.customerAddress,
+        notes: data.notes,
+        bookingDate: firstDate,
+        amount: Number(result.booking.totalAmount ?? selectedService.price),
       });
       
       // Proceed to payment
@@ -569,21 +710,44 @@ export function BookingModal({
       });
       const verifyData = await verifyResponse.json().catch(() => ({}));
       if (verifyResponse.ok && verifyData.success) {
+        paymentSucceededRef.current = true;
+        setBookingResult((prev) => ({
+          ...(prev || {}),
+          bookingId,
+          paymentReference,
+          trackingToken:
+            verifyData.booking?.trackingToken || prev?.trackingToken,
+          amount: Number(
+            verifyData.booking?.totalAmount ?? prev?.amount ?? selectedService.price
+          ),
+          bookingDate:
+            verifyData.booking?.bookingDate?.slice?.(0, 10) || prev?.bookingDate,
+          customerName: verifyData.booking?.customerName || prev?.customerName,
+          customerEmail: verifyData.booking?.customerEmail || prev?.customerEmail,
+          customerPhone: verifyData.booking?.customerPhone || prev?.customerPhone,
+          customerAddress:
+            verifyData.booking?.customerAddress || prev?.customerAddress,
+          notes: verifyData.booking?.notes || prev?.notes,
+        }));
         setStep('success');
       } else {
-        alert(
-          `Payment verification failed: ${
-            verifyData.error || 'Unknown error'
-          }\n\nReference: ${paymentReference}`
-        );
-        setStep('details');
+        if (!paymentSucceededRef.current) {
+          alert(
+            `Payment verification failed: ${
+              verifyData.error || 'Unknown error'
+            }\n\nReference: ${paymentReference}`
+          );
+          setStep('details');
+        }
       }
     } catch (e) {
       console.error('Payment verification error:', e);
-      alert(
-        `Payment verification error. Reference: ${paymentReference}. Please contact support.`
-      );
-      setStep('details');
+      if (!paymentSucceededRef.current) {
+        alert(
+          `Payment verification error. Reference: ${paymentReference}. Please contact support.`
+        );
+        setStep('details');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -615,7 +779,7 @@ export function BookingModal({
     const initResponse = await fetch('/api/bookings/initialize-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId: booking.id }),
+      body: JSON.stringify({ bookingId: booking.id, paymentKind: 'initial' }),
     });
     const initData = await initResponse.json().catch(() => ({}));
 
@@ -646,7 +810,10 @@ export function BookingModal({
 
     const onPaymentClose = () => {
       setIsSubmitting(false);
-      setStep('details');
+      // Paystack often fires onClose after onSuccess — don't wipe the success screen.
+      if (!paymentSucceededRef.current) {
+        setStep((current) => (current === 'success' ? current : 'details'));
+      }
     };
 
     // Prefer resumeTransaction(access_code) — charge already includes subaccount split
@@ -725,7 +892,39 @@ export function BookingModal({
       setSelectedDates([]);
       setAllowMultipleDates(false);
       setBookingResult(null);
+      paymentSucceededRef.current = false;
       form.reset();
+    }
+  }
+
+  async function handleDownloadReceipt() {
+    const element = receiptCaptureRef.current;
+    if (!element || isDownloadingReceipt) return;
+
+    setIsDownloadingReceipt(true);
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#212121',
+        logging: false,
+      });
+
+      const link = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      const serviceSlug = selectedService.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      link.download = `foleio-booking-${serviceSlug || 'receipt'}-${stamp}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      link.click();
+    } catch (error) {
+      console.error('Receipt download failed:', error);
+      alert('Could not download receipt. Please try again.');
+    } finally {
+      setIsDownloadingReceipt(false);
     }
   }
 
@@ -987,14 +1186,90 @@ export function BookingModal({
                   )}
                 />
 
+                {serviceAddons.length > 0 ? (
+                  <div className="foleio-book-panel" style={{ marginBottom: 12 }}>
+                    <p className="foleio-book-option-name" style={{ marginBottom: 8 }}>
+                      Add-ons
+                    </p>
+                    {serviceAddons.map((addon) => (
+                      <label
+                        key={addon.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          marginBottom: 8,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedAddonIds.includes(addon.id)}
+                            onChange={() => toggleAddon(addon.id)}
+                          />
+                          {addon.name}
+                        </span>
+                        <span>{formatPrice(addon.price)}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+
+                {depositEnabled ? (
+                  <div className="foleio-book-panel" style={{ marginBottom: 12 }}>
+                    <p className="foleio-book-option-name" style={{ marginBottom: 8 }}>
+                      Payment option
+                    </p>
+                    <label
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        marginBottom: 8,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentPlan"
+                        checked={paymentPlan === 'deposit'}
+                        onChange={() => setPaymentPlan('deposit')}
+                      />
+                      <span>
+                        Pay deposit now ({formatPrice(depositPreview)})
+                        {packageTotal > depositPreview
+                          ? ` · balance ${formatPrice(packageTotal - depositPreview)} later`
+                          : ''}
+                      </span>
+                    </label>
+                    {allowPayInFull ? (
+                      <label
+                        style={{ display: 'flex', gap: 8, cursor: 'pointer' }}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentPlan"
+                          checked={paymentPlan === 'full'}
+                          onChange={() => setPaymentPlan('full')}
+                        />
+                        <span>Pay in full ({formatPrice(packageTotal)})</span>
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div className="foleio-book-panel">
                   <div className="foleio-book-summary-row">
-                    <span>Total</span>
-                    <strong>{formatPrice(selectedService.price)}</strong>
+                    <span>Due now</span>
+                    <strong>{formatPrice(chargeNowPreview)}</strong>
                   </div>
-                  <p className="foleio-book-option-desc" style={{ marginTop: 8 }}>
-                    60% paid to creator immediately. 40% after service completion.
-                  </p>
+                  {chargeNowPreview !== packageTotal ? (
+                    <div className="foleio-book-summary-row" style={{ marginTop: 6 }}>
+                      <span>Package total</span>
+                      <span>{formatPrice(packageTotal)}</span>
+                    </div>
+                  ) : null}
                 </div>
               </form>
             </Form>
@@ -1011,29 +1286,100 @@ export function BookingModal({
           ) : null}
 
           {step === 'success' && bookingResult && !bookingLimitReached ? (
-            <div className="foleio-book-center">
-              <div className="foleio-book-success-icon">
-                <Check className="h-7 w-7" />
+            <div className="foleio-book-success">
+              <div ref={receiptCaptureRef} className="foleio-book-receipt-capture">
+                <div className="foleio-book-success-copy">
+                  <div className="foleio-book-success-icon">
+                    <Check className="h-7 w-7" />
+                  </div>
+                  <p className="foleio-book-option-name">Booking confirmed</p>
+                  <p className="foleio-book-option-desc">
+                    You’re booked with {creatorName}. Keep this summary for your records.
+                  </p>
+                </div>
+
+                <div className="foleio-book-receipt" aria-label="Booking details">
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Service</span>
+                    <span className="foleio-book-receipt-value is-strong">
+                      {selectedService.name}
+                    </span>
+                  </div>
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Date</span>
+                    <span className="foleio-book-receipt-value">
+                      {bookingResult.bookingDate
+                        ? formatDate(new Date(bookingResult.bookingDate))
+                        : selectedDates.length > 0
+                          ? selectedDates
+                              .map((dateStr) => formatDate(new Date(dateStr)))
+                              .join(', ')
+                          : selectedDate
+                            ? formatDate(new Date(selectedDate))
+                            : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Amount paid</span>
+                    <span className="foleio-book-receipt-value is-strong">
+                      {formatPrice(bookingResult.amount ?? selectedService.price)}
+                    </span>
+                  </div>
+                  <div className="foleio-book-receipt-divider" />
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Name</span>
+                    <span className="foleio-book-receipt-value">
+                      {bookingResult.customerName || '—'}
+                    </span>
+                  </div>
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Email</span>
+                    <span className="foleio-book-receipt-value">
+                      {bookingResult.customerEmail || '—'}
+                    </span>
+                  </div>
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Phone</span>
+                    <span className="foleio-book-receipt-value">
+                      {bookingResult.customerPhone || '—'}
+                    </span>
+                  </div>
+                  <div className="foleio-book-receipt-row">
+                    <span className="foleio-book-receipt-label">Address</span>
+                    <span className="foleio-book-receipt-value">
+                      {bookingResult.customerAddress || '—'}
+                    </span>
+                  </div>
+                  {bookingResult.notes ? (
+                    <div className="foleio-book-receipt-row">
+                      <span className="foleio-book-receipt-label">Notes</span>
+                      <span className="foleio-book-receipt-value">{bookingResult.notes}</span>
+                    </div>
+                  ) : null}
+                  {bookingResult.paymentReference ? (
+                    <>
+                      <div className="foleio-book-receipt-divider" />
+                      <div className="foleio-book-receipt-row">
+                        <span className="foleio-book-receipt-label">Payment ref</span>
+                        <span className="foleio-book-receipt-value">
+                          {bookingResult.paymentReference}
+                        </span>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              <p className="foleio-book-option-name">Booking confirmed</p>
-              <p className="foleio-book-option-desc">
-                Your booking with {creatorName} is confirmed. A tracking email is on the way.
-              </p>
-              <div className="foleio-book-panel" style={{ textAlign: 'left', marginTop: 16 }}>
-                <p className="foleio-book-option-desc">Service: {selectedService.name}</p>
-                <p className="foleio-book-option-desc">
-                  Date
-                  {selectedDates.length > 1 ? 's' : ''}:{' '}
-                  {selectedDates.length > 0
-                    ? selectedDates.map((dateStr) => formatDate(new Date(dateStr))).join(', ')
-                    : selectedDate
-                      ? formatDate(new Date(selectedDate))
-                      : 'N/A'}
-                </p>
-                <p className="foleio-book-option-desc">
-                  Amount: {formatPrice(selectedService.price)}
-                </p>
-              </div>
+
+              {bookingResult.trackingToken ? (
+                <a
+                  className="foleio-book-track-link"
+                  href={`/tracking/${bookingResult.trackingToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View booking status
+                </a>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -1115,9 +1461,29 @@ export function BookingModal({
           ) : null}
 
           {step === 'success' && !bookingLimitReached ? (
-            <button type="button" className="foleio-book-btn is-primary" onClick={handleClose}>
-              Done
-            </button>
+            <div className="foleio-book-drawer-actions">
+              <button type="button" className="foleio-book-btn is-ghost" onClick={handleClose}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="foleio-book-btn is-primary"
+                onClick={() => void handleDownloadReceipt()}
+                disabled={isDownloadingReceipt}
+              >
+                {isDownloadingReceipt ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing…
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download PNG
+                  </>
+                )}
+              </button>
+            </div>
           ) : null}
         </div>
       </aside>

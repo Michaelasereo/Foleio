@@ -5,6 +5,13 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
+import {
+  computeDepositSplit,
+  computePackageTotal,
+  resolveSelectedAddons,
+} from '@/lib/booking/deposit';
+import { computePolicyRefundKobo } from '@/lib/booking/cancellation-policy';
+import { feePercentForCreator } from '@/lib/billing/platform-fee';
 
 const createBookingSchema = z.object({
   creatorId: z.string().uuid(),
@@ -15,6 +22,8 @@ const createBookingSchema = z.object({
   customerAddress: z.string().min(10, 'Address is required'),
   bookingDate: z.string().or(z.date()),
   notes: z.string().optional(),
+  paymentPlan: z.enum(['full', 'deposit']).optional(),
+  selectedAddonIds: z.array(z.string()).optional(),
 });
 
 type CreateBookingInput = z.infer<typeof createBookingSchema>;
@@ -89,32 +98,67 @@ export async function createBookingRequest(data: CreateBookingInput) {
       return { error: 'Selected date is not available' };
     }
 
-    // Check booking count
-    if (availability.maxBookings) {
-      const existingBookings = await prisma.booking.count({
-        where: {
-          creatorId: data.creatorId,
-          bookingDate: dateOnly,
-          status: {
-            notIn: ['cancelled', 'refunded'],
-          },
-        },
-      });
+    // Default: one booking per available day unless creator set a higher max.
+    const capacity =
+      availability.maxBookings && availability.maxBookings > 0
+        ? availability.maxBookings
+        : 1;
 
-      if (existingBookings >= availability.maxBookings) {
-        return { error: 'This date is fully booked' };
-      }
+    const existingBookings = await prisma.booking.count({
+      where: {
+        creatorId: data.creatorId,
+        bookingDate: dateOnly,
+        status: {
+          notIn: ['cancelled', 'canceled', 'refunded'],
+        },
+      },
+    });
+
+    if (existingBookings >= capacity) {
+      return { error: 'This date is fully booked' };
     }
 
-    // Calculate payment amounts
-    const totalAmount = priceListItem.price;
-    const firstPayoutAmount = Math.floor(totalAmount * 0.6); // 60%
-    const secondPayoutAmount = totalAmount - firstPayoutAmount; // 40%
+    const selectedAddons = resolveSelectedAddons(
+      priceListItem.addons,
+      data.selectedAddonIds
+    );
+    const totalAmount = computePackageTotal(priceListItem.price, selectedAddons);
 
-    // Generate tracking token
+    const wantsDeposit = data.paymentPlan === 'deposit';
+    const depositEnabled = Boolean(priceListItem.depositType);
+    if (wantsDeposit && !depositEnabled) {
+      return { error: 'This service does not offer deposit payment' };
+    }
+    if (
+      wantsDeposit &&
+      depositEnabled &&
+      priceListItem.allowPayInFull === false &&
+      data.paymentPlan === 'full'
+    ) {
+      // unreachable pairing — kept for clarity
+    }
+    if (
+      data.paymentPlan === 'full' &&
+      depositEnabled &&
+      priceListItem.allowPayInFull === false
+    ) {
+      return { error: 'This service requires a deposit; pay in full is disabled' };
+    }
+
+    const split = computeDepositSplit({
+      totalAmount,
+      depositType: priceListItem.depositType,
+      depositValue: priceListItem.depositValue,
+      paymentPlan:
+        wantsDeposit && depositEnabled
+          ? 'deposit'
+          : 'full',
+    });
+
+    const firstPayoutAmount = Math.floor(totalAmount * 0.6);
+    const secondPayoutAmount = totalAmount - firstPayoutAmount;
     const trackingToken = generateTrackingToken();
 
-    // Create the booking
     const booking = await prisma.booking.create({
       data: {
         creatorId: data.creatorId,
@@ -128,6 +172,11 @@ export async function createBookingRequest(data: CreateBookingInput) {
         totalAmount,
         firstPayoutAmount,
         secondPayoutAmount,
+        paymentPlan: split.paymentPlan,
+        depositAmount: split.depositAmount,
+        balanceAmount: split.balanceAmount,
+        amountPaid: 0,
+        selectedAddons,
         trackingToken,
         status: 'pending',
       },
@@ -137,12 +186,10 @@ export async function createBookingRequest(data: CreateBookingInput) {
       },
     });
 
-    const result = { booking, trackingToken };
-
     return {
       success: true,
-      data: result.booking,
-      trackingToken: result.trackingToken,
+      data: booking,
+      trackingToken,
     };
   } catch (error) {
     console.error('Error creating booking:', error);
@@ -150,31 +197,21 @@ export async function createBookingRequest(data: CreateBookingInput) {
     console.error('Error message:', error instanceof Error ? error.message : String(error));
     console.error('Error stack:', error instanceof Error ? error.stack : undefined);
 
-    // Handle specific error types
     if (error instanceof Error) {
-      // Check for Prisma unique constraint violations
       if (error.message.includes('Unique constraint')) {
         return { error: 'This booking conflicts with an existing reservation' };
       }
-
-      // Check for Prisma foreign key violations
       if (error.message.includes('Foreign key constraint failed')) {
         return { error: 'Invalid service or date selection' };
       }
-
-      // Check for Prisma null constraint violations
       if (error.message.includes('NOT NULL constraint')) {
         return { error: 'Required information is missing' };
       }
-
-      // Return specific error messages
       if (error.message === 'Service not found or unavailable' ||
           error.message === 'Selected date is not available' ||
           error.message === 'This date is fully booked') {
         return { error: error.message };
       }
-
-      // Log the specific error for debugging
       console.error('Specific booking creation error:', error.message);
     }
 
@@ -182,8 +219,15 @@ export async function createBookingRequest(data: CreateBookingInput) {
   }
 }
 
-// Confirm booking payment (called after Paystack payment)
-export async function confirmBookingPayment(bookingId: string, paymentReference: string) {
+/**
+ * Confirm a Paystack charge against a booking.
+ * paymentKind: initial (pending) | balance (deposit_paid)
+ */
+export async function confirmBookingPayment(
+  bookingId: string,
+  paymentReference: string,
+  paymentKind: 'initial' | 'balance' = 'initial'
+) {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
@@ -197,16 +241,67 @@ export async function confirmBookingPayment(bookingId: string, paymentReference:
       return { error: 'Booking not found' };
     }
 
+    // Idempotent: already fully paid / past paid
+    if (
+      ['paid', 'first_payout_done', 'service_day', 'completed'].includes(
+        booking.status
+      )
+    ) {
+      return { error: 'Booking already processed', data: booking };
+    }
+
+    if (paymentKind === 'balance') {
+      if (booking.status !== 'deposit_paid') {
+        return { error: 'Booking is not awaiting balance payment' };
+      }
+      const updatedBooking = await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'paid',
+          balanceReference: paymentReference,
+          paymentReference,
+          amountPaid: booking.totalAmount,
+        },
+        include: {
+          priceListItem: true,
+          creator: true,
+        },
+      });
+      return { success: true, data: updatedBooking, completedPayment: true as const };
+    }
+
     if (booking.status !== 'pending') {
       return { error: 'Booking already processed' };
     }
 
-    // Update booking status to paid
+    if (booking.paymentPlan === 'deposit' && booking.balanceAmount > 0) {
+      const updatedBooking = await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'deposit_paid',
+          depositReference: paymentReference,
+          paymentReference,
+          amountPaid: booking.depositAmount,
+        },
+        include: {
+          priceListItem: true,
+          creator: true,
+        },
+      });
+      return {
+        success: true,
+        data: updatedBooking,
+        completedPayment: false as const,
+      };
+    }
+
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: 'paid',
         paymentReference,
+        depositReference: paymentReference,
+        amountPaid: booking.totalAmount,
       },
       include: {
         priceListItem: true,
@@ -214,17 +309,11 @@ export async function confirmBookingPayment(bookingId: string, paymentReference:
       },
     });
 
-    return { success: true, data: updatedBooking };
+    return { success: true, data: updatedBooking, completedPayment: true as const };
   } catch (error) {
     console.error('Error confirming booking payment:', error);
     return { error: 'Failed to confirm payment' };
   }
-}
-
-function platformFeePercent(): number {
-  const raw = Number(process.env.FOLEIO_PLATFORM_FEE_PERCENT ?? '5');
-  if (!Number.isFinite(raw) || raw < 0 || raw > 100) return 5;
-  return raw;
 }
 
 /**
@@ -248,6 +337,8 @@ export async function recordBookingPaymentTransaction(opts: {
             paystackSubaccountCode: true,
             payoutMethod: true,
             subaccountStatus: true,
+            platformPlan: true,
+            platformSubscriptionActive: true,
           },
         },
       },
@@ -268,7 +359,7 @@ export async function recordBookingPaymentTransaction(opts: {
       return { error: 'Invalid booking amount' };
     }
 
-    const feePct = platformFeePercent();
+    const feePct = feePercentForCreator(booking.creator);
     const platformFee = Math.round(amount * (feePct / 100));
     const creatorEarnings = Math.max(0, amount - platformFee);
 
@@ -558,13 +649,22 @@ export async function processRefund(bookingId: string) {
       return { error: 'Disputed booking not found' };
     }
 
-    // TODO: Integrate with Paystack to process actual refund
+    const policyCalc = computePolicyRefundKobo({
+      amountPaid: booking.amountPaid || booking.totalAmount,
+      bookingDate: booking.bookingDate,
+      policy: creator.cancellationPolicy,
+    });
+
+    // TODO: Integrate with Paystack to process actual refund of policyCalc.refundAmount
     const refundTransactionId = `refund_${bookingId}_${Date.now()}`;
 
     // Calculate amount to deduct from creator (if first payout was done)
     let deductAmount = 0;
     if (booking.firstPayoutTransactionId) {
-      deductAmount = booking.firstPayoutAmount;
+      deductAmount = Math.min(
+        booking.firstPayoutAmount,
+        policyCalc.refundAmount || booking.firstPayoutAmount
+      );
     }
 
     const updatedBooking = await prisma.booking.update({
@@ -592,7 +692,13 @@ export async function processRefund(bookingId: string) {
     }
 
     revalidatePath('/bookings');
-    return { success: true, data: updatedBooking, refundTransactionId };
+    return {
+      success: true,
+      data: updatedBooking,
+      refundTransactionId,
+      refundAmount: policyCalc.refundAmount,
+      refundPercent: policyCalc.refundPercent,
+    };
   } catch (error) {
     console.error('Error processing refund:', error);
     return { error: 'Failed to process refund' };

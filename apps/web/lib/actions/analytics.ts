@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { serializePrismaObject } from '@/lib/utils/serialization';
+import { sumCreatorEarnings } from '@/lib/creator/earnings';
 
 export async function getCreatorAnalytics(creatorId: string) {
   const supabase = await createClient();
@@ -93,41 +94,13 @@ export async function getCreatorAnalytics(creatorId: string) {
       _count: { id: true },
     });
 
-    // Get current month transactions
-    const currentMonthTransactions = await prisma.transaction.findMany({
-      where: {
-        creatorId,
-        status: 'success',
-        createdAt: {
-          gte: currentMonthStart,
-          lte: currentMonthEnd,
-        },
-      },
-    });
+    // Same earnings basis as /earnings (paid bookings + fee split)
+    const {
+      totalEarnings: totalRevenue,
+      currentMonth: currentMonthRevenue,
+      prevMonth: prevMonthRevenue,
+    } = await sumCreatorEarnings(creatorId);
 
-    // Get previous month transactions
-    const prevMonthTransactions = await prisma.transaction.findMany({
-      where: {
-        creatorId,
-        status: 'success',
-        createdAt: {
-          gte: prevMonthStart,
-          lte: prevMonthEnd,
-        },
-      },
-    });
-
-    const currentMonthRevenue = (currentMonthTransactions as any[]).reduce(
-      (sum: number, t: any) => sum + Number(t?.creatorEarnings || 0),
-      0
-    );
-
-    const prevMonthRevenue = (prevMonthTransactions as any[]).reduce(
-      (sum: number, t: any) => sum + Number(t?.creatorEarnings || 0),
-      0
-    );
-
-    // Get recent transactions for display
     const recentTransactions = await prisma.transaction.findMany({
       where: {
         creatorId,
@@ -138,22 +111,7 @@ export async function getCreatorAnalytics(creatorId: string) {
       },
       orderBy: { createdAt: 'desc' },
       take: 10,
-    });
-
-    const allSuccessfulTransactions = await prisma.transaction.findMany({
-      where: {
-        creatorId,
-        status: 'success',
-      },
-      select: {
-        creatorEarnings: true,
-      },
-    });
-
-    const totalRevenue = (allSuccessfulTransactions as any[]).reduce(
-      (sum: number, t: any) => sum + Number(t?.creatorEarnings || 0),
-      0
-    );
+    }).catch(() => []);
 
     // Calculate percentage changes
     const calculatePercentageChange = (current: number, previous: number): string | null => {

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { serializeForClient } from '@/lib/utils';
+import { AuthLegalFooter } from '@/components/auth/AuthLegalFooter';
 import { CreatorSidebar } from '@/components/creator/CreatorSidebar';
 import { MilestoneCelebration } from '@/components/creator/MilestoneCelebration';
 
@@ -107,8 +108,11 @@ export default async function CreatorLayout({
     <div className="flex h-screen overflow-hidden bg-background">
       <CreatorSidebar creator={serializeForClient(creator)} />
       <main className="h-screen flex-1 overflow-y-auto lg:ml-0">
-        <div className="px-4 py-8 sm:px-6 lg:px-8">
-          {children}
+          <div className="flex min-h-full flex-col px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex-1">{children}</div>
+          <div className="creator-legal-footer mt-10 border-t border-border pt-6">
+            <AuthLegalFooter tone="light" />
+          </div>
         </div>
       </main>
       <MilestoneCelebration />

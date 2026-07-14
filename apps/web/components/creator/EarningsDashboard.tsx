@@ -3,24 +3,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2,
-  CheckCircle2,
   Download,
   Loader2,
   TrendingUp,
-  Wallet,
 } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
-import { BankSetupForm, type BankAccount } from '@/components/creator/BankSetupForm';
+import { type BankAccount } from '@/components/creator/BankSetupForm';
+import { PayoutSetupFlow } from '@/components/creator/PayoutSetupFlow';
 
 type EarningsPayload = {
   creator: {
-    availableBalance: number;
-    pendingBalance: string | number;
+    id?: string | null;
+    userId?: string | null;
     totalEarned: number;
     platformPlan: string | null;
     bankAccount: BankAccount | null;
-    payouts: Array<any>;
+    bvnVerified?: boolean;
+    identityVerifiedAt?: string | null;
+    email?: string | null;
+    displayName?: string | null;
+    paystackSubaccountCode?: string | null;
+    subaccountStatus?: string | null;
   };
+  requireDojahKyc?: boolean;
   monthlyEarnings: Array<{ month: string; amount: number }>;
   byStream: Array<{ type: string; amount: number }>;
   transactions: Array<{
@@ -32,36 +37,41 @@ type EarningsPayload = {
     creatorEarnings?: number | string | null;
     platformFee?: number | string | null;
     reference?: string | null;
+    metadata?: {
+      service?: string;
+      customerName?: string;
+      bookingId?: string;
+    };
   }>;
   stats?: {
     totalEarnings: number;
-    totalPaidOut: number;
-    availableBalance: number;
     settledToBank?: number;
-    ledgerEarnings?: number;
+    platformFeePercent?: number;
   };
   error?: string;
 };
 
-type TabId = 'transactions' | 'payouts' | 'account';
+type TabId = 'transactions' | 'account';
 type LoadState = 'loading' | 'ready' | 'error';
 
 const EMPTY_EARNINGS: EarningsPayload = {
   creator: {
-    availableBalance: 0,
-    pendingBalance: 0,
+    id: null,
+    userId: null,
     totalEarned: 0,
     platformPlan: null,
     bankAccount: null,
-    payouts: [],
+    bvnVerified: false,
+    identityVerifiedAt: null,
+    email: null,
+    displayName: null,
   },
   monthlyEarnings: [],
   byStream: [],
   transactions: [],
   stats: {
     totalEarnings: 0,
-    totalPaidOut: 0,
-    availableBalance: 0,
+    settledToBank: 0,
   },
 };
 
@@ -69,8 +79,18 @@ function badgeTone(status: string) {
   const s = status.toUpperCase();
   if (s === 'PENDING') return 'is-info';
   if (s === 'PROCESSING') return 'is-info';
-  if (s === 'SUCCESS' || s === 'COMPLETED') return 'is-success';
-  if (s === 'FAILED' || s === 'CANCELLED') return 'is-danger';
+  if (
+    s === 'SUCCESS' ||
+    s === 'COMPLETED' ||
+    s === 'PAID' ||
+    s === 'FIRST_PAYOUT_DONE' ||
+    s === 'SERVICE_DAY'
+  ) {
+    return 'is-success';
+  }
+  if (s === 'FAILED' || s === 'CANCELLED' || s === 'CANCELED' || s === 'REFUNDED') {
+    return 'is-danger';
+  }
   return 'is-muted';
 }
 
@@ -102,6 +122,8 @@ export function EarningsDashboard() {
   const [tabInitialized, setTabInitialized] = useState(false);
   const [editingBank, setEditingBank] = useState(false);
   const [creatorBank, setCreatorBank] = useState<BankAccount | null>(null);
+  const [identityVerified, setIdentityVerified] = useState(false);
+  const [requireDojahKyc, setRequireDojahKyc] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const loadEarnings = useCallback(async (signal?: AbortSignal) => {
@@ -123,7 +145,6 @@ export function EarningsDashboard() {
         ...EMPTY_EARNINGS.creator,
         ...(payload.creator || {}),
         bankAccount: normalizeBank(payload.creator?.bankAccount),
-        payouts: Array.isArray(payload.creator?.payouts) ? payload.creator.payouts : [],
       },
       transactions: Array.isArray(payload.transactions) ? payload.transactions : [],
       byStream: Array.isArray(payload.byStream) ? payload.byStream : [],
@@ -138,6 +159,8 @@ export function EarningsDashboard() {
 
     setData(normalized);
     setCreatorBank(normalized.creator.bankAccount);
+    setIdentityVerified(Boolean(normalized.creator.bvnVerified));
+    setRequireDojahKyc(Boolean(normalized.requireDojahKyc));
     setState('ready');
     return normalized;
   }, []);
@@ -158,9 +181,10 @@ export function EarningsDashboard() {
 
   useEffect(() => {
     if (state !== 'ready' || tabInitialized) return;
-    if (!creatorBank) setTab('account');
+    const needsKyc = requireDojahKyc && !identityVerified;
+    if (!creatorBank || needsKyc) setTab('account');
     setTabInitialized(true);
-  }, [state, creatorBank, tabInitialized]);
+  }, [state, creatorBank, identityVerified, requireDojahKyc, tabInitialized]);
 
   const streamRows = useMemo(() => {
     const rows = data?.byStream || [];
@@ -207,10 +231,10 @@ export function EarningsDashboard() {
   }
 
   const earnings = data || EMPTY_EARNINGS;
-  const available = Number(earnings.creator.availableBalance || 0);
-  const totalEarned = Number(earnings.creator.totalEarned || 0);
-  const totalPaidOut = Number(earnings.stats?.totalPaidOut || 0);
-  const settledToBank = Number(earnings.stats?.settledToBank || 0);
+  const totalEarned = Number(
+    earnings.stats?.totalEarnings ?? earnings.creator.totalEarned ?? 0
+  );
+  const settledToBank = Number(earnings.stats?.settledToBank ?? totalEarned);
 
   async function handleExport() {
     setExporting(true);
@@ -231,27 +255,15 @@ export function EarningsDashboard() {
 
   const stats = [
     {
-      title: 'Available',
-      value: formatNaira(available / 100),
-      hint: 'Held on Foleio (legacy)',
-      icon: Wallet,
+      title: 'Total earnings',
+      value: formatNaira(totalEarned / 100),
+      hint: 'Your share after platform fee',
+      icon: TrendingUp,
     },
     {
       title: 'Settled to bank',
       value: formatNaira(settledToBank / 100),
       hint: 'Paid via Paystack split',
-      icon: Building2,
-    },
-    {
-      title: 'Total earned',
-      value: formatNaira(totalEarned / 100),
-      hint: 'All time',
-      icon: TrendingUp,
-    },
-    {
-      title: 'Paid out',
-      value: formatNaira(totalPaidOut / 100),
-      hint: 'Historical withdrawals',
       icon: Building2,
     },
   ];
@@ -261,11 +273,6 @@ export function EarningsDashboard() {
       id: 'transactions',
       label: 'Transactions',
       count: earnings.transactions.length,
-    },
-    {
-      id: 'payouts',
-      label: 'Payouts',
-      count: earnings.creator.payouts.length,
     },
     { id: 'account', label: 'Payout account' },
   ];
@@ -412,91 +419,37 @@ export function EarningsDashboard() {
           {earnings.transactions.length === 0 ? (
             <p className="foleio-dash-empty">No transactions yet.</p>
           ) : (
-            earnings.transactions.slice(0, 20).map((transaction) => (
-              <div key={transaction.id} className="foleio-dash-booking-row">
-                <div className="foleio-dash-booking-main">
-                  <p className="foleio-dash-booking-name">
-                    {streamLabel(String(transaction.type || 'payment'))}
-                  </p>
-                  <div className="foleio-dash-booking-meta">
-                    <span
-                      className={`foleio-dash-badge ${badgeTone(String(transaction.status || 'PENDING'))}`}
-                    >
-                      {String(transaction.status || 'PENDING')}
-                    </span>
-                    <span>
-                      {new Date(transaction.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
+            earnings.transactions.slice(0, 20).map((transaction) => {
+              const serviceName =
+                transaction.metadata?.service ||
+                streamLabel(String(transaction.type || 'payment'));
+              const customerName = transaction.metadata?.customerName;
+              return (
+                <div key={transaction.id} className="foleio-dash-booking-row">
+                  <div className="foleio-dash-booking-main">
+                    <p className="foleio-dash-booking-name">{serviceName}</p>
+                    <div className="foleio-dash-booking-meta">
+                      <span
+                        className={`foleio-dash-badge ${badgeTone(String(transaction.status || 'PENDING'))}`}
+                      >
+                        {String(transaction.status || 'PENDING')}
+                      </span>
+                      {customerName ? <span>{customerName}</span> : null}
+                      <span>
+                        {new Date(transaction.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="foleio-dash-booking-amount">
+                    {formatNaira(Number(transaction.creatorEarnings || 0) / 100)}
                   </div>
                 </div>
-                <div className="foleio-dash-booking-amount">
-                  {formatNaira(Number(transaction.creatorEarnings || 0) / 100)}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      ) : null}
-
-      {tab === 'payouts' ? (
-        <div className="foleio-dash-panel">
-          <h2 className="foleio-dash-panel-title">Payout history</h2>
-          <p className="foleio-dash-panel-meta">
-            {earnings.creator.payouts.length === 0
-              ? 'Nothing here yet'
-              : `${earnings.creator.payouts.length} payout${
-                  earnings.creator.payouts.length === 1 ? '' : 's'
-                }`}
-          </p>
-
-          {earnings.creator.payouts.length === 0 ? (
-            <p className="foleio-dash-empty">
-              No historical payouts — booking earnings settle to your bank via Paystack.
-            </p>
-          ) : (
-            earnings.creator.payouts.map((payout) => (
-              <div key={payout.id} className="foleio-dash-booking-row">
-                <div className="foleio-dash-booking-main">
-                  <p className="foleio-dash-booking-name">
-                    {formatNaira(Number(payout.amount) / 100)}
-                  </p>
-                  <div className="foleio-dash-booking-meta">
-                    <span
-                      className={`foleio-dash-badge ${badgeTone(String(payout.status || 'PENDING'))}`}
-                    >
-                      {String(payout.status || 'PENDING')}
-                    </span>
-                    <span>
-                      {new Date(payout.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                    <span>{creatorBank?.bankName || 'Bank account'}</span>
-                  </div>
-                  {String(payout.status || '').toUpperCase() === 'FAILED' &&
-                  payout.failureReason ? (
-                    <p
-                      className="foleio-dash-panel-meta"
-                      style={{ color: '#fca5a5', marginTop: 6 }}
-                    >
-                      {payout.failureReason}
-                    </p>
-                  ) : null}
-                </div>
-                <div
-                  className="foleio-dash-booking-amount"
-                  style={{ fontSize: 12, color: '#828282' }}
-                >
-                  {payout.paystackReference || '—'}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       ) : null}
@@ -512,54 +465,51 @@ export function EarningsDashboard() {
             }}
           >
             <div>
-              <h2 className="foleio-dash-panel-title">Payout account</h2>
+              <h2 className="foleio-dash-panel-title">Unlock payouts</h2>
               <p className="foleio-dash-panel-meta">
-                {creatorBank && !editingBank
-                  ? 'Where we send your earnings'
-                  : 'Add a Nigerian bank account so clients can book and you can get paid'}
+                {requireDojahKyc
+                  ? 'Step 1: verify identity with Dojah. Step 2: add your bank account. Book appears on your public page only after both are done.'
+                  : 'Add your bank account so clients can book and you can get paid.'}
               </p>
             </div>
-            {creatorBank && !editingBank ? (
+            {(!requireDojahKyc || identityVerified) && creatorBank && !editingBank ? (
               <button
                 type="button"
                 className="foleio-dash-btn-ghost"
                 onClick={() => setEditingBank(true)}
               >
-                Change
+                Change bank
               </button>
             ) : null}
           </div>
 
-          {creatorBank && !editingBank ? (
-            <div
-              className="foleio-dash-booking-row"
-              style={{ borderTop: 'none', paddingTop: 4 }}
-            >
-              <div className="foleio-dash-booking-main">
-                <p className="foleio-dash-booking-name">{creatorBank.bankName}</p>
-                <div className="foleio-dash-booking-meta">
-                  <span>{creatorBank.accountNumber}</span>
-                  <span>{creatorBank.accountName}</span>
-                </div>
-              </div>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  color: '#86efac',
-                  fontSize: 12,
-                  fontWeight: 500,
+          {earnings.creator.id && earnings.creator.userId ? (
+            <div style={{ marginTop: 16 }}>
+              <PayoutSetupFlow
+                creatorId={earnings.creator.id}
+                userId={earnings.creator.userId}
+                email={earnings.creator.email}
+                firstName={earnings.creator.displayName?.split(/\s+/)[0] || null}
+                lastName={
+                  earnings.creator.displayName?.split(/\s+/).slice(1).join(' ') || null
+                }
+                identityVerified={identityVerified}
+                requireDojahKyc={requireDojahKyc}
+                bankAccount={creatorBank}
+                editingBank={editingBank}
+                onIdentityVerified={() => {
+                  setIdentityVerified(true);
+                  setData((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          creator: { ...prev.creator, bvnVerified: true },
+                        }
+                      : prev
+                  );
+                  void loadEarnings();
                 }}
-              >
-                <CheckCircle2 className="h-4 w-4" strokeWidth={1.5} />
-                Verified
-              </div>
-            </div>
-          ) : (
-            <div style={{ marginTop: 8, maxWidth: 420 }}>
-              <BankSetupForm
-                onSaved={(bank) => {
+                onBankSaved={(bank) => {
                   setCreatorBank(bank);
                   setEditingBank(false);
                   setData((prev) =>
@@ -572,9 +522,15 @@ export function EarningsDashboard() {
                   );
                   void loadEarnings();
                 }}
-                onCancel={creatorBank ? () => setEditingBank(false) : undefined}
+                onCancelBankEdit={
+                  creatorBank ? () => setEditingBank(false) : undefined
+                }
               />
             </div>
+          ) : (
+            <p className="foleio-dash-panel-meta" style={{ marginTop: 12 }}>
+              Could not load creator account details. Refresh and try again.
+            </p>
           )}
         </div>
       ) : null}

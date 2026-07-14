@@ -1,6 +1,8 @@
 'use client';
 
-export default function GlobalError({
+import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
+
+export default function Error({
   error,
   reset,
 }: {
@@ -8,21 +10,15 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="text-center max-w-md">
-        <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
-        <p className="text-muted-foreground text-sm mb-6">
-          {process.env.NODE_ENV === 'development'
-            ? error.message
-            : 'Please try again or contact support.'}
-        </p>
-        <button
-          onClick={reset}
-          className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium"
-        >
-          Try again
-        </button>
-      </div>
-    </div>
+    <FoleioStatusPage
+      title="Something went wrong"
+      description={
+        process.env.NODE_ENV === 'development'
+          ? error.message
+          : 'Please try again or contact support if this keeps happening.'
+      }
+      primaryAction={{ label: 'Try again', onClick: reset }}
+      secondaryAction={{ label: 'Go home', href: '/', variant: 'outline' }}
+    />
   );
 }

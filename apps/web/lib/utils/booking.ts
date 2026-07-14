@@ -24,18 +24,19 @@ export function formatPriceFromKobo(amountInKobo: number): string {
 }
 
 // Calculate escrow amounts
-export function calculateEscrowAmounts(totalAmount: number): {
+export function calculateEscrowAmounts(
+  totalAmount: number,
+  platformFeePercent = 0.05
+): {
   firstPayout: number; // 60%
   secondPayout: number; // 40%
   platformFee: number;
 } {
-  // Platform fee (e.g., 5% of total)
-  const platformFeePercent = 0.05;
   const platformFee = Math.round(totalAmount * platformFeePercent);
-  
+
   // After platform fee
   const netAmount = totalAmount - platformFee;
-  
+
   // 60% first payout, 40% second payout
   const firstPayout = Math.round(netAmount * 0.6);
   const secondPayout = netAmount - firstPayout; // Remainder to avoid rounding issues

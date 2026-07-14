@@ -1,12 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/client';
 import {
   Form,
   FormControl,
@@ -15,8 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
-import { Lock, Mail, Pencil, User, Eye, EyeOff } from 'lucide-react';
-import { isPilotEmail } from '@/lib/config/pilot';
+import { CheckCircle2, Lock, Mail, User, CircleUser, Eye, EyeOff } from 'lucide-react';
 import { AuthLumaLayout } from '@/components/auth/AuthLumaLayout';
 import {
   authButtonClass,
@@ -51,222 +48,13 @@ function normalizeUsername(raw: string) {
   return raw.trim().replace(/^@+/, '').toLowerCase();
 }
 
-function VerificationCodeStep({
-  email,
-  onBack,
-}: {
-  email: string;
-  onBack: () => void;
-}) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const supabase = createClient();
-  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
-  const [verifying, setVerifying] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  const code = digits.join('');
-
-  useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [cooldown]);
-
-  function updateDigit(index: number, value: string) {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length > 1) {
-      const next = [...digits];
-      const chars = cleaned.slice(0, 6 - index).split('');
-      chars.forEach((char, offset) => {
-        next[index + offset] = char;
-      });
-      setDigits(next);
-      const focusAt = Math.min(index + chars.length, 5);
-      inputRefs.current[focusAt]?.focus();
-      return;
-    }
-
-    const next = [...digits];
-    next[index] = cleaned;
-    setDigits(next);
-    if (cleaned && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  }
-
-  function handleKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Backspace' && !digits[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  }
-
-  async function handleVerify(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (code.length !== 6 || verifying) return;
-
-    setVerifying(true);
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: 'signup',
-      });
-
-      if (error) {
-        toast({
-          title: 'Invalid code',
-          description: error.message || 'Check the code and try again.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (data.session) {
-        toast({
-          title: 'Email verified',
-          description: 'Your account is ready.',
-        });
-        router.push('/dashboard');
-        router.refresh();
-      }
-    } catch {
-      toast({
-        title: 'Error',
-        description: 'Could not verify the code. Try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setVerifying(false);
-    }
-  }
-
-  async function handleResend() {
-    if (resendLoading || cooldown > 0) return;
-    setResendLoading(true);
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-      });
-      if (error) {
-        toast({
-          title: 'Could not resend',
-          description: error.message,
-          variant: 'destructive',
-        });
-        return;
-      }
-      setCooldown(60);
-      setDigits(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
-      toast({
-        title: 'Code sent',
-        description: 'A new 6-digit code is on its way.',
-      });
-    } finally {
-      setResendLoading(false);
-    }
-  }
-
-  return (
-    <AuthLumaLayout
-      title="Enter verification code"
-      footerExtra={
-        <p className={authMutedClass}>
-          Wrong email?{' '}
-          <button type="button" onClick={onBack} className={authLinkClass}>
-            Go back
-          </button>
-        </p>
-      }
-    >
-      <form onSubmit={(e) => void handleVerify(e)} className="foleio-auth-verify">
-        <div className="foleio-auth-verify-card">
-          <div className="foleio-auth-verify-label">
-            <Mail className="foleio-auth-row-icon h-5 w-5" strokeWidth={1.5} />
-            <p className="foleio-auth-verify-copy">
-              Code sent to {email}
-            </p>
-          </div>
-
-          <div className="foleio-auth-otp" role="group" aria-label="Verification code">
-            {digits.map((digit, index) => (
-              <input
-                key={index}
-                ref={(el) => {
-                  inputRefs.current[index] = el;
-                }}
-                type="text"
-                inputMode="numeric"
-                autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                maxLength={6}
-                value={digit}
-                aria-label={`Digit ${index + 1}`}
-                className="foleio-auth-otp-digit"
-                onChange={(e) => updateDigit(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={(e) => {
-                  e.preventDefault();
-                  updateDigit(0, e.clipboardData.getData('text'));
-                }}
-              />
-            ))}
-          </div>
-          <p className="foleio-auth-verify-copy">
-            Enter the 6-digit code to activate your account.
-          </p>
-        </div>
-
-        <div className="foleio-auth-verify-actions">
-          <button
-            type="submit"
-            className={authButtonClass}
-            disabled={verifying || code.length !== 6}
-          >
-            {verifying ? 'Verifying…' : 'Verify code'}
-          </button>
-          <button
-            type="button"
-            className="foleio-auth-resend-link"
-            onClick={() => void handleResend()}
-            disabled={resendLoading || cooldown > 0}
-          >
-            {resendLoading
-              ? 'Sending…'
-              : cooldown > 0
-                ? `Resend code in ${cooldown}s`
-                : 'Resend code'}
-          </button>
-        </div>
-      </form>
-    </AuthLumaLayout>
-  );
-}
-
 export function CreateAccountPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false);
-  const [signupEmail, setSignupEmail] = useState('');
+  const [inviteRequested, setInviteRequested] = useState(false);
+  const [requestEmail, setRequestEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const supabase = createClient();
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('preview') === 'verify') {
-      setVerificationSent(true);
-      setSignupEmail(params.get('email') || 'you@example.com');
-    }
-  }, []);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -283,69 +71,42 @@ export function CreateAccountPage() {
   async function onSubmit(data: SignupFormValues) {
     const normalizedEmail = data.email.trim().toLowerCase();
     const username = normalizeUsername(data.username);
-    const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`.trim();
-
-    if (!isPilotEmail(normalizedEmail)) {
-      toast({
-        title: 'Pilot access only',
-        description: 'Signups are currently limited to approved pilot emails.',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     setIsLoading(true);
     try {
-      const emailExistsRes = await fetch('/api/auth/check-email', {
+      const signupRes = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: data.password,
+          firstName: data.firstName.trim(),
+          lastName: data.lastName.trim(),
+          username,
+        }),
       });
-      const emailExistsData = await emailExistsRes
-        .json()
-        .catch(() => ({ exists: false }));
-      if (emailExistsData.exists) {
+      const signupData = (await signupRes.json().catch(() => ({}))) as {
+        error?: string;
+        pendingInvite?: boolean;
+      };
+
+      if (!signupRes.ok) {
         toast({
-          title: 'Account already exists',
+          title: signupRes.status === 409 ? 'Already requested' : 'Request failed',
           description:
-            'An account with this email already exists. Please log in or reset your password.',
+            signupData.error ||
+            'Could not submit your invite request. Please try again.',
           variant: 'destructive',
         });
-        setIsLoading(false);
         return;
       }
 
-      const { data: signupData, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password: data.password,
-        options: {
-          data: {
-            full_name: fullName,
-            first_name: data.firstName.trim(),
-            last_name: data.lastName.trim(),
-            username,
-          },
-        },
+      setRequestEmail(normalizedEmail);
+      setInviteRequested(true);
+      toast({
+        title: 'Invite requested',
+        description: 'We’ll email a verification code when you’re approved.',
       });
-
-      if (error) {
-        toast({
-          title: 'Signup failed',
-          description: error.message,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (signupData.user && !signupData.session) {
-        setSignupEmail(normalizedEmail);
-        setVerificationSent(true);
-        return;
-      }
-
-      if (signupData.session) {
-        router.push('/dashboard');
-      }
     } catch {
       toast({
         title: 'Error',
@@ -357,23 +118,50 @@ export function CreateAccountPage() {
     }
   }
 
-  if (verificationSent) {
+  if (inviteRequested) {
     return (
-      <VerificationCodeStep
-        email={signupEmail}
-        onBack={() => {
-          setVerificationSent(false);
-          if (window.location.search.includes('preview=verify')) {
-            window.history.replaceState({}, '', window.location.pathname);
-          }
-        }}
-      />
+      <AuthLumaLayout
+        title="You’re on the list"
+        footerExtra={
+          <p className={authMutedClass}>
+            Already approved?{' '}
+            <Link href="/login" className={authLinkClass}>
+              Login
+            </Link>
+          </p>
+        }
+      >
+        <div className="foleio-auth-form-stack" style={{ gap: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              color: '#86efac',
+            }}
+          >
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={1.5} />
+            <div>
+              <p style={{ margin: 0, fontWeight: 600, color: '#fafafa' }}>
+                Request received for {requestEmail}
+              </p>
+              <p className={authMutedClass} style={{ marginTop: 8 }}>
+                We’ll email a verification code and link when an admin approves your
+                invite. Use the password you just chose to log in after that.
+              </p>
+            </div>
+          </div>
+          <Link href="/login" className={authButtonClass} style={{ textAlign: 'center' }}>
+            Go to login
+          </Link>
+        </div>
+      </AuthLumaLayout>
     );
   }
 
   return (
     <AuthLumaLayout
-      title="Manage your business on Foleio"
+      title="Creator, manage your business on Foleio"
       footerExtra={
         <p className={authMutedClass}>
           Already have an account?{' '}
@@ -396,7 +184,7 @@ export function CreateAccountPage() {
                 <FormItem>
                   <FormControl>
                     <div className="foleio-auth-row">
-                      <Pencil className="foleio-auth-row-icon h-5 w-5" strokeWidth={1.5} />
+                      <CircleUser className="foleio-auth-row-icon h-5 w-5" strokeWidth={1.5} />
                       <input
                         placeholder="First name"
                         className={authRowInputClass}
@@ -416,7 +204,7 @@ export function CreateAccountPage() {
                 <FormItem>
                   <FormControl>
                     <div className="foleio-auth-row">
-                      <Pencil className="foleio-auth-row-icon h-5 w-5" strokeWidth={1.5} />
+                      <CircleUser className="foleio-auth-row-icon h-5 w-5" strokeWidth={1.5} />
                       <input
                         placeholder="Last name"
                         className={authRowInputClass}
@@ -459,17 +247,14 @@ export function CreateAccountPage() {
             render={({ field }) => (
               <FormItem>
                 <FormControl>
-                  <div className="foleio-auth-row foleio-auth-row-tall">
-                    <User className="foleio-auth-row-icon mt-0.5 h-5 w-5" strokeWidth={1.5} />
-                    <div className="min-w-0 flex-1">
-                      <input
-                        placeholder="Business username"
-                        className={authRowInputClass}
-                        autoComplete="username"
-                        {...field}
-                      />
-                      <span className="foleio-auth-username-hint">e.g @Shosglam</span>
-                    </div>
+                  <div className="foleio-auth-row">
+                    <User className="foleio-auth-row-icon h-5 w-5" strokeWidth={1.5} />
+                    <input
+                      placeholder="Business username  e.g Shosglam"
+                      className={authRowInputClass}
+                      autoComplete="username"
+                      {...field}
+                    />
                   </div>
                 </FormControl>
                 <FormMessage />
@@ -554,7 +339,7 @@ export function CreateAccountPage() {
           </div>
 
           <button type="submit" className={authButtonClass} disabled={isLoading}>
-            {isLoading ? 'Setting up…' : 'Setup Business'}
+            {isLoading ? 'Submitting…' : 'Request invite'}
           </button>
         </form>
       </Form>

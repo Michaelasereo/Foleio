@@ -1,22 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import { getR2Client } from '@/lib/storage/r2-client';
+import { UploadService } from '@/lib/storage/upload-service';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Avatar uploads go to Supabase Storage bucket `crealio` (same as banners).
+ * Requires bucket + policies from scripts/crealio-storage-policies.sql
+ */
 export async function POST(request: Request) {
   try {
-    console.log('[upload-avatar] ENV check:', {
-      hasAccountId: !!process.env.CLOUDFLARE_ACCOUNT_ID,
-      hasAccessKey:
-        !!process.env.CLOUDFLARE_ACCESS_KEY_ID || !!process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,
-      hasSecret:
-        !!process.env.CLOUDFLARE_SECRET_ACCESS_KEY || !!process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
-      hasBucket: !!process.env.CLOUDFLARE_BUCKET_NAME || !!process.env.CLOUDFLARE_R2_BUCKET_NAME,
-      hasSupabaseServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    });
-
     const supabase = await createRouteHandlerClient();
     const {
       data: { user },
@@ -56,46 +50,41 @@ export async function POST(request: Request) {
 
     console.log('[upload-avatar] Upload start', {
       creatorId: creator.id,
+      userId: user.id,
       fileName: file.name,
       fileType: file.type,
       fileSize: file.size,
     });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const extension =
-      file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-    const key = `avatars/${creator.id}-${Date.now()}.${extension}`;
-    const r2 = getR2Client();
-    const uploaded = await r2.uploadFile(key, buffer, {
-      contentType: file.type,
+    const uploaded = await UploadService.upload({
+      userId: user.id,
+      file,
+      type: 'avatar',
       metadata: {
         creatorId: creator.id,
         uploadType: 'avatar',
-        userId: user.id,
       },
-      isPublic: true,
+      optimizeImages: true,
+      maxSizeMB: 5,
     });
-    const uploadUrl = uploaded.url;
-    const uploadKey = uploaded.key;
-    console.log('[upload-avatar] R2 upload success:', uploadUrl);
 
     await prisma.creator.update({
       where: { id: creator.id },
-      data: { avatarUrl: uploadUrl },
+      data: { avatarUrl: uploaded.url },
     });
 
-    console.log('[upload-avatar] DB updated for creator:', creator.id);
+    console.log('[upload-avatar] Supabase + DB success:', uploaded.url);
 
     return NextResponse.json({
       success: true,
-      url: uploadUrl,
-      key: uploadKey,
+      url: uploaded.url,
+      key: uploaded.key,
       data: {
-        url: uploadUrl,
-        key: uploadKey,
+        url: uploaded.url,
+        key: uploaded.key,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[upload-avatar] Error:', error);
     return NextResponse.json(
       {

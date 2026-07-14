@@ -42,7 +42,11 @@ export function validateEnvironment(): EnvValidationResult {
   const recommended = [
     'REDIS_URL',
     'SENTRY_DSN',
-    'NODE_ENV'
+    'NODE_ENV',
+    'NEXT_PUBLIC_DOJAH_APP_ID',
+    'NEXT_PUBLIC_DOJAH_PUBLIC_KEY',
+    'NEXT_PUBLIC_DOJAH_WIDGET_ID',
+    'DOJAH_SECRET_KEY',
   ];
 
   const missing: string[] = [];
@@ -122,15 +126,21 @@ export function validateAndExit(): void {
   const result = validateEnvironment();
 
   if (!result.valid) {
+    const isDev = process.env.NODE_ENV !== 'production';
     console.error('❌ CRITICAL: Missing required environment variables:');
-    result.missing.forEach(key => console.error(`   - ${key}`));
+    result.missing.forEach((key) => console.error(`   - ${key}`));
     console.error('\n💡 Please set these variables in your .env.local file');
-    process.exit(1); // Fail fast
+    // In local/dev, don't kill the whole Next process on a transient miss
+    // (HMR/worker race). Fail hard in production only.
+    if (!isDev) {
+      process.exit(1);
+    }
+    return;
   }
 
   if (result.warnings.length > 0) {
     console.warn('⚠️  ENVIRONMENT WARNINGS:');
-    result.warnings.forEach(warning => console.warn(`   - ${warning}`));
+    result.warnings.forEach((warning) => console.warn(`   - ${warning}`));
     console.warn('');
   }
 

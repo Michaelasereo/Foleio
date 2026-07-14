@@ -3,10 +3,12 @@ import { prisma } from '@foleio/database';
 import { subscriptionConfirmationEmail } from './templates/subscription-confirmation';
 import { contentPurchaseEmail } from './templates/content-purchase';
 import { bookingConfirmationEmail } from './templates/booking-confirmation';
+import { bookingCreatorNotificationEmail } from './templates/booking-creator-notification';
 import { bookingStatusUpdateEmail } from './templates/booking-status-update';
 import { payoutConfirmationEmail } from './templates/payout-confirmation';
 import { foundingCreatorResetEmailTemplate } from './templates/founding-creator-reset';
 import { baseEmailTemplate } from './base-template';
+import { getFoleioLogoAttachment } from './foleio-dark-email';
 
 function canSendEmails() {
   return (
@@ -19,6 +21,7 @@ async function sendEmail(payload: {
   to: string;
   subject: string;
   html: string;
+  withLogo?: boolean;
 }) {
   if (!canSendEmails()) {
     console.log('📧 Email skipped (dev mode):', payload.subject, payload.to);
@@ -26,11 +29,16 @@ async function sendEmail(payload: {
   }
 
   try {
+    const attachments = payload.withLogo
+      ? [await getFoleioLogoAttachment()]
+      : undefined;
+
     await resend.emails.send({
       from: FROM_EMAIL,
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
+      ...(attachments ? { attachments } : {}),
     });
     return { success: true };
   } catch (error) {
@@ -84,12 +92,49 @@ export async function sendBookingConfirmation(data: {
   trackingUrl: string;
   serviceType?: string | null;
   calendlyLink?: string | null;
+  paymentPlan?: string;
+  amountPaid?: number;
+  balanceAmount?: number;
+  status?: string;
 }) {
   try {
     const { subject, html } = bookingConfirmationEmail(data);
-    return await sendEmail({ to: data.customerEmail, subject, html });
+    return await sendEmail({
+      to: data.customerEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
   } catch (error) {
     console.error('sendBookingConfirmation failed:', error);
+    return { success: false };
+  }
+}
+
+export async function sendBookingCreatorNotification(data: {
+  creatorEmail: string;
+  creatorName: string;
+  customerName: string;
+  customerEmail: string;
+  serviceName: string;
+  bookingDate: string;
+  amount: number;
+  bookingUrl: string;
+  paymentPlan?: string;
+  amountPaid?: number;
+  balanceAmount?: number;
+  status?: string;
+}) {
+  try {
+    const { subject, html } = bookingCreatorNotificationEmail(data);
+    return await sendEmail({
+      to: data.creatorEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendBookingCreatorNotification failed:', error);
     return { success: false };
   }
 }

@@ -13,6 +13,12 @@ interface PriceListItem {
   calendlyLink?: string | null;
   price: number;
   durationMinutes: number | null;
+  addons?: Array<{ id: string; name: string; price: number }> | null;
+  inclusions?: string[] | null;
+  coverImageUrl?: string | null;
+  depositType?: string | null;
+  depositValue?: number | null;
+  allowPayInFull?: boolean | null;
 }
 
 interface GroupedPriceList {

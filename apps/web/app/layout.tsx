@@ -120,6 +120,9 @@ export default function RootLayout({
               <Link href="/legal/privacy" className="hover:text-foreground">
                 Privacy Policy
               </Link>
+              <Link href="/legal/data-policy" className="hover:text-foreground">
+                Data Policy
+              </Link>
               <Link href="/legal/creator-agreement" className="hover:text-foreground">
                 Creator Agreement
               </Link>

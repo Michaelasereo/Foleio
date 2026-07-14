@@ -1,8 +1,7 @@
 'use client';
 
 import { Component, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
 
 interface Props {
   children: ReactNode;
@@ -26,7 +25,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
-    // You can log to an error reporting service here
   }
 
   render() {
@@ -36,30 +34,23 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex min-h-screen items-center justify-center p-4">
-          <Card className="max-w-md">
-            <CardHeader>
-              <CardTitle>Something went wrong</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {this.state.error?.message || 'An unexpected error occurred'}
-              </p>
-              <Button
-                onClick={() => {
-                  this.setState({ hasError: false, error: null });
-                  window.location.reload();
-                }}
-              >
-                Try again
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <FoleioStatusPage
+          title="Something went wrong"
+          description={
+            this.state.error?.message || 'An unexpected error occurred.'
+          }
+          primaryAction={{
+            label: 'Try again',
+            onClick: () => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            },
+          }}
+          secondaryAction={{ label: 'Go home', href: '/', variant: 'outline' }}
+        />
       );
     }
 
     return this.props.children;
   }
 }
-

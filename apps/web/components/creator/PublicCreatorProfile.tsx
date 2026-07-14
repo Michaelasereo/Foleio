@@ -1,12 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { BadgeCheck, Calendar, Link2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BadgeCheck, Calendar, Link2, X } from 'lucide-react';
 import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { authCss } from '@/components/auth/styles';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
+import { BusinessCoverCard } from '@/components/creator/BusinessCoverCard';
 import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
+import {
+  cleanSocialUrl,
+  resolveInstagramHref,
+  resolveTiktokHref,
+} from '@/lib/creator/social-urls';
+import { isPaymentsReady } from '@/lib/creator/payments-ready';
+import { publicGalleryItems } from '@/lib/creator/portfolio-gallery';
 
 interface CreatorLink {
   id: string;
@@ -26,6 +34,25 @@ interface PriceListItem {
   calendlyLink?: string | null;
   price: number;
   durationMinutes: number | null;
+  addons?: Array<{ id: string; name: string; price: number }> | null;
+  inclusions?: string[] | null;
+  coverImageUrl?: string | null;
+  depositType?: string | null;
+  depositValue?: number | null;
+  allowPayInFull?: boolean | null;
+}
+
+interface PortfolioSectionPublic {
+  id: string;
+  name: string;
+  description: string | null;
+  items: Array<{
+    id: string;
+    imageUrl: string;
+    caption: string | null;
+    priceListItemId: string | null;
+    orderIndex?: number;
+  }>;
 }
 
 interface GroupedPriceList {
@@ -60,8 +87,10 @@ interface Creator {
   availability: Availability[];
   creatorPlans: unknown[];
   platformPlan?: string | null;
+  platformSubscriptionActive?: boolean | null;
   paystackSubaccountCode?: string | null;
   subaccountStatus?: string | null;
+  bvnVerified?: boolean | null;
 }
 
 interface PublicCreatorProfileProps {
@@ -72,6 +101,8 @@ interface PublicCreatorProfileProps {
   journalEntries?: unknown[];
   groupedPriceList: GroupedPriceList[];
   hasActiveProducts?: boolean;
+  portfolioSections?: PortfolioSectionPublic[];
+  requireDojahKyc?: boolean;
 }
 
 const publicProfileCss = `
@@ -375,12 +406,6 @@ function isPlaceholderBio(bio?: string | null) {
   return false;
 }
 
-const SAMPLE_LINKS: Array<{ id: string; label: string; url: string }> = [
-  { id: 'sample-ig', label: 'Instagram', url: 'https://instagram.com' },
-  { id: 'sample-tiktok', label: 'TikTok', url: 'https://tiktok.com' },
-  { id: 'sample-portfolio', label: 'Portfolio', url: 'https://foleio.com' },
-];
-
 const SAMPLE_GROUPED: GroupedPriceList[] = [
   {
     category: null,
@@ -435,13 +460,29 @@ function buildSampleAvailability(): Availability[] {
 export function PublicCreatorProfile({
   creator,
   groupedPriceList,
+  portfolioSections = [],
+  requireDojahKyc = false,
 }: PublicCreatorProfileProps) {
   const [priceListOpen, setPriceListOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<PriceListItem | null>(null);
   const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null);
+  const [galleryLightbox, setGalleryLightbox] = useState<{
+    id: string;
+    imageUrl: string;
+    caption: string | null;
+  } | null>(null);
 
-  const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
+  useEffect(() => {
+    if (!galleryLightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGalleryLightbox(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [galleryLightbox]);
+
+  const galleryItems = publicGalleryItems(portfolioSections);
 
   const formatPrice = (priceInKobo: number) =>
     new Intl.NumberFormat('en-NG', {
@@ -478,14 +519,17 @@ export function PublicCreatorProfile({
 
   const hasPriceList = displayPriceListItems.length > 0;
   const hasAvailability = displayAvailability.length > 0;
-  const paymentsReady =
-    Boolean(creator.paystackSubaccountCode) &&
-    creator.subaccountStatus === 'ACTIVE';
-  // Sample preview can still open the drawer; live bookings require Paystack subaccount
-  const canBook =
-    hasPriceList &&
-    hasAvailability &&
-    (usingSampleServices || paymentsReady);
+  const paymentsReady = isPaymentsReady(creator, {
+    requireKyc: requireDojahKyc,
+  });
+  // Show Book when services + payments are ready. Past-only availability
+  // still opens the drawer (calendar shows "No available dates right now").
+  const canBook = hasPriceList && (usingSampleServices || paymentsReady);
+
+  const plan = (creator.platformPlan || '').toUpperCase();
+  const isProBadge =
+    Boolean(creator.platformSubscriptionActive) &&
+    (plan === 'PRO' || plan === 'PREMIUM');
 
   const industryLabel =
     INDUSTRY_OPTIONS.find((option) => option.value === creator.category)?.label ||
@@ -494,66 +538,69 @@ export function PublicCreatorProfile({
     ? `#${industryLabel.replace(/[^a-zA-Z0-9]+/g, '')}`
     : '';
 
-  const realLinks = [
-    creator.instagramHandle
+  const links = Array.isArray(creator.creatorLinks) ? creator.creatorLinks : [];
+  const twitterLink = links.find((link) => link.linkType === 'twitter');
+  const portfolioLink = links.find((link) => link.linkType === 'portfolio');
+  const managedLinkTypes = new Set(['twitter', 'portfolio', 'instagram', 'tiktok']);
+
+  const instagramHref = resolveInstagramHref(creator.instagramHandle);
+  const tiktokHref = resolveTiktokHref(creator.tiktokHandle);
+  const twitterHref = cleanSocialUrl(twitterLink?.url);
+  const portfolioHref = cleanSocialUrl(portfolioLink?.url);
+
+  const socialLinks = [
+    instagramHref
+      ? { id: 'instagram', label: 'Instagram', url: instagramHref }
+      : null,
+    tiktokHref ? { id: 'tiktok', label: 'TikTok', url: tiktokHref } : null,
+    twitterHref
+      ? { id: twitterLink?.id || 'twitter', label: 'X', url: twitterHref }
+      : null,
+    portfolioHref
       ? {
-          id: 'instagram',
-          label: 'Instagram',
-          url: `https://instagram.com/${creator.instagramHandle.replace(/^@/, '')}`,
+          id: portfolioLink?.id || 'portfolio',
+          label: 'Portfolio',
+          url: portfolioHref,
         }
       : null,
-    creator.tiktokHandle
-      ? {
-          id: 'tiktok',
-          label: 'TikTok',
-          url: `https://tiktok.com/@${creator.tiktokHandle.replace(/^@/, '')}`,
-        }
-      : null,
-    ...(Array.isArray(creator.creatorLinks)
-      ? creator.creatorLinks
-          .filter((link) => link.url && link.url !== '#price-list')
-          .map((link) => ({
-            id: link.id,
-            label: link.label || 'Link',
-            url: normalizeUrl(link.url),
-          }))
-      : []),
+    ...links
+      .filter(
+        (link) =>
+          link.url &&
+          link.url !== '#price-list' &&
+          !managedLinkTypes.has(link.linkType)
+      )
+      .map((link) => {
+        const url = cleanSocialUrl(link.url);
+        if (!url) return null;
+        return {
+          id: link.id,
+          label: link.label || 'Link',
+          url,
+        };
+      }),
   ].filter(Boolean) as Array<{ id: string; label: string; url: string }>;
 
-  const socialLinks = realLinks.length > 0 ? realLinks : SAMPLE_LINKS;
   const displayBio = isPlaceholderBio(creator.bio) ? SAMPLE_BIO : creator.bio!.trim();
 
   const servicesMeta = usingSampleServices
     ? 'Sample services for preview — publish your own from Bookings.'
     : canBook
-      ? 'Choose a service to book a date.'
-      : hasPriceList && !paymentsReady
-        ? 'Payments not set up yet — booking will open once the creator connects a bank account.'
-        : hasPriceList
-          ? 'Services are listed below. Booking opens when dates are available.'
-          : 'No services published yet.';
+      ? hasAvailability
+        ? 'Choose a service to book a date.'
+        : 'Choose a service — add future available dates in Bookings so clients can pick a day.'
+      : hasPriceList
+        ? 'Services from this creator.'
+        : 'No services published yet.';
 
   return (
     <div className="foleio-public-root">
       <style dangerouslySetInnerHTML={{ __html: publicProfileCss }} />
 
-      {creator.bannerUrl ? (
-        <div className="foleio-public-banner has-image">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={creator.bannerUrl} alt="" />
-        </div>
-      ) : null}
-
       <div className="foleio-public-shell">
         <div className="foleio-public-columns">
           <aside className="foleio-public-left">
-            <div className="foleio-auth-preview" aria-hidden>
-              <div className="foleio-auth-preview-bars">
-                <div className="foleio-auth-preview-bar" />
-                <div className="foleio-auth-preview-bar" />
-                <div className="foleio-auth-preview-bar" />
-              </div>
-            </div>
+            <BusinessCoverCard bannerUrl={creator.bannerUrl} />
 
             <div className="foleio-auth-stub">
               <div className="foleio-auth-stub-main">
@@ -571,7 +618,10 @@ export function PublicCreatorProfile({
                   ) : null}
                 </div>
               </div>
-              <div className="foleio-auth-stub-badge" aria-label="Verified">
+              <div
+                className={`foleio-auth-stub-badge${isProBadge ? ' is-pro' : ''}`}
+                aria-label={isProBadge ? 'Pro verified' : 'Verified'}
+              >
                 <BadgeCheck className="h-6 w-6" strokeWidth={1.5} />
               </div>
             </div>
@@ -587,59 +637,7 @@ export function PublicCreatorProfile({
                 <Calendar strokeWidth={1.75} />
                 Book service
               </button>
-            ) : hasPriceList && !usingSampleServices && !paymentsReady ? (
-              <p className="foleio-public-panel-meta" style={{ marginTop: 4 }}>
-                Payments not set up yet
-              </p>
             ) : null}
-          </aside>
-
-          <div className="foleio-public-right">
-            <section className="foleio-public-panel">
-              <h2 className="foleio-public-panel-title">Services</h2>
-              <p className="foleio-public-panel-meta">{servicesMeta}</p>
-
-              {displayGrouped.length === 0 ? (
-                <p className="foleio-public-empty">Check back soon for booking options.</p>
-              ) : (
-                displayGrouped.map((group) => (
-                  <div key={group.category || 'uncategorized'} className="foleio-public-group">
-                    {group.category ? (
-                      <h3 className="foleio-public-group-label">{group.category}</h3>
-                    ) : null}
-                    {group.items.map((item) => (
-                      <div key={item.id} className="foleio-public-service">
-                        <div className="foleio-public-service-main">
-                          <p className="foleio-public-service-name">{item.name}</p>
-                          {item.description ? (
-                            <p className="foleio-public-service-desc">{item.description}</p>
-                          ) : null}
-                          {item.durationMinutes ? (
-                            <p className="foleio-public-service-meta">
-                              {item.durationMinutes} min
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="foleio-public-service-side">
-                          <span className="foleio-public-service-price">
-                            {formatPrice(item.price)}
-                          </span>
-                          {canBook ? (
-                            <button
-                              type="button"
-                              className="foleio-public-btn-outline"
-                              onClick={() => openServiceDrawer(item.id)}
-                            >
-                              Book
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))
-              )}
-            </section>
 
             {socialLinks.length > 0 ? (
               <div className="foleio-public-links">
@@ -657,6 +655,141 @@ export function PublicCreatorProfile({
                 ))}
               </div>
             ) : null}
+          </aside>
+
+          <div className="foleio-public-right">
+            {galleryItems.length > 0 ? (
+              <section className="foleio-public-panel">
+                <h2 className="foleio-public-panel-title">Gallery</h2>
+                <p className="foleio-public-panel-meta">Selected work</p>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: 8,
+                    marginTop: 12,
+                  }}
+                >
+                  {galleryItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setGalleryLightbox(item)}
+                      style={{
+                        padding: 0,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                      }}
+                      aria-label={item.caption || 'View gallery photo'}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.imageUrl}
+                        alt={item.caption || 'Gallery photo'}
+                        style={{
+                          width: '100%',
+                          aspectRatio: '1',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="foleio-public-panel">
+              <h2 className="foleio-public-panel-title">Services</h2>
+              <p className="foleio-public-panel-meta">{servicesMeta}</p>
+
+              {displayGrouped.length === 0 ? (
+                <p className="foleio-public-empty">Check back soon for booking options.</p>
+              ) : (
+                displayGrouped.map((group) => (
+                  <div key={group.category || 'uncategorized'} className="foleio-public-group">
+                    {group.category ? (
+                      <h3 className="foleio-public-group-label">{group.category}</h3>
+                    ) : null}
+                    {group.items.map((item) => {
+                      const inclusions = Array.isArray(item.inclusions)
+                        ? item.inclusions.filter((row) => typeof row === 'string')
+                        : [];
+                      let depositLabel: string | null = null;
+                      if (item.depositType === 'percent' && item.depositValue) {
+                        const dep = Math.floor(
+                          (item.price * Number(item.depositValue)) / 100
+                        );
+                        depositLabel = `From ${formatPrice(dep)} deposit`;
+                      } else if (item.depositType === 'fixed' && item.depositValue) {
+                        depositLabel = `From ${formatPrice(item.depositValue)} deposit`;
+                      }
+
+                      return (
+                      <div key={item.id} className="foleio-public-service">
+                        <div className="foleio-public-service-main">
+                          {item.coverImageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.coverImageUrl}
+                              alt=""
+                              style={{
+                                width: '100%',
+                                maxWidth: 220,
+                                aspectRatio: '16/10',
+                                objectFit: 'cover',
+                                borderRadius: 10,
+                                marginBottom: 10,
+                              }}
+                            />
+                          ) : null}
+                          <p className="foleio-public-service-name">{item.name}</p>
+                          {item.description ? (
+                            <p className="foleio-public-service-desc">{item.description}</p>
+                          ) : null}
+                          {inclusions.length > 0 ? (
+                            <ul
+                              className="foleio-public-service-desc"
+                              style={{ paddingLeft: 18, margin: '6px 0' }}
+                            >
+                              {inclusions.slice(0, 4).map((line) => (
+                                <li key={line}>{line}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          {item.durationMinutes ? (
+                            <p className="foleio-public-service-meta">
+                              {item.durationMinutes} min
+                            </p>
+                          ) : null}
+                          {depositLabel ? (
+                            <p className="foleio-public-service-meta">{depositLabel}</p>
+                          ) : null}
+                        </div>
+                        <div className="foleio-public-service-side">
+                          <span className="foleio-public-service-price">
+                            {formatPrice(item.price)}
+                          </span>
+                          {canBook ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openServiceDrawer(item.id)}
+                            >
+                              Book
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </section>
           </div>
         </div>
       </div>
@@ -689,6 +822,74 @@ export function PublicCreatorProfile({
           onBack={handleBackToServices}
           isPreview={usingSampleServices}
         />
+      ) : null}
+
+      {galleryLightbox ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Gallery photo"
+          onClick={() => setGalleryLightbox(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            background: 'rgba(0,0,0,0.82)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: 640,
+              width: '100%',
+              background: '#212121',
+              borderRadius: 14,
+              padding: 16,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setGalleryLightbox(null)}
+              aria-label="Close"
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                zIndex: 1,
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(0,0,0,0.35)',
+                color: '#fafafa',
+                borderRadius: 8,
+                padding: 8,
+                cursor: 'pointer',
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={galleryLightbox.imageUrl}
+              alt={galleryLightbox.caption || 'Gallery photo'}
+              style={{
+                width: '100%',
+                maxHeight: '75vh',
+                objectFit: 'contain',
+                borderRadius: 10,
+                background: '#111',
+              }}
+            />
+            {galleryLightbox.caption ? (
+              <p className="foleio-public-panel-meta" style={{ marginTop: 12 }}>
+                {galleryLightbox.caption}
+              </p>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </div>
   );

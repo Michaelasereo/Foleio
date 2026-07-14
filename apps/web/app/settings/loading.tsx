@@ -43,7 +43,7 @@ export default function SettingsLoading() {
       </div>
 
       <div className="foleio-dash-loading-tabs">
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
             className="foleio-dash-loading-bar"

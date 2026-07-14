@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createBookingRequest } from '@/lib/actions/booking';
 import { prisma } from '@foleio/database';
 import { getPlanLimits } from '@/lib/utils/plan-limits';
+import { serializeForClient } from '@/lib/utils';
+import { isPaymentsReady } from '@/lib/creator/payments-ready';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
 import { z } from 'zod';
 
 const createBookingSchema = z.object({
@@ -13,6 +16,8 @@ const createBookingSchema = z.object({
   customerAddress: z.string().min(10, 'Address is required'),
   bookingDate: z.string(),
   notes: z.string().optional(),
+  paymentPlan: z.enum(['full', 'deposit']).optional(),
+  selectedAddonIds: z.array(z.string()).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -29,10 +34,23 @@ export async function POST(request: NextRequest) {
 
     const creator = await prisma.creator.findUnique({
       where: { id: validation.data.creatorId },
-      select: { id: true, platformPlan: true },
+      select: {
+        id: true,
+        platformPlan: true,
+        bvnVerified: true,
+        paystackSubaccountCode: true,
+        subaccountStatus: true,
+      },
     });
     if (!creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    if (!isPaymentsReady(creator, { requireKyc: await isDojahKycRequired() })) {
+      return NextResponse.json(
+        { error: 'This creator is not accepting bookings yet.' },
+        { status: 400 }
+      );
     }
 
     const limits = getPlanLimits(creator.platformPlan ?? null);
@@ -66,7 +84,7 @@ export async function POST(request: NextRequest) {
     // Return booking details for payment initialization
     return NextResponse.json({
       success: true,
-      booking: result.data,
+      booking: serializeForClient(result.data),
       trackingToken: result.trackingToken,
     });
   } catch (error) {

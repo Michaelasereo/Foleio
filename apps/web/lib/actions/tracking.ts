@@ -120,9 +120,9 @@ function getBookingProgress(status: string): {
 } {
   const steps = [
     { 
-      name: 'Booking Confirmed',
-      statuses: ['paid', 'first_payout_done'],
-      description: 'Your booking is confirmed and payment received',
+      name: 'Deposit / payment',
+      statuses: ['deposit_paid', 'paid', 'first_payout_done'],
+      description: 'Payment received for your booking',
     },
     { 
       name: 'Service Day',
@@ -173,6 +173,30 @@ function getBookingProgress(status: string): {
   }
 
   // Determine current step based on status
+  if (status === 'deposit_paid') {
+    currentStep = 1;
+    return {
+      step: 1,
+      steps: [
+        {
+          name: 'Deposit paid',
+          status: 'completed' as const,
+          description: 'Your deposit is paid and the date is held',
+        },
+        {
+          name: 'Balance due',
+          status: 'current' as const,
+          description: 'Pay the remaining balance to complete payment',
+        },
+        {
+          name: 'Service day',
+          status: 'upcoming' as const,
+          description: 'The service day has arrived',
+        },
+      ],
+    };
+  }
+
   if (['paid', 'first_payout_done'].includes(status)) {
     currentStep = 1;
   } else if (status === 'service_day') {

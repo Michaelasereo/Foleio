@@ -45,7 +45,7 @@ export class R2StorageClient {
       Body: file,
       ContentType: options.contentType || 'application/octet-stream',
       Metadata: options.metadata,
-      ACL: options.isPublic ? 'public-read' : undefined,
+      // R2 does not use S3 ACLs; public access is via r2.dev / custom domain.
     });
 
     await this.client.send(command);
@@ -104,6 +104,32 @@ export class R2StorageClient {
 // Singleton instance
 let r2Client: R2StorageClient | null = null;
 
+function resolvePublicUrl(accountId: string): string {
+  const raw =
+    process.env.R2_PUBLIC_URL ||
+    process.env.CLOUDFLARE_R2_PUBLIC_URL ||
+    '';
+  const cleaned = raw.trim().replace(/\/+$/, '');
+
+  const isPlaceholder =
+    !cleaned ||
+    /your-r2-domain\.com/i.test(cleaned) ||
+    /example\.com/i.test(cleaned) ||
+    /placeholder/i.test(cleaned);
+
+  if (!isPlaceholder) {
+    return cleaned;
+  }
+
+  // Wrong fallback shape: pub-{accountId}.r2.dev is NOT valid.
+  // Use the bucket Public Development URL from Cloudflare → R2 → bucket → Settings.
+  throw new Error(
+    'CLOUDFLARE_R2_PUBLIC_URL is missing or still a placeholder (e.g. your-r2-domain.com). ' +
+      'In Cloudflare Dashboard → R2 → your bucket → Settings → Public access, enable the r2.dev subdomain ' +
+      'and set CLOUDFLARE_R2_PUBLIC_URL to that URL (https://pub-xxxx.r2.dev) with no trailing slash.'
+  );
+}
+
 export function getR2Client(): R2StorageClient {
   if (!r2Client) {
     const accountId = process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -130,7 +156,7 @@ export function getR2Client(): R2StorageClient {
       accessKeyId,
       secretAccessKey,
       bucketName,
-      publicUrl: process.env.R2_PUBLIC_URL || process.env.CLOUDFLARE_R2_PUBLIC_URL || `https://pub-${accountId}.r2.dev`,
+      publicUrl: resolvePublicUrl(accountId),
     });
   }
 

@@ -21,6 +21,11 @@ const priceListItemSchema = z.object({
   price: z.number().min(0, 'Price must be positive'),
   durationMinutes: z.number().optional().nullable(),
   addons: z.array(addonSchema).optional(),
+  inclusions: z.array(z.string().min(1)).optional(),
+  coverImageUrl: z.string().url().optional().nullable().or(z.literal('')),
+  depositType: z.enum(['percent', 'fixed']).optional().nullable(),
+  depositValue: z.number().int().min(0).optional().nullable(),
+  allowPayInFull: z.boolean().optional(),
   orderIndex: z.number().optional(),
   categoryOrderIndex: z.number().optional(),
 });
@@ -95,6 +100,11 @@ export async function createPriceListItem(data: PriceListItemInput) {
         price: data.price,
         durationMinutes: data.durationMinutes || null,
         addons: data.addons ?? [],
+        inclusions: data.inclusions ?? [],
+        coverImageUrl: data.coverImageUrl || null,
+        depositType: data.depositType ?? null,
+        depositValue: data.depositValue ?? null,
+        allowPayInFull: data.allowPayInFull ?? true,
         orderIndex: data.orderIndex ?? (maxOrder?.orderIndex || 0) + 1,
         categoryOrderIndex: categoryOrderIndex || 0,
       },
@@ -150,6 +160,19 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
           durationMinutes: data.durationMinutes || null,
         }),
         ...(data.addons !== undefined && { addons: data.addons }),
+        ...(data.inclusions !== undefined && { inclusions: data.inclusions }),
+        ...(data.coverImageUrl !== undefined && {
+          coverImageUrl: data.coverImageUrl || null,
+        }),
+        ...(data.depositType !== undefined && {
+          depositType: data.depositType || null,
+        }),
+        ...(data.depositValue !== undefined && {
+          depositValue: data.depositValue ?? null,
+        }),
+        ...(data.allowPayInFull !== undefined && {
+          allowPayInFull: data.allowPayInFull,
+        }),
         ...(data.orderIndex !== undefined && { orderIndex: data.orderIndex }),
         ...(data.categoryOrderIndex !== undefined && { categoryOrderIndex: data.categoryOrderIndex }),
       },

@@ -32,6 +32,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { FanSupportChat } from '@/components/ai/FanSupportChat';
+import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
 
 interface BookingData {
   id: string;
@@ -40,6 +41,10 @@ interface BookingData {
   customerEmail: string;
   bookingDate: string;
   totalAmount: number;
+  depositAmount?: number;
+  balanceAmount?: number;
+  amountPaid?: number;
+  paymentPlan?: string;
   notes: string | null;
   disputeReason: string | null;
   disputeStatus: string | null;
@@ -79,6 +84,7 @@ export default function TrackingPage() {
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [refundReason, setRefundReason] = useState('');
   const [isRequestingRefund, setIsRequestingRefund] = useState(false);
+  const [isPayingBalance, setIsPayingBalance] = useState(false);
 
   // Load preview on mount
   useEffect(() => {
@@ -176,6 +182,7 @@ export default function TrackingPage() {
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
       pending: { label: 'Pending Payment', variant: 'outline' },
+      deposit_paid: { label: 'Deposit paid', variant: 'default' },
       paid: { label: 'Paid', variant: 'default' },
       first_payout_done: { label: 'Confirmed', variant: 'default' },
       service_day: { label: 'Service Day', variant: 'default' },
@@ -215,10 +222,11 @@ export default function TrackingPage() {
   if (isLoading) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-        <TrackingBrandingFooter />
+        <FoleioStatusPage
+          title="Loading booking"
+          description="Fetching your booking details…"
+          icon={<Loader2 className="h-6 w-6 animate-spin" strokeWidth={1.5} />}
+        />
         <FanSupportChat />
       </>
     );
@@ -227,16 +235,18 @@ export default function TrackingPage() {
   if (error && !isVerified) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <Card className="max-w-md w-full">
-            <CardContent className="pt-6 text-center">
-              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Booking Not Found</h2>
-              <p className="text-muted-foreground">{error}</p>
-            </CardContent>
-          </Card>
-        </div>
-        <TrackingBrandingFooter />
+        <FoleioStatusPage
+          title="Booking not found"
+          description={error}
+          icon={<AlertCircle className="h-6 w-6" strokeWidth={1.5} />}
+          iconTone="err"
+          primaryAction={{ label: 'Go home', href: '/' }}
+          secondaryAction={{
+            label: 'Become a creator',
+            href: '/signup',
+            variant: 'outline',
+          }}
+        />
         <FanSupportChat />
       </>
     );
@@ -435,8 +445,17 @@ export default function TrackingPage() {
 
             {/* Amount */}
             <div>
-              <p className="text-sm text-muted-foreground">Amount Paid</p>
-              <p className="font-bold text-lg">{formatPrice(booking.totalAmount)}</p>
+              <p className="text-sm text-muted-foreground">
+                {booking.status === 'deposit_paid' ? 'Amount paid (deposit)' : 'Amount Paid'}
+              </p>
+              <p className="font-bold text-lg">
+                {formatPrice(booking.amountPaid ?? booking.totalAmount)}
+              </p>
+              {booking.status === 'deposit_paid' && booking.balanceAmount ? (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Balance due: {formatPrice(booking.balanceAmount)}
+                </p>
+              ) : null}
             </div>
 
             {/* Notes */}
@@ -449,8 +468,80 @@ export default function TrackingPage() {
           </CardContent>
         </Card>
 
+        {booking.status === 'deposit_paid' && booking.balanceAmount ? (
+          <Card>
+            <CardContent className="pt-6">
+              <Button
+                className="w-full"
+                disabled={isPayingBalance}
+                onClick={async () => {
+                  setIsPayingBalance(true);
+                  try {
+                    const initRes = await fetch('/api/bookings/initialize-payment', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        bookingId: booking.id,
+                        paymentKind: 'balance',
+                      }),
+                    });
+                    const initData = await initRes.json();
+                    if (!initRes.ok) {
+                      throw new Error(initData.error || 'Could not start balance payment');
+                    }
+
+                    // @ts-ignore
+                    if (typeof window.PaystackPop === 'undefined') {
+                      if (initData.authorization_url) {
+                        window.location.href = initData.authorization_url;
+                        return;
+                      }
+                      throw new Error('Paystack is not available');
+                    }
+
+                    // @ts-ignore
+                    const handler = window.PaystackPop.setup({
+                      key: initData.publicKey,
+                      email: booking.customerEmail,
+                      amount: initData.amount,
+                      ref: initData.reference,
+                      subaccount: initData.subaccount,
+                      callback: async (response: { reference: string }) => {
+                        await fetch('/api/bookings/verify-payment', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            reference: response.reference,
+                            bookingId: booking.id,
+                            paymentKind: 'balance',
+                          }),
+                        });
+                        window.location.reload();
+                      },
+                      onClose: () => setIsPayingBalance(false),
+                    });
+                    handler.openIframe();
+                  } catch (err) {
+                    alert(
+                      err instanceof Error
+                        ? err.message
+                        : 'Could not start balance payment'
+                    );
+                    setIsPayingBalance(false);
+                  }
+                }}
+              >
+                {isPayingBalance ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Pay balance ({formatPrice(booking.balanceAmount)})
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* Refund Request Button */}
-        {['paid', 'first_payout_done', 'service_day'].includes(booking.status) && (
+        {['deposit_paid', 'paid', 'first_payout_done', 'service_day'].includes(booking.status) && (
           <Card>
             <CardContent className="pt-6">
               <Button

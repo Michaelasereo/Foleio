@@ -2,20 +2,36 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Camera, Copy, ExternalLink, Globe, Loader2, Share2 } from 'lucide-react';
+import { Camera, Copy, ExternalLink, Globe, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { ProfileCardModal } from '@/components/creator/ProfileCardModal';
-import { ProfileCardPreview } from '@/components/creator/ProfileCardPreview';
+import { broadcastAvatarUpdated } from '@/lib/creator/profile-live';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
+import { PortfolioGallerySettings } from '@/components/creator/PortfolioGallerySettings';
+import { BillingPage } from '@/components/creator/BillingPage';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
+import { parseSocialUrl } from '@/lib/creator/social-urls';
 
-type SettingsTab = 'profile' | 'notifications' | 'security';
+type SettingsTab = 'profile' | 'notifications' | 'security' | 'portfolio' | 'billing';
 
 const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'profile', label: 'Profile' },
+  { id: 'portfolio', label: 'Portfolio' },
+  { id: 'billing', label: 'Billing' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'security', label: 'Security' },
 ];
+
+type SubscriptionRecord = {
+  id: string;
+  plan: string;
+  amount: number;
+  status: string;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
 
 interface AccountSettingsTabsProps {
   creator: {
@@ -27,17 +43,25 @@ interface AccountSettingsTabsProps {
     avatarUrl?: string | null;
     instagramHandle?: string | null;
     tiktokHandle?: string | null;
+    twitterUrl?: string | null;
+    portfolioUrl?: string | null;
+  };
+  billing?: {
+    currentSubscription: SubscriptionRecord | null;
+    billingHistory: SubscriptionRecord[];
   };
 }
 
-export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
+export function AccountSettingsTabs({
+  creator,
+  billing,
+}: AccountSettingsTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
-  const [showCardModal, setShowCardModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(creator.avatarUrl || null);
@@ -45,19 +69,28 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
   const [displayName, setDisplayName] = useState(creator.displayName || '');
   const [bio, setBio] = useState(creator.bio || '');
   const [industry, setIndustry] = useState(creator.category || '');
-  const [instagramHandle, setInstagramHandle] = useState(creator.instagramHandle || '');
-  const [tiktokHandle, setTiktokHandle] = useState(creator.tiktokHandle || '');
+  const [instagramUrl, setInstagramUrl] = useState(creator.instagramHandle || '');
+  const [tiktokUrl, setTiktokUrl] = useState(creator.tiktokHandle || '');
+  const [twitterUrl, setTwitterUrl] = useState(creator.twitterUrl || '');
+  const [portfolioUrl, setPortfolioUrl] = useState(creator.portfolioUrl || '');
+  const [urlErrors, setUrlErrors] = useState<{
+    instagramUrl?: string;
+    tiktokUrl?: string;
+    twitterUrl?: string;
+    portfolioUrl?: string;
+  }>({});
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === 'profile' || tab === 'notifications' || tab === 'security') {
+    if (
+      tab === 'profile' ||
+      tab === 'notifications' ||
+      tab === 'security' ||
+      tab === 'portfolio' ||
+      tab === 'billing'
+    ) {
       setActiveTab(tab);
     }
-    if (searchParams.get('share') === 'true') {
-      const timer = setTimeout(() => setShowCardModal(true), 300);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
   }, [searchParams]);
 
   useEffect(() => {
@@ -74,8 +107,17 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
         setDisplayName(profile.displayName ?? creator.displayName ?? '');
         setBio(profile.bio ?? creator.bio ?? '');
         setIndustry(profile.industry ?? creator.category ?? '');
-        setInstagramHandle(profile.instagramHandle ?? creator.instagramHandle ?? '');
-        setTiktokHandle(profile.tiktokHandle ?? creator.tiktokHandle ?? '');
+        setInstagramUrl(
+          profile.instagramUrl ??
+            profile.instagramHandle ??
+            creator.instagramHandle ??
+            ''
+        );
+        setTiktokUrl(
+          profile.tiktokUrl ?? profile.tiktokHandle ?? creator.tiktokHandle ?? ''
+        );
+        setTwitterUrl(profile.twitterUrl ?? creator.twitterUrl ?? '');
+        setPortfolioUrl(profile.portfolioUrl ?? creator.portfolioUrl ?? '');
         setAvatarUrl(profile.avatarUrl ?? creator.avatarUrl ?? null);
       } catch {
         // Keep existing server-provided values if profile fetch fails.
@@ -91,19 +133,12 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
     creator.category,
     creator.displayName,
     creator.instagramHandle,
+    creator.portfolioUrl,
     creator.tiktokHandle,
+    creator.twitterUrl,
     creator.username,
   ]);
 
-  const currentCreator = useMemo(
-    () => ({
-      username: creator.username,
-      displayName: displayName.trim() || creator.displayName,
-      bio: bio.trim() || null,
-      avatarUrl,
-    }),
-    [avatarUrl, bio, creator.displayName, creator.username, displayName]
-  );
   const appBaseUrl = useMemo(() => {
     if (process.env.NEXT_PUBLIC_APP_URL) {
       return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '');
@@ -203,6 +238,9 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
         body: JSON.stringify({ avatarUrl: uploadedUrl }),
       });
 
+      broadcastAvatarUpdated(uploadedUrl);
+      router.refresh();
+
       toast({
         title: 'Profile photo updated',
         description: 'Your avatar is live across your profile.',
@@ -221,6 +259,40 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
   }
 
   async function handleSaveProfile() {
+    const fields = {
+      instagramUrl,
+      tiktokUrl,
+      twitterUrl,
+      portfolioUrl,
+    } as const;
+
+    const nextErrors: typeof urlErrors = {};
+    const cleaned: Record<keyof typeof fields, string> = {
+      instagramUrl: '',
+      tiktokUrl: '',
+      twitterUrl: '',
+      portfolioUrl: '',
+    };
+
+    (Object.keys(fields) as Array<keyof typeof fields>).forEach((key) => {
+      const parsed = parseSocialUrl(fields[key]);
+      if (!parsed.ok) {
+        nextErrors[key] = parsed.error;
+        return;
+      }
+      cleaned[key] = parsed.url || '';
+    });
+
+    setUrlErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      toast({
+        title: 'Check your links',
+        description: 'Enter a valid URL for each filled field, or leave it blank.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const response = await fetch('/api/creator/profile', {
@@ -232,8 +304,10 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
           bio: bio.trim(),
           industry,
           avatarUrl: avatarUrl || null,
-          instagramHandle: instagramHandle.trim(),
-          tiktokHandle: tiktokHandle.trim(),
+          instagramUrl: cleaned.instagramUrl,
+          tiktokUrl: cleaned.tiktokUrl,
+          twitterUrl: cleaned.twitterUrl,
+          portfolioUrl: cleaned.portfolioUrl,
         }),
       });
 
@@ -241,6 +315,20 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
       if (!response.ok) {
         throw new Error(payload?.error || 'Failed to save profile');
       }
+
+      const updated = payload?.creator;
+      if (updated) {
+        setInstagramUrl(updated.instagramUrl ?? cleaned.instagramUrl);
+        setTiktokUrl(updated.tiktokUrl ?? cleaned.tiktokUrl);
+        setTwitterUrl(updated.twitterUrl ?? cleaned.twitterUrl);
+        setPortfolioUrl(updated.portfolioUrl ?? cleaned.portfolioUrl);
+      } else {
+        setInstagramUrl(cleaned.instagramUrl);
+        setTiktokUrl(cleaned.tiktokUrl);
+        setTwitterUrl(cleaned.twitterUrl);
+        setPortfolioUrl(cleaned.portfolioUrl);
+      }
+      setUrlErrors({});
 
       toast({
         title: 'Saved',
@@ -405,25 +493,95 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
               </label>
 
               <label className="foleio-dash-field">
-                Instagram handle
+                Instagram URL
                 <input
-                  type="text"
-                  value={instagramHandle}
-                  onChange={(e) => setInstagramHandle(e.target.value)}
-                  placeholder="@username"
+                  type="url"
+                  value={instagramUrl}
+                  onChange={(e) => {
+                    setInstagramUrl(e.target.value);
+                    if (urlErrors.instagramUrl) {
+                      setUrlErrors((prev) => ({ ...prev, instagramUrl: undefined }));
+                    }
+                  }}
+                  placeholder="https://instagram.com/yourname"
                   className="foleio-dash-input"
+                  aria-invalid={Boolean(urlErrors.instagramUrl)}
                 />
+                {urlErrors.instagramUrl ? (
+                  <p className="foleio-dash-field-hint" style={{ color: '#b42318' }}>
+                    {urlErrors.instagramUrl}
+                  </p>
+                ) : null}
               </label>
 
               <label className="foleio-dash-field">
-                TikTok handle
+                TikTok URL
                 <input
-                  type="text"
-                  value={tiktokHandle}
-                  onChange={(e) => setTiktokHandle(e.target.value)}
-                  placeholder="@username"
+                  type="url"
+                  value={tiktokUrl}
+                  onChange={(e) => {
+                    setTiktokUrl(e.target.value);
+                    if (urlErrors.tiktokUrl) {
+                      setUrlErrors((prev) => ({ ...prev, tiktokUrl: undefined }));
+                    }
+                  }}
+                  placeholder="https://tiktok.com/@yourname"
                   className="foleio-dash-input"
+                  aria-invalid={Boolean(urlErrors.tiktokUrl)}
                 />
+                {urlErrors.tiktokUrl ? (
+                  <p className="foleio-dash-field-hint" style={{ color: '#b42318' }}>
+                    {urlErrors.tiktokUrl}
+                  </p>
+                ) : null}
+              </label>
+
+              <label className="foleio-dash-field">
+                X (formerly Twitter) URL
+                <input
+                  type="url"
+                  value={twitterUrl}
+                  onChange={(e) => {
+                    setTwitterUrl(e.target.value);
+                    if (urlErrors.twitterUrl) {
+                      setUrlErrors((prev) => ({ ...prev, twitterUrl: undefined }));
+                    }
+                  }}
+                  placeholder="https://x.com/yourname"
+                  className="foleio-dash-input"
+                  aria-invalid={Boolean(urlErrors.twitterUrl)}
+                />
+                {urlErrors.twitterUrl ? (
+                  <p className="foleio-dash-field-hint" style={{ color: '#b42318' }}>
+                    {urlErrors.twitterUrl}
+                  </p>
+                ) : null}
+              </label>
+
+              <label className="foleio-dash-field">
+                Portfolio URL
+                <input
+                  type="url"
+                  value={portfolioUrl}
+                  onChange={(e) => {
+                    setPortfolioUrl(e.target.value);
+                    if (urlErrors.portfolioUrl) {
+                      setUrlErrors((prev) => ({ ...prev, portfolioUrl: undefined }));
+                    }
+                  }}
+                  placeholder="https://yourportfolio.com"
+                  className="foleio-dash-input"
+                  aria-invalid={Boolean(urlErrors.portfolioUrl)}
+                />
+                {urlErrors.portfolioUrl ? (
+                  <p className="foleio-dash-field-hint" style={{ color: '#b42318' }}>
+                    {urlErrors.portfolioUrl}
+                  </p>
+                ) : (
+                  <p className="foleio-dash-field-hint">
+                    Only links you fill in appear on your public page. Leave blank to hide.
+                  </p>
+                )}
               </label>
 
               <div className="foleio-dash-field">
@@ -478,45 +636,19 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
             </div>
           </div>
 
-          <div className="foleio-dash-panel">
-            <h2 className="foleio-dash-panel-title">Share your profile card</h2>
-            <p className="foleio-dash-panel-meta">
-              Download a card to share on Instagram, WhatsApp and X
-            </p>
-            <div
-              className="foleio-dash-share-thumb"
-              onClick={() => setShowCardModal(true)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setShowCardModal(true);
-                }
-              }}
-            >
-              <ProfileCardPreview template="world" creator={currentCreator} size="thumbnail" />
-              <div className="foleio-dash-share-thumb-overlay">
-                <span className="foleio-dash-share-thumb-pill">
-                  <Share2 className="h-3.5 w-3.5" />
-                  Customise &amp; Share
-                </span>
-              </div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <button
-                type="button"
-                className="foleio-dash-btn-outline"
-                onClick={() => setShowCardModal(true)}
-              >
-                <Share2 className="h-4 w-4" />
-                Create share card
-              </button>
-            </div>
-          </div>
-
           <CreatorLinksManager />
         </div>
+      ) : null}
+
+      {activeTab === 'portfolio' ? <PortfolioGallerySettings /> : null}
+
+      {activeTab === 'billing' ? (
+        <BillingPage
+          embedded
+          creator={{ id: creator.id, displayName: creator.displayName }}
+          currentSubscription={billing?.currentSubscription || null}
+          billingHistory={billing?.billingHistory || []}
+        />
       ) : null}
 
       {activeTab === 'notifications' ? (
@@ -536,13 +668,6 @@ export function AccountSettingsTabs({ creator }: AccountSettingsTabsProps) {
           </p>
         </div>
       ) : null}
-
-      <ProfileCardModal
-        open={showCardModal}
-        onOpenChange={setShowCardModal}
-        onAvatarUpdated={(url) => setAvatarUrl(url)}
-        creator={currentCreator}
-      />
     </>
   );
 }

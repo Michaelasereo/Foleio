@@ -64,17 +64,54 @@ PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 FOLEIO_PLATFORM_FEE_PERCENT=5
+# Foleio Pro (₦10,000/month) — create Plan in Paystack Dashboard, paste code:
+PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxx
+# Optional legacy fallback only (prefer per-subscription email_token stored in DB):
+# PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN=
 ```
+
+**Foleio Pro plan (Paystack Dashboard):**
+1. Payments → Plans → Create plan
+2. Name: `Foleio Pro`, amount `1000000` (kobo = ₦10,000), interval monthly, currency NGN
+3. Copy the plan code into `PAYSTACK_PRO_PLAN_CODE`
+4. Free creators keep a 5% `percentage_charge` on their subaccount; Pro sets it to 0% automatically after upgrade (Paystack processor fees still apply)
+5. Cancel stores/uses each subscription’s Paystack `email_token` in the database (no shared disable token required)
 
 **Webhook Setup (for production):**
 1. Go to https://dashboard.paystack.com/#/settings/developer
-2. Set up a webhook URL: `https://your-domain.com/api/webhooks/paystack` (events: `charge.success`)
+2. Set up a webhook URL: `https://your-domain.com/api/webhooks/paystack` (events: `charge.success`, subscription create/disable/enable)
 3. Copy the webhook secret and add it to `PAYSTACK_WEBHOOK_SECRET`
 4. Ensure your Paystack business is activated for live subaccount settlements (ops / Phase 1)
 
 For local development, you can use ngrok to expose your local server for webhook testing.
 
-### 1.4 Resend Email Setup
+### 1.4 Dojah KYC (identity unlock)
+
+Creators unlock client booking in two steps: **(1) Dojah identity KYC**, then **(2) bank account** (Paystack subaccount/recipient). The public profile shows services anytime, but **Book** only appears when both pass (`bvnVerified` + active Paystack subaccount).
+
+Add to `apps/web/.env.local`:
+
+```env
+# Dojah — https://docs.dojah.io/docs/technical-reference/authentication
+# Dashboard: create an App, then copy App ID, public key, and secret key.
+NEXT_PUBLIC_DOJAH_APP_ID=your_dojah_app_id
+NEXT_PUBLIC_DOJAH_PUBLIC_KEY=your_dojah_public_key
+DOJAH_APP_ID=your_dojah_app_id
+DOJAH_SECRET_KEY=your_dojah_secret_key
+# Widget ID from EasyOnboard: https://app.dojah.io/easy-onboard
+NEXT_PUBLIC_DOJAH_WIDGET_ID=your_easyonboard_widget_id
+# Optional override (defaults: sandbox.dojah.io in non-prod, api.dojah.io in production)
+# DOJAH_BASE_URL=https://sandbox.dojah.io
+```
+
+**Dashboard setup (follow Dojah docs):**
+1. Create an App under Developers → Configuration → My Apps.
+2. Create/publish an EasyOnboard flow and copy the **widget_id**.
+3. Subscribe a webhook for service **KYC Widget** to `https://your-domain.com/api/webhooks/dojah`.
+4. Frontend uses the JS library (`https://widget.dojah.io/widget.js`) with `app_id`, `p_key`, and `config.widget_id` + `config.webhook: true`.
+5. After the widget finishes, the app confirms via `GET /api/v1/kyc/verification?reference_id=…` with headers `AppId` and `Authorization` (secret key, not Bearer). Do not trust SDK `onSuccess` alone.
+
+### 1.5 Resend Email Setup
 
 Your Resend API key:
 ```env
@@ -84,7 +121,17 @@ RESEND_FROM_EMAIL=noreply@foleio.ng
 
 Add this to `apps/web/.env.local`.
 
-### 1.5 Cloudflare Setup (Optional for development)
+**Signup verification (OTP via Resend, not Supabase templates):**
+
+1. Keep Resend API key in `.env.local` (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`).
+2. Set `RESEND_SEND_IN_DEV=true` for local testing.
+3. Signup creates the user with the Supabase **admin** API (`email_confirm: false`) and emails a 6-digit code with Resend — Supabase Auth email templates are not used.
+4. In Supabase **Authentication → Providers → Email**, you can leave “Confirm email” enabled (users stay blocked until our OTP confirms them). Optional: turn off Supabase SMTP if you no longer need password-reset emails from Supabase.
+5. Foleio’s signup/login UI asks for the Resend code after sign-up (or when email is still unverified).
+
+Password reset can still use Supabase’s link template (`{{ .ConfirmationURL }}`) pointing at `/reset-password` if SMTP remains configured.
+
+### 1.6 Cloudflare Setup (Optional for development)
 
 For file uploads and video hosting:
 ```env
@@ -160,6 +207,12 @@ This will start:
 
 - Use ngrok or similar tool to expose localhost for webhook testing
 - Set webhook URL in Paystack dashboard: `https://your-ngrok-url/api/webhooks/paystack`
+
+### Dojah KYC Webhook Issues
+
+- Subscribe service **KYC Widget** to `https://your-domain.com/api/webhooks/dojah` (use ngrok locally)
+- Confirm `DOJAH_SECRET_KEY` + App ID are set so `/api/creator/kyc/confirm` can call Get Verification Details
+- Widget needs `NEXT_PUBLIC_DOJAH_WIDGET_ID` from EasyOnboard; set `config.webhook: true` (already done in app code)
 
 ### Build Errors
 

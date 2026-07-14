@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.ts',
@@ -11,7 +13,7 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 20_000 },
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000',
+    baseURL,
     trace: 'on-first-retry',
     navigationTimeout: 60_000,
   },
@@ -23,8 +25,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'pnpm exec next dev --webpack -p 3000',
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
+    url: baseURL,
+    // Always reuse local/dev server when one is already up (avoids .next lock fights).
+    reuseExistingServer: true,
     timeout: 300_000,
   },
 });

@@ -8,6 +8,7 @@ import {
   sendPayoutRequestConfirmationEmail,
   sendPayoutRequestEmail,
 } from '@/lib/email/send';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
 
 const MIN_PAYOUT_KOBO = 100000;
 const MANUAL_MIN_PAYOUT_KOBO = 500000;
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, payout });
     }
 
-    if (!creator.bvnVerified) {
+    if ((await isDojahKycRequired()) && !creator.bvnVerified) {
       return NextResponse.json(
         { error: 'BVN verification required', code: 'BVN_REQUIRED' },
         { status: 403 }

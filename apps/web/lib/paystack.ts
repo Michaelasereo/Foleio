@@ -238,10 +238,38 @@ export const paystack = {
   },
 
   /**
+   * Fetch a subscription by code (includes email_token for disable/enable).
+   */
+  async fetchSubscription(code: string) {
+    const response = await fetch(
+      `${PAYSTACK_BASE_URL}/subscription/${encodeURIComponent(code)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        message: 'Failed to fetch subscription',
+      }));
+      throw new Error(error.message || 'Failed to fetch subscription');
+    }
+
+    return response.json();
+  },
+
+  /**
    * Disable a recurring subscription.
-   * Paystack requires both the subscription code and email token.
+   * Paystack requires both the subscription code and that subscription's email_token.
    */
   async disableSubscription(params: DisableSubscriptionParams) {
+    if (!params.token) {
+      throw new Error('Subscription email_token is required to cancel');
+    }
+
     const response = await fetch(`${PAYSTACK_BASE_URL}/subscription/disable`, {
       method: 'POST',
       headers: {
@@ -250,7 +278,7 @@ export const paystack = {
       },
       body: JSON.stringify({
         code: params.code,
-        token: params.token || process.env.PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN || '',
+        token: params.token,
       }),
     });
 

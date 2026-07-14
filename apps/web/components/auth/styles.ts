@@ -57,6 +57,9 @@ export const authCss = `
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   min-height: 38px;
   height: 38px;
   padding: 0 12px;
@@ -73,8 +76,9 @@ export const authCss = `
   flex-shrink: 0;
 }
 .foleio-auth-row-input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   height: 100%;
   background: transparent;
   border: none;
@@ -92,12 +96,24 @@ export const authCss = `
 }
 .foleio-auth-row-tall {
   min-height: 60px;
-  height: 60px;
+  height: auto;
   align-items: flex-start;
   padding-top: 10px;
+  padding-bottom: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.foleio-auth-row-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .foleio-auth-row-tall .foleio-auth-row-input {
   height: auto;
+  width: 100%;
 }
 .foleio-auth-username-hint {
   display: block;
@@ -198,7 +214,51 @@ export const authCss = `
 }
 .foleio-auth-link:hover { text-decoration: underline; color: #fafafa; }
 
-body:has(.foleio-auth-root) footer { display: none !important; }
+/* Hide global site footer on auth pages; keep in-layout legal footer */
+body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
+  display: none !important;
+}
+
+.foleio-auth-legal {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 28px 16px 8px;
+  text-align: center;
+  position: relative;
+  z-index: 10;
+}
+.foleio-auth-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.foleio-auth-legal-links a {
+  color: rgba(250, 250, 250, 0.45);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.foleio-auth-legal-links a:hover {
+  color: rgba(250, 250, 250, 0.85);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.foleio-auth-legal-sep {
+  color: rgba(250, 250, 250, 0.25);
+  user-select: none;
+  padding: 0 4px;
+}
+.foleio-auth-legal-copy {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(250, 250, 250, 0.3);
+}
 
 /* Top bar + shell */
 .foleio-auth-shell {
@@ -266,6 +326,14 @@ body:has(.foleio-auth-root) footer { display: none !important; }
   width: 100%;
   min-width: 0;
   max-width: 542px;
+  display: flex;
+  flex-direction: column;
+}
+
+.foleio-auth-right > .foleio-auth-legal {
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 @media (max-width: 899px) {
@@ -274,8 +342,9 @@ body:has(.foleio-auth-root) footer { display: none !important; }
   }
 }
 
-/* Left column — skeleton preview */
+/* Left column — business cover / skeleton preview */
 .foleio-auth-preview {
+  position: relative;
   width: 100%;
   aspect-ratio: 333 / 277;
   height: auto;
@@ -285,6 +354,16 @@ body:has(.foleio-auth-root) footer { display: none !important; }
   margin-bottom: 16px;
   padding: 43px 22px;
   box-sizing: border-box;
+  overflow: hidden;
+}
+.foleio-auth-preview.has-image {
+  padding: 0;
+}
+.foleio-auth-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .foleio-auth-preview-bars {
   display: flex;
@@ -300,6 +379,52 @@ body:has(.foleio-auth-root) footer { display: none !important; }
 .foleio-auth-preview-bar:nth-child(1) { width: 100%; }
 .foleio-auth-preview-bar:nth-child(2) { width: 80%; }
 .foleio-auth-preview-bar:nth-child(3) { width: 22%; }
+.foleio-auth-preview-upload,
+.foleio-auth-preview-remove {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: rgba(26, 24, 22, 0.82);
+  color: #f4f4f5;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.foleio-auth-preview-upload {
+  right: 12px;
+  bottom: 12px;
+  width: 40px;
+  height: 40px;
+}
+.foleio-auth-preview-remove {
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  color: #adadad;
+}
+.foleio-auth-preview-upload:hover,
+.foleio-auth-preview-remove:hover {
+  background: rgba(43, 43, 43, 0.95);
+  color: #ffffff;
+}
+.foleio-auth-preview-upload:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+.foleio-auth-preview.is-editable:not(.has-image)::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
 
 .foleio-auth-stub {
   display: flex;
@@ -350,11 +475,20 @@ body:has(.foleio-auth-root) footer { display: none !important; }
   flex-shrink: 0;
   color: #adadad;
 }
+.foleio-auth-stub-badge.is-pro {
+  color: #3b82f6;
+}
 
 .foleio-auth-form-stack {
   display: flex;
   flex-direction: column;
   gap: 9px;
+  width: 100%;
+}
+.foleio-auth-form-stack > *,
+.foleio-auth-form-stack .space-y-2 {
+  width: 100%;
+  min-width: 0;
 }
 .foleio-auth-form-gap {
   margin-top: 18px;

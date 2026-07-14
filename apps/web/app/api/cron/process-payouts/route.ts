@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
 import { initiateTransfer } from '@/lib/services/paystack';
 import { getNextPayoutDate } from '@/lib/services/payout-utils';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
 
 const MIN_PAYOUT_KOBO = 100000;
 
@@ -11,6 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const requireKyc = await isDojahKycRequired();
   const now = new Date();
   const schedules = await (prisma as any).payoutSchedule.findMany({
     where: { isActive: true, nextPayoutAt: { lte: now } },
@@ -30,7 +32,7 @@ export async function GET(request: Request) {
     if (!creator?.bankAccount?.recipientCode) {
       continue;
     }
-    if (!creator?.bvnVerified) {
+    if (requireKyc && !creator?.bvnVerified) {
       continue;
     }
     if (Number(creator.availableBalance || 0) < MIN_PAYOUT_KOBO) {

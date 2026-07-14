@@ -1,4 +1,6 @@
 import { prisma } from '@foleio/database';
+import { isPaymentsReady } from '@/lib/creator/payments-ready';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
 
 export type CreatorHealthStatus = 'healthy' | 'at_risk' | 'inactive';
 
@@ -34,6 +36,7 @@ function getHealthStatus(score: number): CreatorHealthStatus {
 const SUCCESS_TX = ['success', 'SUCCESS', 'completed', 'COMPLETED', 'paid', 'PAID'];
 
 export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
+  const requireKyc = await isDojahKycRequired();
   const creators = await prisma.creator.findMany({
     include: {
       user: { select: { email: true, createdAt: true } },
@@ -81,8 +84,11 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
 
     const subaccountStatus = String(creator.subaccountStatus || 'INACTIVE');
     const paystackSubaccountCode = creator.paystackSubaccountCode || null;
-    const paymentsReady =
-      Boolean(paystackSubaccountCode) && subaccountStatus === 'ACTIVE';
+    const paymentsReady = isPaymentsReady({
+      bvnVerified: creator.bvnVerified,
+      paystackSubaccountCode,
+      subaccountStatus,
+    }, { requireKyc });
 
     return {
       id: creator.id,

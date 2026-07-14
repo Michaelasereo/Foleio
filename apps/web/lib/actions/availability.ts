@@ -34,11 +34,13 @@ export async function setAvailabilityDates(dates: Date[]) {
           },
           update: {
             isAvailable: true,
+            maxBookings: 1,
           },
           create: {
             creatorId: creator.id,
             date: new Date(date.toISOString().split('T')[0]),
             isAvailable: true,
+            maxBookings: 1,
           },
         });
       })
@@ -46,6 +48,7 @@ export async function setAvailabilityDates(dates: Date[]) {
 
     revalidatePath('/settings');
     revalidatePath('/bookings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, data: results };
   } catch (error) {
     console.error('Error setting availability:', error);
@@ -80,18 +83,19 @@ export async function addAvailabilityDate(date: Date, maxBookings?: number) {
       },
       update: {
         isAvailable: true,
-        maxBookings,
+        maxBookings: maxBookings && maxBookings > 0 ? maxBookings : 1,
       },
       create: {
         creatorId: creator.id,
         date: new Date(date.toISOString().split('T')[0]),
         isAvailable: true,
-        maxBookings,
+        maxBookings: maxBookings && maxBookings > 0 ? maxBookings : 1,
       },
     });
 
     revalidatePath('/settings');
     revalidatePath('/bookings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, data: availability };
   } catch (error) {
     console.error('Error adding availability:', error);
@@ -128,6 +132,7 @@ export async function removeAvailabilityDate(date: Date) {
 
     revalidatePath('/settings');
     revalidatePath('/bookings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true };
   } catch (error) {
     console.error('Error removing availability:', error);
@@ -149,12 +154,12 @@ export async function getAvailabilityDates(
 
     if (startDate && endDate) {
       whereClause.date = {
-        gte: new Date(startDate.toISOString().split('T')[0]),
-        lte: new Date(endDate.toISOString().split('T')[0]),
+        gte: new Date(`${startDate.toISOString().slice(0, 10)}T00:00:00.000Z`),
+        lte: new Date(`${endDate.toISOString().slice(0, 10)}T00:00:00.000Z`),
       };
     } else if (startDate) {
       whereClause.date = {
-        gte: new Date(startDate.toISOString().split('T')[0]),
+        gte: new Date(`${startDate.toISOString().slice(0, 10)}T00:00:00.000Z`),
       };
     }
 
@@ -177,62 +182,85 @@ export async function getAvailabilityWithBookings(
   endDate?: Date
 ) {
   try {
-    const whereClause: any = {
+    const whereClause: {
+      creatorId: string;
+      isAvailable: boolean;
+      date?: { gte?: Date; lte?: Date };
+    } = {
       creatorId,
       isAvailable: true,
     };
 
-    if (startDate && endDate) {
-      whereClause.date = {
-        gte: new Date(startDate.toISOString().split('T')[0]),
-        lte: new Date(endDate.toISOString().split('T')[0]),
-      };
-    } else if (startDate) {
-      whereClause.date = {
-        gte: new Date(startDate.toISOString().split('T')[0]),
-      };
+    const rangeStart = startDate
+      ? new Date(`${startDate.toISOString().slice(0, 10)}T00:00:00.000Z`)
+      : undefined;
+    const rangeEnd = endDate
+      ? new Date(`${endDate.toISOString().slice(0, 10)}T00:00:00.000Z`)
+      : undefined;
+
+    if (rangeStart && rangeEnd) {
+      whereClause.date = { gte: rangeStart, lte: rangeEnd };
+    } else if (rangeStart) {
+      whereClause.date = { gte: rangeStart };
     }
 
+    // Two sequential queries only — never fan out under connection_limit=1.
     const availability = await prisma.creatorAvailability.findMany({
       where: whereClause,
       orderBy: { date: 'asc' },
     });
 
-    // Get booking counts for each date
-    // Wrap in try-catch to handle database connection errors gracefully
-    const availabilityWithCounts = await Promise.all(
-      availability.map(async (avail: typeof availability[0]) => {
-        let bookingCount = 0;
-        try {
-          bookingCount = await prisma.booking.count({
-            where: {
-              creatorId,
-              bookingDate: avail.date,
-              status: {
-                notIn: ['cancelled', 'refunded'],
-              },
-            },
-          });
-        } catch (dbError) {
-          console.error('Error counting bookings for date:', avail.date, dbError);
-          // If database query fails, assume 0 bookings to allow the page to load
-          // The booking creation will still validate properly
-          bookingCount = 0;
-        }
+    if (availability.length === 0) {
+      return { success: true, data: [] };
+    }
 
-        const isFullyBooked = avail.maxBookings 
-          ? bookingCount >= avail.maxBookings 
-          : false;
+    const bookingDateFilter =
+      rangeStart && rangeEnd
+        ? { gte: rangeStart, lte: rangeEnd }
+        : rangeStart
+          ? { gte: rangeStart }
+          : {
+              gte: availability[0].date,
+              lte: availability[availability.length - 1].date,
+            };
 
-        return {
-          ...avail,
-          bookingCount,
-          isFullyBooked,
-        };
-      })
-    );
+    const bookingGroups = await prisma.booking.groupBy({
+      by: ['bookingDate'],
+      where: {
+        creatorId,
+        bookingDate: bookingDateFilter,
+        status: {
+          notIn: ['cancelled', 'canceled', 'refunded'],
+        },
+      },
+      _count: { _all: true },
+    });
 
-    return { success: true, data: availabilityWithCounts };
+    const bookingCountByDate = new Map<string, number>();
+    for (const group of bookingGroups) {
+      const key = group.bookingDate.toISOString().slice(0, 10);
+      bookingCountByDate.set(key, group._count._all);
+    }
+
+    const availabilityWithCounts = availability.map((avail) => {
+      const key = avail.date.toISOString().slice(0, 10);
+      const bookingCount = bookingCountByDate.get(key) ?? 0;
+      // Default capacity is 1 booking per day when creator didn't set a max.
+      const capacity = avail.maxBookings && avail.maxBookings > 0 ? avail.maxBookings : 1;
+      const isFullyBooked = bookingCount >= capacity;
+
+      return {
+        ...avail,
+        maxBookings: capacity,
+        bookingCount,
+        isFullyBooked,
+      };
+    });
+
+    // Hide dates that are already taken so other clients can't select them.
+    const openDates = availabilityWithCounts.filter((avail) => !avail.isFullyBooked);
+
+    return { success: true, data: openDates };
   } catch (error) {
     console.error('Error getting availability with bookings:', error);
     return { error: 'Failed to get availability' };

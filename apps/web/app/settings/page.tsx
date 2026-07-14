@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { AccountSettingsTabs } from '@/components/creator/AccountSettingsTabs';
 import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
+import { serializeForClient } from '@/lib/utils';
 import SettingsLoading from './loading';
 
 export default async function SettingsPage() {
@@ -16,12 +17,40 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  let creator: {
+    id: string;
+    username: string;
+    displayName: string;
+    bio: string | null;
+    category: string | null;
+    avatarUrl: string | null;
+    instagramHandle: string | null;
+    tiktokHandle: string | null;
+    creatorLinks: Array<{ linkType: string; url: string }>;
+  } | null = null;
+
   try {
     creator = await prisma.creator.findUnique({
       where: { userId: session.user.id },
-      include: {
-        user: true,
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        category: true,
+        avatarUrl: true,
+        instagramHandle: true,
+        tiktokHandle: true,
+        creatorLinks: {
+          where: {
+            linkType: { in: ['twitter', 'portfolio'] },
+            isActive: true,
+          },
+          select: {
+            linkType: true,
+            url: true,
+          },
+        },
       },
     });
   } catch {
@@ -61,6 +90,24 @@ export default async function SettingsPage() {
     );
   }
 
+  const twitterUrl =
+    creator.creatorLinks.find((link) => link.linkType === 'twitter')?.url || null;
+  const portfolioUrl =
+    creator.creatorLinks.find((link) => link.linkType === 'portfolio')?.url || null;
+
+  let currentSubscription: unknown = null;
+  let billingHistory: unknown[] = [];
+  try {
+    const subscriptions = await prisma.platformSubscription.findMany({
+      where: { creatorId: creator.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    currentSubscription = serializeForClient(subscriptions[0] || null);
+    billingHistory = serializeForClient(subscriptions) as unknown[];
+  } catch {
+    console.warn('Settings billing lookup failed (non-fatal).');
+  }
+
   return (
     <Suspense fallback={<SettingsLoading />}>
       <AccountSettingsTabs
@@ -73,6 +120,12 @@ export default async function SettingsPage() {
           avatarUrl: creator.avatarUrl,
           instagramHandle: creator.instagramHandle,
           tiktokHandle: creator.tiktokHandle,
+          twitterUrl,
+          portfolioUrl,
+        }}
+        billing={{
+          currentSubscription: currentSubscription as any,
+          billingHistory: billingHistory as any[],
         }}
       />
     </Suspense>

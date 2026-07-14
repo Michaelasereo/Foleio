@@ -22,7 +22,10 @@ export default async function AnalyticsLayout({
     username: string;
     displayName: string;
     avatarUrl: string | null;
+    bannerUrl: string | null;
     category: string;
+    platformPlan: string | null;
+    platformSubscriptionActive: boolean;
     isBanned: boolean;
   } | null = null;
 
@@ -34,7 +37,10 @@ export default async function AnalyticsLayout({
         username: true,
         displayName: true,
         avatarUrl: true,
+        bannerUrl: true,
         category: true,
+        platformPlan: true,
+        platformSubscriptionActive: true,
         isBanned: true,
       },
     });

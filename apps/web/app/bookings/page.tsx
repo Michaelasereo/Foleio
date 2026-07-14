@@ -6,7 +6,16 @@ import { UnifiedBookingsManager } from '@/components/booking/UnifiedBookingsMana
 import { serializeForClient } from '@/lib/utils';
 import BookingsLoading from './loading';
 
-export default async function BookingsPage() {
+export default async function BookingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
+  const params = (await searchParams) || {};
+  if (params.tab === 'portfolio') {
+    redirect('/settings?tab=portfolio');
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

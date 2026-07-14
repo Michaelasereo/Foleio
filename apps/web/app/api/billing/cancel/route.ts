@@ -3,6 +3,33 @@ import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { paystack } from '@/lib/paystack';
 
+async function resolveEmailToken(
+  subscriptionCode: string,
+  storedToken?: string | null
+): Promise<string | null> {
+  if (storedToken) return storedToken;
+
+  try {
+    const fetched = await paystack.fetchSubscription(subscriptionCode);
+    const token =
+      fetched?.data?.email_token ||
+      fetched?.data?.emailToken ||
+      null;
+    if (token) {
+      await prisma.platformSubscription.updateMany({
+        where: { paystackSubscriptionId: subscriptionCode },
+        data: { paystackEmailToken: String(token) },
+      });
+      return String(token);
+    }
+  } catch (error) {
+    console.error('[billing/cancel] fetchSubscription failed', error);
+  }
+
+  // Legacy single-sub testing fallback
+  return process.env.PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN || null;
+}
+
 export async function POST() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -33,17 +60,24 @@ export async function POST() {
     }
 
     if (subscription.paystackSubscriptionId) {
-      const disableToken = process.env.PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN;
-      if (!disableToken) {
+      const emailToken = await resolveEmailToken(
+        subscription.paystackSubscriptionId,
+        subscription.paystackEmailToken
+      );
+
+      if (!emailToken) {
         return NextResponse.json(
-          { error: 'Missing PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN env var' },
+          {
+            error:
+              'Could not resolve Paystack email token for this subscription. Try again after your next billing webhook, or contact support.',
+          },
           { status: 500 }
         );
       }
 
       await paystack.disableSubscription({
         code: subscription.paystackSubscriptionId,
-        token: disableToken,
+        token: emailToken,
       });
     }
 
@@ -56,9 +90,12 @@ export async function POST() {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || 'Failed to cancel billing plan' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to cancel billing plan',
+      },
       { status: 500 }
     );
   }

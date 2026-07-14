@@ -1,8 +1,13 @@
-import { baseEmailTemplate, ctaButton, formatNaira } from './common';
+import {
+  darkEmailCta,
+  darkEmailDetailRows,
+  darkEmailMuted,
+  formatNairaAmount,
+  renderFoleioDarkEmail,
+} from '@/lib/email/foleio-dark-email';
 
 export function bookingConfirmationEmail({
   customerName,
-  customerEmail,
   creatorName,
   serviceName,
   bookingDate,
@@ -11,9 +16,13 @@ export function bookingConfirmationEmail({
   trackingUrl,
   serviceType,
   calendlyLink,
+  paymentPlan,
+  amountPaid,
+  balanceAmount,
+  status,
 }: {
   customerName: string;
-  customerEmail: string;
+  customerEmail?: string;
   creatorName: string;
   serviceName: string;
   bookingDate: string;
@@ -22,60 +31,84 @@ export function bookingConfirmationEmail({
   trackingUrl: string;
   serviceType?: string | null;
   calendlyLink?: string | null;
+  paymentPlan?: string;
+  amountPaid?: number;
+  balanceAmount?: number;
+  status?: string;
 }) {
-  const subject = `Booking confirmed with ${creatorName} 📅`;
-  const html = baseEmailTemplate(`
-    <p style="margin:0 0 12px;">Hi ${customerName},</p>
-    <p style="margin:0 0 12px;">Your booking with ${creatorName} is confirmed.</p>
-    <p style="margin:0 0 6px;"><strong>Service:</strong> ${serviceName}</p>
-    <p style="margin:0 0 6px;"><strong>Date:</strong> ${bookingDate}</p>
-    <p style="margin:0 0 14px;"><strong>Amount paid:</strong> ${formatNaira(amount)}</p>
-    ${(serviceType === 'coaching' || serviceType === 'consultation') && calendlyLink ? `
-      <div style="
-        background:#FFF4EC;
-        border-radius:14px;
-        padding:20px;
-        margin:24px 0;
-        text-align:center;
-      ">
-        <p style="
-          font-size:14px;
-          color:#6B5E52;
-          margin:0 0 12px;
-        ">
+  const isDepositHold = status === 'deposit_paid';
+  const subject = isDepositHold
+    ? `Deposit received — booking with ${creatorName}`
+    : `Booking confirmed with ${creatorName}`;
+  const showCalendly =
+    !isDepositHold &&
+    (serviceType === 'coaching' || serviceType === 'consultation') &&
+    Boolean(calendlyLink);
+
+  const paidNow = amountPaid ?? amount;
+  const rows = [
+    { label: 'Service', value: serviceName },
+    { label: 'Date', value: bookingDate },
+    {
+      label: isDepositHold ? 'Deposit paid' : 'Amount paid',
+      value: formatNairaAmount(paidNow),
+    },
+  ];
+  if (isDepositHold && balanceAmount && balanceAmount > 0) {
+    rows.push({
+      label: 'Balance due',
+      value: formatNairaAmount(balanceAmount),
+    });
+  } else if (!isDepositHold && paymentPlan === 'deposit') {
+    rows.push({ label: 'Package total', value: formatNairaAmount(amount) });
+  }
+
+  const bodyHtml = `
+    ${darkEmailMuted(
+      isDepositHold
+        ? `Hi ${customerName} — your deposit with <span style="color:#f4f4f5;">${creatorName}</span> is confirmed and your date is held.`
+        : `Hi ${customerName} — your booking with <span style="color:#f4f4f5;">${creatorName}</span> is confirmed.`
+    )}
+    ${darkEmailDetailRows(rows)}
+    ${
+      showCalendly
+        ? `
+      <div style="background:#2b2b2b;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:20px;margin:0 0 20px;text-align:center;">
+        <p style="margin:0 0 14px;color:#adadad;font-size:13px;font-weight:500;line-height:1.5;">
           Next step — pick your session time
         </p>
         <a href="${calendlyLink}"
-          style="
-            display:inline-block;
-            background:#F97316;
-            color:white;
-            padding:14px 32px;
-            border-radius:100px;
-            font-size:15px;
-            font-weight:700;
-            text-decoration:none;
-          ">
-          Book your time slot →
+          style="display:inline-block;background:#fafafa;color:#1a1816;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;text-decoration:none;">
+          Book your time slot
         </a>
-        <p style="
-          font-size:12px;
-          color:#9E8E82;
-          margin:12px 0 0;
-        ">
-          Choose a time that works for you
-        </p>
-      </div>
-    ` : ''}
-    <div style="margin:20px 0;">
-      ${ctaButton('Track Your Booking', trackingUrl)}
+      </div>`
+        : ''
+    }
+    <div style="background:#2b2b2b;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:18px;margin:0 0 8px;text-align:center;">
+      <p style="margin:0 0 10px;color:#828282;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;">Tracking token</p>
+      <span style="display:inline-block;font-size:22px;letter-spacing:0.18em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;color:#ffffff;">${trackingToken}</span>
     </div>
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;">
-      <div style="font-size:12px;color:#9a3412;margin-bottom:6px;">Your tracking token</div>
-      <div style="font-size:24px;font-weight:700;letter-spacing:2px;color:#c2410c;">${trackingToken}</div>
-    </div>
-    <p style="margin:14px 0 0;color:#666;">Keep this email — you'll need your tracking token to check your booking status.</p>
-  `);
+    <p style="margin:0 0 4px;color:#828282;font-size:13px;font-weight:500;line-height:1.55;">
+      ${
+        isDepositHold
+          ? 'Pay your balance from the tracking page when due.'
+          : 'Keep this email — you’ll need your token to check booking status.'
+      }
+    </p>
+    ${darkEmailCta(
+      isDepositHold ? 'Track & pay balance' : 'Track your booking',
+      trackingUrl
+    )}
+  `;
+
+  const html = renderFoleioDarkEmail({
+    previewText: isDepositHold
+      ? `Deposit received for ${creatorName}`
+      : `Your booking with ${creatorName} is confirmed`,
+    title: isDepositHold ? 'Deposit received' : 'Booking confirmed',
+    bodyHtml,
+    footerNote: 'If you didn’t make this booking, you can ignore this email.',
+  });
 
   return { subject, html };
 }

@@ -9,21 +9,30 @@ import {
   Bell,
   CalendarDays,
   Copy,
+  ImageOff,
   LayoutDashboard,
   MoreHorizontal,
   Settings,
   UserRound,
   Wallet,
 } from 'lucide-react';
+import { AuthLegalFooter } from '@/components/auth/AuthLegalFooter';
 import { authCss } from '@/components/auth/styles';
+import {
+  BusinessCoverCard,
+  removeCreatorBanner,
+} from '@/components/creator/BusinessCoverCard';
 import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import { useToast } from '@/components/ui/use-toast';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
+import { subscribeAvatarUpdated } from '@/lib/creator/profile-live';
 
 const creatorShellCss = `
 ${authCss}
 
-body:has(.foleio-creator-root) footer { display: none !important; }
+body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
+  display: none !important;
+}
 
 .foleio-auth-stub-thumb.is-avatar {
   background: transparent;
@@ -504,6 +513,8 @@ body:has(.foleio-creator-root) footer { display: none !important; }
   font-family: var(--font-body), sans-serif;
   font-size: 13px;
   font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
 }
 .foleio-dash-btn-primary {
@@ -989,12 +1000,21 @@ body:has(.foleio-creator-root) footer { display: none !important; }
   align-items: center;
   gap: 6px;
 }
+.foleio-avail-cal-day.is-booked:not(.is-selected) {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: #333;
+  box-shadow: inset 0 -2px 0 0 #fff;
+}
 .foleio-avail-legend-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 999px;
   background: #2b2b2b;
+}
+.foleio-avail-legend-dot.is-booked {
+  background: #fff;
+  box-shadow: 0 0 0 2px #333;
 }
 .foleio-avail-legend-dot.is-selected { background: #fff; }
 .foleio-avail-legend-dot.is-off { background: #826868; }
@@ -1386,7 +1406,10 @@ interface CreatorAppShellProps {
     username: string;
     displayName: string;
     avatarUrl?: string | null;
+    bannerUrl?: string | null;
     category?: string | null;
+    platformPlan?: string | null;
+    platformSubscriptionActive?: boolean | null;
   } | null;
 }
 
@@ -1408,12 +1431,19 @@ function categoryHashtag(category?: string | null) {
 
 function CreatorShellProfile({
   creator,
+  avatarUrl,
+  hasBanner,
+  onBannerRemoved,
 }: {
   creator?: CreatorAppShellProps['creator'];
+  avatarUrl?: string | null;
+  hasBanner?: boolean;
+  onBannerRemoved?: () => void;
 }) {
   const { toast } = useToast();
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [removingBanner, setRemovingBanner] = useState(false);
   const displayName = creator?.displayName?.trim() || creator?.username || '';
   const hashtag = categoryHashtag(creator?.category);
 
@@ -1465,6 +1495,26 @@ function CreatorShellProfile({
     }
   }
 
+  async function handleRemoveBanner() {
+    if (removingBanner) return;
+    setRemovingBanner(true);
+    try {
+      await removeCreatorBanner();
+      onBannerRemoved?.();
+      toast({ title: 'Banner removed' });
+    } catch (error) {
+      toast({
+        title: 'Could not remove',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRemovingBanner(false);
+      setMenuOpen(false);
+    }
+  }
+
   return (
     <div className="foleio-auth-stub" data-tour="creator-profile">
       <div className="foleio-auth-stub-main">
@@ -1474,7 +1524,11 @@ function CreatorShellProfile({
           }
         >
           {creator ? (
-            <CreatorAvatar src={creator.avatarUrl} name={displayName} size={42} />
+            <CreatorAvatar
+              src={avatarUrl ?? creator.avatarUrl}
+              name={displayName}
+              size={42}
+            />
           ) : null}
         </div>
         {displayName ? (
@@ -1508,6 +1562,18 @@ function CreatorShellProfile({
                   <Copy strokeWidth={1.75} />
                   Copy profile URL
                 </button>
+                {hasBanner ? (
+                  <button
+                    type="button"
+                    className="foleio-auth-stub-menu-item"
+                    role="menuitem"
+                    disabled={removingBanner}
+                    onClick={() => void handleRemoveBanner()}
+                  >
+                    <ImageOff strokeWidth={1.75} />
+                    {removingBanner ? 'Removing…' : 'Remove banner image'}
+                  </button>
+                ) : null}
                 <Link
                   href="/settings"
                   className="foleio-auth-stub-menu-item"
@@ -1522,7 +1588,20 @@ function CreatorShellProfile({
           </div>
         ) : null}
       </div>
-      <div className="foleio-auth-stub-badge" aria-label="Verified">
+      <div
+        className={`foleio-auth-stub-badge${
+          Boolean(creator?.platformSubscriptionActive) &&
+          ['PRO', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
+            ? ' is-pro'
+            : ''
+        }`}
+        aria-label={
+          Boolean(creator?.platformSubscriptionActive) &&
+          ['PRO', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
+            ? 'Pro verified'
+            : 'Verified'
+        }
+      >
         <BadgeCheck className="h-6 w-6" strokeWidth={1.5} />
       </div>
     </div>
@@ -1531,6 +1610,24 @@ function CreatorShellProfile({
 
 export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
   const pathname = usePathname();
+  const [bannerUrl, setBannerUrl] = useState<string | null>(
+    creator?.bannerUrl ?? null
+  );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    creator?.avatarUrl ?? null
+  );
+
+  useEffect(() => {
+    setBannerUrl(creator?.bannerUrl ?? null);
+  }, [creator?.bannerUrl]);
+
+  useEffect(() => {
+    setAvatarUrl(creator?.avatarUrl ?? null);
+  }, [creator?.avatarUrl]);
+
+  useEffect(() => {
+    return subscribeAvatarUpdated(setAvatarUrl);
+  }, []);
 
   return (
     <div className="foleio-auth-root foleio-creator-root relative flex min-h-screen flex-col">
@@ -1585,17 +1682,23 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
         <main className="foleio-auth-main relative z-10 flex-1">
           <div className="foleio-auth-columns">
             <div className="foleio-auth-left">
-              <div className="foleio-auth-preview" aria-hidden>
-                <div className="foleio-auth-preview-bars">
-                  <div className="foleio-auth-preview-bar" />
-                  <div className="foleio-auth-preview-bar" />
-                  <div className="foleio-auth-preview-bar" />
-                </div>
-              </div>
-              <CreatorShellProfile creator={creator} />
+              <BusinessCoverCard
+                bannerUrl={bannerUrl}
+                editable={Boolean(creator)}
+                onBannerChange={setBannerUrl}
+              />
+              <CreatorShellProfile
+                creator={creator}
+                avatarUrl={avatarUrl}
+                hasBanner={Boolean(bannerUrl)}
+                onBannerRemoved={() => setBannerUrl(null)}
+              />
             </div>
 
-            <div className="foleio-auth-right">{children}</div>
+            <div className="foleio-auth-right">
+              {children}
+              <AuthLegalFooter />
+            </div>
           </div>
         </main>
       </div>

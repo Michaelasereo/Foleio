@@ -48,10 +48,27 @@ function getRuntimePilotEmails(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * When true, any email can sign up (no pilot allowlist).
+ * - Local `next dev` is open by default so you can test without editing the list.
+ * - Set NEXT_PUBLIC_ALLOW_OPEN_SIGNUP=true to open staging/prod deliberately.
+ * - Set NEXT_PUBLIC_ALLOW_OPEN_SIGNUP=false to force the allowlist even in development.
+ */
+export function isOpenSignupEnabled(): boolean {
+  const flag = process.env.NEXT_PUBLIC_ALLOW_OPEN_SIGNUP;
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return process.env.NODE_ENV === 'development';
+}
+
 export function isPilotEmail(email: string): boolean {
+  if (isOpenSignupEnabled()) return true;
+
   const normalizedInput = normalizeEmail(email);
   const allAllowedEmails = [...PILOT_EMAILS, ...getRuntimePilotEmails()];
-  return allAllowedEmails.some((allowedEmail) => normalizeEmail(allowedEmail) === normalizedInput);
+  return allAllowedEmails.some(
+    (allowedEmail) => normalizeEmail(allowedEmail) === normalizedInput
+  );
 }
 
 export function shouldAutoUpgradeToPremium(email: string | null | undefined): boolean {

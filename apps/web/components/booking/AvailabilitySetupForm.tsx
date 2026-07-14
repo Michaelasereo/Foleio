@@ -271,7 +271,7 @@ export function AvailabilitySetupForm({
             body: JSON.stringify({
               dates: available,
               isAvailable: true,
-              maxBookings: null,
+              maxBookings: 1,
             }),
           })
         );

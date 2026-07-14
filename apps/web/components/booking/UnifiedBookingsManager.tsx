@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -16,6 +17,15 @@ import { completeService, processRefund, rejectRefund } from '@/lib/actions/book
 import { AvailabilitySetupForm } from '@/components/booking/AvailabilitySetupForm';
 import { BookingsServicesManager } from '@/components/booking/BookingsServicesManager';
 import type { ServiceItem } from '@/components/booking/BookingsServicesManager';
+import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
+import {
+  BOOKING_STATUS_LABELS,
+  STATUS_FILTER_META,
+  formatBookingDate,
+  formatBookingPrice,
+  statusTone,
+  type BookingStatusFilter,
+} from '@/lib/booking/status';
 
 interface Creator {
   id: string;
@@ -45,8 +55,7 @@ interface Booking {
 
 type PriceListItem = ServiceItem;
 
-type PrimaryView = 'bookings' | 'services' | 'availability';
-type StatusTab = 'upcoming' | 'disputed' | 'completed';
+type PrimaryView = 'bookings' | 'services' | 'availability' | 'policy';
 
 interface UnifiedBookingsManagerProps {
   creator: Creator;
@@ -59,24 +68,6 @@ interface UnifiedBookingsManagerProps {
     isAvailable: boolean;
   }>;
   priceList: PriceListItem[];
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  paid: 'Paid',
-  first_payout_done: 'Confirmed',
-  service_day: 'Service day',
-  completed: 'Completed',
-  disputed: 'Disputed',
-  refunded: 'Refunded',
-  cancelled: 'Cancelled',
-};
-
-function statusTone(status: string) {
-  if (status === 'disputed') return 'is-danger';
-  if (status === 'completed') return 'is-success';
-  if (status === 'refunded' || status === 'cancelled') return 'is-muted';
-  return 'is-info';
 }
 
 export function UnifiedBookingsManager({
@@ -95,10 +86,12 @@ export function UnifiedBookingsManager({
       ? 'availability'
       : tabParam === 'services'
         ? 'services'
-        : 'bookings';
+        : tabParam === 'policy'
+          ? 'policy'
+          : 'bookings';
 
   const [primaryView, setPrimaryView] = useState<PrimaryView>(initialView);
-  const [statusTab, setStatusTab] = useState<StatusTab>('upcoming');
+  const [statusTab, setStatusTab] = useState<BookingStatusFilter>('upcoming');
   const [loading, setLoading] = useState<string | null>(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -113,58 +106,45 @@ export function UnifiedBookingsManager({
       value: totalBookings.toLocaleString(),
       hint: 'All time',
       icon: CalendarDays,
+      onSelect: null as BookingStatusFilter | null,
     },
     {
       title: 'Upcoming',
       value: upcomingBookings.length.toLocaleString(),
       hint: 'Active services',
       icon: CalendarClock,
+      onSelect: 'upcoming' as BookingStatusFilter,
     },
     {
       title: 'Completed',
       value: completedBookings.length.toLocaleString(),
       hint: 'Finished bookings',
       icon: CheckCircle2,
+      onSelect: 'completed' as BookingStatusFilter,
     },
     {
       title: 'Disputed',
       value: disputedBookings.length.toLocaleString(),
       hint: 'Needs attention',
       icon: AlertTriangle,
+      onSelect: 'disputed' as BookingStatusFilter,
     },
   ];
 
-  const statusTabs: Array<{ id: StatusTab; label: string; count: number }> = useMemo(
-    () => [
-      { id: 'upcoming', label: 'Upcoming', count: upcomingBookings.length },
-      { id: 'disputed', label: 'Disputed', count: disputedBookings.length },
-      { id: 'completed', label: 'Completed', count: completedBookings.length },
-    ],
-    [upcomingBookings.length, disputedBookings.length, completedBookings.length]
-  );
-
-  const formatPrice = (priceInKobo: number) =>
-    new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(priceInKobo / 100);
-
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('en-NG', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+  const statusTabs: Array<{ id: BookingStatusFilter; label: string; count: number }> =
+    useMemo(
+      () => [
+        { id: 'upcoming', label: 'Upcoming', count: upcomingBookings.length },
+        { id: 'disputed', label: 'Disputed', count: disputedBookings.length },
+        { id: 'completed', label: 'Completed', count: completedBookings.length },
+      ],
+      [upcomingBookings.length, disputedBookings.length, completedBookings.length]
+    );
 
   const setView = (view: PrimaryView) => {
     setPrimaryView(view);
     const url =
-      view === 'availability'
-        ? '/bookings?tab=availability'
-        : view === 'services'
-          ? '/bookings?tab=services'
-          : '/bookings';
+      view === 'bookings' ? '/bookings' : `/bookings?tab=${view}`;
     router.replace(url, { scroll: false });
   };
 
@@ -214,14 +194,16 @@ export function UnifiedBookingsManager({
         <div className="foleio-dash-booking-top">
           <span className="foleio-dash-sub-name">{booking.customerName}</span>
           <span className={`foleio-dash-badge ${statusTone(booking.status)}`}>
-            {STATUS_LABELS[booking.status] || booking.status}
+            {BOOKING_STATUS_LABELS[booking.status] || booking.status}
           </span>
         </div>
         <div className="foleio-dash-booking-meta">
           <span className="foleio-dash-sub-badge">
             {booking.priceListItem?.name || 'Service'}
           </span>
-          <span className="foleio-dash-sub-date">{formatDate(booking.bookingDate)}</span>
+          <span className="foleio-dash-sub-date">
+            {formatBookingDate(booking.bookingDate)}
+          </span>
         </div>
         <div className="foleio-dash-booking-contacts">
           <span>
@@ -242,16 +224,26 @@ export function UnifiedBookingsManager({
             <p className="foleio-dash-booking-notes">{booking.disputeReason}</p>
           </div>
         ) : null}
-        {actions ? <div className="foleio-dash-booking-actions">{actions}</div> : null}
+        <div className="foleio-dash-booking-actions">
+          <Link
+            href={`/bookings/detail/${booking.id}`}
+            className="foleio-dash-btn-outline"
+          >
+            View details
+          </Link>
+          {actions}
+        </div>
       </div>
-      <div className="foleio-dash-booking-amount">{formatPrice(booking.totalAmount)}</div>
+      <div className="foleio-dash-booking-amount">
+        {formatBookingPrice(booking.totalAmount)}
+      </div>
     </div>
   );
 
-  const emptyCopy: Record<StatusTab, string> = {
-    upcoming: 'No upcoming bookings.',
-    disputed: 'No disputed bookings.',
-    completed: 'No completed bookings yet.',
+  const emptyCopy: Record<BookingStatusFilter, string> = {
+    upcoming: STATUS_FILTER_META.upcoming.empty,
+    disputed: STATUS_FILTER_META.disputed.empty,
+    completed: STATUS_FILTER_META.completed.empty,
   };
 
   const listForTab =
@@ -260,6 +252,8 @@ export function UnifiedBookingsManager({
       : statusTab === 'disputed'
         ? disputedBookings
         : completedBookings;
+
+  const previewList = listForTab.slice(0, 5);
 
   return (
     <div>
@@ -301,6 +295,15 @@ export function UnifiedBookingsManager({
         >
           Manage availability
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={primaryView === 'policy'}
+          className={`foleio-dash-tab${primaryView === 'policy' ? ' is-active' : ''}`}
+          onClick={() => setView('policy')}
+        >
+          Deposits &amp; policy
+        </button>
       </div>
 
       {primaryView === 'availability' ? (
@@ -313,20 +316,50 @@ export function UnifiedBookingsManager({
           creatorId={creator.id}
           initialPriceList={priceList}
         />
+      ) : primaryView === 'policy' ? (
+        <BookingPolicySettings />
       ) : (
         <>
           <div className="foleio-dash-stats">
             {stats.map((stat) => {
               const Icon = stat.icon;
-              return (
-                <div key={stat.title} className="foleio-dash-stat">
+              const isSelected = stat.onSelect === statusTab;
+              const content = (
+                <>
                   <div className="foleio-dash-stat-top">
                     <span className="foleio-dash-stat-label">{stat.title}</span>
                     <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
                   </div>
                   <div className="foleio-dash-stat-value">{stat.value}</div>
                   <p className="foleio-dash-stat-change">{stat.hint}</p>
-                </div>
+                </>
+              );
+
+              if (!stat.onSelect) {
+                return (
+                  <div key={stat.title} className="foleio-dash-stat">
+                    {content}
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={stat.title}
+                  type="button"
+                  className={`foleio-dash-stat${isSelected ? ' is-selected' : ''}`}
+                  onClick={() => setStatusTab(stat.onSelect!)}
+                  style={{
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    border: isSelected
+                      ? '1px solid rgba(250,250,250,0.35)'
+                      : '1px solid transparent',
+                    width: '100%',
+                  }}
+                >
+                  {content}
+                </button>
               );
             })}
           </div>
@@ -348,18 +381,32 @@ export function UnifiedBookingsManager({
           </div>
 
           <div className="foleio-dash-panel">
-            <h2 className="foleio-dash-panel-title">
-              {statusTabs.find((t) => t.id === statusTab)?.label}
-            </h2>
-            <p className="foleio-dash-panel-meta">
-              {listForTab.length === 0
-                ? 'Nothing here yet'
-                : `${listForTab.length} booking${listForTab.length === 1 ? '' : 's'}`}
-            </p>
-            {listForTab.length === 0 ? (
+            <div className="foleio-dash-header" style={{ marginBottom: 8 }}>
+              <div>
+                <h2 className="foleio-dash-panel-title" style={{ marginBottom: 0 }}>
+                  {statusTabs.find((t) => t.id === statusTab)?.label}
+                </h2>
+                <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+                  {listForTab.length === 0
+                    ? 'Nothing here yet'
+                    : `${listForTab.length} booking${listForTab.length === 1 ? '' : 's'}${
+                        listForTab.length > previewList.length
+                          ? ` · showing ${previewList.length}`
+                          : ''
+                      }`}
+                </p>
+              </div>
+              <Link
+                href={STATUS_FILTER_META[statusTab].href}
+                className="foleio-dash-btn-outline"
+              >
+                View more
+              </Link>
+            </div>
+            {previewList.length === 0 ? (
               <p className="foleio-dash-empty">{emptyCopy[statusTab]}</p>
             ) : (
-              listForTab.map((booking) => {
+              previewList.map((booking) => {
                 if (statusTab === 'upcoming') {
                   return renderBookingRow(
                     booking,

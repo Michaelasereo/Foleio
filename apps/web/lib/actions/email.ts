@@ -4,6 +4,7 @@ import { prisma } from '@foleio/database';
 import { randomBytes } from 'crypto';
 import {
   sendBookingConfirmation,
+  sendBookingCreatorNotification,
   sendBookingStatusUpdate,
   sendContentPurchaseEmail,
   sendSubscriptionConfirmation,
@@ -14,7 +15,7 @@ import {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
-// Send booking confirmation email to customer
+// Send booking confirmation emails to customer and creator
 export async function sendBookingConfirmationEmail(bookingId: string) {
   try {
     const booking = await prisma.booking.findUnique({
@@ -25,6 +26,11 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
           select: {
             displayName: true,
             username: true,
+            user: {
+              select: {
+                email: true,
+              },
+            },
           },
         },
       },
@@ -35,7 +41,8 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     }
 
     const trackingUrl = `${APP_URL}/tracking/${booking.trackingToken}`;
-    
+    const bookingUrl = `${APP_URL}/bookings/detail/${booking.id}`;
+
     // Format the booking date
     const formattedDate = new Date(booking.bookingDate).toLocaleDateString('en-NG', {
       weekday: 'long',
@@ -44,63 +51,59 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
       day: 'numeric',
     });
 
-    // Format price
-    const formattedPrice = new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(booking.totalAmount / 100);
+    const amountNaira = booking.totalAmount / 100;
+    const amountPaidNaira = (booking.amountPaid || 0) / 100;
+    const balanceNaira = (booking.balanceAmount || 0) / 100;
 
-    const emailContent = {
-      to: booking.customerEmail,
-      subject: `Booking Confirmed with ${booking.creator.displayName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #333;">Booking Confirmed! 🎉</h1>
-          
-          <p>Hi ${booking.customerName},</p>
-          
-          <p>Your booking with <strong>${booking.creator.displayName}</strong> has been confirmed!</p>
-          
-          <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0;">Booking Details</h3>
-            <p><strong>Service:</strong> ${booking.priceListItem.name}</p>
-            <p><strong>Date:</strong> ${formattedDate}</p>
-            <p><strong>Amount Paid:</strong> ${formattedPrice}</p>
-          </div>
-          
-          <p>Track your booking status using the link below:</p>
-          
-          <a href="${trackingUrl}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0;">
-            Track My Booking
-          </a>
-          
-          <p style="color: #666; font-size: 14px; margin-top: 30px;">
-            You'll need to enter your email (${booking.customerEmail}) to view the full booking details.
-          </p>
-          
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          
-          <p style="color: #999; font-size: 12px;">
-            If you didn't make this booking, please ignore this email.
-          </p>
-        </div>
-      `,
-    };
-
-    await sendBookingConfirmation({
+    const customerResult = await sendBookingConfirmation({
       customerName: booking.customerName,
       customerEmail: booking.customerEmail,
       creatorName: booking.creator.displayName,
       serviceName: booking.priceListItem.name,
       bookingDate: formattedDate,
-      amount: booking.totalAmount / 100,
+      amount: amountNaira,
       trackingToken: booking.trackingToken,
       trackingUrl,
       serviceType: booking.priceListItem.serviceType,
       calendlyLink: booking.priceListItem.calendlyLink,
+      paymentPlan: booking.paymentPlan,
+      amountPaid: amountPaidNaira || amountNaira,
+      balanceAmount: balanceNaira,
+      status: booking.status,
     });
 
-    return { success: true, trackingUrl };
+    let creatorResult: { success: boolean } | null = null;
+    const creatorEmail = booking.creator.user?.email;
+    if (creatorEmail) {
+      creatorResult = await sendBookingCreatorNotification({
+        creatorEmail,
+        creatorName: booking.creator.displayName,
+        customerName: booking.customerName,
+        customerEmail: booking.customerEmail,
+        serviceName: booking.priceListItem.name,
+        bookingDate: formattedDate,
+        amount: amountNaira,
+        bookingUrl,
+        paymentPlan: booking.paymentPlan,
+        amountPaid: amountPaidNaira || amountNaira,
+        balanceAmount: balanceNaira,
+        status: booking.status,
+      });
+    } else {
+      console.warn(
+        `Booking ${bookingId}: creator has no email — skipped creator notification`
+      );
+    }
+
+    if (!customerResult.success) {
+      return { error: 'Failed to send customer confirmation email' };
+    }
+
+    return {
+      success: true,
+      trackingUrl,
+      creatorNotified: Boolean(creatorResult?.success),
+    };
   } catch (error) {
     console.error('Error sending booking confirmation email:', error);
     return { error: 'Failed to send email' };

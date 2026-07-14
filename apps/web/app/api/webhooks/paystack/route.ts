@@ -261,36 +261,31 @@ async function handleChargeSuccess(eventData: any) {
     // Handle creator -> Foleio platform subscription payments
     if (metadata?.type === 'platform_subscription') {
       const creatorId = metadata.creatorId || metadata.creator_id;
-      const plan = metadata.plan;
-      const trial = Boolean(metadata.trial);
-      const trialDays = Number(metadata.trialDays || 3);
-      const now = new Date();
-      const periodEnd = new Date(now);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      if (!creatorId) {
+        console.error(
+          '[paystack webhook] platform_subscription missing creatorId',
+          reference
+        );
+        return;
+      }
 
-      await prisma.platformSubscription.update({
-        where: { creatorId },
-        data: {
-          status: trial ? 'trialing' : 'active',
-          paystackSubscriptionId: eventData.subscription_code,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-          ...(trial
-            ? {
-                trialEndsAt: new Date(
-                  now.getTime() + trialDays * 24 * 60 * 60 * 1000
-                ),
-              }
-            : {}),
-        },
-      });
+      const { activatePlatformSubscription } = await import(
+        '@/lib/billing/activate-platform-subscription'
+      );
 
-      await prisma.creator.update({
-        where: { id: creatorId },
-        data: {
-          platformSubscriptionActive: true,
-          platformPlan: String(plan).toUpperCase(),
-        },
+      await activatePlatformSubscription({
+        creatorId,
+        plan: metadata.plan || 'pro',
+        amountKobo: typeof amount === 'number' ? amount : undefined,
+        subscriptionCode:
+          eventData.subscription_code ||
+          eventData.subscription?.subscription_code ||
+          null,
+        emailToken:
+          eventData.email_token ||
+          eventData.subscription?.email_token ||
+          metadata?.email_token ||
+          null,
       });
 
       console.log(
@@ -323,44 +318,57 @@ async function handleChargeSuccess(eventData: any) {
           Boolean(booking.creator?.paystackSubaccountCode) ||
           booking.creator?.payoutMethod === 'DIRECT_SUBACCOUNT';
 
-        if (booking.status === 'pending') {
-          const confirmResult = await confirmBookingPayment(booking.id, reference);
-          if (confirmResult.error) {
+        const paymentKind =
+          metadata?.paymentKind === 'balance' ? 'balance' : 'initial';
+
+        let completedPayment = false;
+
+        if (booking.status === 'pending' || booking.status === 'deposit_paid') {
+          const confirmResult = await confirmBookingPayment(
+            booking.id,
+            reference,
+            paymentKind
+          );
+          if (
+            confirmResult.error &&
+            confirmResult.error !== 'Booking already processed'
+          ) {
             throw new Error(`Payment confirmation failed: ${confirmResult.error}`);
           }
+          completedPayment = Boolean(confirmResult.completedPayment);
         } else {
           console.log(
             `⚠️ Booking already processed: ${metadata.bookingId} status: ${booking.status}`
           );
         }
 
-        const recordResult = await recordBookingPaymentTransaction({
-          bookingId: booking.id,
-          reference,
-          paymentType: usedSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
-          gatewayResponse: eventData,
-        });
-        if (recordResult.error) {
-          console.error('Booking transaction record error:', recordResult.error);
+        if (completedPayment) {
+          const recordResult = await recordBookingPaymentTransaction({
+            bookingId: booking.id,
+            reference,
+            paymentType: usedSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+            gatewayResponse: eventData,
+          });
+          if (recordResult.error) {
+            console.error('Booking transaction record error:', recordResult.error);
+          }
+
+          if (!usedSubaccount) {
+            const payoutResult = await processFirstPayout(booking.id);
+            if (payoutResult.error) {
+              console.error('First payout error:', payoutResult.error);
+            }
+          } else {
+            console.log(
+              `⏭️ Skipping processFirstPayout for subaccount booking ${booking.id}`
+            );
+          }
         }
 
-        if (booking.status === 'pending' && !usedSubaccount) {
-          const payoutResult = await processFirstPayout(booking.id);
-          if (payoutResult.error) {
-            console.error('First payout error:', payoutResult.error);
-          }
-        } else if (usedSubaccount) {
-          console.log(
-            `⏭️ Skipping processFirstPayout for subaccount booking ${booking.id}`
-          );
-        }
-
-        if (booking.status === 'pending') {
-          try {
-            await sendBookingConfirmationEmail(booking.id);
-          } catch (emailError) {
-            console.error('Email sending error:', emailError);
-          }
+        try {
+          await sendBookingConfirmationEmail(booking.id);
+        } catch (emailError) {
+          console.error('Email sending error:', emailError);
         }
 
         console.log(`✅ Booking payment processed: ${reference} for booking ${metadata.bookingId}`);
@@ -569,31 +577,113 @@ async function handleSubscriptionEvent(eventType: string, eventData: any) {
   const { customer, plan, subscription_code } = eventData;
 
   try {
-    if (eventType === 'subscription.disable') {
-      const subscriptionCode = eventData?.subscription_code;
-      if (subscriptionCode) {
-        await prisma.platformSubscription.updateMany({
-          where: { paystackSubscriptionId: subscriptionCode },
-          data: { status: 'cancelled', cancelAtPeriodEnd: true },
+    const subscriptionCode =
+      eventData?.subscription_code ||
+      eventData?.subscription?.subscription_code ||
+      subscription_code ||
+      null;
+
+    const emailToken =
+      eventData?.email_token ||
+      eventData?.subscription?.email_token ||
+      null;
+
+    if (eventType === 'subscription.create' && subscriptionCode) {
+      await prisma.platformSubscription.updateMany({
+        where: { paystackSubscriptionId: subscriptionCode },
+        data: {
+          status: 'active',
+          ...(emailToken ? { paystackEmailToken: String(emailToken) } : {}),
+        },
+      });
+
+      // Also match pending rows without code yet via customer email → creator
+      if (customer?.email && emailToken) {
+        const user = await prisma.user.findFirst({
+          where: { email: String(customer.email).toLowerCase() },
+          select: { id: true },
         });
+        if (user) {
+          const creator = await prisma.creator.findUnique({
+            where: { userId: user.id },
+            select: { id: true },
+          });
+          if (creator) {
+            await prisma.platformSubscription.updateMany({
+              where: { creatorId: creator.id },
+              data: {
+                paystackSubscriptionId: subscriptionCode,
+                paystackEmailToken: String(emailToken),
+                status: 'active',
+              },
+            });
+          }
+        }
       }
     }
 
-    const status = eventType === 'subscription.create' ? 'ACTIVE' :
-                  eventType === 'subscription.disable' ? 'INACTIVE' : 'ACTIVE';
+    if (eventType === 'subscription.disable') {
+      if (subscriptionCode) {
+        const platformSub = await prisma.platformSubscription.findFirst({
+          where: { paystackSubscriptionId: subscriptionCode },
+        });
 
-    // Update user subscription
-    await (prisma as any).user.update({
-      where: { email: customer.email },
-      data: {
-        subscriptionStatus: status,
-        currentPlan: plan.plan_code,
-        subscriptionCode: subscription_code,
-        lastPaymentDate: new Date(),
-      },
-    });
+        if (platformSub) {
+          await prisma.platformSubscription.update({
+            where: { creatorId: platformSub.creatorId },
+            data: { status: 'cancelled', cancelAtPeriodEnd: false },
+          });
 
-    console.log(`✅ Subscription ${eventType} processed for ${customer.email}`);
+          await prisma.creator.update({
+            where: { id: platformSub.creatorId },
+            data: {
+              platformSubscriptionActive: false,
+              platformPlan: 'STARTER',
+            },
+          });
+
+          try {
+            const { syncCreatorSubaccountFee } = await import(
+              '@/lib/billing/platform-fee'
+            );
+            await syncCreatorSubaccountFee(platformSub.creatorId);
+          } catch (feeErr) {
+            console.error(
+              '[paystack webhook] failed to restore Free platform fee',
+              feeErr
+            );
+          }
+        } else {
+          await prisma.platformSubscription.updateMany({
+            where: { paystackSubscriptionId: subscriptionCode },
+            data: { status: 'cancelled', cancelAtPeriodEnd: true },
+          });
+        }
+      }
+    }
+
+    const status =
+      eventType === 'subscription.create'
+        ? 'ACTIVE'
+        : eventType === 'subscription.disable'
+          ? 'INACTIVE'
+          : 'ACTIVE';
+
+    if (customer?.email) {
+      await (prisma as any).user
+        .update({
+          where: { email: customer.email },
+          data: {
+            subscriptionStatus: status,
+            currentPlan: plan?.plan_code,
+            subscriptionCode: subscription_code,
+            lastPaymentDate: new Date(),
+          },
+        })
+        .catch(() => undefined);
+    }
+
+    console.log(`✅ Subscription ${eventType} processed for ${customer?.email}`);
   } catch (error: any) {
     console.error(`❌ Failed to process subscription event: ${eventType}`, error);
     throw error;

@@ -76,45 +76,31 @@ export default async function DashboardPage({
             category: true,
             platformPlan: true,
             currentBalance: true,
+            hasSeenWelcome: true,
+            hasCompletedTour: true,
+            _count: {
+              select: {
+                content: { where: { isPublished: true } },
+              },
+            },
           },
         }),
-        15000
+        12000
       );
 
       if (dbCreator) {
-        const contentCount = await withTimeout(
-          prisma.content.count({
-            where: { creatorId: dbCreator.id, isPublished: true },
-          }),
-          8000
-        );
         creator = {
-          ...dbCreator,
-          contentCount,
-          hasSeenWelcome: false,
-          hasCompletedTour: false,
+          id: dbCreator.id,
+          username: dbCreator.username,
+          displayName: dbCreator.displayName,
+          category: dbCreator.category,
+          platformPlan: dbCreator.platformPlan,
+          currentBalance: Number(dbCreator.currentBalance ?? 0),
+          contentCount: dbCreator._count.content,
+          hasSeenWelcome: dbCreator.hasSeenWelcome,
+          hasCompletedTour: dbCreator.hasCompletedTour,
           email: user.email || undefined,
         };
-        try {
-          const flags = await withTimeout(
-            prisma.$queryRaw<
-              Array<{
-                has_seen_welcome: boolean | null;
-                has_completed_tour: boolean | null;
-              }>
-            >`
-              SELECT has_seen_welcome, has_completed_tour
-              FROM creators
-              WHERE id = ${dbCreator.id}
-              LIMIT 1
-            `,
-            8000
-          );
-          creator.hasSeenWelcome = flags[0]?.has_seen_welcome ?? false;
-          creator.hasCompletedTour = flags[0]?.has_completed_tour ?? false;
-        } catch {
-          // Non-fatal: keep defaults if flags are unavailable.
-        }
       }
     } catch (error) {
       console.error('Error fetching creator:', error);
@@ -178,54 +164,46 @@ export default async function DashboardPage({
   }> = [];
 
   if (creator.id !== 'preview') {
-    const results = await Promise.all([
-      withTimeout(getCreatorAnalytics(creator.id), 3500).catch(() => null),
-      withTimeout(
-        prisma.booking.count({
-          where: {
-            creatorId: creator.id,
-            status: { in: activeBookingStatuses },
+    // Sequential queries — safer with pooled Supabase connections than Promise.all fan-out.
+    analyticsResult = await withTimeout(getCreatorAnalytics(creator.id), 12000).catch(
+      () => null
+    );
+
+    const upcomingBookings = await withTimeout(
+      prisma.booking.findMany({
+        where: {
+          creatorId: creator.id,
+          bookingDate: { gte: today, lte: monthEnd },
+          status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+        },
+        orderBy: { bookingDate: 'asc' },
+        take: 2,
+        select: {
+          id: true,
+          customerName: true,
+          bookingDate: true,
+          totalAmount: true,
+          status: true,
+          priceListItem: {
+            select: { name: true },
           },
-        }),
-        3500
-      ).catch(() => 0),
-      withTimeout(
-        prisma.booking.count({
-          where: {
-            creatorId: creator.id,
-            bookingDate: { gte: today, lte: monthEnd },
-            status: { notIn: ['cancelled', 'refunded'] },
-          },
-        }),
-        3500
-      ).catch(() => 0),
-      withTimeout(
-        prisma.booking.findMany({
-          where: {
-            creatorId: creator.id,
-            bookingDate: { gte: today, lte: monthEnd },
-            status: { notIn: ['cancelled', 'refunded'] },
-          },
-          orderBy: { bookingDate: 'asc' },
-          take: 2,
-          select: {
-            id: true,
-            customerName: true,
-            bookingDate: true,
-            totalAmount: true,
-            status: true,
-            priceListItem: {
-              select: { name: true },
-            },
-          },
-        }),
-        3500
-      ).catch(() => []),
-    ]);
-    analyticsResult = results[0];
-    totalBookingsResult = results[1] || 0;
-    upcomingCountResult = results[2] || 0;
-    upcomingBookingsResult = results[3] || [];
+        },
+      }),
+      5000
+    ).catch(() => []);
+
+    upcomingBookingsResult = upcomingBookings || [];
+    upcomingCountResult = upcomingBookingsResult.length;
+
+    totalBookingsResult = await withTimeout(
+      prisma.booking.count({
+        where: {
+          creatorId: creator.id,
+          status: { in: activeBookingStatuses },
+        },
+      }),
+      5000
+    ).catch(() => 0);
   }
 
   const analytics = analyticsResult || emptyAnalytics;

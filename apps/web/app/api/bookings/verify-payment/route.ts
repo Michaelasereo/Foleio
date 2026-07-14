@@ -6,6 +6,7 @@ import {
 } from '@/lib/actions/booking';
 import { sendBookingConfirmationEmail } from '@/lib/actions/email';
 import { prisma } from '@foleio/database';
+import { serializeForClient } from '@/lib/utils';
 
 function usedSubaccountSplit(opts: {
   metadataPaymentType?: string | null;
@@ -26,11 +27,45 @@ function usedSubaccountSplit(opts: {
   return Boolean(opts.creator?.paystackSubaccountCode);
 }
 
+async function finalizeFullyPaidBooking(opts: {
+  bookingId: string;
+  reference: string;
+  metadataPaymentType: string | null;
+  gatewayResponse: unknown;
+  creator: {
+    paystackSubaccountCode?: string | null;
+    payoutMethod?: string | null;
+    subaccountStatus?: string | null;
+  } | null;
+}) {
+  const isSubaccount = usedSubaccountSplit({
+    metadataPaymentType: opts.metadataPaymentType,
+    creator: opts.creator,
+  });
+
+  const recordResult = await recordBookingPaymentTransaction({
+    bookingId: opts.bookingId,
+    reference: opts.reference,
+    paymentType: isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+    gatewayResponse: opts.gatewayResponse,
+  });
+  if (recordResult.error) {
+    console.error('Booking transaction record error:', recordResult.error);
+  }
+
+  if (!isSubaccount) {
+    const payoutResult = await processFirstPayout(opts.bookingId);
+    if (payoutResult.error) {
+      console.error('First payout error:', payoutResult.error);
+    }
+  }
+}
+
 // This is called by Paystack webhook or after successful payment redirect
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { reference, bookingId } = body;
+    const { reference, bookingId, paymentKind: bodyKind } = body;
 
     if (!reference || !bookingId) {
       return NextResponse.json(
@@ -40,6 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     let metadataPaymentType: string | null = null;
+    let metadataPaymentKind: 'initial' | 'balance' | null = null;
     let gatewayResponse: unknown = undefined;
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 
@@ -68,11 +104,22 @@ export async function POST(request: NextRequest) {
           verifyData.data?.metadata?.paymentType ??
           verifyData.data?.metadata?.payment_type ??
           null;
+        const kind =
+          verifyData.data?.metadata?.paymentKind ??
+          verifyData.data?.metadata?.payment_kind ??
+          null;
+        if (kind === 'balance' || kind === 'initial') {
+          metadataPaymentKind = kind;
+        }
       } catch (e) {
         console.error('Paystack verification error:', e);
-        // Continue anyway for development/testing
       }
     }
+
+    const paymentKind: 'initial' | 'balance' =
+      bodyKind === 'balance' || metadataPaymentKind === 'balance'
+        ? 'balance'
+        : 'initial';
 
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
@@ -87,35 +134,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Confirm the booking payment (idempotent-ish: already-processed returns error)
-    const confirmResult = await confirmBookingPayment(bookingId, reference);
-    if (confirmResult.error && confirmResult.error !== 'Booking already processed') {
+    const confirmResult = await confirmBookingPayment(
+      bookingId,
+      reference,
+      paymentKind
+    );
+    if (
+      confirmResult.error &&
+      confirmResult.error !== 'Booking already processed'
+    ) {
       return NextResponse.json({ error: confirmResult.error }, { status: 400 });
     }
 
-    const isSubaccount = usedSubaccountSplit({
-      metadataPaymentType,
-      creator: booking?.creator,
-    });
+    const completed =
+      confirmResult.completedPayment === true ||
+      (confirmResult.data &&
+        ['paid', 'first_payout_done', 'service_day', 'completed'].includes(
+          confirmResult.data.status
+        ));
 
-    const recordResult = await recordBookingPaymentTransaction({
-      bookingId,
-      reference,
-      paymentType: isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
-      gatewayResponse,
-    });
-    if (recordResult.error) {
-      console.error('Booking transaction record error:', recordResult.error);
+    if (completed) {
+      await finalizeFullyPaidBooking({
+        bookingId,
+        reference,
+        metadataPaymentType,
+        gatewayResponse,
+        creator: booking?.creator ?? null,
+      });
     }
 
-    if (!isSubaccount) {
-      const payoutResult = await processFirstPayout(bookingId);
-      if (payoutResult.error) {
-        console.error('First payout error:', payoutResult.error);
-      }
-    }
-
-    // Send confirmation email to customer (best-effort)
     try {
       await sendBookingConfirmationEmail(bookingId);
     } catch (emailError) {
@@ -124,7 +171,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      booking: confirmResult.data || booking,
+      booking: serializeForClient(confirmResult.data || booking),
     });
   } catch (error) {
     console.error('Error verifying payment:', error);
@@ -160,28 +207,31 @@ export async function PUT(request: NextRequest) {
           },
         });
 
-        if (booking && booking.status === 'pending') {
-          await confirmBookingPayment(booking.id, reference);
+        const paymentKind =
+          metadata?.paymentKind === 'balance' ? 'balance' : 'initial';
 
-          const isSubaccount = usedSubaccountSplit({
-            metadataPaymentType: metadata?.paymentType,
-            creator: booking.creator,
-          });
-
-          await recordBookingPaymentTransaction({
-            bookingId: booking.id,
+        if (
+          booking &&
+          (booking.status === 'pending' || booking.status === 'deposit_paid')
+        ) {
+          const confirmResult = await confirmBookingPayment(
+            booking.id,
             reference,
-            paymentType: isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
-            gatewayResponse: data,
-          });
+            paymentKind
+          );
 
-          if (!isSubaccount) {
-            await processFirstPayout(booking.id);
+          if (confirmResult.completedPayment) {
+            await finalizeFullyPaidBooking({
+              bookingId: booking.id,
+              reference,
+              metadataPaymentType: metadata?.paymentType ?? null,
+              gatewayResponse: data,
+              creator: booking.creator,
+            });
           }
 
           await sendBookingConfirmationEmail(booking.id);
         } else if (booking) {
-          // Already paid — still ensure transaction row exists (idempotent)
           await recordBookingPaymentTransaction({
             bookingId: booking.id,
             reference,

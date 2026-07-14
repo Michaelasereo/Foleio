@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@foleio/database';
 import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile';
+import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
 import { serializeForClient } from '@/lib/utils';
 import { getAvailabilityWithBookings } from '@/lib/actions/availability';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -366,6 +368,9 @@ export default async function CreatorPublicPage({
       ? availabilityResult.data
       : [];
 
+    const { getPublicPortfolio } = await import('@/lib/actions/portfolio');
+    const portfolioSections = await getPublicPortfolio(creator.id);
+
     // Serialize data for client component (especially dates)
     const serializedCreator = serializeForClient({
       ...creator,
@@ -386,31 +391,23 @@ export default async function CreatorPublicPage({
         journalEntries={serializeForClient(creator.journalEntries)}
         groupedPriceList={serializeForClient(groupedPriceList)}
         hasActiveProducts={creator.products.length > 0}
+        portfolioSections={serializeForClient(portfolioSections)}
+        requireDojahKyc={await isDojahKycRequired()}
       />
     );
   } catch (error) {
     console.error('[public-profile] failed to load:', error);
     return (
-      <div
-        className="flex min-h-screen items-center justify-center px-4"
-        style={{ background: '#1a1816', fontFamily: 'var(--font-body), sans-serif' }}
-      >
-        <div className="mx-auto max-w-md text-center">
-          <h1
-            style={{
-              margin: 0,
-              color: '#f4f4f5',
-              fontSize: 24,
-              fontWeight: 600,
-            }}
-          >
-            Something went wrong
-          </h1>
-          <p style={{ marginTop: 12, color: '#adadad', fontSize: 14, fontWeight: 500 }}>
-            Could not load this profile. Please try again.
-          </p>
-        </div>
-      </div>
+      <FoleioStatusPage
+        title="Something went wrong"
+        description="Could not load this profile. Please try again."
+        primaryAction={{ label: 'Go home', href: '/' }}
+        secondaryAction={{
+          label: 'Explore creators',
+          href: '/creators',
+          variant: 'outline',
+        }}
+      />
     );
   }
 }

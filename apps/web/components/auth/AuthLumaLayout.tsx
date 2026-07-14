@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Wallet,
 } from 'lucide-react';
+import { AuthLegalFooter } from './AuthLegalFooter';
 import { authCss } from './styles';
 
 interface AuthLumaLayoutProps {
@@ -79,6 +80,8 @@ export function AuthLumaLayout({
               {footerExtra ? (
                 <div className="mt-6 text-center text-sm">{footerExtra}</div>
               ) : null}
+
+              <AuthLegalFooter />
             </div>
           </div>
         </main>

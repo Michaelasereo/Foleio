@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ProfileCardPreview } from '@/components/creator/ProfileCardPreview';
+import { broadcastAvatarUpdated } from '@/lib/creator/profile-live';
 
 type ProfileTemplate = 'world' | 'dark' | 'cobalt' | 'minimal' | 'bold';
 
@@ -121,6 +122,8 @@ export function ProfileCardModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ avatarUrl: uploadedUrl }),
       });
+
+      broadcastAvatarUpdated(uploadedUrl);
 
       toast({
         title: 'Profile photo updated',

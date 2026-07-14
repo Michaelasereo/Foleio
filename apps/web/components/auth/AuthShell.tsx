@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import foleioLogo from '../../../../foleio-logo.png';
+import { AuthLegalFooter } from './AuthLegalFooter';
 import { authCss } from './styles';
 
 interface AuthShellProps {
@@ -44,24 +45,7 @@ export function AuthShell({ children, title, subtitle }: AuthShellProps) {
         </div>
       </main>
 
-      <div className="foleio-auth-footer relative z-10 mt-auto">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-6 py-6 text-sm sm:flex-row sm:justify-between sm:px-10">
-          <div className="flex items-center gap-2">
-            <Image
-              src={foleioLogo}
-              alt="Foleio"
-              className="h-5 w-auto"
-              style={{ filter: 'brightness(0) invert(1)', opacity: 0.7 }}
-            />
-            <span className="text-white/35">© {new Date().getFullYear()}</span>
-          </div>
-          <nav className="flex items-center gap-6">
-            <Link href="/about">About</Link>
-            <Link href="/legal/terms">Terms</Link>
-            <Link href="/legal/privacy">Privacy</Link>
-          </nav>
-        </div>
-      </div>
+      <AuthLegalFooter />
     </div>
   );
 }

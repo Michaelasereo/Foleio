@@ -114,6 +114,12 @@ export async function middleware(request: NextRequest) {
         matchesPrefix(pathname, '/subscriptions') ||
         matchesPrefix(pathname, '/shop');
 
+      if (matchesPrefix(pathname, '/billing')) {
+        return copyCookies(
+          NextResponse.redirect(new URL('/settings?tab=billing', request.url))
+        );
+      }
+
       if (isPublicHide) {
         return copyCookies(NextResponse.redirect(new URL('/', request.url)));
       }
@@ -133,41 +139,10 @@ export async function middleware(request: NextRequest) {
         return copyCookies(NextResponse.redirect(loginUrl));
       }
 
-      if (isOnboardingPreview) {
-        return supabaseResponse;
-      }
-
-      const statusResponse = await fetch(
-        new URL('/api/auth/onboarding-status', request.url),
-        {
-          headers: {
-            cookie: request.headers.get('cookie') || '',
-          },
-        }
-      );
-
-      if (statusResponse.ok) {
-        const statusData = (await statusResponse.json()) as {
-          hasCompletedOnboarding?: boolean;
-        };
-        const hasCompletedOnboarding = Boolean(statusData.hasCompletedOnboarding);
-
-        if (isOnboardingRoute && hasCompletedOnboarding) {
-          return copyCookies(NextResponse.redirect(new URL('/dashboard', request.url)));
-        }
-
-        const isDashboardPreview =
-          request.nextUrl.pathname.startsWith('/dashboard') &&
-          request.nextUrl.searchParams.get('preview') === '1';
-
-        if (
-          isCreatorProtectedRoute &&
-          !hasCompletedOnboarding &&
-          !isDashboardPreview
-        ) {
-          return copyCookies(NextResponse.redirect(new URL('/onboarding', request.url)));
-        }
-      }
+      // Auth only here. Do NOT fetch /api/auth/onboarding-status — that nested
+      // request contended for the same Prisma pool (limit 1) and made login hang
+      // for 30–70s. Onboarding gating happens in page/layout server code.
+      return supabaseResponse;
     }
 
     return supabaseResponse;

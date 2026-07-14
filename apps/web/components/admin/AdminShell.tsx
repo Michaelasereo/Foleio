@@ -13,6 +13,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Menu,
+  Settings,
   Users,
   X,
   Zap,
@@ -28,6 +29,7 @@ const navItems = [
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
   { href: '/admin/billing', label: 'Billing Plans', icon: Crown },
   { href: '/admin/waitlist', label: 'Waitlist', icon: Clock },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
   { href: '/admin/webhooks', label: 'Webhooks', icon: Zap },
 ];
 

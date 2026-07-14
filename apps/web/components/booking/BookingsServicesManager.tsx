@@ -28,15 +28,14 @@ export type ServiceItem = {
   price: number;
   durationMinutes: number | null;
   addons?: ServiceAddon[] | null;
+  inclusions?: string[] | null;
+  coverImageUrl?: string | null;
+  depositType?: string | null;
+  depositValue?: number | null;
+  allowPayInFull?: boolean | null;
   orderIndex: number;
   categoryOrderIndex: number;
   isActive: boolean;
-};
-
-type AddonDraft = {
-  id: string;
-  name: string;
-  priceNaira: string;
 };
 
 type FormState = {
@@ -45,6 +44,12 @@ type FormState = {
   priceNaira: string;
   durationMinutes: string;
   addons: AddonDraft[];
+  inclusionsText: string;
+  coverImageUrl: string;
+  depositEnabled: boolean;
+  depositType: 'percent' | 'fixed';
+  depositValue: string;
+  allowPayInFull: boolean;
 };
 
 const EMPTY_FORM: FormState = {
@@ -53,6 +58,18 @@ const EMPTY_FORM: FormState = {
   priceNaira: '',
   durationMinutes: '',
   addons: [],
+  inclusionsText: '',
+  coverImageUrl: '',
+  depositEnabled: false,
+  depositType: 'percent',
+  depositValue: '40',
+  allowPayInFull: true,
+};
+
+type AddonDraft = {
+  id: string;
+  name: string;
+  priceNaira: string;
 };
 
 function newAddonId() {
@@ -115,6 +132,9 @@ export function BookingsServicesManager({
 
   function openEdit(item: ServiceItem) {
     setEditing(item);
+    const inclusions = Array.isArray(item.inclusions)
+      ? item.inclusions.filter((row) => typeof row === 'string')
+      : [];
     setForm({
       name: item.name,
       description: item.description || '',
@@ -125,6 +145,15 @@ export function BookingsServicesManager({
         name: addon.name,
         priceNaira: String(Math.round(addon.price / 100)),
       })),
+      inclusionsText: inclusions.join('\n'),
+      coverImageUrl: item.coverImageUrl || '',
+      depositEnabled: Boolean(item.depositType),
+      depositType: item.depositType === 'fixed' ? 'fixed' : 'percent',
+      depositValue:
+        item.depositType === 'fixed'
+          ? String(Math.round((item.depositValue || 0) / 100))
+          : String(item.depositValue || 40),
+      allowPayInFull: item.allowPayInFull !== false,
     });
     setError('');
     setModalOpen(true);
@@ -202,6 +231,31 @@ export function BookingsServicesManager({
       });
     }
 
+    const inclusions = form.inclusionsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    let depositType: 'percent' | 'fixed' | null = null;
+    let depositValue: number | null = null;
+    if (form.depositEnabled) {
+      depositType = form.depositType;
+      const raw = Number(form.depositValue);
+      if (!Number.isFinite(raw) || raw <= 0) {
+        setError('Enter a valid deposit amount.');
+        return;
+      }
+      if (depositType === 'percent') {
+        if (raw > 100) {
+          setError('Deposit percent must be between 1 and 100.');
+          return;
+        }
+        depositValue = Math.round(raw);
+      } else {
+        depositValue = Math.round(raw * 100);
+      }
+    }
+
     const payload = {
       serviceType: 'general' as const,
       name,
@@ -212,6 +266,11 @@ export function BookingsServicesManager({
       price: Math.round(priceNaira * 100),
       durationMinutes: duration,
       addons,
+      inclusions,
+      coverImageUrl: form.coverImageUrl.trim() || null,
+      depositType,
+      depositValue,
+      allowPayInFull: form.allowPayInFull,
     };
 
     setSaving(true);
@@ -463,6 +522,125 @@ export function BookingsServicesManager({
                     placeholder="What clients get with this service"
                   />
                 </label>
+
+                <label className="foleio-dash-field">
+                  <span>What&apos;s included (one per line)</span>
+                  <textarea
+                    className="foleio-dash-textarea"
+                    style={{ marginTop: 0 }}
+                    rows={3}
+                    value={form.inclusionsText}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, inclusionsText: e.target.value }))
+                    }
+                    placeholder={'Trial session\nTravel within Lagos'}
+                  />
+                </label>
+
+                <label className="foleio-dash-field">
+                  <span>Cover image URL (optional)</span>
+                  <input
+                    className="foleio-dash-input"
+                    value={form.coverImageUrl}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, coverImageUrl: e.target.value }))
+                    }
+                    placeholder="https://…"
+                  />
+                  <p className="foleio-dash-field-hint">
+                    Upload via Settings → Portfolio or paste an image URL.
+                  </p>
+                </label>
+
+                <div className="foleio-dash-field">
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.depositEnabled}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          depositEnabled: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span>Require or offer a deposit</span>
+                  </label>
+                  {form.depositEnabled ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 8,
+                        marginTop: 10,
+                      }}
+                    >
+                      <label className="foleio-dash-field" style={{ margin: 0 }}>
+                        <span>Deposit type</span>
+                        <select
+                          className="foleio-dash-select"
+                          value={form.depositType}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              depositType: e.target.value as 'percent' | 'fixed',
+                            }))
+                          }
+                        >
+                          <option value="percent">Percent of total</option>
+                          <option value="fixed">Fixed amount (₦)</option>
+                        </select>
+                      </label>
+                      <label className="foleio-dash-field" style={{ margin: 0 }}>
+                        <span>
+                          {form.depositType === 'percent'
+                            ? 'Percent'
+                            : 'Amount (₦)'}
+                        </span>
+                        <input
+                          className="foleio-dash-input"
+                          type="number"
+                          min={1}
+                          value={form.depositValue}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              depositValue: e.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label
+                        style={{
+                          gridColumn: '1 / -1',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.allowPayInFull}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              allowPayInFull: e.target.checked,
+                            }))
+                          }
+                        />
+                        <span>Allow clients to pay in full</span>
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="foleio-dash-field">
                   <div

@@ -17,11 +17,16 @@ export async function GET(request: Request) {
     : [];
 
   if (format === 'csv') {
-    const csv = ['Name,Email,Joined']
+    const csv = ['Name,Email,Status,Joined']
       .concat(
         entries.map(
-          (entry: { name: string; email: string; createdAt: Date }) =>
-            `${entry.name},${entry.email},${entry.createdAt.toISOString()}`
+          (entry: {
+            name: string;
+            email: string;
+            status?: string;
+            createdAt: Date;
+          }) =>
+            `${entry.name},${entry.email},${entry.status || 'pending'},${entry.createdAt.toISOString()}`
         )
       )
       .join('\n');

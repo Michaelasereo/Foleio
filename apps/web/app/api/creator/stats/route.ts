@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { sumCreatorEarnings } from '@/lib/creator/earnings';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -70,8 +71,7 @@ export async function GET() {
       prevMonthBookings,
       upcomingBookings,
       completedBookings,
-      currentMonthTransactions,
-      prevMonthTransactions,
+      earnings,
       recentBookings,
       bookingsByService,
     ] = await Promise.all([
@@ -108,22 +108,7 @@ export async function GET() {
           status: 'completed',
         },
       }),
-      prisma.transaction.findMany({
-        where: {
-          creatorId: creator.id,
-          status: 'success',
-          createdAt: { gte: currentMonthStart, lte: currentMonthEnd },
-        },
-        select: { netAmount: true, amount: true },
-      }),
-      prisma.transaction.findMany({
-        where: {
-          creatorId: creator.id,
-          status: 'success',
-          createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
-        },
-        select: { netAmount: true },
-      }),
+      sumCreatorEarnings(creator.id),
       prisma.booking.findMany({
         where: {
           creatorId: creator.id,
@@ -153,14 +138,8 @@ export async function GET() {
       }),
     ]);
 
-    const currentMonthRevenue = currentMonthTransactions.reduce(
-      (sum, tx) => sum + Number(tx.netAmount || 0),
-      0
-    );
-    const prevMonthRevenue = prevMonthTransactions.reduce(
-      (sum, tx) => sum + Number(tx.netAmount || 0),
-      0
-    );
+    const currentMonthRevenue = earnings.currentMonth;
+    const prevMonthRevenue = earnings.prevMonth;
 
     const calculatePercentageChange = (current: number, previous: number): string | null => {
       if (previous === 0) return current === 0 ? null : '+100%';
@@ -196,7 +175,7 @@ export async function GET() {
       monthBookings,
       upcomingBookings,
       completedBookings,
-      totalRevenue: currentMonthRevenue,
+      totalRevenue: earnings.totalEarnings,
       averageBookingValue,
       percentageChanges: {
         earnings: calculatePercentageChange(currentMonthRevenue, prevMonthRevenue),
