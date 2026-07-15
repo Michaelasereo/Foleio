@@ -5,10 +5,13 @@ import { contentPurchaseEmail } from './templates/content-purchase';
 import { bookingConfirmationEmail } from './templates/booking-confirmation';
 import { bookingCreatorNotificationEmail } from './templates/booking-creator-notification';
 import { bookingStatusUpdateEmail } from './templates/booking-status-update';
+import { balanceReminderEmail } from './templates/balance-reminder';
+import { balanceOverdueCreatorEmail } from './templates/balance-overdue-creator';
 import { payoutConfirmationEmail } from './templates/payout-confirmation';
 import { foundingCreatorResetEmailTemplate } from './templates/founding-creator-reset';
 import { baseEmailTemplate } from './base-template';
 import { getFoleioLogoAttachment } from './foleio-dark-email';
+import type { BalanceReminderKind } from '@/lib/booking/deposit';
 
 function canSendEmails() {
   return (
@@ -107,6 +110,7 @@ export async function sendBookingConfirmation(data: {
   paymentPlan?: string;
   amountPaid?: number;
   balanceAmount?: number;
+  balanceDueDateLabel?: string;
   status?: string;
 }) {
   try {
@@ -135,6 +139,7 @@ export async function sendBookingCreatorNotification(data: {
   paymentPlan?: string;
   amountPaid?: number;
   balanceAmount?: number;
+  balanceDueDateLabel?: string;
   status?: string;
 }) {
   try {
@@ -157,7 +162,7 @@ export async function sendBookingStatusUpdate(data: {
   creatorName: string;
   serviceName: string;
   bookingDate: string;
-  status: 'paid' | 'service_day' | 'completed' | 'disputed' | 'refunded';
+  status: 'paid' | 'service_day' | 'completed' | 'disputed' | 'refunded' | 'cancelled';
   trackingUrl: string;
 }) {
   try {
@@ -165,6 +170,56 @@ export async function sendBookingStatusUpdate(data: {
     return await sendEmail({ to: data.customerEmail, subject, html });
   } catch (error) {
     console.error('sendBookingStatusUpdate failed:', error);
+    return { success: false };
+  }
+}
+
+export async function sendBalanceReminderEmail(data: {
+  customerEmail: string;
+  customerName: string;
+  creatorName: string;
+  serviceName: string;
+  bookingDate: string;
+  balanceAmount: number;
+  balanceDueDateLabel: string;
+  trackingUrl: string;
+  kind: BalanceReminderKind;
+}) {
+  try {
+    const { subject, html } = balanceReminderEmail(data);
+    return await sendEmail({
+      to: data.customerEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendBalanceReminderEmail failed:', error);
+    return { success: false };
+  }
+}
+
+export async function sendBalanceOverdueCreatorEmail(data: {
+  creatorEmail: string;
+  creatorName: string;
+  customerName: string;
+  customerEmail: string;
+  serviceName: string;
+  bookingDate: string;
+  balanceAmount: number;
+  balanceDueDateLabel: string;
+  bookingUrl: string;
+}) {
+  try {
+    const { subject, html } = balanceOverdueCreatorEmail(data);
+    return await sendEmail({
+      to: data.creatorEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendBalanceOverdueCreatorEmail failed:', error);
     return { success: false };
   }
 }

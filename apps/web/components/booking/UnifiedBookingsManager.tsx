@@ -40,7 +40,14 @@ interface Booking {
   customerPhone: string;
   customerAddress: string;
   bookingDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
   totalAmount: number;
+  paymentPlan?: string;
+  depositAmount?: number;
+  balanceAmount?: number;
+  amountPaid?: number;
+  balanceDueDateLabel?: string | null;
   status: string;
   notes: string | null;
   disputeReason: string | null;
@@ -202,7 +209,7 @@ export function UnifiedBookingsManager({
             {booking.priceListItem?.name || 'Service'}
           </span>
           <span className="foleio-dash-sub-date">
-            {formatBookingDate(booking.bookingDate)}
+            {formatBookingDate(booking.bookingDate, booking.startTime, booking.endTime)}
           </span>
         </div>
         <div className="foleio-dash-booking-contacts">
@@ -235,7 +242,29 @@ export function UnifiedBookingsManager({
         </div>
       </div>
       <div className="foleio-dash-booking-amount">
-        {formatBookingPrice(booking.totalAmount)}
+        {booking.paymentPlan === 'deposit' &&
+        booking.balanceAmount &&
+        booking.balanceAmount > 0 &&
+        ['deposit_paid', 'balance_overdue'].includes(booking.status) ? (
+          <div style={{ textAlign: 'right' }}>
+            <div>{formatBookingPrice(booking.amountPaid ?? booking.depositAmount ?? 0)}</div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: booking.status === 'balance_overdue' ? '#f87171' : '#adadad',
+                marginTop: 4,
+              }}
+            >
+              Balance {formatBookingPrice(booking.balanceAmount)}
+              {booking.balanceDueDateLabel
+                ? ` · due ${booking.balanceDueDateLabel}`
+                : ''}
+            </div>
+          </div>
+        ) : (
+          formatBookingPrice(booking.totalAmount)
+        )}
       </div>
     </div>
   );

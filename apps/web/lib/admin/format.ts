@@ -27,7 +27,11 @@ export function statusBadgeClass(status?: string | null): string {
   ) {
     return 'bg-amber-500/15 text-amber-300 border-[#201e1c]';
   }
-  if (['failed', 'disputed', 'cancelled', 'canceled', 'refunded', 'inactive'].includes(normalized)) {
+  if (
+    ['failed', 'disputed', 'cancelled', 'canceled', 'refunded', 'inactive', 'balance_overdue'].includes(
+      normalized
+    )
+  ) {
     return 'bg-red-500/15 text-red-300 border-[#201e1c]';
   }
   if (normalized === 'past_due' || normalized === 'at_risk') {

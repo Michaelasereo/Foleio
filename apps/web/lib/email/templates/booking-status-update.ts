@@ -12,6 +12,8 @@ function statusSubject(status: string, creatorName: string) {
       return 'Your dispute has been received';
     case 'refunded':
       return 'Your refund is being processed';
+    case 'cancelled':
+      return `Booking cancelled with ${creatorName}`;
     default:
       return `Booking update with ${creatorName}`;
   }
@@ -29,6 +31,8 @@ function statusMessage(status: string, creatorName: string, serviceName: string)
       return 'We have received your dispute request and it is now under review.';
     case 'refunded':
       return 'Your refund has been approved and is being processed.';
+    case 'cancelled':
+      return `Your ${serviceName} booking with ${creatorName} has been cancelled.`;
     default:
       return `Your booking with ${creatorName} has a new status update.`;
   }
@@ -46,7 +50,7 @@ export function bookingStatusUpdateEmail({
   creatorName: string;
   serviceName: string;
   bookingDate: string;
-  status: 'paid' | 'service_day' | 'completed' | 'disputed' | 'refunded';
+  status: 'paid' | 'service_day' | 'completed' | 'disputed' | 'refunded' | 'cancelled';
   trackingUrl: string;
 }) {
   const subject = statusSubject(status, creatorName);

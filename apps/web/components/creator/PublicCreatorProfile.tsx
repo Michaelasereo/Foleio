@@ -68,6 +68,8 @@ interface Availability {
   maxBookings: number | null;
   bookingCount?: number;
   isFullyBooked?: boolean;
+  mode?: 'full_day' | 'hours';
+  slots?: Array<{ startTime: string; endTime: string; isBooked?: boolean }>;
 }
 
 interface Creator {
@@ -453,6 +455,7 @@ function buildSampleAvailability(): Availability[] {
       maxBookings: 1,
       bookingCount: i % 4 === 0 ? 1 : 0,
       isFullyBooked: false,
+      mode: 'full_day',
     });
   }
   return dates;

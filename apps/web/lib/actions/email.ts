@@ -9,6 +9,11 @@ import {
   sendContentPurchaseEmail,
   sendSubscriptionConfirmation,
 } from '@/lib/email/send';
+import { formatBookingWhen } from '@/lib/booking/slots';
+import {
+  formatBalanceDueDate,
+  getBookingBalanceDueDate,
+} from '@/lib/booking/deposit';
 
 // Note: This uses a placeholder email implementation
 // In production, integrate with Resend, SendGrid, or similar
@@ -26,6 +31,7 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
           select: {
             displayName: true,
             username: true,
+            balanceDueDaysBefore: true,
             user: {
               select: {
                 email: true,
@@ -43,17 +49,25 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     const trackingUrl = `${APP_URL}/tracking/${booking.trackingToken}`;
     const bookingUrl = `${APP_URL}/bookings/detail/${booking.id}`;
 
-    // Format the booking date
-    const formattedDate = new Date(booking.bookingDate).toLocaleDateString('en-NG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    // Format the booking date (include time for hours-mode bookings)
+    const formattedDate = formatBookingWhen(
+      booking.bookingDate,
+      booking.startTime,
+      booking.endTime
+    );
 
     const amountNaira = booking.totalAmount / 100;
     const amountPaidNaira = (booking.amountPaid || 0) / 100;
     const balanceNaira = (booking.balanceAmount || 0) / 100;
+    const dueLabel =
+      booking.paymentPlan === 'deposit' && booking.balanceAmount > 0
+        ? formatBalanceDueDate(
+            getBookingBalanceDueDate(
+              booking.bookingDate,
+              booking.creator.balanceDueDaysBefore ?? 7
+            )
+          )
+        : undefined;
 
     const customerResult = await sendBookingConfirmation({
       customerName: booking.customerName,
@@ -69,6 +83,7 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
       paymentPlan: booking.paymentPlan,
       amountPaid: amountPaidNaira || amountNaira,
       balanceAmount: balanceNaira,
+      balanceDueDateLabel: dueLabel,
       status: booking.status,
     });
 
@@ -87,6 +102,7 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
         paymentPlan: booking.paymentPlan,
         amountPaid: amountPaidNaira || amountNaira,
         balanceAmount: balanceNaira,
+        balanceDueDateLabel: dueLabel,
         status: booking.status,
       });
     } else {
@@ -275,12 +291,11 @@ export async function sendServiceDayReminder(bookingId: string) {
 
     const trackingUrl = `${APP_URL}/tracking/${booking.trackingToken}`;
     
-    const formattedDate = new Date(booking.bookingDate).toLocaleDateString('en-NG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    const formattedDate = formatBookingWhen(
+      booking.bookingDate,
+      booking.startTime,
+      booking.endTime
+    );
 
     const emailContent = {
       to: booking.customerEmail,
@@ -434,7 +449,11 @@ export async function sendCompletionEmail(bookingId: string) {
       customerName: booking.customerName,
       creatorName: booking.creator.displayName,
       serviceName: booking.priceListItem.name,
-      bookingDate: new Date(booking.bookingDate).toLocaleDateString('en-NG'),
+      bookingDate: formatBookingWhen(
+        booking.bookingDate,
+        booking.startTime,
+        booking.endTime
+      ),
       status: 'completed',
       trackingUrl,
     });

@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { UnifiedBookingsManager } from '@/components/booking/UnifiedBookingsManager';
 import { serializeForClient } from '@/lib/utils';
+import {
+  formatBalanceDueDate,
+  getBookingBalanceDueDate,
+} from '@/lib/booking/deposit';
 import BookingsLoading from './loading';
 
 export default async function BookingsPage({
@@ -96,12 +100,32 @@ export default async function BookingsPage({
     );
   }
 
-  const upcomingBookings = bookings.filter((b) =>
-    ['paid', 'first_payout_done', 'service_day'].includes(b.status)
+  const daysBefore = creator.balanceDueDaysBefore ?? 7;
+  const withDue = <T extends { paymentPlan?: string | null; balanceAmount?: number | null; bookingDate: Date | string }>(
+    list: T[]
+  ) =>
+    list.map((b) => ({
+      ...b,
+      balanceDueDateLabel:
+        b.paymentPlan === 'deposit' && b.balanceAmount && b.balanceAmount > 0
+          ? formatBalanceDueDate(
+              getBookingBalanceDueDate(new Date(b.bookingDate), daysBefore)
+            )
+          : null,
+    }));
+
+  const upcomingBookings = withDue(
+    bookings.filter((b) =>
+      ['deposit_paid', 'balance_overdue', 'paid', 'first_payout_done', 'service_day'].includes(
+        b.status
+      )
+    )
   );
-  const disputedBookings = bookings.filter((b) => b.status === 'disputed');
-  const completedBookings = bookings.filter((b) =>
-    ['completed', 'refunded', 'cancelled'].includes(b.status)
+  const disputedBookings = withDue(bookings.filter((b) => b.status === 'disputed'));
+  const completedBookings = withDue(
+    bookings.filter((b) =>
+      ['completed', 'refunded', 'cancelled'].includes(b.status)
+    )
   );
 
   return (

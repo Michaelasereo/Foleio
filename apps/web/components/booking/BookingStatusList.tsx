@@ -182,7 +182,11 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                     {booking.priceListItem?.name || 'Service'}
                   </span>
                   <span className="foleio-dash-sub-date">
-                    {formatBookingDate(booking.bookingDate)}
+                    {formatBookingDate(
+                      booking.bookingDate,
+                      booking.startTime,
+                      booking.endTime
+                    )}
                   </span>
                 </div>
                 <div className="foleio-dash-booking-contacts">
@@ -215,7 +219,36 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                 </div>
               </div>
               <div className="foleio-dash-booking-amount">
-                {formatBookingPrice(booking.totalAmount)}
+                {booking.paymentPlan === 'deposit' &&
+                booking.balanceAmount &&
+                booking.balanceAmount > 0 &&
+                ['deposit_paid', 'balance_overdue'].includes(booking.status) ? (
+                  <div style={{ textAlign: 'right' }}>
+                    <div>
+                      {formatBookingPrice(
+                        booking.amountPaid ?? booking.depositAmount ?? 0
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color:
+                          booking.status === 'balance_overdue'
+                            ? '#f87171'
+                            : '#adadad',
+                        marginTop: 4,
+                      }}
+                    >
+                      Balance {formatBookingPrice(booking.balanceAmount)}
+                      {booking.balanceDueDateLabel
+                        ? ` · due ${booking.balanceDueDateLabel}`
+                        : ''}
+                    </div>
+                  </div>
+                ) : (
+                  formatBookingPrice(booking.totalAmount)
+                )}
               </div>
             </div>
           ))

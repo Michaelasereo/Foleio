@@ -212,7 +212,9 @@ export async function PUT(request: NextRequest) {
 
         if (
           booking &&
-          (booking.status === 'pending' || booking.status === 'deposit_paid')
+          (booking.status === 'pending' ||
+            booking.status === 'deposit_paid' ||
+            booking.status === 'balance_overdue')
         ) {
           const confirmResult = await confirmBookingPayment(
             booking.id,

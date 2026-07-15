@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { FanSupportChat } from '@/components/ai/FanSupportChat';
 import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
+import { formatBookingWhen } from '@/lib/booking/slots';
 
 interface BookingData {
   id: string;
@@ -40,11 +41,15 @@ interface BookingData {
   customerName: string;
   customerEmail: string;
   bookingDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
   totalAmount: number;
   depositAmount?: number;
   balanceAmount?: number;
   amountPaid?: number;
   paymentPlan?: string;
+  balanceDueDate?: string | null;
+  balanceDueDateLabel?: string | null;
   notes: string | null;
   disputeReason: string | null;
   disputeStatus: string | null;
@@ -183,6 +188,7 @@ export default function TrackingPage() {
     const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
       pending: { label: 'Pending Payment', variant: 'outline' },
       deposit_paid: { label: 'Deposit paid', variant: 'default' },
+      balance_overdue: { label: 'Balance overdue', variant: 'destructive' },
       paid: { label: 'Paid', variant: 'default' },
       first_payout_done: { label: 'Confirmed', variant: 'default' },
       service_day: { label: 'Service Day', variant: 'default' },
@@ -396,6 +402,26 @@ export default function TrackingPage() {
           </Card>
         )}
 
+        {booking.status === 'balance_overdue' ? (
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-4">
+                <AlertCircle className="h-6 w-6 text-destructive shrink-0" />
+                <div>
+                  <h4 className="font-semibold">Balance overdue</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Your remaining balance
+                    {booking.balanceDueDateLabel
+                      ? ` was due by ${booking.balanceDueDateLabel}`
+                      : ' is past due'}
+                    . Pay now to settle your outstanding invoice.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* Booking Details */}
         <Card>
           <CardHeader>
@@ -439,22 +465,39 @@ export default function TrackingPage() {
               <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm text-muted-foreground">Date</p>
-                <p className="font-medium">{formatDate(booking.bookingDate)}</p>
+                <p className="font-medium">
+                  {formatBookingWhen(
+                    booking.bookingDate,
+                    booking.startTime,
+                    booking.endTime
+                  )}
+                </p>
               </div>
             </div>
 
             {/* Amount */}
             <div>
               <p className="text-sm text-muted-foreground">
-                {booking.status === 'deposit_paid' ? 'Amount paid (deposit)' : 'Amount Paid'}
+                {['deposit_paid', 'balance_overdue'].includes(booking.status)
+                  ? 'Amount paid (deposit)'
+                  : 'Amount Paid'}
               </p>
               <p className="font-bold text-lg">
                 {formatPrice(booking.amountPaid ?? booking.totalAmount)}
               </p>
-              {booking.status === 'deposit_paid' && booking.balanceAmount ? (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Balance due: {formatPrice(booking.balanceAmount)}
-                </p>
+              {['deposit_paid', 'balance_overdue'].includes(booking.status) &&
+              booking.balanceAmount ? (
+                <>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Balance due: {formatPrice(booking.balanceAmount)}
+                  </p>
+                  {booking.balanceDueDateLabel ? (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {booking.status === 'balance_overdue' ? 'Was due by' : 'Due by'}:{' '}
+                      {booking.balanceDueDateLabel}
+                    </p>
+                  ) : null}
+                </>
               ) : null}
             </div>
 
@@ -468,7 +511,8 @@ export default function TrackingPage() {
           </CardContent>
         </Card>
 
-        {booking.status === 'deposit_paid' && booking.balanceAmount ? (
+        {['deposit_paid', 'balance_overdue'].includes(booking.status) &&
+        booking.balanceAmount ? (
           <Card>
             <CardContent className="pt-6">
               <Button
@@ -541,7 +585,7 @@ export default function TrackingPage() {
         ) : null}
 
         {/* Refund Request Button */}
-        {['deposit_paid', 'paid', 'first_payout_done', 'service_day'].includes(booking.status) && (
+        {['deposit_paid', 'balance_overdue', 'paid', 'first_payout_done', 'service_day'].includes(booking.status) && (
           <Card>
             <CardContent className="pt-6">
               <Button

@@ -17,6 +17,7 @@ export function bookingCreatorNotificationEmail({
   paymentPlan,
   amountPaid,
   balanceAmount,
+  balanceDueDateLabel,
   status,
 }: {
   creatorName: string;
@@ -29,9 +30,10 @@ export function bookingCreatorNotificationEmail({
   paymentPlan?: string;
   amountPaid?: number;
   balanceAmount?: number;
+  balanceDueDateLabel?: string;
   status?: string;
 }) {
-  const isDepositHold = status === 'deposit_paid';
+  const isDepositHold = status === 'deposit_paid' || status === 'balance_overdue';
   const subject = isDepositHold
     ? `Deposit received from ${customerName}`
     : `New booking from ${customerName}`;
@@ -51,6 +53,12 @@ export function bookingCreatorNotificationEmail({
       label: 'Balance due',
       value: formatNairaAmount(balanceAmount),
     });
+    if (balanceDueDateLabel) {
+      rows.push({
+        label: 'Client pays by',
+        value: balanceDueDateLabel,
+      });
+    }
   }
   if (paymentPlan) {
     rows.push({

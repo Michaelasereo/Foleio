@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import {
@@ -11,6 +12,8 @@ import {
   MapPin,
   Phone,
 } from 'lucide-react';
+import { cancelBooking } from '@/lib/actions/booking';
+import { resendTrackingEmail } from '@/lib/actions/email';
 import {
   BOOKING_STATUS_LABELS,
   formatBookingDate,
@@ -28,8 +31,14 @@ export function BookingDetailClient({
   booking,
   backHref = '/bookings',
 }: BookingDetailClientProps) {
+  const router = useRouter();
   const captureRef = useRef<HTMLDivElement | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const isDepositHold = ['deposit_paid', 'balance_overdue'].includes(
+    booking.status
+  );
 
   async function handleDownloadPng() {
     const element = captureRef.current;
@@ -62,6 +71,52 @@ export function BookingDetailClient({
     }
   }
 
+  async function handleResendTracking() {
+    if (!booking.trackingToken) return;
+    setActionLoading('resend');
+    try {
+      const result = await resendTrackingEmail(
+        booking.trackingToken,
+        booking.customerEmail
+      );
+      if ('error' in result && result.error) {
+        alert(result.error);
+      } else {
+        alert('Tracking email sent to the customer.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Could not resend tracking email.');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleCancel() {
+    if (
+      !window.confirm(
+        'Cancel this booking and release the date? This does not automatically refund the deposit.'
+      )
+    ) {
+      return;
+    }
+    setActionLoading('cancel');
+    try {
+      const result = await cancelBooking(booking.id);
+      if (result.error) {
+        alert(result.error);
+      } else {
+        router.refresh();
+        router.push(backHref);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Could not cancel booking.');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   const rows: Array<{ label: string; value: string; strong?: boolean }> = [
     {
       label: 'Service',
@@ -74,34 +129,61 @@ export function BookingDetailClient({
     },
     {
       label: 'Service date',
-      value: formatBookingDate(booking.bookingDate),
+      value: formatBookingDate(
+        booking.bookingDate,
+        booking.startTime,
+        booking.endTime
+      ),
     },
     {
       label: 'Status',
       value: BOOKING_STATUS_LABELS[booking.status] || booking.status,
     },
-    {
-      label: 'Amount paid',
-      value: formatBookingPrice(booking.totalAmount),
-      strong: true,
-    },
-    {
-      label: 'Customer',
-      value: booking.customerName,
-    },
-    {
-      label: 'Email',
-      value: booking.customerEmail || '—',
-    },
-    {
-      label: 'Phone',
-      value: booking.customerPhone || '—',
-    },
-    {
-      label: 'Address',
-      value: booking.customerAddress || '—',
-    },
   ];
+
+  if (isDepositHold) {
+    rows.push({
+      label: 'Deposit paid',
+      value: formatBookingPrice(
+        booking.amountPaid ?? booking.depositAmount ?? 0
+      ),
+      strong: true,
+    });
+    if (booking.balanceAmount && booking.balanceAmount > 0) {
+      rows.push({
+        label: 'Balance remaining',
+        value: formatBookingPrice(booking.balanceAmount),
+        strong: true,
+      });
+    }
+    if (booking.balanceDueDateLabel) {
+      rows.push({
+        label: booking.status === 'balance_overdue' ? 'Was due by' : 'Balance due by',
+        value: booking.balanceDueDateLabel,
+      });
+    }
+    rows.push({
+      label: 'Package total',
+      value: formatBookingPrice(booking.totalAmount),
+    });
+  } else {
+    rows.push({
+      label: 'Amount paid',
+      value: formatBookingPrice(
+        booking.amountPaid && booking.amountPaid > 0
+          ? booking.amountPaid
+          : booking.totalAmount
+      ),
+      strong: true,
+    });
+  }
+
+  rows.push(
+    { label: 'Customer', value: booking.customerName },
+    { label: 'Email', value: booking.customerEmail || '—' },
+    { label: 'Phone', value: booking.customerPhone || '—' },
+    { label: 'Address', value: booking.customerAddress || '—' }
+  );
 
   if (booking.notes) {
     rows.push({ label: 'Notes', value: booking.notes });
@@ -210,7 +292,11 @@ export function BookingDetailClient({
             </p>
             <p style={{ margin: '6px 0 0', color: '#adadad', fontSize: 13 }}>
               {booking.priceListItem?.name || 'Service'} ·{' '}
-              {formatBookingDate(booking.bookingDate)}
+              {formatBookingDate(
+                booking.bookingDate,
+                booking.startTime,
+                booking.endTime
+              )}
             </p>
           </div>
 
@@ -266,6 +352,43 @@ export function BookingDetailClient({
               Open tracking page
             </Link>
           </p>
+        ) : null}
+
+        {isDepositHold ? (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 10,
+              marginTop: 16,
+            }}
+          >
+            {booking.trackingToken ? (
+              <button
+                type="button"
+                className="foleio-dash-btn-outline"
+                disabled={actionLoading !== null}
+                onClick={() => void handleResendTracking()}
+              >
+                {actionLoading === 'resend' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                ) : null}
+                Resend tracking link
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="foleio-dash-btn-outline"
+              disabled={actionLoading !== null}
+              onClick={() => void handleCancel()}
+              style={{ color: '#f87171' }}
+            >
+              {actionLoading === 'cancel' ? (
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+              ) : null}
+              Cancel booking
+            </button>
+          </div>
         ) : null}
       </div>
     </div>

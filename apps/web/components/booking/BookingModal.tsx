@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { formatSlotLabel } from '@/lib/booking/slots';
 
 interface PriceListItem {
   id: string;
@@ -50,6 +51,8 @@ interface AvailabilityDate {
   maxBookings: number | null;
   bookingCount?: number;
   isFullyBooked?: boolean;
+  mode?: 'full_day' | 'hours';
+  slots?: Array<{ startTime: string; endTime: string; isBooked?: boolean }>;
 }
 
 interface BookingModalProps {
@@ -74,7 +77,7 @@ const bookingSchema = z.object({
 
 type BookingInput = z.infer<typeof bookingSchema>;
 
-type Step = 'service' | 'date' | 'details' | 'payment' | 'success';
+type Step = 'service' | 'date' | 'time' | 'details' | 'payment' | 'success';
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
 
@@ -528,6 +531,10 @@ export function BookingModal({
   const [step, setStep] = useState<Step>('date');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<{
+    startTime: string;
+    endTime: string;
+  } | null>(null);
   const [openDates, setOpenDates] = useState<AvailabilityDate[]>(availableDates);
   const [allowMultipleDates, setAllowMultipleDates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -672,10 +679,11 @@ export function BookingModal({
   };
 
   const stepProgress = {
-    service: 20,
-    date: 40,
-    details: 60,
-    payment: 80,
+    service: 16,
+    date: 33,
+    time: 50,
+    details: 66,
+    payment: 83,
     success: 100,
   };
 
@@ -701,7 +709,11 @@ export function BookingModal({
     }
 
     if (allowMultipleDates) {
-      // Multiple date selection
+      // Multiple date selection (full-day dates only)
+      if (dateObj?.mode === 'hours') {
+        alert('Hourly days must be booked one at a time. Switch to single date.');
+        return;
+      }
       if (selectedDates.includes(dateStr)) {
         setSelectedDates(selectedDates.filter(d => d !== dateStr));
         if (selectedDates.length === 1) {
@@ -718,8 +730,13 @@ export function BookingModal({
       // Single date selection
       setSelectedDate(dateStr);
       setSelectedDates([dateStr]);
+      setSelectedSlot(null);
       form.setValue('bookingDate', dateStr);
-      setStep('details');
+      if (dateObj?.mode === 'hours' && (dateObj.slots?.length || 0) > 0) {
+        setStep('time');
+      } else {
+        setStep('details');
+      }
     }
   }
 
@@ -728,6 +745,12 @@ export function BookingModal({
       alert('Please select at least one date.');
       return;
     }
+    setSelectedSlot(null);
+    setStep('details');
+  }
+
+  function handleSlotSelect(startTime: string, endTime: string) {
+    setSelectedSlot({ startTime, endTime });
     setStep('details');
   }
 
@@ -776,6 +799,10 @@ export function BookingModal({
         if (availableDate.isFullyBooked) {
           throw new Error(`Date ${formatDate(selectedDateObj)} is fully booked. Please choose a different date.`);
         }
+
+        if (availableDate.mode === 'hours' && !selectedSlot) {
+          throw new Error('Please select a time slot for this date.');
+        }
       }
 
       // For now, create booking for the first date only (can be extended to support multiple)
@@ -796,6 +823,8 @@ export function BookingModal({
           notes: data.notes,
           paymentPlan: depositEnabled ? paymentPlan : 'full',
           selectedAddonIds,
+          startTime: selectedSlot?.startTime,
+          endTime: selectedSlot?.endTime,
         }),
       });
 
@@ -1265,6 +1294,58 @@ export function BookingModal({
             </div>
           ) : null}
 
+          {step === 'time' && !bookingLimitReached ? (
+            <div>
+              <p className="foleio-book-option-meta">
+                {selectedDate
+                  ? formatDate(new Date(`${selectedDate}T12:00:00`))
+                  : 'Select a time'}
+              </p>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginTop: 14,
+                }}
+              >
+                {(
+                  openDates.find((d) => availDateKey(d.date) === selectedDate)?.slots || []
+                ).map((slot) => {
+                  const isSelected =
+                    selectedSlot?.startTime === slot.startTime &&
+                    selectedSlot?.endTime === slot.endTime;
+                  return (
+                    <button
+                      key={`${slot.startTime}-${slot.endTime}`}
+                      type="button"
+                      onClick={() => handleSlotSelect(slot.startTime, slot.endTime)}
+                      style={{
+                        border: isSelected ? '1px solid #fff' : '1px solid rgba(255,255,255,0.18)',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        background: isSelected ? '#fff' : 'transparent',
+                        color: isSelected ? '#001035' : '#f4f4f5',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Clock className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 6 }} />
+                      {formatSlotLabel(slot.startTime, slot.endTime)}
+                    </button>
+                  );
+                })}
+              </div>
+              {(openDates.find((d) => availDateKey(d.date) === selectedDate)?.slots || [])
+                .length === 0 ? (
+                <p className="foleio-book-drawer-empty" style={{ marginTop: 12 }}>
+                  No open times left on this day.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           {step === 'details' && !bookingLimitReached ? (
             <Form {...form}>
               <form id="booking-details-form" onSubmit={form.handleSubmit(onSubmit)} className="foleio-book-form">
@@ -1279,6 +1360,9 @@ export function BookingModal({
                         : selectedDate
                           ? formatDate(new Date(selectedDate))
                           : ''}
+                      {selectedSlot
+                        ? ` · ${formatSlotLabel(selectedSlot.startTime, selectedSlot.endTime)}`
+                        : ''}
                     </p>
                   </div>
                 ) : null}
@@ -1492,7 +1576,11 @@ export function BookingModal({
                     <span className="foleio-book-receipt-label">Date</span>
                     <span className="foleio-book-receipt-value">
                       {bookingResult.bookingDate
-                        ? formatDate(new Date(bookingResult.bookingDate))
+                        ? `${formatDate(new Date(bookingResult.bookingDate))}${
+                            selectedSlot
+                              ? ` · ${formatSlotLabel(selectedSlot.startTime, selectedSlot.endTime)}`
+                              : ''
+                          }`
                         : selectedDates.length > 0
                           ? selectedDates
                               .map((dateStr) => formatDate(new Date(dateStr)))
@@ -1594,11 +1682,40 @@ export function BookingModal({
                   type="button"
                   className="foleio-book-btn is-primary"
                   disabled={!selectedDate}
-                  onClick={() => selectedDate && setStep('details')}
+                  onClick={() => {
+                    if (!selectedDate) return;
+                    const day = openDates.find((d) => availDateKey(d.date) === selectedDate);
+                    if (day?.mode === 'hours' && (day.slots?.length || 0) > 0) {
+                      setStep('time');
+                    } else {
+                      setStep('details');
+                    }
+                  }}
                 >
                   Continue
                 </button>
               )}
+            </div>
+          ) : null}
+
+          {step === 'time' && !bookingLimitReached ? (
+            <div className="foleio-book-drawer-actions">
+              <button
+                type="button"
+                className="foleio-book-btn is-ghost"
+                onClick={() => setStep('date')}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="button"
+                className="foleio-book-btn is-primary"
+                disabled={!selectedSlot}
+                onClick={() => selectedSlot && setStep('details')}
+              >
+                Continue
+              </button>
             </div>
           ) : null}
 
@@ -1607,7 +1724,11 @@ export function BookingModal({
               <button
                 type="button"
                 className="foleio-book-btn is-ghost"
-                onClick={() => setStep('date')}
+                onClick={() => {
+                  const day = openDates.find((d) => availDateKey(d.date) === selectedDate);
+                  if (day?.mode === 'hours') setStep('time');
+                  else setStep('date');
+                }}
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back

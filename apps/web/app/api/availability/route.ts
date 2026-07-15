@@ -8,58 +8,81 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    const where: any = {
-      creator: { userId: user.id }
+    const where: {
+      creator: { userId: string };
+      date?: { gte?: Date; lte?: Date };
+    } = {
+      creator: { userId: user.id },
     };
 
     if (startDate && endDate) {
       where.date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
+        gte: new Date(`${startDate.slice(0, 10)}T00:00:00.000Z`),
+        lte: new Date(`${endDate.slice(0, 10)}T00:00:00.000Z`),
       };
     }
 
-    console.log('Fetching availability for user:', user.id, 'with filters:', where);
-
     const availability = await prisma.creatorAvailability.findMany({
       where,
-      orderBy: { date: 'asc' }
+      include: {
+        slots: {
+          orderBy: { startTime: 'asc' },
+        },
+      },
+      orderBy: { date: 'asc' },
     });
 
-    console.log(`Found ${availability.length} availability records:`, availability.map(a => ({
-      date: a.date.toISOString(),
-      isAvailable: a.isAvailable
-    })));
+    const serializedAvailability = availability.map((item) => {
+      const customSlots = item.slots
+        .filter((s) => s.source === 'custom')
+        .map((s) => ({ startTime: s.startTime, endTime: s.endTime }));
+      const disabledGeneratedStarts = item.slots
+        .filter((s) => s.source === 'generated' && !s.isActive)
+        .map((s) => s.startTime);
 
-    // Serialize dates
-    const serializedAvailability = availability.map(item => ({
-      id: item.id,
-      date: item.date.toISOString().split('T')[0], // YYYY-MM-DD format
-      isAvailable: item.isAvailable,
-      maxBookings: item.maxBookings,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString()
-    }));
+      return {
+        id: item.id,
+        date: item.date.toISOString().split('T')[0],
+        isAvailable: item.isAvailable,
+        maxBookings: item.maxBookings,
+        mode: item.mode === 'hours' ? 'hours' : 'full_day',
+        startTime: item.windowStart,
+        endTime: item.windowEnd,
+        customSlots,
+        disabledGeneratedStarts,
+        slots: item.slots.map((s) => ({
+          id: s.id,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          source: s.source,
+          isActive: s.isActive,
+        })),
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+      };
+    });
 
     return NextResponse.json({ availability: serializedAvailability });
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Availability fetch error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch availability', details: error.message },
+      {
+        error: 'Failed to fetch availability',
+        details: error instanceof Error ? error.message : 'Unknown',
+      },
       { status: 500 }
     );
   }
@@ -68,39 +91,30 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // Get creator
     const creator = await prisma.creator.findUnique({
-      where: { userId: user.id }
+      where: { userId: user.id },
     });
 
     if (!creator) {
-      return NextResponse.json(
-        { error: 'Creator profile not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Creator profile not found' }, { status: 404 });
     }
 
     const body = await request.json();
     const { date, isAvailable } = body;
 
-    // Validate required fields
     if (!date) {
-      return NextResponse.json(
-        { error: 'Date is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Date is required' }, { status: 400 });
     }
 
-    // Always store as UTC midnight from YYYY-MM-DD.
     const dayKey =
       typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)
         ? date.slice(0, 10)
@@ -108,63 +122,53 @@ export async function POST(request: Request) {
     const availabilityDate = new Date(`${dayKey}T00:00:00.000Z`);
     const capacity = isAvailable ? BOOKINGS_PER_DAY : null;
 
-    // Check if availability already exists for this date
-    const existingAvailability = await prisma.creatorAvailability.findUnique({
+    const record = await prisma.creatorAvailability.upsert({
       where: {
         creatorId_date: {
           creatorId: creator.id,
-          date: availabilityDate
-        }
-      }
+          date: availabilityDate,
+        },
+      },
+      update: {
+        isAvailable,
+        maxBookings: capacity,
+        mode: 'full_day',
+        windowStart: null,
+        windowEnd: null,
+      },
+      create: {
+        creatorId: creator.id,
+        date: availabilityDate,
+        isAvailable,
+        maxBookings: capacity,
+        mode: 'full_day',
+      },
     });
 
-    if (existingAvailability) {
-      // Update existing
-      const updated = await prisma.creatorAvailability.update({
-        where: { id: existingAvailability.id },
-        data: {
-          isAvailable,
-          maxBookings: capacity,
-        }
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: 'Availability updated successfully',
-        availability: {
-          id: updated.id,
-          date: updated.date.toISOString().split('T')[0],
-          isAvailable: updated.isAvailable,
-          maxBookings: updated.maxBookings
-        }
-      });
-    } else {
-      // Create new
-      const newAvailability = await prisma.creatorAvailability.create({
-        data: {
-          creatorId: creator.id,
-          date: availabilityDate,
-          isAvailable,
-          maxBookings: capacity,
-        }
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: 'Availability created successfully',
-        availability: {
-          id: newAvailability.id,
-          date: newAvailability.date.toISOString().split('T')[0],
-          isAvailable: newAvailability.isAvailable,
-          maxBookings: newAvailability.maxBookings
-        }
+    if (!isAvailable) {
+      await prisma.availabilitySlot.deleteMany({
+        where: { availabilityId: record.id },
       });
     }
 
-  } catch (error: any) {
+    return NextResponse.json({
+      success: true,
+      message: 'Availability updated successfully',
+      availability: {
+        id: record.id,
+        date: record.date.toISOString().split('T')[0],
+        isAvailable: record.isAvailable,
+        maxBookings: record.maxBookings,
+        mode: record.mode,
+      },
+    });
+  } catch (error: unknown) {
     console.error('Availability creation error:', error);
     return NextResponse.json(
-      { error: 'Failed to update availability', details: error.message },
+      {
+        error: 'Failed to update availability',
+        details: error instanceof Error ? error.message : 'Unknown',
+      },
       { status: 500 }
     );
   }

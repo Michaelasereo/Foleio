@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (paymentKind === 'balance' && booking.status !== 'deposit_paid') {
+    if (paymentKind === 'balance' && !['deposit_paid', 'balance_overdue'].includes(booking.status)) {
       return NextResponse.json(
         { error: 'Booking is not awaiting balance payment' },
         { status: 400 }

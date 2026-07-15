@@ -176,6 +176,8 @@ model Creator {
   deliveryTiers     DeliveryTier[]
   orders            Order[]
   availability      CreatorAvailability[]
+  availabilitySlots AvailabilitySlot[]
+  availabilityTemplates AvailabilityTemplate[]
   bookings          Booking[]
   emailSubscriptions EmailSubscription[]
   uploads           Upload[]
@@ -736,18 +738,67 @@ model CreatorAvailability {
   creatorId   String   @map("creator_id")
   date        DateTime @db.Date // Available date (date only, no time)
   isAvailable Boolean  @default(true) @map("is_available")
-  maxBookings Int?     @map("max_bookings") // Optional limit per date
+  maxBookings Int?     @map("max_bookings") // Full-day capacity (forced to 1)
+  mode        String   @default("full_day") // full_day | hours
+  windowStart String?  @map("window_start") // HH:mm for hours mode generation
+  windowEnd   String?  @map("window_end")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator Creator            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  slots   AvailabilitySlot[]
 
   @@unique([creatorId, date])
   @@map("creator_availability")
   @@index([creatorId])
   @@index([date])
+}
+
+// Bookable time slots for hours-mode availability days
+model AvailabilitySlot {
+  id             String   @id @default(uuid())
+  creatorId      String   @map("creator_id")
+  availabilityId String   @map("availability_id")
+  date           DateTime @db.Date
+  startTime      String   @map("start_time") // HH:mm
+  endTime        String   @map("end_time") // HH:mm
+  source         String   @default("generated") // generated | custom
+  isActive       Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  creator      Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  availability CreatorAvailability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, date, startTime, endTime])
+  @@map("availability_slots")
+  @@index([creatorId, date])
+  @@index([availabilityId])
+  @@index([isActive])
+}
+
+// Reusable schedule templates for applying hours across dates
+model AvailabilityTemplate {
+  id                      String   @id @default(uuid())
+  creatorId               String   @map("creator_id")
+  name                    String
+  mode                    String   @default("hours") // full_day | hours
+  startTime               String?  @map("start_time") // HH:mm window start
+  endTime                 String?  @map("end_time")
+  slotIntervalMinutes     Int      @default(60) @map("slot_interval_minutes")
+  customSlots             Json     @default("[]") @map("custom_slots") // [{ startTime, endTime }]
+  disabledGeneratedStarts Json     @default("[]") @map("disabled_generated_starts") // string[] HH:mm
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("availability_templates")
+  @@index([creatorId])
 }
 
 // Bookings for Creator Services
@@ -764,6 +815,8 @@ model Booking {
 
   // Booking details
   bookingDate       DateTime @db.Date @map("booking_date") // Service date
+  startTime         String?  @map("start_time") // HH:mm; null for full-day bookings
+  endTime           String?  @map("end_time") // HH:mm; null for full-day bookings
   notes             String?  // Customer notes/requirements
 
   // Payment amounts (in kobo)
@@ -781,7 +834,7 @@ model Booking {
   balanceReference  String?  @map("balance_reference")
 
   // Status tracking
-  // pending | deposit_paid | paid | first_payout_done | service_day | completed | disputed | refunded | cancelled
+  // pending | deposit_paid | balance_overdue | paid | first_payout_done | service_day | completed | disputed | refunded | cancelled
   status            String   @default("pending")
   paymentReference  String?  @map("payment_reference") // Latest successful Paystack reference
   trackingToken     String   @unique @map("tracking_token")
@@ -801,12 +854,27 @@ model Booking {
   // Relations
   creator       Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   priceListItem PriceListItem @relation(fields: [priceListItemId], references: [id], onDelete: Cascade)
+  emailLogs     BookingEmailLog[]
 
   @@map("bookings")
   @@index([creatorId])
   @@index([customerEmail])
   @@index([bookingDate])
+  @@index([creatorId, bookingDate, startTime])
   @@index([status])
+}
+
+/// Idempotent log for booking lifecycle emails (balance reminders, etc.)
+model BookingEmailLog {
+  id        String   @id @default(cuid())
+  bookingId String   @map("booking_id")
+  emailType String   @map("email_type")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, emailType])
+  @@map("booking_email_logs")
+  @@index([emailType])
 }
 
 // Creator-defined portfolio sections (industry-agnostic)

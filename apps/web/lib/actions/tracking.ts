@@ -1,6 +1,10 @@
 'use server';
 
 import { prisma } from '@foleio/database';
+import {
+  formatBalanceDueDate,
+  getBookingBalanceDueDate,
+} from '@/lib/booking/deposit';
 
 // Verify email access for tracking page
 export async function verifyTrackingAccess(trackingToken: string, email: string) {
@@ -51,6 +55,7 @@ export async function getBookingByToken(trackingToken: string, email: string) {
             username: true,
             avatarUrl: true,
             category: true,
+            balanceDueDaysBefore: true,
           },
         },
       },
@@ -60,13 +65,22 @@ export async function getBookingByToken(trackingToken: string, email: string) {
       return { error: 'Booking not found or email does not match' };
     }
 
-    // Calculate progress steps
+    const due =
+      booking.paymentPlan === 'deposit' && booking.balanceAmount > 0
+        ? getBookingBalanceDueDate(
+            booking.bookingDate,
+            booking.creator.balanceDueDaysBefore ?? 7
+          )
+        : null;
+
     const progress = getBookingProgress(booking.status);
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         ...booking,
+        balanceDueDate: due ? due.toISOString() : null,
+        balanceDueDateLabel: due ? formatBalanceDueDate(due) : null,
         progress,
       },
     };
@@ -87,6 +101,8 @@ export async function getBookingPreview(trackingToken: string) {
         id: true,
         status: true,
         bookingDate: true,
+        startTime: true,
+        endTime: true,
         creator: {
           select: {
             displayName: true,
@@ -119,17 +135,17 @@ function getBookingProgress(status: string): {
   steps: { name: string; status: 'completed' | 'current' | 'upcoming'; description: string }[];
 } {
   const steps = [
-    { 
+    {
       name: 'Deposit / payment',
       statuses: ['deposit_paid', 'paid', 'first_payout_done'],
       description: 'Payment received for your booking',
     },
-    { 
+    {
       name: 'Service Day',
       statuses: ['service_day'],
       description: 'The service day has arrived',
     },
-    { 
+    {
       name: 'Job Completed',
       statuses: ['completed'],
       description: 'The service has been completed successfully',
@@ -137,8 +153,7 @@ function getBookingProgress(status: string): {
   ];
 
   let currentStep = 0;
-  
-  // Handle special statuses
+
   if (status === 'pending') {
     return {
       step: 0,
@@ -172,9 +187,7 @@ function getBookingProgress(status: string): {
     };
   }
 
-  // Determine current step based on status
   if (status === 'deposit_paid') {
-    currentStep = 1;
     return {
       step: 1,
       steps: [
@@ -197,6 +210,29 @@ function getBookingProgress(status: string): {
     };
   }
 
+  if (status === 'balance_overdue') {
+    return {
+      step: 1,
+      steps: [
+        {
+          name: 'Deposit paid',
+          status: 'completed' as const,
+          description: 'Your deposit is paid and the date is held',
+        },
+        {
+          name: 'Balance overdue',
+          status: 'current' as const,
+          description: 'Your balance is past due — pay now to settle your outstanding invoice',
+        },
+        {
+          name: 'Service day',
+          status: 'upcoming' as const,
+          description: 'The service day has arrived',
+        },
+      ],
+    };
+  }
+
   if (['paid', 'first_payout_done'].includes(status)) {
     currentStep = 1;
   } else if (status === 'service_day') {
@@ -209,7 +245,11 @@ function getBookingProgress(status: string): {
     step: currentStep,
     steps: steps.map((s, i) => ({
       name: s.name,
-      status: (i + 1 < currentStep ? 'completed' : i + 1 === currentStep ? 'current' : 'upcoming') as 'completed' | 'current' | 'upcoming',
+      status: (i + 1 < currentStep
+        ? 'completed'
+        : i + 1 === currentStep
+          ? 'current'
+          : 'upcoming') as 'completed' | 'current' | 'upcoming',
       description: s.description,
     })),
   };

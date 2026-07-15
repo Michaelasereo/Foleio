@@ -13,6 +13,7 @@ import {
 import { computePolicyRefundKobo } from '@/lib/booking/cancellation-policy';
 import { feePercentForCreator } from '@/lib/billing/platform-fee';
 import { dayBookingCapacity } from '@/lib/booking/day-capacity';
+import { isSlotOpen, isValidHHmm } from '@/lib/booking/slots';
 
 const createBookingSchema = z.object({
   creatorId: z.string().uuid(),
@@ -25,6 +26,8 @@ const createBookingSchema = z.object({
   notes: z.string().optional(),
   paymentPlan: z.enum(['full', 'deposit']).optional(),
   selectedAddonIds: z.array(z.string()).optional(),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
 });
 
 type CreateBookingInput = z.infer<typeof createBookingSchema>;
@@ -84,6 +87,11 @@ export async function createBookingRequest(data: CreateBookingInput) {
           date: dateOnly,
         },
       },
+      include: {
+        slots: {
+          where: { isActive: true },
+        },
+      },
     });
 
     console.log('📅 Availability found:', availability);
@@ -102,21 +110,59 @@ export async function createBookingRequest(data: CreateBookingInput) {
       return { error: 'Selected date is not available' };
     }
 
-    // One booking per available day (product rule).
-    const capacity = dayBookingCapacity(availability.maxBookings);
+    const mode = availability.mode === 'hours' ? 'hours' : 'full_day';
+    let bookingStartTime: string | null = null;
+    let bookingEndTime: string | null = null;
 
-    const existingBookings = await prisma.booking.count({
-      where: {
-        creatorId: data.creatorId,
-        bookingDate: dateOnly,
-        status: {
-          notIn: ['cancelled', 'canceled', 'refunded'],
+    if (mode === 'hours') {
+      const startTime = data.startTime || null;
+      const endTime = data.endTime || null;
+      if (!startTime || !endTime || !isValidHHmm(startTime) || !isValidHHmm(endTime)) {
+        return { error: 'Please select a time slot' };
+      }
+
+      const matchingSlot = availability.slots.find(
+        (slot) => slot.startTime === startTime && slot.endTime === endTime
+      );
+      if (!matchingSlot) {
+        return { error: 'Selected time slot is not available' };
+      }
+
+      const timedBookings = await prisma.booking.findMany({
+        where: {
+          creatorId: data.creatorId,
+          bookingDate: dateOnly,
+          status: {
+            notIn: ['cancelled', 'canceled', 'refunded'],
+          },
+          startTime: { not: null },
         },
-      },
-    });
+        select: { startTime: true, endTime: true },
+      });
 
-    if (existingBookings >= capacity) {
-      return { error: 'This date is fully booked' };
+      if (!isSlotOpen({ startTime, endTime }, timedBookings)) {
+        return { error: 'This time slot is already booked' };
+      }
+
+      bookingStartTime = startTime;
+      bookingEndTime = endTime;
+    } else {
+      // One booking per available day (full-day product rule).
+      const capacity = dayBookingCapacity(availability.maxBookings);
+
+      const existingBookings = await prisma.booking.count({
+        where: {
+          creatorId: data.creatorId,
+          bookingDate: dateOnly,
+          status: {
+            notIn: ['cancelled', 'canceled', 'refunded'],
+          },
+        },
+      });
+
+      if (existingBookings >= capacity) {
+        return { error: 'This date is fully booked' };
+      }
     }
 
     const selectedAddons = resolveSelectedAddons(
@@ -169,6 +215,8 @@ export async function createBookingRequest(data: CreateBookingInput) {
         customerPhone: data.customerPhone,
         customerAddress: data.customerAddress,
         bookingDate: dateOnly,
+        startTime: bookingStartTime,
+        endTime: bookingEndTime,
         notes: data.notes || null,
         totalAmount,
         firstPayoutAmount,
@@ -187,18 +235,30 @@ export async function createBookingRequest(data: CreateBookingInput) {
       },
     });
 
-    // Close the day on the public calendar once capacity is reached.
-    // Pending checkouts count so the slot can't stay selectable.
-    if (existingBookings + 1 >= capacity) {
-      await prisma.creatorAvailability.update({
+    // Full-day only: close the calendar day once capacity is reached.
+    // Hours mode keeps the day open until every slot is taken.
+    if (mode === 'full_day') {
+      const capacity = dayBookingCapacity(availability.maxBookings);
+      const existingBookings = await prisma.booking.count({
         where: {
-          creatorId_date: {
-            creatorId: data.creatorId,
-            date: dateOnly,
+          creatorId: data.creatorId,
+          bookingDate: dateOnly,
+          status: {
+            notIn: ['cancelled', 'canceled', 'refunded'],
           },
         },
-        data: { isAvailable: false },
       });
+      if (existingBookings >= capacity) {
+        await prisma.creatorAvailability.update({
+          where: {
+            creatorId_date: {
+              creatorId: data.creatorId,
+              date: dateOnly,
+            },
+          },
+          data: { isAvailable: false },
+        });
+      }
     }
 
     const username = booking.creator?.username;
@@ -242,7 +302,7 @@ export async function createBookingRequest(data: CreateBookingInput) {
 
 /**
  * Confirm a Paystack charge against a booking.
- * paymentKind: initial (pending) | balance (deposit_paid)
+ * paymentKind: initial (pending) | balance (deposit_paid | balance_overdue)
  */
 export async function confirmBookingPayment(
   bookingId: string,
@@ -272,7 +332,7 @@ export async function confirmBookingPayment(
     }
 
     if (paymentKind === 'balance') {
-      if (booking.status !== 'deposit_paid') {
+      if (!['deposit_paid', 'balance_overdue'].includes(booking.status)) {
         return { error: 'Booking is not awaiting balance payment' };
       }
       const updatedBooking = await prisma.booking.update({
@@ -790,20 +850,48 @@ export async function rejectRefund(bookingId: string) {
   }
 }
 
-// Cancel booking (before payment)
+// Cancel booking (pending, or release deposit / overdue hold)
 export async function cancelBooking(bookingId: string) {
   try {
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return { error: 'Unauthorized' };
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { userId: user.id },
+      select: { id: true, username: true },
+    });
+    if (!creator) {
+      return { error: 'Creator not found' };
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: { id: bookingId, creatorId: creator.id },
+      include: {
+        priceListItem: { select: { name: true } },
+        creator: { select: { displayName: true } },
+      },
     });
 
     if (!booking) {
       return { error: 'Booking not found' };
     }
 
-    if (booking.status !== 'pending') {
-      return { error: 'Can only cancel pending bookings' };
+    if (
+      !['pending', 'deposit_paid', 'balance_overdue'].includes(booking.status)
+    ) {
+      return {
+        error: 'Can only cancel pending or unpaid-balance bookings',
+      };
     }
+
+    const wasHoldingDate = ['deposit_paid', 'balance_overdue'].includes(
+      booking.status
+    );
 
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
@@ -811,6 +899,56 @@ export async function cancelBooking(bookingId: string) {
         status: 'cancelled',
       },
     });
+
+    // Re-open the calendar day if under capacity after cancel
+    const dateOnly = new Date(booking.bookingDate);
+    dateOnly.setHours(0, 0, 0, 0);
+    const remaining = await prisma.booking.count({
+      where: {
+        creatorId: creator.id,
+        bookingDate: dateOnly,
+        status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+      },
+    });
+    const capacity = dayBookingCapacity();
+    if (remaining < capacity) {
+      await prisma.creatorAvailability.updateMany({
+        where: {
+          creatorId: creator.id,
+          date: dateOnly,
+          isAvailable: false,
+        },
+        data: { isAvailable: true },
+      });
+    }
+
+    if (wasHoldingDate) {
+      try {
+        const { sendBookingStatusUpdate } = await import('@/lib/email/send');
+        const { formatBookingWhen } = await import('@/lib/booking/slots');
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
+        await sendBookingStatusUpdate({
+          customerEmail: booking.customerEmail,
+          customerName: booking.customerName,
+          creatorName: booking.creator.displayName,
+          serviceName: booking.priceListItem.name,
+          bookingDate: formatBookingWhen(
+            booking.bookingDate,
+            booking.startTime,
+            booking.endTime
+          ),
+          status: 'cancelled',
+          trackingUrl: `${APP_URL}/tracking/${booking.trackingToken}`,
+        });
+      } catch (emailError) {
+        console.error('Cancel booking email failed:', emailError);
+      }
+    }
+
+    revalidatePath('/bookings');
+    if (creator.username) {
+      revalidatePath(`/creator/${creator.username}`);
+    }
 
     return { success: true, data: updatedBooking };
   } catch (error) {

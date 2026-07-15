@@ -19,6 +19,7 @@ export function bookingConfirmationEmail({
   paymentPlan,
   amountPaid,
   balanceAmount,
+  balanceDueDateLabel,
   status,
 }: {
   customerName: string;
@@ -34,9 +35,10 @@ export function bookingConfirmationEmail({
   paymentPlan?: string;
   amountPaid?: number;
   balanceAmount?: number;
+  balanceDueDateLabel?: string;
   status?: string;
 }) {
-  const isDepositHold = status === 'deposit_paid';
+  const isDepositHold = status === 'deposit_paid' || status === 'balance_overdue';
   const subject = isDepositHold
     ? `Deposit received — booking with ${creatorName}`
     : `Booking confirmed with ${creatorName}`;
@@ -59,6 +61,12 @@ export function bookingConfirmationEmail({
       label: 'Balance due',
       value: formatNairaAmount(balanceAmount),
     });
+    if (balanceDueDateLabel) {
+      rows.push({
+        label: 'Pay by',
+        value: balanceDueDateLabel,
+      });
+    }
   } else if (!isDepositHold && paymentPlan === 'deposit') {
     rows.push({ label: 'Package total', value: formatNairaAmount(amount) });
   }
@@ -91,7 +99,9 @@ export function bookingConfirmationEmail({
     <p style="margin:0 0 4px;color:#828282;font-size:13px;font-weight:500;line-height:1.55;">
       ${
         isDepositHold
-          ? 'Pay your balance from the tracking page when due.'
+          ? balanceDueDateLabel
+            ? `Pay your balance from the tracking page by ${balanceDueDateLabel}.`
+            : 'Pay your balance from the tracking page when due.'
           : 'Keep this email — you’ll need your token to check booking status.'
       }
     </p>

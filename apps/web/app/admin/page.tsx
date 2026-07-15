@@ -154,6 +154,7 @@ export default function AdminOverviewPage() {
     const keys = [
       'pending',
       'deposit_paid',
+      'balance_overdue',
       'paid',
       'first_payout_done',
       'service_day',

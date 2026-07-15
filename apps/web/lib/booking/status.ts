@@ -3,6 +3,7 @@ export type BookingStatusFilter = 'upcoming' | 'disputed' | 'completed';
 export const BOOKING_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   deposit_paid: 'Deposit paid',
+  balance_overdue: 'Balance overdue',
   paid: 'Paid',
   first_payout_done: 'Confirmed',
   service_day: 'Service day',
@@ -35,6 +36,7 @@ export const STATUS_FILTER_META: Record<
 
 export const UPCOMING_STATUSES = [
   'deposit_paid',
+  'balance_overdue',
   'paid',
   'first_payout_done',
   'service_day',
@@ -55,7 +57,7 @@ export function bookingMatchesFilter(
 }
 
 export function statusTone(status: string) {
-  if (status === 'disputed') return 'is-danger';
+  if (status === 'disputed' || status === 'balance_overdue') return 'is-danger';
   if (status === 'completed') return 'is-success';
   if (status === 'refunded' || status === 'cancelled') return 'is-muted';
   return 'is-info';
@@ -68,13 +70,28 @@ export function formatBookingPrice(priceInKobo: number) {
   }).format(priceInKobo / 100);
 }
 
-export function formatBookingDate(dateStr: string | Date) {
-  return new Date(dateStr).toLocaleDateString('en-NG', {
+export function formatBookingDate(
+  dateStr: string | Date,
+  startTime?: string | null,
+  endTime?: string | null
+) {
+  const datePart = new Date(dateStr).toLocaleDateString('en-NG', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'Africa/Lagos',
   });
+  if (startTime && endTime) {
+    const fmt = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      const period = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 === 0 ? 12 : h % 12;
+      return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+    };
+    return `${datePart} · ${fmt(startTime)}–${fmt(endTime)}`;
+  }
+  return datePart;
 }
 
 export type CreatorBookingRow = {
@@ -84,7 +101,13 @@ export type CreatorBookingRow = {
   customerPhone: string;
   customerAddress: string;
   bookingDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
   totalAmount: number;
+  paymentPlan?: string;
+  depositAmount?: number;
+  balanceAmount?: number;
+  amountPaid?: number;
   firstPayoutAmount?: number;
   secondPayoutAmount?: number;
   status: string;
@@ -95,6 +118,8 @@ export type CreatorBookingRow = {
   trackingToken?: string | null;
   createdAt: string;
   updatedAt?: string;
+  /** Computed client-side or from load helper */
+  balanceDueDateLabel?: string | null;
   priceListItem: {
     name: string;
     category: string | null;

@@ -323,7 +323,11 @@ async function handleChargeSuccess(eventData: any) {
 
         let completedPayment = false;
 
-        if (booking.status === 'pending' || booking.status === 'deposit_paid') {
+        if (
+          booking.status === 'pending' ||
+          booking.status === 'deposit_paid' ||
+          booking.status === 'balance_overdue'
+        ) {
           const confirmResult = await confirmBookingPayment(
             booking.id,
             reference,

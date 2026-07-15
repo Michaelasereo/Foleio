@@ -19,12 +19,15 @@ import {
   formatRelativeTime,
   statusBadgeClass,
 } from '@/lib/admin/format';
+import { formatBookingWhen } from '@/lib/booking/slots';
 
 type Booking = {
   id: string;
   customerName?: string | null;
   customerEmail?: string | null;
   bookingDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
   amount: number;
   status: string;
   trackingToken?: string | null;
@@ -37,6 +40,7 @@ const tabs = [
   'all',
   'pending',
   'deposit_paid',
+  'balance_overdue',
   'paid',
   'first_payout_done',
   'service_day',
@@ -121,9 +125,23 @@ export default function AdminBookingsPage() {
                   </td>
                   <td
                     className={adminTableCellClass}
-                    title={booking.bookingDate ? new Date(booking.bookingDate).toLocaleString() : ''}
+                    title={
+                      booking.bookingDate
+                        ? formatBookingWhen(
+                            booking.bookingDate,
+                            booking.startTime,
+                            booking.endTime
+                          )
+                        : ''
+                    }
                   >
-                    {booking.bookingDate ? formatRelativeTime(booking.bookingDate) : '—'}
+                    {booking.bookingDate
+                      ? formatBookingWhen(
+                          booking.bookingDate,
+                          booking.startTime,
+                          booking.endTime
+                        )
+                      : '—'}
                   </td>
                   <td className={adminTableCellClass}>{formatMoneyFromKobo(booking.amount)}</td>
                   <td className={adminTableCellClass}>

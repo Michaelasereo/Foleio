@@ -3,6 +3,7 @@ import { requestRefund } from '@/lib/actions/booking';
 import { z } from 'zod';
 import { prisma } from '@foleio/database';
 import { sendBookingStatusUpdate } from '@/lib/email/send';
+import { formatBookingWhen } from '@/lib/booking/slots';
 
 const refundRequestSchema = z.object({
   trackingToken: z.string(),
@@ -57,7 +58,11 @@ export async function POST(request: NextRequest) {
         customerName: booking.customerName,
         creatorName: booking.creator.displayName,
         serviceName: booking.priceListItem.name,
-        bookingDate: new Date(booking.bookingDate).toLocaleDateString(),
+        bookingDate: formatBookingWhen(
+          booking.bookingDate,
+          booking.startTime,
+          booking.endTime
+        ),
         status: 'disputed',
         trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/tracking/${booking.trackingToken}`,
       });

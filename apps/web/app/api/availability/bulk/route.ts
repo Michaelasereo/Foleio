@@ -2,144 +2,234 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { BOOKINGS_PER_DAY } from '@/lib/booking/day-capacity';
+import {
+  generateHourlySlots,
+  isValidHHmm,
+  mergeWithCustom,
+  timeToMinutes,
+  type TimeRange,
+} from '@/lib/booking/slots';
 
 export const dynamic = 'force-dynamic';
 
+type BulkBody = {
+  dates?: string[];
+  isAvailable?: boolean;
+  mode?: 'full_day' | 'hours';
+  startTime?: string | null;
+  endTime?: string | null;
+  customSlots?: TimeRange[];
+  disabledGeneratedStarts?: string[];
+  templateId?: string;
+};
+
+function dayKeyFrom(dateStr: string): string | null {
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    return dateStr.slice(0, 10);
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+async function replaceSlotsForDay(params: {
+  creatorId: string;
+  availabilityId: string;
+  date: Date;
+  mode: 'full_day' | 'hours';
+  startTime?: string | null;
+  endTime?: string | null;
+  customSlots?: TimeRange[];
+  disabledGeneratedStarts?: string[];
+}) {
+  const {
+    creatorId,
+    availabilityId,
+    date,
+    mode,
+    startTime,
+    endTime,
+    customSlots = [],
+    disabledGeneratedStarts = [],
+  } = params;
+
+  await prisma.availabilitySlot.deleteMany({
+    where: { availabilityId },
+  });
+
+  if (mode !== 'hours' || !startTime || !endTime) {
+    return;
+  }
+
+  const generated = generateHourlySlots(startTime, endTime, 60);
+  const drafts = mergeWithCustom(generated, customSlots, disabledGeneratedStarts);
+
+  if (drafts.length === 0) return;
+
+  await prisma.availabilitySlot.createMany({
+    data: drafts.map((slot) => ({
+      creatorId,
+      availabilityId,
+      date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      source: slot.source,
+      isActive: slot.isActive,
+    })),
+  });
+}
+
 export async function POST(request: Request) {
   try {
-    console.log('Bulk availability API called');
-
-    // Test database connection first
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      console.log('Database connection OK');
-    } catch (dbError) {
-      console.error('Database connection failed:', dbError);
-      return NextResponse.json(
-        { error: 'Database connection failed' },
-        { status: 500 }
-      );
-    }
-
     const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    console.log('Auth check:', { user: user?.id, error: authError });
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.log('Authentication failed:', authError);
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // Get creator
-    console.log('Looking up creator for user:', user.id);
     const creator = await prisma.creator.findUnique({
-      where: { userId: user.id }
+      where: { userId: user.id },
+      select: { id: true, username: true },
     });
 
-    console.log('Creator lookup result:', creator ? { id: creator.id, username: creator.username } : 'null');
-
     if (!creator) {
-      console.log('Creator not found for user:', user.id);
-      return NextResponse.json(
-        { error: 'Creator profile not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Creator profile not found' }, { status: 404 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as BulkBody;
     const { dates, isAvailable } = body;
 
-    // Validate required fields
     if (!dates || !Array.isArray(dates) || dates.length === 0) {
-      return NextResponse.json(
-        { error: 'Dates array is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Dates array is required' }, { status: 400 });
+    }
+
+    if (typeof isAvailable !== 'boolean') {
+      return NextResponse.json({ error: 'isAvailable is required' }, { status: 400 });
+    }
+
+    let mode: 'full_day' | 'hours' = body.mode === 'hours' ? 'hours' : 'full_day';
+    let startTime = body.startTime ?? null;
+    let endTime = body.endTime ?? null;
+    let customSlots = Array.isArray(body.customSlots) ? body.customSlots : [];
+    let disabledGeneratedStarts = Array.isArray(body.disabledGeneratedStarts)
+      ? body.disabledGeneratedStarts
+      : [];
+
+    if (body.templateId) {
+      const template = await prisma.availabilityTemplate.findFirst({
+        where: { id: body.templateId, creatorId: creator.id },
+      });
+      if (!template) {
+        return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+      }
+      mode = template.mode === 'hours' ? 'hours' : 'full_day';
+      startTime = template.startTime;
+      endTime = template.endTime;
+      customSlots = (template.customSlots as TimeRange[]) || [];
+      disabledGeneratedStarts =
+        (template.disabledGeneratedStarts as string[]) || [];
+    }
+
+    if (isAvailable && mode === 'hours') {
+      if (!startTime || !endTime || !isValidHHmm(startTime) || !isValidHHmm(endTime)) {
+        return NextResponse.json(
+          { error: 'Hours mode requires valid startTime and endTime (HH:mm)' },
+          { status: 400 }
+        );
+      }
+      if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+        return NextResponse.json(
+          { error: 'End time must be after start time' },
+          { status: 400 }
+        );
+      }
+      for (const slot of customSlots) {
+        if (
+          !isValidHHmm(slot.startTime) ||
+          !isValidHHmm(slot.endTime) ||
+          timeToMinutes(slot.endTime) <= timeToMinutes(slot.startTime)
+        ) {
+          return NextResponse.json(
+            { error: 'Invalid custom slot times' },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     const results = [];
     let updated = 0;
 
-    console.log(`Processing ${dates.length} dates for creator ${creator.id}`);
-
-    // Process each date
     for (const dateStr of dates) {
-      try {
-        console.log(`Processing date: ${dateStr}`);
+      const dayKey = dayKeyFrom(String(dateStr));
+      if (!dayKey) continue;
+      const availabilityDate = new Date(`${dayKey}T00:00:00.000Z`);
+      const capacity = isAvailable && mode === 'full_day' ? BOOKINGS_PER_DAY : null;
+      const storeMode = isAvailable ? mode : 'full_day';
 
-        // Always store as UTC midnight from YYYY-MM-DD (avoid local setHours skew).
-        const dayKey =
-          typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)
-            ? dateStr.slice(0, 10)
-            : new Date(dateStr).toISOString().slice(0, 10);
-        const availabilityDate = new Date(`${dayKey}T00:00:00.000Z`);
-        if (isNaN(availabilityDate.getTime())) {
-          console.error(`Invalid date string: ${dateStr}`);
-          continue;
-        }
+      const record = await prisma.creatorAvailability.upsert({
+        where: {
+          creatorId_date: {
+            creatorId: creator.id,
+            date: availabilityDate,
+          },
+        },
+        update: {
+          isAvailable,
+          maxBookings: capacity,
+          mode: storeMode,
+          windowStart: isAvailable && mode === 'hours' ? startTime : null,
+          windowEnd: isAvailable && mode === 'hours' ? endTime : null,
+        },
+        create: {
+          creatorId: creator.id,
+          date: availabilityDate,
+          isAvailable,
+          maxBookings: capacity,
+          mode: storeMode,
+          windowStart: isAvailable && mode === 'hours' ? startTime : null,
+          windowEnd: isAvailable && mode === 'hours' ? endTime : null,
+        },
+      });
 
-        const capacity = isAvailable ? BOOKINGS_PER_DAY : null;
-
-        console.log(`Normalized date: ${availabilityDate.toISOString()}`);
-
-        // Check if availability already exists for this date
-        const existingAvailability = await prisma.creatorAvailability.findUnique({
-          where: {
-            creatorId_date: {
-              creatorId: creator.id,
-              date: availabilityDate
-            }
-          }
+      if (!isAvailable || mode === 'full_day') {
+        await prisma.availabilitySlot.deleteMany({
+          where: { availabilityId: record.id },
         });
-
-        console.log(`Existing availability for ${dateStr}:`, existingAvailability ? 'found' : 'not found');
-
-        if (existingAvailability) {
-          // Update existing
-          const updatedRecord = await prisma.creatorAvailability.update({
-            where: { id: existingAvailability.id },
-            data: {
-              isAvailable,
-              maxBookings: capacity,
-            }
-          });
-          results.push(updatedRecord);
-          console.log(`Updated record:`, updatedRecord);
-        } else {
-          // Create new
-          const newRecord = await prisma.creatorAvailability.create({
-            data: {
-              creatorId: creator.id,
-              date: availabilityDate,
-              isAvailable,
-              maxBookings: capacity,
-            }
-          });
-          results.push(newRecord);
-          console.log(`Created record:`, newRecord);
-        }
-        updated++;
-      } catch (dateError) {
-        console.error(`Error processing date ${dateStr}:`, dateError);
+      } else {
+        await replaceSlotsForDay({
+          creatorId: creator.id,
+          availabilityId: record.id,
+          date: availabilityDate,
+          mode,
+          startTime,
+          endTime,
+          customSlots,
+          disabledGeneratedStarts,
+        });
       }
+
+      results.push(record);
+      updated += 1;
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully updated ${updated} date${updated > 1 ? 's' : ''}`,
+      message: `Successfully updated ${updated} date${updated === 1 ? '' : 's'}`,
       updated,
-      results
+      results,
     });
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Bulk availability update error:', error);
-    console.error('Error stack:', error.stack);
     return NextResponse.json(
-      { error: 'Failed to update availability', details: error.message || 'Unknown error' },
+      {
+        error: 'Failed to update availability',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }

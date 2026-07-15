@@ -4,12 +4,15 @@ import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { BOOKINGS_PER_DAY, dayBookingCapacity } from '@/lib/booking/day-capacity';
+import { isSlotOpen } from '@/lib/booking/slots';
 
 // Set available dates for a creator
 export async function setAvailabilityDates(dates: Date[]) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   if (!session) {
     return { error: 'Unauthorized' };
   }
@@ -23,7 +26,6 @@ export async function setAvailabilityDates(dates: Date[]) {
   }
 
   try {
-    // Create availability records for each date
     const results = await Promise.all(
       dates.map(async (date) => {
         return prisma.creatorAvailability.upsert({
@@ -36,12 +38,14 @@ export async function setAvailabilityDates(dates: Date[]) {
           update: {
             isAvailable: true,
             maxBookings: BOOKINGS_PER_DAY,
+            mode: 'full_day',
           },
           create: {
             creatorId: creator.id,
             date: new Date(date.toISOString().split('T')[0]),
             isAvailable: true,
             maxBookings: BOOKINGS_PER_DAY,
+            mode: 'full_day',
           },
         });
       })
@@ -60,8 +64,10 @@ export async function setAvailabilityDates(dates: Date[]) {
 // Add a single available date
 export async function addAvailabilityDate(date: Date, _maxBookings?: number) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   if (!session) {
     return { error: 'Unauthorized' };
   }
@@ -85,12 +91,14 @@ export async function addAvailabilityDate(date: Date, _maxBookings?: number) {
       update: {
         isAvailable: true,
         maxBookings: BOOKINGS_PER_DAY,
+        mode: 'full_day',
       },
       create: {
         creatorId: creator.id,
         date: new Date(date.toISOString().split('T')[0]),
         isAvailable: true,
         maxBookings: BOOKINGS_PER_DAY,
+        mode: 'full_day',
       },
     });
 
@@ -107,8 +115,10 @@ export async function addAvailabilityDate(date: Date, _maxBookings?: number) {
 // Remove an available date
 export async function removeAvailabilityDate(date: Date) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   if (!session) {
     return { error: 'Unauthorized' };
   }
@@ -148,7 +158,11 @@ export async function getAvailabilityDates(
   endDate?: Date
 ) {
   try {
-    const whereClause: any = {
+    const whereClause: {
+      creatorId: string;
+      isAvailable: boolean;
+      date?: { gte?: Date; lte?: Date };
+    } = {
       creatorId,
       isAvailable: true,
     };
@@ -175,6 +189,24 @@ export async function getAvailabilityDates(
     return { error: 'Failed to get availability' };
   }
 }
+
+export type PublicAvailabilitySlot = {
+  startTime: string;
+  endTime: string;
+  isBooked: boolean;
+};
+
+export type PublicAvailabilityDay = {
+  id: string;
+  creatorId: string;
+  date: Date;
+  isAvailable: boolean;
+  maxBookings: number | null;
+  mode: 'full_day' | 'hours';
+  bookingCount: number;
+  isFullyBooked: boolean;
+  slots?: PublicAvailabilitySlot[];
+};
 
 // Get availability with booking counts for a creator (public)
 export async function getAvailabilityWithBookings(
@@ -205,14 +237,19 @@ export async function getAvailabilityWithBookings(
       whereClause.date = { gte: rangeStart };
     }
 
-    // Two sequential queries only — never fan out under connection_limit=1.
     const availability = await prisma.creatorAvailability.findMany({
       where: whereClause,
+      include: {
+        slots: {
+          where: { isActive: true },
+          orderBy: { startTime: 'asc' },
+        },
+      },
       orderBy: { date: 'asc' },
     });
 
     if (availability.length === 0) {
-      return { success: true, data: [] };
+      return { success: true, data: [] as PublicAvailabilityDay[] };
     }
 
     const bookingDateFilter =
@@ -225,8 +262,7 @@ export async function getAvailabilityWithBookings(
               lte: availability[availability.length - 1].date,
             };
 
-    const bookingGroups = await prisma.booking.groupBy({
-      by: ['bookingDate'],
+    const bookings = await prisma.booking.findMany({
       where: {
         creatorId,
         bookingDate: bookingDateFilter,
@@ -234,30 +270,66 @@ export async function getAvailabilityWithBookings(
           notIn: ['cancelled', 'canceled', 'refunded'],
         },
       },
-      _count: { _all: true },
+      select: {
+        bookingDate: true,
+        startTime: true,
+        endTime: true,
+      },
     });
 
-    const bookingCountByDate = new Map<string, number>();
-    for (const group of bookingGroups) {
-      const key = group.bookingDate.toISOString().slice(0, 10);
-      bookingCountByDate.set(key, group._count._all);
+    const bookingsByDate = new Map<
+      string,
+      Array<{ startTime: string | null; endTime: string | null }>
+    >();
+    for (const booking of bookings) {
+      const key = booking.bookingDate.toISOString().slice(0, 10);
+      const list = bookingsByDate.get(key) || [];
+      list.push({ startTime: booking.startTime, endTime: booking.endTime });
+      bookingsByDate.set(key, list);
     }
 
-    const availabilityWithCounts = availability.map((avail) => {
+    const availabilityWithCounts: PublicAvailabilityDay[] = availability.map((avail) => {
       const key = avail.date.toISOString().slice(0, 10);
-      const bookingCount = bookingCountByDate.get(key) ?? 0;
-      const capacity = dayBookingCapacity(avail.maxBookings);
-      const isFullyBooked = bookingCount >= capacity;
+      const dayBookings = bookingsByDate.get(key) || [];
+      const mode = avail.mode === 'hours' ? 'hours' : 'full_day';
 
+      if (mode === 'hours') {
+        const slots: PublicAvailabilitySlot[] = avail.slots.map((slot) => {
+          const booked = !isSlotOpen(slot, dayBookings);
+          return {
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            isBooked: booked,
+          };
+        });
+        const openSlots = slots.filter((s) => !s.isBooked);
+        return {
+          id: avail.id,
+          creatorId: avail.creatorId,
+          date: avail.date,
+          isAvailable: avail.isAvailable,
+          maxBookings: null,
+          mode,
+          bookingCount: dayBookings.length,
+          isFullyBooked: openSlots.length === 0,
+          slots: openSlots,
+        };
+      }
+
+      const capacity = dayBookingCapacity(avail.maxBookings);
+      const bookingCount = dayBookings.length;
       return {
-        ...avail,
+        id: avail.id,
+        creatorId: avail.creatorId,
+        date: avail.date,
+        isAvailable: avail.isAvailable,
         maxBookings: capacity,
+        mode: 'full_day' as const,
         bookingCount,
-        isFullyBooked,
+        isFullyBooked: bookingCount >= capacity,
       };
     });
 
-    // Hide dates that are already taken so other clients can't select them.
     const openDates = availabilityWithCounts.filter((avail) => !avail.isFullyBooked);
 
     return { success: true, data: openDates };
@@ -267,11 +339,13 @@ export async function getAvailabilityWithBookings(
   }
 }
 
-// Update max bookings for a date (forced to one slot / day for now)
+// Update max bookings for a date (forced to one slot / day for full-day)
 export async function updateAvailabilityMaxBookings(date: Date, _maxBookings: number | null) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   if (!session) {
     return { error: 'Unauthorized' };
   }
@@ -305,4 +379,3 @@ export async function updateAvailabilityMaxBookings(date: Date, _maxBookings: nu
     return { error: 'Failed to update max bookings' };
   }
 }
-
