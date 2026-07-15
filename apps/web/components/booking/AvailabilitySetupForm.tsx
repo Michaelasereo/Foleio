@@ -30,6 +30,9 @@ interface AvailabilityItem {
   mode?: 'full_day' | 'hours';
   startTime?: string | null;
   endTime?: string | null;
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  slotIntervalMinutes?: number | null;
   customSlots?: TimeRange[];
   disabledGeneratedStarts?: string[];
 }
@@ -40,11 +43,13 @@ interface AvailabilitySetupFormProps {
 }
 
 type TimeMode = 'full' | 'hours';
+type SlotInterval = 60 | 90;
 
 interface DaySchedule {
   timeMode: TimeMode;
   startTime: string;
   endTime: string;
+  slotIntervalMinutes: SlotInterval;
   customSlots: TimeRange[];
   disabledGeneratedStarts: string[];
 }
@@ -55,16 +60,22 @@ interface ScheduleTemplate {
   mode: string;
   startTime: string | null;
   endTime: string | null;
+  slotIntervalMinutes?: number | null;
   customSlots: TimeRange[];
   disabledGeneratedStarts: string[];
 }
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
 
+function normalizeSlotInterval(value: unknown): SlotInterval {
+  return Number(value) === 90 ? 90 : 60;
+}
+
 const DEFAULT_AVAILABLE: DaySchedule = {
   timeMode: 'full',
   startTime: '09:00',
   endTime: '17:00',
+  slotIntervalMinutes: 60,
   customSlots: [],
   disabledGeneratedStarts: [],
 };
@@ -73,6 +84,7 @@ const DEFAULT_OFF: DaySchedule = {
   timeMode: 'full',
   startTime: '09:00',
   endTime: '17:00',
+  slotIntervalMinutes: 60,
   customSlots: [],
   disabledGeneratedStarts: [],
 };
@@ -124,8 +136,9 @@ function buildMonthCells(year: number, month: number) {
 function scheduleFromItem(item: AvailabilityItem): DaySchedule {
   return {
     timeMode: item.mode === 'hours' ? 'hours' : 'full',
-    startTime: item.startTime || '',
-    endTime: item.endTime || '',
+    startTime: item.startTime || item.windowStart || '',
+    endTime: item.endTime || item.windowEnd || '',
+    slotIntervalMinutes: normalizeSlotInterval(item.slotIntervalMinutes),
     customSlots: Array.isArray(item.customSlots) ? item.customSlots : [],
     disabledGeneratedStarts: Array.isArray(item.disabledGeneratedStarts)
       ? item.disabledGeneratedStarts
@@ -291,6 +304,7 @@ export function AvailabilitySetupForm({
           setTemplates(
             data.templates.map((t: ScheduleTemplate & { customSlots?: unknown }) => ({
               ...t,
+              slotIntervalMinutes: normalizeSlotInterval(t.slotIntervalMinutes),
               customSlots: (t.customSlots as TimeRange[]) || [],
               disabledGeneratedStarts: (t.disabledGeneratedStarts as string[]) || [],
             }))
@@ -362,7 +376,11 @@ export function AvailabilitySetupForm({
     if (activeSchedule.timeMode !== 'hours') return [];
     const generated =
       activeSchedule.startTime && activeSchedule.endTime
-        ? generateHourlySlots(activeSchedule.startTime, activeSchedule.endTime)
+        ? generateHourlySlots(
+            activeSchedule.startTime,
+            activeSchedule.endTime,
+            activeSchedule.slotIntervalMinutes
+          )
         : [];
     return mergeWithCustom(
       generated,
@@ -455,6 +473,7 @@ export function AvailabilitySetupForm({
         timeMode,
         startTime: activeSchedule.startTime || DEFAULT_HOURS_WINDOW.startTime,
         endTime: activeSchedule.endTime || DEFAULT_HOURS_WINDOW.endTime,
+        slotIntervalMinutes: activeSchedule.slotIntervalMinutes || 60,
       });
       return;
     }
@@ -463,6 +482,14 @@ export function AvailabilitySetupForm({
 
   const updateTime = (field: 'startTime' | 'endTime', value: string) => {
     syncActiveSchedule({ ...activeSchedule, [field]: value });
+  };
+
+  const updateSlotInterval = (slotIntervalMinutes: SlotInterval) => {
+    syncActiveSchedule({
+      ...activeSchedule,
+      slotIntervalMinutes,
+      disabledGeneratedStarts: [],
+    });
   };
 
   const clearDefaultWindow = () => {
@@ -555,6 +582,7 @@ export function AvailabilitySetupForm({
       timeMode: template.mode === 'hours' ? 'hours' : 'full',
       startTime: template.startTime || '',
       endTime: template.endTime || '',
+      slotIntervalMinutes: normalizeSlotInterval(template.slotIntervalMinutes),
       customSlots: template.customSlots || [],
       disabledGeneratedStarts: template.disabledGeneratedStarts || [],
     };
@@ -581,6 +609,7 @@ export function AvailabilitySetupForm({
           mode: availableSchedule.timeMode === 'hours' ? 'hours' : 'full_day',
           startTime: availableSchedule.startTime || null,
           endTime: availableSchedule.endTime || null,
+          slotIntervalMinutes: availableSchedule.slotIntervalMinutes,
           customSlots: availableSchedule.customSlots,
           disabledGeneratedStarts: availableSchedule.disabledGeneratedStarts,
         }),
@@ -658,6 +687,7 @@ export function AvailabilitySetupForm({
           mode: schedule.timeMode,
           startTime: schedule.startTime,
           endTime: schedule.endTime,
+          slotIntervalMinutes: schedule.slotIntervalMinutes,
           customSlots: schedule.customSlots,
           disabledGeneratedStarts: schedule.disabledGeneratedStarts,
         });
@@ -671,6 +701,7 @@ export function AvailabilitySetupForm({
           mode: TimeMode;
           startTime: string;
           endTime: string;
+          slotIntervalMinutes: SlotInterval;
           customSlots: TimeRange[];
           disabledGeneratedStarts: string[];
         };
@@ -684,6 +715,7 @@ export function AvailabilitySetupForm({
               mode: schedule.mode === 'hours' ? 'hours' : 'full_day',
               startTime: schedule.startTime || null,
               endTime: schedule.endTime || null,
+              slotIntervalMinutes: schedule.slotIntervalMinutes,
               customSlots: schedule.customSlots,
               disabledGeneratedStarts: schedule.disabledGeneratedStarts,
             }),
@@ -869,11 +901,48 @@ export function AvailabilitySetupForm({
 
             {activeSchedule.timeMode === 'hours' ? (
               <>
+                <div style={{ marginTop: 12 }}>
+                  <p className="foleio-avail-mgmt-label">Slot duration</p>
+                  <div
+                    role="radiogroup"
+                    aria-label="Slot duration"
+                    style={{
+                      display: 'flex',
+                      gap: 16,
+                      marginTop: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {([60, 90] as SlotInterval[]).map((minutes) => (
+                      <label
+                        key={minutes}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          cursor: 'pointer',
+                          color: '#f4f4f5',
+                          fontSize: 13,
+                          fontWeight: 500,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="slot-interval"
+                          checked={activeSchedule.slotIntervalMinutes === minutes}
+                          onChange={() => updateSlotInterval(minutes)}
+                        />
+                        {minutes} minutes
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {activeSchedule.startTime && activeSchedule.endTime ? (
                   <>
                     <div
                       className="foleio-avail-time-range"
-                      style={{ alignItems: 'flex-end' }}
+                      style={{ alignItems: 'flex-end', marginTop: 14 }}
                     >
                       <label className="foleio-avail-time-field">
                         <span>From</span>
@@ -915,7 +984,8 @@ export function AvailabilitySetupForm({
                     </div>
 
                     <p className="foleio-avail-mgmt-hint" style={{ marginTop: 12 }}>
-                      Hourly slots — tap to disable
+                      {activeSchedule.slotIntervalMinutes}-minute slots — tap to
+                      disable
                     </p>
                     <div
                       style={{

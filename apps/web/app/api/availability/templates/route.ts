@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     const mode = body.mode === 'hours' ? 'hours' : 'full_day';
     const startTime = body.startTime ? String(body.startTime) : null;
     const endTime = body.endTime ? String(body.endTime) : null;
+    const slotIntervalMinutes = Number(body.slotIntervalMinutes) === 90 ? 90 : 60;
     const customSlots = (Array.isArray(body.customSlots) ? body.customSlots : []) as TimeRange[];
     const disabledGeneratedStarts = Array.isArray(body.disabledGeneratedStarts)
       ? body.disabledGeneratedStarts.map(String)
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
         mode,
         startTime: mode === 'hours' && startTime && endTime ? startTime : null,
         endTime: mode === 'hours' && startTime && endTime ? endTime : null,
-        slotIntervalMinutes: 60,
+        slotIntervalMinutes: mode === 'hours' ? slotIntervalMinutes : 60,
         customSlots: mode === 'hours' ? customSlots : [],
         disabledGeneratedStarts:
           mode === 'hours' && startTime && endTime ? disabledGeneratedStarts : [],

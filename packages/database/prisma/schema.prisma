@@ -743,6 +743,7 @@ model CreatorAvailability {
   mode        String   @default("full_day") // full_day | hours
   windowStart String?  @map("window_start") // HH:mm for hours mode generation
   windowEnd   String?  @map("window_end")
+  slotIntervalMinutes Int @default(60) @map("slot_interval_minutes") // 60 | 90 for generated slots
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

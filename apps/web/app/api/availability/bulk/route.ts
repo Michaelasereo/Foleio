@@ -20,6 +20,7 @@ type BulkBody = {
   endTime?: string | null;
   customSlots?: TimeRange[];
   disabledGeneratedStarts?: string[];
+  slotIntervalMinutes?: number;
   templateId?: string;
 };
 
@@ -32,6 +33,10 @@ function dayKeyFrom(dateStr: string): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+function normalizeSlotInterval(value: unknown): 60 | 90 {
+  return Number(value) === 90 ? 90 : 60;
+}
+
 async function replaceSlotsForDay(params: {
   creatorId: string;
   availabilityId: string;
@@ -41,6 +46,7 @@ async function replaceSlotsForDay(params: {
   endTime?: string | null;
   customSlots?: TimeRange[];
   disabledGeneratedStarts?: string[];
+  slotIntervalMinutes?: number;
 }) {
   const {
     creatorId,
@@ -51,6 +57,7 @@ async function replaceSlotsForDay(params: {
     endTime,
     customSlots = [],
     disabledGeneratedStarts = [],
+    slotIntervalMinutes = 60,
   } = params;
 
   await prisma.availabilitySlot.deleteMany({
@@ -61,9 +68,10 @@ async function replaceSlotsForDay(params: {
     return;
   }
 
+  const interval = normalizeSlotInterval(slotIntervalMinutes);
   const generated =
     startTime && endTime && isValidHHmm(startTime) && isValidHHmm(endTime)
-      ? generateHourlySlots(startTime, endTime, 60)
+      ? generateHourlySlots(startTime, endTime, interval)
       : [];
   const drafts = mergeWithCustom(generated, customSlots, disabledGeneratedStarts);
 
@@ -121,6 +129,7 @@ export async function POST(request: Request) {
     let disabledGeneratedStarts = Array.isArray(body.disabledGeneratedStarts)
       ? body.disabledGeneratedStarts
       : [];
+    let slotIntervalMinutes = normalizeSlotInterval(body.slotIntervalMinutes);
 
     if (body.templateId) {
       const template = await prisma.availabilityTemplate.findFirst({
@@ -135,6 +144,7 @@ export async function POST(request: Request) {
       customSlots = (template.customSlots as TimeRange[]) || [];
       disabledGeneratedStarts =
         (template.disabledGeneratedStarts as string[]) || [];
+      slotIntervalMinutes = normalizeSlotInterval(template.slotIntervalMinutes);
     }
 
     if (isAvailable && mode === 'hours') {
@@ -210,6 +220,8 @@ export async function POST(request: Request) {
           mode: storeMode,
           windowStart: isAvailable && mode === 'hours' ? startTime : null,
           windowEnd: isAvailable && mode === 'hours' ? endTime : null,
+          slotIntervalMinutes:
+            isAvailable && mode === 'hours' ? slotIntervalMinutes : 60,
         },
         create: {
           creatorId: creator.id,
@@ -219,6 +231,8 @@ export async function POST(request: Request) {
           mode: storeMode,
           windowStart: isAvailable && mode === 'hours' ? startTime : null,
           windowEnd: isAvailable && mode === 'hours' ? endTime : null,
+          slotIntervalMinutes:
+            isAvailable && mode === 'hours' ? slotIntervalMinutes : 60,
         },
       });
 
@@ -236,6 +250,7 @@ export async function POST(request: Request) {
           endTime,
           customSlots,
           disabledGeneratedStarts,
+          slotIntervalMinutes,
         });
       }
 

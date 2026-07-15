@@ -61,6 +61,8 @@ export async function GET(request: Request) {
         mode: item.mode === 'hours' ? 'hours' : 'full_day',
         startTime: item.windowStart,
         endTime: item.windowEnd,
+        slotIntervalMinutes:
+          item.slotIntervalMinutes === 90 ? 90 : 60,
         customSlots,
         disabledGeneratedStarts,
         slots: item.slots.map((s) => ({
