@@ -9,6 +9,7 @@ import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 import { PortfolioGallerySettings } from '@/components/creator/PortfolioGallerySettings';
 import { BillingPage } from '@/components/creator/BillingPage';
 import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
+import { BIO_MAX_WORDS, countBioWords, trimBioToMaxWords } from '@/lib/creator/bio';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { parseSocialUrl } from '@/lib/creator/social-urls';
 
@@ -484,12 +485,16 @@ export function AccountSettingsTabs({
 
               <label className="foleio-dash-field">
                 Bio
-                <span style={{ fontWeight: 400, color: '#828282' }}> {bio.length}/150</span>
+                <span style={{ fontWeight: 400, color: '#828282' }}>
+                  {' '}
+                  {countBioWords(bio)}/{BIO_MAX_WORDS} words
+                </span>
                 <textarea
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  maxLength={150}
-                  rows={3}
+                  onChange={(e) =>
+                    setBio(trimBioToMaxWords(e.target.value, BIO_MAX_WORDS))
+                  }
+                  rows={5}
                   placeholder="Tell your audience who you are..."
                   className="foleio-dash-textarea"
                   style={{ marginTop: 0 }}

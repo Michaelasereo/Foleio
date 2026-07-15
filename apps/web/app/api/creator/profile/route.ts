@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { getPlanLimits } from '@/lib/utils/plan-limits';
 import { cleanSocialUrl, parseSocialUrl } from '@/lib/creator/social-urls';
+import { trimBioToMaxWords } from '@/lib/creator/bio';
 
 export const dynamic = 'force-dynamic';
 
@@ -190,7 +191,7 @@ export async function PATCH(request: Request) {
     }
 
     if (typeof body.bio === 'string') {
-      data.bio = body.bio.trim().slice(0, 150);
+      data.bio = trimBioToMaxWords(body.bio.trim());
     } else if (body.bio === null) {
       data.bio = null;
     }
