@@ -605,6 +605,7 @@ model PriceListItem {
   category         String?  // Optional category/group name (e.g., "HOME SERVICE", "PHOTOSHOOT MAKEUP")
   name             String   // Item name (e.g., "MAINLAND 1", "ONE OUTFIT")
   description      String?  // Optional description/notes
+  location         String?  // Place name or multi-location copy
   sessionDescription String? @map("session_description")
   calendlyLink     String?  @map("calendly_link")
   price            Int      // in kobo

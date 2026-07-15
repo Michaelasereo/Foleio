@@ -32,6 +32,7 @@ interface PriceListItem {
   category: string | null;
   name: string;
   description: string | null;
+  location?: string | null;
   sessionDescription?: string | null;
   calendlyLink?: string | null;
   price: number;

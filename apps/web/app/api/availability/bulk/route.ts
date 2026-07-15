@@ -57,11 +57,14 @@ async function replaceSlotsForDay(params: {
     where: { availabilityId },
   });
 
-  if (mode !== 'hours' || !startTime || !endTime) {
+  if (mode !== 'hours') {
     return;
   }
 
-  const generated = generateHourlySlots(startTime, endTime, 60);
+  const generated =
+    startTime && endTime && isValidHHmm(startTime) && isValidHHmm(endTime)
+      ? generateHourlySlots(startTime, endTime, 60)
+      : [];
   const drafts = mergeWithCustom(generated, customSlots, disabledGeneratedStarts);
 
   if (drafts.length === 0) return;
@@ -112,8 +115,8 @@ export async function POST(request: Request) {
     }
 
     let mode: 'full_day' | 'hours' = body.mode === 'hours' ? 'hours' : 'full_day';
-    let startTime = body.startTime ?? null;
-    let endTime = body.endTime ?? null;
+    let startTime = body.startTime ? String(body.startTime) : null;
+    let endTime = body.endTime ? String(body.endTime) : null;
     let customSlots = Array.isArray(body.customSlots) ? body.customSlots : [];
     let disabledGeneratedStarts = Array.isArray(body.disabledGeneratedStarts)
       ? body.disabledGeneratedStarts
@@ -135,18 +138,41 @@ export async function POST(request: Request) {
     }
 
     if (isAvailable && mode === 'hours') {
-      if (!startTime || !endTime || !isValidHHmm(startTime) || !isValidHHmm(endTime)) {
+      const hasWindow =
+        Boolean(startTime) &&
+        Boolean(endTime) &&
+        isValidHHmm(String(startTime)) &&
+        isValidHHmm(String(endTime));
+      const hasCustom = customSlots.length > 0;
+
+      if (!hasWindow && !hasCustom) {
         return NextResponse.json(
-          { error: 'Hours mode requires valid startTime and endTime (HH:mm)' },
+          {
+            error:
+              'Hours mode needs a From–To range or at least one custom time',
+          },
           { status: 400 }
         );
       }
-      if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
-        return NextResponse.json(
-          { error: 'End time must be after start time' },
-          { status: 400 }
-        );
+
+      if (startTime || endTime) {
+        if (!hasWindow) {
+          return NextResponse.json(
+            { error: 'Hours window requires valid startTime and endTime (HH:mm)' },
+            { status: 400 }
+          );
+        }
+        if (timeToMinutes(String(endTime)) <= timeToMinutes(String(startTime))) {
+          return NextResponse.json(
+            { error: 'End time must be after start time' },
+            { status: 400 }
+          );
+        }
+      } else {
+        startTime = null;
+        endTime = null;
       }
+
       for (const slot of customSlots) {
         if (
           !isValidHHmm(slot.startTime) ||

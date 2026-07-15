@@ -16,6 +16,7 @@ const priceListItemSchema = z.object({
   category: z.string().optional().nullable(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().nullable(),
+  location: z.string().max(500).optional().nullable(),
   sessionDescription: z.string().optional().nullable(),
   calendlyLink: z.string().url('Enter a valid URL').optional().nullable().or(z.literal('')),
   price: z.number().min(0, 'Price must be positive'),
@@ -31,6 +32,14 @@ const priceListItemSchema = z.object({
 });
 
 type PriceListItemInput = z.infer<typeof priceListItemSchema>;
+
+function revalidatePriceListPaths(username?: string | null) {
+  revalidatePath('/bookings');
+  revalidatePath('/settings');
+  if (username) {
+    revalidatePath(`/creator/${username}`);
+  }
+}
 
 // Create a new price list item
 export async function createPriceListItem(data: PriceListItemInput) {
@@ -95,6 +104,7 @@ export async function createPriceListItem(data: PriceListItemInput) {
         category: data.category || null,
         name: data.name,
         description: data.description || null,
+        location: data.location?.trim() || null,
         sessionDescription: data.sessionDescription || null,
         calendlyLink: data.calendlyLink || null,
         price: data.price,
@@ -110,8 +120,7 @@ export async function createPriceListItem(data: PriceListItemInput) {
       },
     });
 
-    revalidatePath('/bookings');
-    revalidatePath('/settings');
+    revalidatePriceListPaths(creator.username);
     return { success: true, data: item };
   } catch (error) {
     console.error('Error creating price list item:', error);
@@ -153,6 +162,9 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
         ...(data.serviceType !== undefined && { serviceType: data.serviceType }),
         ...(data.name && { name: data.name }),
         ...(data.description !== undefined && { description: data.description || null }),
+        ...(data.location !== undefined && {
+          location: data.location?.trim() || null,
+        }),
         ...(data.sessionDescription !== undefined && { sessionDescription: data.sessionDescription || null }),
         ...(data.calendlyLink !== undefined && { calendlyLink: data.calendlyLink || null }),
         ...(data.price !== undefined && { price: data.price }),
@@ -178,12 +190,15 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
       },
     });
 
-    revalidatePath('/bookings');
-    revalidatePath('/settings');
+    revalidatePriceListPaths(creator.username);
     return { success: true, data: item };
   } catch (error) {
     console.error('Error updating price list item:', error);
-    return { error: 'Failed to update price list item' };
+    const message =
+      error instanceof Error && error.message.includes('Unknown argument')
+        ? 'Database client is out of date. Restart the app and try again.'
+        : 'Failed to update price list item';
+    return { error: message };
   }
 }
 
@@ -218,8 +233,7 @@ export async function deletePriceListItem(itemId: string) {
       where: { id: itemId },
     });
 
-    revalidatePath('/bookings');
-    revalidatePath('/settings');
+    revalidatePriceListPaths(creator.username);
     return { success: true };
   } catch (error) {
     console.error('Error deleting price list item:', error);
@@ -261,8 +275,7 @@ export async function togglePriceListItemActive(itemId: string) {
       },
     });
 
-    revalidatePath('/bookings');
-    revalidatePath('/settings');
+    revalidatePriceListPaths(creator.username);
     return { success: true, data: item };
   } catch (error) {
     console.error('Error toggling price list item:', error);

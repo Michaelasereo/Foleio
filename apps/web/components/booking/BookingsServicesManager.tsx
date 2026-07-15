@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ImagePlus, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import {
   createPriceListItem,
@@ -10,6 +10,7 @@ import {
   togglePriceListItemActive,
   updatePriceListItem,
 } from '@/lib/actions/priceList';
+import { RemoteImage } from '@/components/creator/RemoteImage';
 
 export type ServiceAddon = {
   id: string;
@@ -23,6 +24,7 @@ export type ServiceItem = {
   category: string | null;
   name: string;
   description: string | null;
+  location?: string | null;
   sessionDescription: string | null;
   calendlyLink: string | null;
   price: number;
@@ -41,6 +43,7 @@ export type ServiceItem = {
 type FormState = {
   name: string;
   description: string;
+  location: string;
   priceNaira: string;
   durationMinutes: string;
   addons: AddonDraft[];
@@ -55,6 +58,7 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   name: '',
   description: '',
+  location: '',
   priceNaira: '',
   durationMinutes: '',
   addons: [],
@@ -65,6 +69,9 @@ const EMPTY_FORM: FormState = {
   depositValue: '40',
   allowPayInFull: true,
 };
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type AddonDraft = {
   id: string;
@@ -106,10 +113,21 @@ export function BookingsServicesManager({
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setItems(initialPriceList);
   }, [initialPriceList]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   async function reload() {
     setLoading(true);
@@ -123,9 +141,17 @@ export function BookingsServicesManager({
     }
   }
 
+  function resetImagePreview() {
+    setImagePreview((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }
+
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    resetImagePreview();
     setError('');
     setModalOpen(true);
   }
@@ -135,9 +161,11 @@ export function BookingsServicesManager({
     const inclusions = Array.isArray(item.inclusions)
       ? item.inclusions.filter((row) => typeof row === 'string')
       : [];
+    resetImagePreview();
     setForm({
       name: item.name,
       description: item.description || '',
+      location: item.location || '',
       priceNaira: String(Math.round(item.price / 100)),
       durationMinutes: item.durationMinutes ? String(item.durationMinutes) : '',
       addons: parseAddons(item.addons).map((addon) => ({
@@ -160,10 +188,11 @@ export function BookingsServicesManager({
   }
 
   function closeModal() {
-    if (saving) return;
+    if (saving || uploadingImage) return;
     setModalOpen(false);
     setEditing(null);
     setForm(EMPTY_FORM);
+    resetImagePreview();
     setError('');
   }
 
@@ -188,9 +217,68 @@ export function BookingsServicesManager({
     }));
   }
 
+  async function handleCoverImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError('Use a JPG, PNG, or WebP image.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError('Image must be under 5MB.');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    resetImagePreview();
+    setImagePreview(previewUrl);
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'service-image');
+      const response = await fetch('/api/creator/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Upload failed');
+      }
+      const url = payload.url as string;
+      setForm((f) => ({ ...f, coverImageUrl: url }));
+      setImagePreview((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return null;
+      });
+    } catch (err) {
+      setImagePreview((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  function clearCoverImage() {
+    resetImagePreview();
+    setForm((f) => ({ ...f, coverImageUrl: '' }));
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+
+    if (uploadingImage) {
+      setError('Wait for the image upload to finish.');
+      return;
+    }
 
     const name = form.name.trim();
     const priceNaira = Number(form.priceNaira);
@@ -261,6 +349,7 @@ export function BookingsServicesManager({
       name,
       category: null,
       description: form.description.trim() || null,
+      location: form.location.trim() || null,
       sessionDescription: null,
       calendlyLink: '',
       price: Math.round(priceNaira * 100),
@@ -292,6 +381,7 @@ export function BookingsServicesManager({
       setModalOpen(false);
       setEditing(null);
       setForm(EMPTY_FORM);
+      resetImagePreview();
       setError('');
     } catch (err) {
       console.error(err);
@@ -450,13 +540,13 @@ export function BookingsServicesManager({
                   Name, price, and optional add-ons for your booking page.
                 </p>
               </div>
-              <button
-                type="button"
-                className="foleio-dash-drawer-close"
-                onClick={closeModal}
-                disabled={saving}
-                aria-label="Close"
-              >
+                  <button
+                    type="button"
+                    className="foleio-dash-drawer-close"
+                    onClick={closeModal}
+                    disabled={saving || uploadingImage}
+                    aria-label="Close"
+                  >
                 <X className="h-4 w-4" strokeWidth={1.5} />
               </button>
             </div>
@@ -524,6 +614,22 @@ export function BookingsServicesManager({
                 </label>
 
                 <label className="foleio-dash-field">
+                  <span>Location (optional)</span>
+                  <input
+                    className="foleio-dash-input"
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                    placeholder="Lagos — or Available in Lagos, Abuja & PH"
+                    maxLength={500}
+                  />
+                  <p className="foleio-dash-field-hint">
+                    A place name, or copy for multiple locations.
+                  </p>
+                </label>
+
+                <label className="foleio-dash-field">
                   <span>What&apos;s included (one per line)</span>
                   <textarea
                     className="foleio-dash-textarea"
@@ -537,20 +643,101 @@ export function BookingsServicesManager({
                   />
                 </label>
 
-                <label className="foleio-dash-field">
-                  <span>Cover image URL (optional)</span>
+                <div className="foleio-dash-field">
+                  <span>Cover image (optional)</span>
                   <input
-                    className="foleio-dash-input"
-                    value={form.coverImageUrl}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, coverImageUrl: e.target.value }))
-                    }
-                    placeholder="https://…"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={handleCoverImageSelected}
                   />
+                  {(imagePreview || form.coverImageUrl) ? (
+                    <div style={{ marginTop: 8 }}>
+                      {imagePreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={imagePreview}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            maxWidth: 240,
+                            aspectRatio: '16/10',
+                            objectFit: 'cover',
+                            borderRadius: 10,
+                            opacity: uploadingImage ? 0.7 : 1,
+                          }}
+                        />
+                      ) : (
+                        <RemoteImage
+                          src={form.coverImageUrl}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            maxWidth: 240,
+                            aspectRatio: '16/10',
+                            objectFit: 'cover',
+                            borderRadius: 10,
+                          }}
+                        />
+                      )}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 8,
+                          marginTop: 10,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="foleio-dash-btn-outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadingImage}
+                        >
+                          {uploadingImage ? (
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              strokeWidth={1.5}
+                            />
+                          ) : (
+                            <ImagePlus className="h-4 w-4" strokeWidth={1.5} />
+                          )}
+                          {uploadingImage ? 'Uploading…' : 'Replace'}
+                        </button>
+                        <button
+                          type="button"
+                          className="foleio-dash-btn-ghost"
+                          onClick={clearCoverImage}
+                          disabled={uploadingImage}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-outline"
+                      style={{ marginTop: 8, width: 'fit-content' }}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                    >
+                      {uploadingImage ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          strokeWidth={1.5}
+                        />
+                      ) : (
+                        <ImagePlus className="h-4 w-4" strokeWidth={1.5} />
+                      )}
+                      {uploadingImage ? 'Uploading…' : 'Upload image'}
+                    </button>
+                  )}
                   <p className="foleio-dash-field-hint">
-                    Upload via Settings → Portfolio or paste an image URL.
+                    JPG, PNG, or WebP · max 5MB. Shows on your public services.
                   </p>
-                </label>
+                </div>
 
                 <div className="foleio-dash-field">
                   <label
@@ -735,14 +922,14 @@ export function BookingsServicesManager({
                     type="button"
                     className="foleio-dash-btn-ghost"
                     onClick={closeModal}
-                    disabled={saving}
+                    disabled={saving || uploadingImage}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     className="foleio-dash-btn-primary"
-                    disabled={saving}
+                    disabled={saving || uploadingImage}
                   >
                     {saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />

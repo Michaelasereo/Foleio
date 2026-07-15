@@ -62,17 +62,36 @@ export async function POST(request: Request) {
     }
 
     if (mode === 'hours') {
-      if (!startTime || !endTime || !isValidHHmm(startTime) || !isValidHHmm(endTime)) {
+      const hasWindow =
+        Boolean(startTime) &&
+        Boolean(endTime) &&
+        isValidHHmm(String(startTime)) &&
+        isValidHHmm(String(endTime));
+      const hasCustom = customSlots.length > 0;
+
+      if (!hasWindow && !hasCustom) {
         return NextResponse.json(
-          { error: 'Hours template requires valid start and end times' },
+          {
+            error:
+              'Hours template needs a From–To range or at least one custom time',
+          },
           { status: 400 }
         );
       }
-      if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
-        return NextResponse.json(
-          { error: 'End time must be after start time' },
-          { status: 400 }
-        );
+
+      if (startTime || endTime) {
+        if (!hasWindow) {
+          return NextResponse.json(
+            { error: 'Hours template requires valid start and end times' },
+            { status: 400 }
+          );
+        }
+        if (timeToMinutes(String(endTime)) <= timeToMinutes(String(startTime))) {
+          return NextResponse.json(
+            { error: 'End time must be after start time' },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -81,11 +100,12 @@ export async function POST(request: Request) {
         creatorId: auth.creator.id,
         name,
         mode,
-        startTime: mode === 'hours' ? startTime : null,
-        endTime: mode === 'hours' ? endTime : null,
+        startTime: mode === 'hours' && startTime && endTime ? startTime : null,
+        endTime: mode === 'hours' && startTime && endTime ? endTime : null,
         slotIntervalMinutes: 60,
         customSlots: mode === 'hours' ? customSlots : [],
-        disabledGeneratedStarts: mode === 'hours' ? disabledGeneratedStarts : [],
+        disabledGeneratedStarts:
+          mode === 'hours' && startTime && endTime ? disabledGeneratedStarts : [],
       },
     });
 

@@ -38,7 +38,11 @@ export async function POST(request: Request) {
     }
 
     let key = '';
-    if (uploadType === 'product-image' || uploadType === 'portfolio') {
+    if (
+      uploadType === 'product-image' ||
+      uploadType === 'portfolio' ||
+      uploadType === 'service-image'
+    ) {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
         return NextResponse.json(
@@ -54,7 +58,9 @@ export async function POST(request: Request) {
       key =
         uploadType === 'portfolio'
           ? `portfolio/${creator.id}/${Date.now()}.${extension}`
-          : `products/images/${creator.id}-${Date.now()}.${extension}`;
+          : uploadType === 'service-image'
+            ? `services/${creator.id}/${Date.now()}.${extension}`
+            : `products/images/${creator.id}-${Date.now()}.${extension}`;
     } else if (uploadType === 'digital-product') {
       if (file.type !== 'application/pdf') {
         return NextResponse.json({ error: 'Only PDF files are supported.' }, { status: 400 });

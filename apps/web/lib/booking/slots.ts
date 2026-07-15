@@ -103,12 +103,36 @@ export function isSlotOpen(
   return true;
 }
 
+export type AmPm = 'AM' | 'PM';
+
+export type ClockParts12 = {
+  hour12: number; // 1–12
+  minute: number; // 0–59
+  amPm: AmPm;
+};
+
+export function parseHHmmTo12(value: string): ClockParts12 {
+  if (!isValidHHmm(value)) {
+    return { hour12: 6, minute: 0, amPm: 'PM' };
+  }
+  const [h, m] = value.split(':').map(Number);
+  const amPm: AmPm = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return { hour12, minute: m, amPm };
+}
+
+export function toHHmmFrom12(parts: ClockParts12): string {
+  const hour12 = Math.min(12, Math.max(1, Math.round(parts.hour12) || 12));
+  const minute = Math.min(59, Math.max(0, Math.round(parts.minute) || 0));
+  let hour24 = hour12 % 12;
+  if (parts.amPm === 'PM') hour24 += 12;
+  return minutesToTime(hour24 * 60 + minute);
+}
+
 export function formatSlotLabel(startTime: string, endTime: string): string {
   const fmt = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h % 12 === 0 ? 12 : h % 12;
-    return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+    const { hour12, minute, amPm } = parseHHmmTo12(t);
+    return `${hour12}:${String(minute).padStart(2, '0')} ${amPm}`;
   };
   return `${fmt(startTime)}–${fmt(endTime)}`;
 }

@@ -31,6 +31,7 @@ interface PriceListItem {
   category: string | null;
   name: string;
   description: string | null;
+  location?: string | null;
   sessionDescription?: string | null;
   calendlyLink?: string | null;
   price: number;
@@ -768,8 +769,7 @@ export function PublicCreatorProfile({
                       <div key={item.id} className="foleio-public-service">
                         <div className="foleio-public-service-main">
                           {item.coverImageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <RemoteImage
                               src={item.coverImageUrl}
                               alt=""
                               style={{
@@ -785,6 +785,22 @@ export function PublicCreatorProfile({
                           <p className="foleio-public-service-name">{item.name}</p>
                           {item.description ? (
                             <p className="foleio-public-service-desc">{item.description}</p>
+                          ) : null}
+                          {item.location ? (
+                            <p
+                              className="foleio-public-service-location"
+                              style={{
+                                margin: '8px 0 0',
+                                padding: '10px 12px',
+                                borderRadius: 8,
+                                background: 'rgba(0,0,0,0.28)',
+                                color: 'rgba(255,255,255,0.88)',
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                              }}
+                            >
+                              {item.location}
+                            </p>
                           ) : null}
                           {inclusions.length > 0 ? (
                             <ul

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Globe,
   Loader2,
+  Pencil,
   Plus,
   Trash2,
   X,
@@ -14,6 +15,10 @@ import {
   formatSlotLabel,
   generateHourlySlots,
   mergeWithCustom,
+  parseHHmmTo12,
+  toHHmmFrom12,
+  type AmPm,
+  type ClockParts12,
   type TimeRange,
 } from '@/lib/booking/slots';
 
@@ -72,6 +77,11 @@ const DEFAULT_OFF: DaySchedule = {
   disabledGeneratedStarts: [],
 };
 
+const DEFAULT_HOURS_WINDOW = {
+  startTime: '09:00',
+  endTime: '17:00',
+} as const;
+
 function toDateKey(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -114,13 +124,103 @@ function buildMonthCells(year: number, month: number) {
 function scheduleFromItem(item: AvailabilityItem): DaySchedule {
   return {
     timeMode: item.mode === 'hours' ? 'hours' : 'full',
-    startTime: item.startTime || '09:00',
-    endTime: item.endTime || '17:00',
+    startTime: item.startTime || '',
+    endTime: item.endTime || '',
     customSlots: Array.isArray(item.customSlots) ? item.customSlots : [],
     disabledGeneratedStarts: Array.isArray(item.disabledGeneratedStarts)
       ? item.disabledGeneratedStarts
       : [],
   };
+}
+
+const DEFAULT_CUSTOM_FROM: ClockParts12 = { hour12: 6, minute: 0, amPm: 'PM' };
+const DEFAULT_CUSTOM_TO: ClockParts12 = { hour12: 7, minute: 0, amPm: 'PM' };
+
+function Time12Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: ClockParts12;
+  onChange: (next: ClockParts12) => void;
+}) {
+  return (
+    <label className="foleio-avail-time-field">
+      <span>{label}</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 4,
+        }}
+      >
+        <input
+          className="foleio-dash-input"
+          type="number"
+          min={1}
+          max={12}
+          value={value.hour12}
+          onChange={(e) => {
+            const hour12 = Number(e.target.value);
+            onChange({
+              ...value,
+              hour12: Number.isFinite(hour12) ? hour12 : value.hour12,
+            });
+          }}
+          style={{ width: 56, padding: '6px 8px' }}
+          aria-label={`${label} hour`}
+        />
+        <span style={{ color: '#a1a1aa' }}>:</span>
+        <input
+          className="foleio-dash-input"
+          type="number"
+          min={0}
+          max={59}
+          value={String(value.minute).padStart(2, '0')}
+          onChange={(e) => {
+            const minute = Number(e.target.value);
+            onChange({
+              ...value,
+              minute: Number.isFinite(minute) ? minute : value.minute,
+            });
+          }}
+          style={{ width: 56, padding: '6px 8px' }}
+          aria-label={`${label} minute`}
+        />
+        <div
+          style={{
+            display: 'inline-flex',
+            borderRadius: 8,
+            border: '1px solid #3a3a3a',
+            overflow: 'hidden',
+          }}
+          role="group"
+          aria-label={`${label} AM or PM`}
+        >
+          {(['AM', 'PM'] as AmPm[]).map((period) => (
+            <button
+              key={period}
+              type="button"
+              onClick={() => onChange({ ...value, amPm: period })}
+              style={{
+                border: 'none',
+                padding: '6px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: value.amPm === period ? '#f4f4f5' : 'transparent',
+                color: value.amPm === period ? '#111' : '#f4f4f5',
+              }}
+            >
+              {period}
+            </button>
+          ))}
+        </div>
+      </div>
+    </label>
+  );
 }
 
 export function AvailabilitySetupForm({
@@ -167,9 +267,10 @@ export function AvailabilitySetupForm({
   const [availableSchedule, setAvailableSchedule] =
     useState<DaySchedule>(DEFAULT_AVAILABLE);
   const [offSchedule, setOffSchedule] = useState<DaySchedule>(DEFAULT_OFF);
-  const [customFrom, setCustomFrom] = useState('18:00');
-  const [customTo, setCustomTo] = useState('19:00');
+  const [customFrom, setCustomFrom] = useState<ClockParts12>(DEFAULT_CUSTOM_FROM);
+  const [customTo, setCustomTo] = useState<ClockParts12>(DEFAULT_CUSTOM_TO);
   const [showCustomForm, setShowCustomForm] = useState(false);
+  const [editingCustomIndex, setEditingCustomIndex] = useState<number | null>(null);
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -259,8 +360,12 @@ export function AvailabilitySetupForm({
 
   const previewSlots = useMemo(() => {
     if (activeSchedule.timeMode !== 'hours') return [];
+    const generated =
+      activeSchedule.startTime && activeSchedule.endTime
+        ? generateHourlySlots(activeSchedule.startTime, activeSchedule.endTime)
+        : [];
     return mergeWithCustom(
-      generateHourlySlots(activeSchedule.startTime, activeSchedule.endTime),
+      generated,
       activeSchedule.customSlots,
       activeSchedule.disabledGeneratedStarts
     );
@@ -344,11 +449,38 @@ export function AvailabilitySetupForm({
   };
 
   const updateTimeMode = (timeMode: TimeMode) => {
+    if (timeMode === 'hours') {
+      syncActiveSchedule({
+        ...activeSchedule,
+        timeMode,
+        startTime: activeSchedule.startTime || DEFAULT_HOURS_WINDOW.startTime,
+        endTime: activeSchedule.endTime || DEFAULT_HOURS_WINDOW.endTime,
+      });
+      return;
+    }
     syncActiveSchedule({ ...activeSchedule, timeMode });
   };
 
   const updateTime = (field: 'startTime' | 'endTime', value: string) => {
     syncActiveSchedule({ ...activeSchedule, [field]: value });
+  };
+
+  const clearDefaultWindow = () => {
+    syncActiveSchedule({
+      ...activeSchedule,
+      startTime: '',
+      endTime: '',
+      disabledGeneratedStarts: [],
+    });
+  };
+
+  const restoreDefaultWindow = () => {
+    syncActiveSchedule({
+      ...activeSchedule,
+      startTime: DEFAULT_HOURS_WINDOW.startTime,
+      endTime: DEFAULT_HOURS_WINDOW.endTime,
+      disabledGeneratedStarts: [],
+    });
   };
 
   const toggleGeneratedSlot = (startTime: string) => {
@@ -362,19 +494,34 @@ export function AvailabilitySetupForm({
   };
 
   const addCustomSlot = () => {
-    if (customFrom >= customTo) {
+    const startTime = toHHmmFrom12(customFrom);
+    const endTime = toHHmmFrom12(customTo);
+    if (startTime >= endTime) {
       setMessageTone('err');
       setMessage('Custom end time must be after start time.');
       return;
     }
-    const next = [
-      ...activeSchedule.customSlots,
-      { startTime: customFrom, endTime: customTo },
-    ];
+    const next =
+      editingCustomIndex !== null
+        ? activeSchedule.customSlots.map((slot, index) =>
+            index === editingCustomIndex ? { startTime, endTime } : slot
+          )
+        : [...activeSchedule.customSlots, { startTime, endTime }];
     syncActiveSchedule({ ...activeSchedule, customSlots: next });
     setShowCustomForm(false);
-    setCustomFrom('18:00');
-    setCustomTo('19:00');
+    setEditingCustomIndex(null);
+    setCustomFrom(DEFAULT_CUSTOM_FROM);
+    setCustomTo(DEFAULT_CUSTOM_TO);
+    setMessage('');
+  };
+
+  const beginEditCustomSlot = (index: number) => {
+    const slot = activeSchedule.customSlots[index];
+    if (!slot) return;
+    setCustomFrom(parseHHmmTo12(slot.startTime));
+    setCustomTo(parseHHmmTo12(slot.endTime));
+    setEditingCustomIndex(index);
+    setShowCustomForm(true);
     setMessage('');
   };
 
@@ -383,6 +530,22 @@ export function AvailabilitySetupForm({
       ...activeSchedule,
       customSlots: activeSchedule.customSlots.filter((_, i) => i !== index),
     });
+    if (editingCustomIndex === index) {
+      setShowCustomForm(false);
+      setEditingCustomIndex(null);
+      setCustomFrom(DEFAULT_CUSTOM_FROM);
+      setCustomTo(DEFAULT_CUSTOM_TO);
+    } else if (editingCustomIndex !== null && editingCustomIndex > index) {
+      setEditingCustomIndex(editingCustomIndex - 1);
+    }
+  };
+
+  const cancelCustomForm = () => {
+    setShowCustomForm(false);
+    setEditingCustomIndex(null);
+    setCustomFrom(DEFAULT_CUSTOM_FROM);
+    setCustomTo(DEFAULT_CUSTOM_TO);
+    setMessage('');
   };
 
   const applyTemplate = (templateId: string) => {
@@ -390,8 +553,8 @@ export function AvailabilitySetupForm({
     if (!template || !activeDate) return;
     const schedule: DaySchedule = {
       timeMode: template.mode === 'hours' ? 'hours' : 'full',
-      startTime: template.startTime || '09:00',
-      endTime: template.endTime || '17:00',
+      startTime: template.startTime || '',
+      endTime: template.endTime || '',
       customSlots: template.customSlots || [],
       disabledGeneratedStarts: template.disabledGeneratedStarts || [],
     };
@@ -416,8 +579,8 @@ export function AvailabilitySetupForm({
         body: JSON.stringify({
           name,
           mode: availableSchedule.timeMode === 'hours' ? 'hours' : 'full_day',
-          startTime: availableSchedule.startTime,
-          endTime: availableSchedule.endTime,
+          startTime: availableSchedule.startTime || null,
+          endTime: availableSchedule.endTime || null,
           customSlots: availableSchedule.customSlots,
           disabledGeneratedStarts: availableSchedule.disabledGeneratedStarts,
         }),
@@ -462,10 +625,20 @@ export function AvailabilitySetupForm({
 
     for (const key of available) {
       const schedule = dateSchedules[key] || DEFAULT_AVAILABLE;
-      if (
-        schedule.timeMode === 'hours' &&
-        schedule.startTime >= schedule.endTime
-      ) {
+      if (schedule.timeMode !== 'hours') continue;
+
+      const hasWindow = Boolean(schedule.startTime && schedule.endTime);
+      const hasCustom = schedule.customSlots.length > 0;
+
+      if (!hasWindow && !hasCustom) {
+        setMessageTone('err');
+        setMessage(
+          `Add a From–To range or a custom time on ${formatChipDate(key)}.`
+        );
+        return;
+      }
+
+      if (hasWindow && schedule.startTime >= schedule.endTime) {
         setMessageTone('err');
         setMessage(`End time must be after start time on ${formatChipDate(key)}.`);
         return;
@@ -509,8 +682,8 @@ export function AvailabilitySetupForm({
               dates,
               isAvailable: true,
               mode: schedule.mode === 'hours' ? 'hours' : 'full_day',
-              startTime: schedule.startTime,
-              endTime: schedule.endTime,
+              startTime: schedule.startTime || null,
+              endTime: schedule.endTime || null,
               customSlots: schedule.customSlots,
               disabledGeneratedStarts: schedule.disabledGeneratedStarts,
             }),
@@ -696,59 +869,112 @@ export function AvailabilitySetupForm({
 
             {activeSchedule.timeMode === 'hours' ? (
               <>
-                <div className="foleio-avail-time-range">
-                  <label className="foleio-avail-time-field">
-                    <span>From</span>
-                    <input
-                      type="time"
-                      value={activeSchedule.startTime}
-                      onChange={(e) => updateTime('startTime', e.target.value)}
-                    />
-                  </label>
-                  <span className="foleio-avail-time-to">to</span>
-                  <label className="foleio-avail-time-field">
-                    <span>To</span>
-                    <input
-                      type="time"
-                      value={activeSchedule.endTime}
-                      onChange={(e) => updateTime('endTime', e.target.value)}
-                    />
-                  </label>
-                </div>
-
-                <p className="foleio-avail-mgmt-hint" style={{ marginTop: 12 }}>
-                  Hourly slots — tap to disable
-                </p>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 8,
-                    marginTop: 8,
-                  }}
-                >
-                  {previewSlots
-                    .filter((s) => s.source === 'generated')
-                    .map((slot) => (
+                {activeSchedule.startTime && activeSchedule.endTime ? (
+                  <>
+                    <div
+                      className="foleio-avail-time-range"
+                      style={{ alignItems: 'flex-end' }}
+                    >
+                      <label className="foleio-avail-time-field">
+                        <span>From</span>
+                        <input
+                          type="time"
+                          value={activeSchedule.startTime}
+                          onChange={(e) => updateTime('startTime', e.target.value)}
+                        />
+                      </label>
+                      <span className="foleio-avail-time-to">to</span>
+                      <label className="foleio-avail-time-field">
+                        <span>To</span>
+                        <input
+                          type="time"
+                          value={activeSchedule.endTime}
+                          onChange={(e) => updateTime('endTime', e.target.value)}
+                        />
+                      </label>
                       <button
-                        key={`${slot.startTime}-${slot.endTime}`}
                         type="button"
-                        onClick={() => toggleGeneratedSlot(slot.startTime)}
+                        onClick={clearDefaultWindow}
+                        aria-label="Remove default From–To hours"
+                        title="Remove default hours"
                         style={{
                           border: '1px solid #3a3a3a',
-                          borderRadius: 8,
-                          padding: '6px 10px',
-                          fontSize: 12,
-                          background: slot.isActive ? '#202020' : '#141414',
-                          color: slot.isActive ? '#fafafa' : '#777',
-                          textDecoration: slot.isActive ? 'none' : 'line-through',
+                          background: 'transparent',
+                          color: '#fafafa',
                           cursor: 'pointer',
+                          borderRadius: 8,
+                          padding: '8px 10px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          height: 38,
+                          marginBottom: 1,
                         }}
                       >
-                        {formatSlotLabel(slot.startTime, slot.endTime)}
+                        <Trash2 className="h-4 w-4" strokeWidth={1.75} />
                       </button>
-                    ))}
-                </div>
+                    </div>
+
+                    <p className="foleio-avail-mgmt-hint" style={{ marginTop: 12 }}>
+                      Hourly slots — tap to disable
+                    </p>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        marginTop: 8,
+                      }}
+                    >
+                      {previewSlots
+                        .filter((s) => s.source === 'generated')
+                        .map((slot) => (
+                          <button
+                            key={`${slot.startTime}-${slot.endTime}`}
+                            type="button"
+                            onClick={() => toggleGeneratedSlot(slot.startTime)}
+                            style={{
+                              border: '1px solid #3a3a3a',
+                              borderRadius: 8,
+                              padding: '6px 10px',
+                              fontSize: 12,
+                              background: slot.isActive ? '#202020' : '#141414',
+                              color: slot.isActive ? '#fafafa' : '#777',
+                              textDecoration: slot.isActive
+                                ? 'none'
+                                : 'line-through',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {formatSlotLabel(slot.startTime, slot.endTime)}
+                          </button>
+                        ))}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginBottom: 4 }}>
+                    <p className="foleio-avail-mgmt-hint" style={{ margin: 0 }}>
+                      Default hours removed — using custom times only.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={restoreDefaultWindow}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#f4f4f5',
+                        cursor: 'pointer',
+                        padding: 0,
+                        marginTop: 8,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                        textUnderlineOffset: 3,
+                      }}
+                    >
+                      Restore From–To hours
+                    </button>
+                  </div>
+                )}
 
                 <div style={{ marginTop: 16 }}>
                   {activeSchedule.customSlots.length > 0 ? (
@@ -768,7 +994,8 @@ export function AvailabilitySetupForm({
                             alignItems: 'center',
                             gap: 10,
                             borderRadius: 8,
-                            background: '#2b2b2b',
+                            background:
+                              editingCustomIndex === index ? '#3a3a3a' : '#2b2b2b',
                             padding: '0 12px',
                             height: 38,
                             color: '#fafafa',
@@ -779,8 +1006,8 @@ export function AvailabilitySetupForm({
                           <span>{formatSlotLabel(slot.startTime, slot.endTime)}</span>
                           <button
                             type="button"
-                            onClick={() => removeCustomSlot(index)}
-                            aria-label={`Delete ${formatSlotLabel(slot.startTime, slot.endTime)}`}
+                            onClick={() => beginEditCustomSlot(index)}
+                            aria-label={`Edit ${formatSlotLabel(slot.startTime, slot.endTime)}`}
                             style={{
                               border: 'none',
                               background: 'transparent',
@@ -791,7 +1018,7 @@ export function AvailabilitySetupForm({
                               alignItems: 'center',
                             }}
                           >
-                            <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                            <Pencil className="h-4 w-4" strokeWidth={1.75} />
                           </button>
                         </div>
                       ))}
@@ -801,17 +1028,21 @@ export function AvailabilitySetupForm({
                   {!showCustomForm ? (
                     <button
                       type="button"
-                      onClick={() => setShowCustomForm(true)}
+                      onClick={() => {
+                        setEditingCustomIndex(null);
+                        setCustomFrom(DEFAULT_CUSTOM_FROM);
+                        setCustomTo(DEFAULT_CUSTOM_TO);
+                        setShowCustomForm(true);
+                      }}
                       style={{
                         border: 'none',
-                        background: 'transparent',
-                        color: '#f4f4f5',
+                        borderRadius: 8,
+                        background: '#2b2b2b',
+                        color: '#fff',
                         cursor: 'pointer',
-                        padding: 0,
+                        padding: '8px 12px',
                         fontSize: 13,
                         fontWeight: 600,
-                        textDecoration: 'underline',
-                        textUnderlineOffset: 3,
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 4,
@@ -822,33 +1053,79 @@ export function AvailabilitySetupForm({
                     </button>
                   ) : (
                     <div>
-                      <p className="foleio-avail-mgmt-label">Custom time</p>
-                      <div className="foleio-avail-time-range" style={{ marginTop: 8 }}>
-                        <label className="foleio-avail-time-field">
-                          <span>From</span>
-                          <input
-                            type="time"
-                            value={customFrom}
-                            onChange={(e) => setCustomFrom(e.target.value)}
-                          />
-                        </label>
-                        <span className="foleio-avail-time-to">to</span>
-                        <label className="foleio-avail-time-field">
-                          <span>To</span>
-                          <input
-                            type="time"
-                            value={customTo}
-                            onChange={(e) => setCustomTo(e.target.value)}
-                          />
-                        </label>
+                      <p className="foleio-avail-mgmt-label">
+                        {editingCustomIndex !== null
+                          ? 'Edit custom time'
+                          : 'Custom time'}
+                      </p>
+                      <div
+                        className="foleio-avail-time-range"
+                        style={{
+                          marginTop: 8,
+                          flexDirection: 'column',
+                          alignItems: 'stretch',
+                          gap: 12,
+                        }}
+                      >
+                        <Time12Field
+                          label="From"
+                          value={customFrom}
+                          onChange={setCustomFrom}
+                        />
+                        <Time12Field
+                          label="To"
+                          value={customTo}
+                          onChange={setCustomTo}
+                        />
                       </div>
-                      <div style={{ marginTop: 10 }}>
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                        }}
+                      >
                         <button
                           type="button"
                           className="foleio-avail-time-mode is-active"
                           onClick={addCustomSlot}
                         >
-                          Save time
+                          {editingCustomIndex !== null ? 'Save changes' : 'Save time'}
+                        </button>
+                        {editingCustomIndex !== null ? (
+                          <button
+                            type="button"
+                            onClick={() => removeCustomSlot(editingCustomIndex)}
+                            aria-label="Delete custom time"
+                            style={{
+                              border: '1px solid #3a3a3a',
+                              background: 'transparent',
+                              color: '#fafafa',
+                              cursor: 'pointer',
+                              borderRadius: 8,
+                              padding: '8px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={cancelCustomForm}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#a1a1aa',
+                            cursor: 'pointer',
+                            padding: '8px 4px',
+                            fontSize: 13,
+                          }}
+                        >
+                          Cancel
                         </button>
                       </div>
                     </div>

@@ -9,6 +9,7 @@ interface PriceListItem {
   category: string | null;
   name: string;
   description: string | null;
+  location?: string | null;
   sessionDescription?: string | null;
   calendlyLink?: string | null;
   price: number;
@@ -382,6 +383,23 @@ export function PriceListModal({
                         </span>
                         {item.description ? (
                           <span className="foleio-book-option-desc">{item.description}</span>
+                        ) : null}
+                        {item.location ? (
+                          <span
+                            className="foleio-book-option-location"
+                            style={{
+                              display: 'block',
+                              marginTop: 6,
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              background: 'rgba(0,0,0,0.28)',
+                              color: 'rgba(255,255,255,0.88)',
+                              fontSize: 12,
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {item.location}
+                          </span>
                         ) : null}
                         {item.durationMinutes ? (
                           <span className="foleio-book-option-meta">
