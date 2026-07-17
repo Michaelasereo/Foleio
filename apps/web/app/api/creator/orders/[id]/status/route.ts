@@ -6,13 +6,13 @@ import { sendEmail } from '@/lib/email/resend';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const VALID_STATUSES = [
-  'confirmed',
-  'in_progress',
-  'shipped',
-  'delivered',
-  'cancelled',
-] as const;
+const VALID_STATUSES = ['confirmed', 'processing', 'delivered'] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  confirmed: 'Confirmed',
+  processing: 'Processing',
+  delivered: 'Delivered',
+};
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -65,7 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const deliveryAddress = (order.deliveryAddress || {}) as Record<string, string>;
     const fanEmail = String(deliveryAddress.email || '').trim();
     if (fanEmail) {
-      const statusLabel = status.replace('_', ' ');
+      const statusLabel = STATUS_LABELS[status] || status.replace('_', ' ');
       void sendEmail({
         to: fanEmail,
         subject: `Order update from ${creator.displayName}`,

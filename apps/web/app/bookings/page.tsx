@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { UnifiedBookingsManager } from '@/components/booking/UnifiedBookingsManager';
 import { serializeForClient } from '@/lib/utils';
@@ -8,7 +7,18 @@ import {
   formatBalanceDueDate,
   getBookingBalanceDueDate,
 } from '@/lib/booking/deposit';
+import { getCreatorForUser, getCurrentUser } from '@/lib/creator/cached-lookups';
 import BookingsLoading from './loading';
+
+const UPCOMING_STATUSES = [
+  'deposit_paid',
+  'balance_overdue',
+  'paid',
+  'first_payout_done',
+  'service_day',
+] as const;
+
+const COMPLETED_STATUSES = ['completed', 'refunded', 'cancelled'] as const;
 
 export default async function BookingsPage({
   searchParams,
@@ -20,20 +30,15 @@ export default async function BookingsPage({
     redirect('/settings?tab=portfolio');
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect('/login');
   }
 
-  let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
+  let creator: Awaited<ReturnType<typeof getCreatorForUser>> = null;
   try {
-    creator = await prisma.creator.findUnique({
-      where: { userId: user.id },
-    });
+    creator = await getCreatorForUser(user.id);
   } catch {
     console.warn('Bookings page creator lookup failed (non-fatal).');
     return (
@@ -57,7 +62,9 @@ export default async function BookingsPage({
     );
   }
 
-  let bookings: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
+  let upcomingBookingsRaw: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
+  let disputedBookingsRaw: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
+  let completedBookingsRaw: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
   let availability: Awaited<ReturnType<typeof prisma.creatorAvailability.findMany>> =
     [];
   let priceList: Awaited<ReturnType<typeof prisma.priceListItem.findMany>> = [];
@@ -65,13 +72,39 @@ export default async function BookingsPage({
     const ninetyDaysFromNow = new Date();
     ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
 
-    [bookings, availability, priceList] = await Promise.all([
+    const bookingInclude = { priceListItem: true } as const;
+
+    [
+      upcomingBookingsRaw,
+      disputedBookingsRaw,
+      completedBookingsRaw,
+      availability,
+      priceList,
+    ] = await Promise.all([
       prisma.booking.findMany({
-        where: { creatorId: creator.id },
-        include: {
-          priceListItem: true,
+        where: {
+          creatorId: creator.id,
+          status: { in: [...UPCOMING_STATUSES] },
         },
+        include: bookingInclude,
         orderBy: { createdAt: 'desc' },
+      }),
+      prisma.booking.findMany({
+        where: {
+          creatorId: creator.id,
+          status: 'disputed',
+        },
+        include: bookingInclude,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.booking.findMany({
+        where: {
+          creatorId: creator.id,
+          status: { in: [...COMPLETED_STATUSES] },
+        },
+        include: bookingInclude,
+        orderBy: { createdAt: 'desc' },
+        take: 100,
       }),
       prisma.creatorAvailability.findMany({
         where: {
@@ -101,7 +134,13 @@ export default async function BookingsPage({
   }
 
   const daysBefore = creator.balanceDueDaysBefore ?? 7;
-  const withDue = <T extends { paymentPlan?: string | null; balanceAmount?: number | null; bookingDate: Date | string }>(
+  const withDue = <
+    T extends {
+      paymentPlan?: string | null;
+      balanceAmount?: number | null;
+      bookingDate: Date | string;
+    },
+  >(
     list: T[]
   ) =>
     list.map((b) => ({
@@ -114,19 +153,9 @@ export default async function BookingsPage({
           : null,
     }));
 
-  const upcomingBookings = withDue(
-    bookings.filter((b) =>
-      ['deposit_paid', 'balance_overdue', 'paid', 'first_payout_done', 'service_day'].includes(
-        b.status
-      )
-    )
-  );
-  const disputedBookings = withDue(bookings.filter((b) => b.status === 'disputed'));
-  const completedBookings = withDue(
-    bookings.filter((b) =>
-      ['completed', 'refunded', 'cancelled'].includes(b.status)
-    )
-  );
+  const upcomingBookings = withDue(upcomingBookingsRaw);
+  const disputedBookings = withDue(disputedBookingsRaw);
+  const completedBookings = withDue(completedBookingsRaw);
 
   return (
     <Suspense fallback={<BookingsLoading />}>

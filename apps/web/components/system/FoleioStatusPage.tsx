@@ -1,7 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import foleioLogo from '../../../../foleio-logo.png';
 import { authCss } from '@/components/auth/styles';
 
 const statusCss = `
@@ -23,12 +25,14 @@ body:has(.foleio-status-root) footer:not(.foleio-auth-legal) {
 
 .foleio-status-brand {
   display: inline-flex;
+  align-items: center;
   margin-bottom: 28px;
 }
 
 .foleio-status-brand img {
-  height: 28px;
+  height: 32px;
   width: auto;
+  filter: brightness(0) invert(1);
 }
 
 .foleio-status-card {
@@ -179,11 +183,13 @@ export function FoleioStatusPage({
     <div className="foleio-auth-root foleio-status-root">
       <style dangerouslySetInnerHTML={{ __html: statusCss }} />
       <Link href="/" className="foleio-status-brand" aria-label="Foleio home">
-        <img
-          src="/brand/foleio-wordmark-white.svg"
+        <Image
+          src={foleioLogo}
           alt="Foleio"
-          width={120}
-          height={28}
+          height={32}
+          className="h-8 w-auto"
+          style={{ filter: 'brightness(0) invert(1)' }}
+          priority
         />
       </Link>
       <div className="foleio-status-card">

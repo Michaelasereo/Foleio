@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { BadgeCheck, Calendar, Link2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { BadgeCheck, Calendar, Link2, ShoppingBag, X } from 'lucide-react';
 import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { authCss } from '@/components/auth/styles';
@@ -16,6 +16,7 @@ import {
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { publicGalleryItems } from '@/lib/creator/portfolio-gallery';
 import { RemoteImage } from '@/components/creator/RemoteImage';
+import { PublicShopPanel, prefetchPublicShop } from '@/components/shop/PublicShopPanel';
 
 interface CreatorLink {
   id: string;
@@ -103,10 +104,16 @@ interface PublicCreatorProfileProps {
   tutorials?: unknown[];
   tutorialCollections?: unknown[];
   journalEntries?: unknown[];
-  groupedPriceList: GroupedPriceList[];
+  groupedPriceList?: GroupedPriceList[];
   hasActiveProducts?: boolean;
+  /** When offerings data is still streaming, hint from lean query for CTA. */
+  hasServicesHint?: boolean;
   portfolioSections?: PortfolioSectionPublic[];
   requireDojahKyc?: boolean;
+  /** full = classic page; shell = header + slots; offerings = panel + modals only */
+  variant?: 'full' | 'shell' | 'offerings';
+  gallerySlot?: React.ReactNode;
+  offeringsSlot?: React.ReactNode;
 }
 
 const publicProfileCss = `
@@ -395,6 +402,11 @@ body:has(.foleio-public-root) footer { display: none !important; }
   font-size: 13px;
   font-weight: 500;
 }
+
+@keyframes foleio-public-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
 `;
 
 const SAMPLE_BIO =
@@ -464,14 +476,24 @@ function buildSampleAvailability(): Availability[] {
 
 export function PublicCreatorProfile({
   creator,
-  groupedPriceList,
+  groupedPriceList = [],
   portfolioSections = [],
   requireDojahKyc = false,
+  hasActiveProducts = false,
+  hasServicesHint = false,
+  variant = 'full',
+  gallerySlot,
+  offeringsSlot,
 }: PublicCreatorProfileProps) {
   const [priceListOpen, setPriceListOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<PriceListItem | null>(null);
   const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null);
+  const [offeringsTab, setOfferingsTab] = useState<'services' | 'shop'>('services');
+  const offeringsPanelRef = useRef<HTMLElement | null>(null);
+  const setOfferingsPanelRef = (node: HTMLElement | null) => {
+    offeringsPanelRef.current = node;
+  };
   const [galleryLightbox, setGalleryLightbox] = useState<{
     id: string;
     imageUrl: string;
@@ -527,14 +549,48 @@ export function PublicCreatorProfile({
       currency: 'NGN',
     }).format(priceInKobo / 100);
 
-  const usingSampleServices = groupedPriceList.length === 0;
+  const hasRealServices = groupedPriceList.length > 0 || hasServicesHint;
+  const hasShop = Boolean(hasActiveProducts);
+  const usingSampleServices = !hasRealServices && !hasShop;
   const displayGrouped = usingSampleServices ? SAMPLE_GROUPED : groupedPriceList;
   const displayPriceListItems = displayGrouped.flatMap((group) => group.items);
   const displayAvailability = usingSampleServices
     ? buildSampleAvailability()
     : creator.availability;
+  const showOfferingsPanel =
+    Boolean(offeringsSlot) || hasRealServices || hasShop || usingSampleServices;
+  const showBothTabs = hasRealServices && hasShop && !offeringsSlot;
+  const panelTitle = !hasRealServices && hasShop ? 'Shop' : 'Services';
+  const activeOfferingsTab = showBothTabs
+    ? offeringsTab
+    : hasShop && !hasRealServices
+      ? 'shop'
+      : 'services';
+
+  useEffect(() => {
+    if (showBothTabs) setOfferingsTab('services');
+  }, [showBothTabs]);
+
+  useEffect(() => {
+    if (!hasShop) return;
+    prefetchPublicShop(creator.username);
+  }, [hasShop, creator.username]);
+
+  function openShopPanel() {
+    if (showBothTabs) setOfferingsTab('shop');
+    const target =
+      offeringsPanelRef.current ||
+      (typeof document !== 'undefined'
+        ? document.getElementById('foleio-public-offerings')
+        : null);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   function openServiceDrawer(serviceId?: string) {
+    if (offeringsSlot) {
+      openShopPanel();
+      return;
+    }
     setPreselectedServiceId(serviceId || null);
     setPriceListOpen(true);
   }
@@ -561,7 +617,11 @@ export function PublicCreatorProfile({
   });
   // Show Book when services + payments are ready. Past-only availability
   // still opens the drawer (calendar shows "No available dates right now").
-  const canBook = hasPriceList && (usingSampleServices || paymentsReady);
+  // hasServicesHint covers shell mode while offerings stream in.
+  const canBook =
+    (hasPriceList || hasServicesHint) && (usingSampleServices || paymentsReady);
+  const shopOnly = hasShop && !hasRealServices;
+  const showPrimaryCta = shopOnly || canBook;
 
   const plan = (creator.platformPlan || '').toUpperCase();
   const isProBadge =
@@ -622,17 +682,219 @@ export function PublicCreatorProfile({
 
   const servicesMeta = usingSampleServices
     ? 'Sample services for preview — publish your own from Bookings.'
-    : canBook
-      ? hasAvailability
-        ? 'Choose a service to book a date.'
-        : 'Choose a service — add future available dates in Bookings so clients can pick a day.'
-      : hasPriceList
-        ? 'Services from this creator.'
-        : 'No services published yet.';
+    : activeOfferingsTab === 'shop'
+      ? 'Browse products and checkout'
+      : canBook
+        ? hasAvailability
+          ? 'Choose a service to book a date.'
+          : 'Choose a service — add future available dates in Bookings so clients can pick a day.'
+        : hasRealServices
+          ? 'Services from this creator.'
+          : 'No services published yet.';
+
+  const injectStyles = <style dangerouslySetInnerHTML={{ __html: publicProfileCss }} />;
+
+  if (variant === 'offerings') {
+    return (
+      <>
+        {injectStyles}
+        {showOfferingsPanel ? (
+          <section className="foleio-public-panel" ref={setOfferingsPanelRef}>
+            <h2 className="foleio-public-panel-title">{panelTitle}</h2>
+            <p className="foleio-public-panel-meta">{servicesMeta}</p>
+            {showBothTabs ? (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  marginTop: 12,
+                  marginBottom: 4,
+                  background: 'rgba(255,255,255,0.06)',
+                  borderRadius: 10,
+                  padding: 4,
+                  width: 'fit-content',
+                }}
+                role="tablist"
+                aria-label="Offerings"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={offeringsTab === 'services'}
+                  onClick={() => setOfferingsTab('services')}
+                  style={{
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    background: offeringsTab === 'services' ? '#fafafa' : 'transparent',
+                    color: offeringsTab === 'services' ? '#18181b' : '#fafafa',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  Services
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={offeringsTab === 'shop'}
+                  onClick={() => setOfferingsTab('shop')}
+                  onMouseEnter={() => prefetchPublicShop(creator.username)}
+                  onFocus={() => prefetchPublicShop(creator.username)}
+                  style={{
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    background: offeringsTab === 'shop' ? '#fafafa' : 'transparent',
+                    color: offeringsTab === 'shop' ? '#18181b' : '#fafafa',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  Shop
+                </button>
+              </div>
+            ) : null}
+            {hasShop ? (
+              <div
+                hidden={activeOfferingsTab !== 'shop'}
+                aria-hidden={activeOfferingsTab !== 'shop'}
+              >
+                <PublicShopPanel username={creator.username} embedded />
+              </div>
+            ) : null}
+            {activeOfferingsTab !== 'shop' ? (
+              displayGrouped.length === 0 ? (
+              <p className="foleio-public-empty">Check back soon for booking options.</p>
+            ) : (
+              displayGrouped.map((group) => (
+                <div key={group.category || 'uncategorized'} className="foleio-public-group">
+                  {group.category ? (
+                    <h3 className="foleio-public-group-label">{group.category}</h3>
+                  ) : null}
+                  {group.items.map((item) => {
+                    const inclusions = Array.isArray(item.inclusions)
+                      ? item.inclusions.filter((row) => typeof row === 'string')
+                      : [];
+                    let depositLabel: string | null = null;
+                    if (item.depositType === 'percent' && item.depositValue) {
+                      const dep = Math.floor((item.price * Number(item.depositValue)) / 100);
+                      depositLabel = `From ${formatPrice(dep)} deposit`;
+                    } else if (item.depositType === 'fixed' && item.depositValue) {
+                      depositLabel = `From ${formatPrice(item.depositValue)} deposit`;
+                    }
+                    return (
+                      <div key={item.id} className="foleio-public-service">
+                        <div className="foleio-public-service-main">
+                          {item.coverImageUrl ? (
+                            <RemoteImage
+                              src={item.coverImageUrl}
+                              alt=""
+                              style={{
+                                width: '100%',
+                                maxWidth: 220,
+                                aspectRatio: '16/10',
+                                objectFit: 'cover',
+                                borderRadius: 10,
+                                marginBottom: 10,
+                              }}
+                            />
+                          ) : null}
+                          <p className="foleio-public-service-name">{item.name}</p>
+                          {item.description ? (
+                            <p className="foleio-public-service-desc">{item.description}</p>
+                          ) : null}
+                          {item.location ? (
+                            <p
+                              className="foleio-public-service-location"
+                              style={{
+                                margin: '8px 0 0',
+                                padding: '10px 12px',
+                                borderRadius: 8,
+                                background: 'rgba(0,0,0,0.28)',
+                                color: 'rgba(255,255,255,0.88)',
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                              }}
+                            >
+                              {item.location}
+                            </p>
+                          ) : null}
+                          {inclusions.length > 0 ? (
+                            <ul
+                              className="foleio-public-service-desc"
+                              style={{ paddingLeft: 18, margin: '6px 0' }}
+                            >
+                              {inclusions.slice(0, 4).map((line) => (
+                                <li key={line}>{line}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          {item.durationMinutes ? (
+                            <p className="foleio-public-service-meta">{item.durationMinutes} min</p>
+                          ) : null}
+                          {depositLabel ? (
+                            <p className="foleio-public-service-meta">{depositLabel}</p>
+                          ) : null}
+                        </div>
+                        <div className="foleio-public-service-side">
+                          <span className="foleio-public-service-price">{formatPrice(item.price)}</span>
+                          {canBook ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openServiceDrawer(item.id)}
+                            >
+                              Book
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
+            )
+            ) : null}
+          </section>
+        ) : null}
+        {hasPriceList ? (
+          <PriceListModal
+            open={priceListOpen}
+            onOpenChange={(open) => {
+              setPriceListOpen(open);
+              if (!open) setPreselectedServiceId(null);
+            }}
+            priceList={displayGrouped}
+            onSelectItem={handleServiceSelect}
+            creatorName={creator.displayName}
+            initialSelectedId={preselectedServiceId}
+          />
+        ) : null}
+        {selectedService ? (
+          <BookingModal
+            open={bookingOpen}
+            onOpenChange={(open) => {
+              setBookingOpen(open);
+              if (!open) setSelectedService(null);
+            }}
+            selectedService={selectedService}
+            creatorId={creator.id}
+            creatorName={creator.displayName}
+            availableDates={displayAvailability}
+            onBack={handleBackToServices}
+            isPreview={usingSampleServices}
+          />
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <div className="foleio-public-root">
-      <style dangerouslySetInnerHTML={{ __html: publicProfileCss }} />
+      {injectStyles}
 
       <div className="foleio-public-shell">
         <div className="foleio-public-columns">
@@ -665,14 +927,23 @@ export function PublicCreatorProfile({
 
             {displayBio ? <p className="foleio-public-bio">{displayBio}</p> : null}
 
-            {canBook ? (
+            {showPrimaryCta ? (
               <button
                 type="button"
                 className="foleio-public-cta"
-                onClick={() => openServiceDrawer()}
+                onClick={() => (shopOnly ? openShopPanel() : openServiceDrawer())}
               >
-                <Calendar strokeWidth={1.75} />
-                Book service
+                {shopOnly ? (
+                  <>
+                    <ShoppingBag strokeWidth={1.75} />
+                    Shop products
+                  </>
+                ) : (
+                  <>
+                    <Calendar strokeWidth={1.75} />
+                    Book service
+                  </>
+                )}
               </button>
             ) : null}
 
@@ -695,7 +966,9 @@ export function PublicCreatorProfile({
           </aside>
 
           <div className="foleio-public-right">
-            {galleryItems.length > 0 ? (
+            {gallerySlot != null ? (
+              gallerySlot
+            ) : galleryItems.length > 0 ? (
               <section className="foleio-public-panel">
                 <h2 className="foleio-public-panel-title">Gallery</h2>
                 <p className="foleio-public-panel-meta">Selected work</p>
@@ -739,11 +1012,82 @@ export function PublicCreatorProfile({
               </section>
             ) : null}
 
-            <section className="foleio-public-panel">
-              <h2 className="foleio-public-panel-title">Services</h2>
+            {offeringsSlot != null ? (
+              <div id="foleio-public-offerings" ref={setOfferingsPanelRef}>
+                {offeringsSlot}
+              </div>
+            ) : showOfferingsPanel ? (
+            <section className="foleio-public-panel" ref={setOfferingsPanelRef}>
+              <h2 className="foleio-public-panel-title">{panelTitle}</h2>
               <p className="foleio-public-panel-meta">{servicesMeta}</p>
 
-              {displayGrouped.length === 0 ? (
+              {showBothTabs ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    marginTop: 12,
+                    marginBottom: 4,
+                    background: 'rgba(255,255,255,0.06)',
+                    borderRadius: 10,
+                    padding: 4,
+                    width: 'fit-content',
+                  }}
+                  role="tablist"
+                  aria-label="Offerings"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={offeringsTab === 'services'}
+                    onClick={() => setOfferingsTab('services')}
+                    style={{
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      background:
+                        offeringsTab === 'services' ? '#fafafa' : 'transparent',
+                      color: offeringsTab === 'services' ? '#18181b' : '#fafafa',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Services
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={offeringsTab === 'shop'}
+                    onClick={() => setOfferingsTab('shop')}
+                    onMouseEnter={() => prefetchPublicShop(creator.username)}
+                    onFocus={() => prefetchPublicShop(creator.username)}
+                    style={{
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      background: offeringsTab === 'shop' ? '#fafafa' : 'transparent',
+                      color: offeringsTab === 'shop' ? '#18181b' : '#fafafa',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Shop
+                  </button>
+                </div>
+              ) : null}
+
+              {hasShop ? (
+                <div
+                  hidden={activeOfferingsTab !== 'shop'}
+                  aria-hidden={activeOfferingsTab !== 'shop'}
+                >
+                  <PublicShopPanel username={creator.username} embedded />
+                </div>
+              ) : null}
+              {activeOfferingsTab !== 'shop' ? (
+                displayGrouped.length === 0 ? (
                 <p className="foleio-public-empty">Check back soon for booking options.</p>
               ) : (
                 displayGrouped.map((group) => (
@@ -840,13 +1184,15 @@ export function PublicCreatorProfile({
                     })}
                   </div>
                 ))
-              )}
+              )
+              ) : null}
             </section>
+            ) : null}
           </div>
         </div>
       </div>
 
-      {hasPriceList ? (
+      {offeringsSlot == null && hasPriceList ? (
         <PriceListModal
           open={priceListOpen}
           onOpenChange={(open) => {
@@ -860,7 +1206,7 @@ export function PublicCreatorProfile({
         />
       ) : null}
 
-      {selectedService ? (
+      {offeringsSlot == null && selectedService ? (
         <BookingModal
           open={bookingOpen}
           onOpenChange={(open) => {
@@ -876,7 +1222,7 @@ export function PublicCreatorProfile({
         />
       ) : null}
 
-      {galleryLightbox ? (
+      {gallerySlot == null && galleryLightbox ? (
         <div
           role="dialog"
           aria-modal="true"

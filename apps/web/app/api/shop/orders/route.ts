@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
+import { paystack } from '@/lib/paystack';
+import { isPaymentsReady } from '@/lib/creator/payments-ready';
+import { isDojahKycRequired } from '@/lib/config/platform-settings';
+import {
+  flattenAddonOptions,
+  parseAddonCategories,
+  validateRequiredAddons,
+  type AddonOption,
+} from '@/lib/shop/product-addons';
+import { resolveProductPricing } from '@/lib/shop/preorder';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,6 +18,7 @@ export const dynamic = 'force-dynamic';
 type OrderItemInput = {
   productId?: string;
   variantSelected?: Record<string, string>;
+  addonIds?: string[];
   quantity?: number;
 };
 
@@ -22,65 +33,200 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid order payload' }, { status: 400 });
     }
 
-    const productIds = [...new Set(items.map((item) => String(item.productId || '').trim()).filter(Boolean))];
+    const firstName = String(
+      deliveryAddress.firstName || deliveryAddress.first_name || ''
+    ).trim();
+    const lastName = String(
+      deliveryAddress.lastName || deliveryAddress.last_name || ''
+    ).trim();
+    const name =
+      `${firstName} ${lastName}`.trim() || String(deliveryAddress.name || '').trim();
+    const email = String(deliveryAddress.email || '').trim();
+    const phone = String(deliveryAddress.phone || '').trim();
+    const notes = String(deliveryAddress.notes || '').trim();
+    if (!firstName || !lastName || !email || !phone) {
+      return NextResponse.json(
+        { error: 'First name, last name, email, and phone are required' },
+        { status: 400 }
+      );
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { id: creatorId },
+      select: {
+        id: true,
+        bvnVerified: true,
+        paystackSubaccountCode: true,
+        subaccountStatus: true,
+        platformPlan: true,
+        platformSubscriptionActive: true,
+      },
+    });
+
+    if (!creator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    const subaccountCode = creator.paystackSubaccountCode;
+    if (
+      !isPaymentsReady(creator, {
+        requireKyc: await isDojahKycRequired(),
+      }) ||
+      !subaccountCode
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'This creator has not finished payment setup. Shop orders cannot be charged yet.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const existingSubaccount = await paystack.getSubaccount(subaccountCode);
+    if (!existingSubaccount) {
+      await prisma.creator.update({
+        where: { id: creator.id },
+        data: { subaccountStatus: 'INACTIVE' },
+      });
+      return NextResponse.json(
+        {
+          error:
+            'This creator’s payout account is out of sync with Paystack. They need to re-save bank details.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const productIds = [
+      ...new Set(items.map((item) => String(item.productId || '').trim()).filter(Boolean)),
+    ];
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds },
         creatorId,
         status: 'active',
       },
+      include: { variants: true },
     });
 
     if (products.length === 0) {
       return NextResponse.json({ error: 'No valid products in cart' }, { status: 400 });
     }
 
-    const hasPhysical = products.some((product) => product.type === 'physical');
+    const mappedItems: Array<{
+      productId: string;
+      quantity: number;
+      variantSelected?: Record<string, string>;
+      addonsSelected: AddonOption[];
+      unitPrice: number;
+    }> = [];
 
-    const mappedItems = items
-      .map((item) => {
-        const productId = String(item.productId || '').trim();
-        const product = products.find((entry) => entry.id === productId);
-        if (!product) return null;
-        const quantity = Math.max(1, Number(item.quantity || 1));
-        return {
-          productId,
-          quantity,
-          variantSelected: item.variantSelected || undefined,
-          unitPrice: product.price,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    for (const item of items) {
+      const productId = String(item.productId || '').trim();
+      const product = products.find((entry) => entry.id === productId);
+      if (!product) {
+        return NextResponse.json({ error: 'Invalid product in cart' }, { status: 400 });
+      }
 
-    if (mappedItems.length === 0) {
-      return NextResponse.json({ error: 'No valid products in cart' }, { status: 400 });
+      const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
+      const stock = product.stock ?? 0;
+      if (stock < quantity) {
+        return NextResponse.json(
+          { error: `${product.name} does not have enough stock` },
+          { status: 400 }
+        );
+      }
+
+      const selectedVariants = (item.variantSelected || {}) as Record<string, string>;
+      for (const variant of product.variants) {
+        const chosen = selectedVariants[variant.name];
+        if (!chosen || !variant.options.includes(chosen)) {
+          return NextResponse.json(
+            { error: `Select ${variant.name} for ${product.name}` },
+            { status: 400 }
+          );
+        }
+      }
+
+      const addonCategories = parseAddonCategories(product.addons);
+      const catalogAddons = flattenAddonOptions(addonCategories);
+      const requestedAddonIds = Array.isArray(item.addonIds)
+        ? item.addonIds.map(String)
+        : [];
+      const requiredError = validateRequiredAddons(addonCategories, requestedAddonIds);
+      if (requiredError) {
+        return NextResponse.json(
+          { error: `${requiredError} for ${product.name}` },
+          { status: 400 }
+        );
+      }
+      const addonsSelected = catalogAddons.filter((addon) =>
+        requestedAddonIds.includes(addon.id)
+      );
+      const addonsTotal = addonsSelected.reduce((sum, addon) => sum + addon.price, 0);
+      const pricing = resolveProductPricing({
+        price: product.price,
+        compareAtPrice: product.compareAtPrice,
+        isPreorder: Boolean(product.isPreorder),
+        preorderSettings: product.preorderSettings,
+      });
+      const unitPrice = pricing.price + addonsTotal;
+
+      mappedItems.push({
+        productId,
+        quantity,
+        variantSelected:
+          Object.keys(selectedVariants).length > 0 ? selectedVariants : undefined,
+        addonsSelected,
+        unitPrice,
+      });
     }
-
-    const subtotal = mappedItems.reduce(
-      (sum, item) => sum + item.unitPrice * item.quantity,
-      0
-    );
 
     let deliveryTierId: string | null = null;
     let deliveryFee = 0;
-    if (hasPhysical) {
+    let deliveryType: string | null = null;
+
+    {
       const requestedDeliveryTierId = String(body?.deliveryTierId || '').trim();
       if (!requestedDeliveryTierId) {
-        return NextResponse.json({ error: 'Delivery tier is required for physical products' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Delivery option is required' },
+          { status: 400 }
+        );
       }
 
       const deliveryTier = await prisma.deliveryTier.findFirst({
         where: { id: requestedDeliveryTierId, creatorId },
       });
       if (!deliveryTier) {
-        return NextResponse.json({ error: 'Invalid delivery tier' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid delivery option' }, { status: 400 });
       }
+
       deliveryTierId = deliveryTier.id;
-      deliveryFee = deliveryTier.flatRate;
+      deliveryType = deliveryTier.type || 'paid';
+      deliveryFee =
+        deliveryType === 'paid' ? Math.max(0, Number(deliveryTier.flatRate) || 0) : 0;
+
+      if (deliveryType !== 'pickup') {
+        const address = String(deliveryAddress.address || '').trim();
+        const city = String(deliveryAddress.city || '').trim();
+        const state = String(deliveryAddress.state || '').trim();
+        if (!address || !city || !state) {
+          return NextResponse.json(
+            { error: 'Delivery address, city, and state are required' },
+            { status: 400 }
+          );
+        }
+      }
     }
 
+    const subtotal = mappedItems.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0
+    );
     const total = subtotal + deliveryFee;
-    if (total <= 0) {
+    if (total < 100) {
       return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
     }
 
@@ -90,13 +236,26 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     const fanId = user?.id || 'guest';
 
+    const normalizedAddress = {
+      firstName,
+      lastName,
+      name,
+      email,
+      phone,
+      notes,
+      address: String(deliveryAddress.address || '').trim(),
+      city: String(deliveryAddress.city || '').trim(),
+      state: String(deliveryAddress.state || '').trim(),
+      fulfillment: deliveryType || 'delivery',
+    };
+
     const order = await prisma.order.create({
       data: {
         id: crypto.randomUUID(),
         fanId,
         creatorId,
         deliveryTierId,
-        deliveryAddress,
+        deliveryAddress: normalizedAddress,
         subtotal,
         deliveryFee,
         total,
@@ -107,60 +266,80 @@ export async function POST(request: Request) {
               id: crypto.randomUUID(),
               productId: item.productId,
               variantSelected: item.variantSelected,
+              addonsSelected: item.addonsSelected,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
             })),
           },
         },
       },
-      include: {
-        items: true,
-      },
     });
 
-    const reference = `shop_${order.id}_${Date.now()}`;
-    const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: deliveryAddress.email,
+    let paymentData;
+    try {
+      paymentData = await paystack.initializePayment({
+        email,
         amount: total,
-        reference,
+        channels: ['card', 'bank', 'ussd'],
+        subaccount: subaccountCode,
         metadata: {
           type: 'shop_order',
           orderId: order.id,
           creatorId,
           fanId,
-          custom_fields: [
-            {
-              display_name: 'Order ID',
-              variable_name: 'order_id',
-              value: order.id,
-            },
-          ],
+          paymentType: 'DIRECT_SUBACCOUNT',
         },
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/shop/order-success?orderId=${order.id}`,
-      }),
-    });
+        callback_url: `${
+          process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'
+        }/shop/order-success?orderId=${order.id}`,
+      });
+    } catch (initError) {
+      const message = initError instanceof Error ? initError.message : String(initError);
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'cancelled' },
+      });
+      if (/invalid subaccount/i.test(message)) {
+        await prisma.creator.update({
+          where: { id: creator.id },
+          data: { subaccountStatus: 'INACTIVE' },
+        });
+        return NextResponse.json(
+          {
+            error:
+              'Payment split failed: creator Paystack subaccount is invalid for this environment.',
+          },
+          { status: 400 }
+        );
+      }
+      throw initError;
+    }
 
-    const paystackData = await paystackRes.json();
-    const paystackReference = paystackData?.data?.reference || reference;
+    if (!paymentData?.status || !paymentData?.data) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'cancelled' },
+      });
+      throw new Error(paymentData?.message || 'Payment initialization failed');
+    }
 
     await prisma.order.update({
       where: { id: order.id },
-      data: { paystackReference },
+      data: { paystackReference: paymentData.data.reference },
     });
 
     return NextResponse.json({
       orderId: order.id,
-      paystackUrl: paystackData?.data?.authorization_url || null,
-      reference: paystackReference,
+      paystackUrl: paymentData.data.authorization_url,
+      reference: paymentData.data.reference,
     });
   } catch (error) {
     console.error('[shop/orders][POST] failed:', error);
-    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Failed to create order',
+      },
+      { status: 500 }
+    );
   }
 }

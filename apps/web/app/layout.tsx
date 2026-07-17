@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { Playfair_Display } from 'next/font/google';
-import Link from 'next/link';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ChunkRecovery } from '@/components/chunk-recovery';
 import { StagingBanner } from '@/components/ui/StagingBanner';
 import { Toaster } from '@/components/ui/toaster';
 import { ServiceWorkerRegistration } from '@/components/service-worker-registration';
+import { SiteFooter } from '@/components/system/SiteFooter';
 import { shouldShowStagingBanner } from '@/lib/config/runtime-environment';
 import { validateAndExit } from '@/lib/config/env-validation';
 import './globals.css';
@@ -109,25 +109,7 @@ export default function RootLayout({
           <StagingBanner />
           <ChunkRecovery />
           {children}
-          <footer className="px-6 py-6">
-            <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
-              <Link href="/about" className="hover:text-foreground">
-                About
-              </Link>
-              <Link href="/legal/terms" className="hover:text-foreground">
-                Terms of Service
-              </Link>
-              <Link href="/legal/privacy" className="hover:text-foreground">
-                Privacy Policy
-              </Link>
-              <Link href="/legal/data-policy" className="hover:text-foreground">
-                Data Policy
-              </Link>
-              <Link href="/legal/creator-agreement" className="hover:text-foreground">
-                Creator Agreement
-              </Link>
-            </div>
-          </footer>
+          <SiteFooter />
           <Toaster />
           <ServiceWorkerRegistration />
         </ThemeProvider>

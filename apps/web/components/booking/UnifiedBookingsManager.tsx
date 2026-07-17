@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
@@ -10,14 +10,12 @@ import {
   Check,
   CheckCircle2,
   Loader2,
-  Mail,
-  Phone,
 } from 'lucide-react';
 import { completeService, processRefund, rejectRefund } from '@/lib/actions/booking';
 import { AvailabilitySetupForm } from '@/components/booking/AvailabilitySetupForm';
 import { BookingsServicesManager } from '@/components/booking/BookingsServicesManager';
 import type { ServiceItem } from '@/components/booking/BookingsServicesManager';
-import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
+import { CreatorShopManager } from '@/components/shop/CreatorShopManager';
 import {
   BOOKING_STATUS_LABELS,
   STATUS_FILTER_META,
@@ -62,7 +60,7 @@ interface Booking {
 
 type PriceListItem = ServiceItem;
 
-type PrimaryView = 'bookings' | 'services' | 'availability' | 'policy';
+type PrimaryView = 'bookings' | 'services' | 'availability' | 'shop';
 
 interface UnifiedBookingsManagerProps {
   creator: Creator;
@@ -93,11 +91,27 @@ export function UnifiedBookingsManager({
       ? 'availability'
       : tabParam === 'services'
         ? 'services'
-        : tabParam === 'policy'
-          ? 'policy'
+        : tabParam === 'shop'
+          ? 'shop'
           : 'bookings';
 
   const [primaryView, setPrimaryView] = useState<PrimaryView>(initialView);
+
+  useEffect(() => {
+    if (tabParam === 'policy') {
+      router.replace('/settings?tab=policy');
+      return;
+    }
+    const nextView: PrimaryView =
+      tabParam === 'availability'
+        ? 'availability'
+        : tabParam === 'services'
+          ? 'services'
+          : tabParam === 'shop'
+            ? 'shop'
+            : 'bookings';
+    setPrimaryView(nextView);
+  }, [tabParam, router]);
   const [statusTab, setStatusTab] = useState<BookingStatusFilter>('upcoming');
   const [loading, setLoading] = useState<string | null>(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
@@ -212,16 +226,6 @@ export function UnifiedBookingsManager({
             {formatBookingDate(booking.bookingDate, booking.startTime, booking.endTime)}
           </span>
         </div>
-        <div className="foleio-dash-booking-contacts">
-          <span>
-            <Mail className="h-3.5 w-3.5" strokeWidth={1.5} />
-            {booking.customerEmail}
-          </span>
-          <span>
-            <Phone className="h-3.5 w-3.5" strokeWidth={1.5} />
-            {booking.customerPhone}
-          </span>
-        </div>
         {booking.notes ? (
           <p className="foleio-dash-booking-notes">{booking.notes}</p>
         ) : null}
@@ -248,12 +252,18 @@ export function UnifiedBookingsManager({
         ['deposit_paid', 'balance_overdue'].includes(booking.status) ? (
           <div style={{ textAlign: 'right' }}>
             <div>{formatBookingPrice(booking.amountPaid ?? booking.depositAmount ?? 0)}</div>
+            <span
+              className="foleio-dash-badge is-muted"
+              style={{ marginTop: 6, display: 'inline-flex' }}
+            >
+              Deposit paid
+            </span>
             <div
               style={{
                 fontSize: 12,
                 fontWeight: 500,
                 color: booking.status === 'balance_overdue' ? '#f87171' : '#adadad',
-                marginTop: 4,
+                marginTop: 6,
               }}
             >
               Balance {formatBookingPrice(booking.balanceAmount)}
@@ -263,7 +273,18 @@ export function UnifiedBookingsManager({
             </div>
           </div>
         ) : (
-          formatBookingPrice(booking.totalAmount)
+          <div style={{ textAlign: 'right' }}>
+            <div>{formatBookingPrice(booking.totalAmount)}</div>
+            {booking.paymentPlan === 'deposit' &&
+            (booking.amountPaid ?? 0) > 0 ? (
+              <span
+                className="foleio-dash-badge is-muted"
+                style={{ marginTop: 6, display: 'inline-flex' }}
+              >
+                Deposit paid
+              </span>
+            ) : null}
+          </div>
         )}
       </div>
     </div>
@@ -327,11 +348,11 @@ export function UnifiedBookingsManager({
         <button
           type="button"
           role="tab"
-          aria-selected={primaryView === 'policy'}
-          className={`foleio-dash-tab${primaryView === 'policy' ? ' is-active' : ''}`}
-          onClick={() => setView('policy')}
+          aria-selected={primaryView === 'shop'}
+          className={`foleio-dash-tab${primaryView === 'shop' ? ' is-active' : ''}`}
+          onClick={() => setView('shop')}
         >
-          Deposits &amp; policy
+          Shop
         </button>
       </div>
 
@@ -345,8 +366,8 @@ export function UnifiedBookingsManager({
           creatorId={creator.id}
           initialPriceList={priceList}
         />
-      ) : primaryView === 'policy' ? (
-        <BookingPolicySettings />
+      ) : primaryView === 'shop' ? (
+        <CreatorShopManager />
       ) : (
         <>
           <div className="foleio-dash-stats">

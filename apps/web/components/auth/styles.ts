@@ -214,6 +214,65 @@ export const authCss = `
 }
 .foleio-auth-link:hover { text-decoration: underline; color: #fafafa; }
 
+.foleio-auth-terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 4px;
+}
+.foleio-auth-terms-check {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 1.5px solid rgba(250, 250, 250, 0.35);
+  border-radius: 4px;
+  background: #212121;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.foleio-auth-terms-check:hover {
+  border-color: rgba(250, 250, 250, 0.55);
+}
+.foleio-auth-terms-check:checked {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+.foleio-auth-terms-check:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #1a1816;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.foleio-auth-terms-check:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+}
+.foleio-auth-terms-label {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: #adadad;
+  cursor: pointer;
+}
+.foleio-auth-terms-label a {
+  color: #fafafa;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.foleio-auth-terms-label a:hover {
+  color: #ffffff;
+}
+
 /* Hide global site footer on auth pages; keep in-layout legal footer */
 body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   display: none !important;

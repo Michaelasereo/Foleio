@@ -1,63 +1,24 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@foleio/database';
 import { serializeForClient } from '@/lib/utils';
 import { CreatorAppShell } from '@/components/creator/CreatorAppShell';
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
-}
+import { getCreatorForUser, getCurrentUser } from '@/lib/creator/cached-lookups';
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return <>{children}</>;
   }
 
-  let creator: {
-    id: string;
-    username: string;
-    displayName: string;
-    avatarUrl: string | null;
-    bannerUrl: string | null;
-    category: string;
-    platformPlan: string | null;
-    platformSubscriptionActive: boolean;
-    isBanned: boolean;
-  } | null = null;
+  let creator: Awaited<ReturnType<typeof getCreatorForUser>> = null;
   let creatorLookupFailed = false;
 
   try {
-    creator = await withTimeout(
-      prisma.creator.findUnique({
-        where: { userId: user.id },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          avatarUrl: true,
-          bannerUrl: true,
-          category: true,
-          platformPlan: true,
-          platformSubscriptionActive: true,
-          isBanned: true,
-        },
-      }),
-      12000
-    );
+    creator = await getCreatorForUser(user.id);
   } catch {
     console.warn('Dashboard layout creator lookup failed (non-fatal).');
     creator = null;

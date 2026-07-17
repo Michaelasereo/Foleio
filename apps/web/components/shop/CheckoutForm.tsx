@@ -41,9 +41,11 @@ export function CheckoutForm({
   const [step, setStep] = useState<'address' | 'delivery' | 'summary'>('address');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [address, setAddress] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
+    notes: '',
     address: '',
     city: '',
     state: '',
@@ -80,7 +82,10 @@ export function CheckoutForm({
           quantity: item.quantity,
         })),
         deliveryTierId: hasPhysicalProduct ? deliveryTierId : null,
-        deliveryAddress: address,
+        deliveryAddress: {
+          ...address,
+          name: `${address.firstName.trim()} ${address.lastName.trim()}`.trim(),
+        },
       }),
     });
     const data = await response.json();
@@ -99,11 +104,22 @@ export function CheckoutForm({
 
         {step === 'address' ? (
           <div className="space-y-3">
-            <Input
-              placeholder="Full name"
-              value={address.name}
-              onChange={(event) => setAddress((prev) => ({ ...prev, name: event.target.value }))}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="First name"
+                value={address.firstName}
+                onChange={(event) =>
+                  setAddress((prev) => ({ ...prev, firstName: event.target.value }))
+                }
+              />
+              <Input
+                placeholder="Last name"
+                value={address.lastName}
+                onChange={(event) =>
+                  setAddress((prev) => ({ ...prev, lastName: event.target.value }))
+                }
+              />
+            </div>
             <Input
               type="email"
               placeholder="Email"
@@ -132,10 +148,23 @@ export function CheckoutForm({
                 onChange={(event) => setAddress((prev) => ({ ...prev, state: event.target.value }))}
               />
             </div>
+            <Input
+              placeholder="Order notes (optional)"
+              value={address.notes}
+              onChange={(event) => setAddress((prev) => ({ ...prev, notes: event.target.value }))}
+            />
             <Button
               className="w-full"
               onClick={() => setStep(hasPhysicalProduct ? 'delivery' : 'summary')}
-              disabled={!address.name || !address.email || !address.phone || !address.address || !address.city || !address.state}
+              disabled={
+                !address.firstName ||
+                !address.lastName ||
+                !address.email ||
+                !address.phone ||
+                !address.address ||
+                !address.city ||
+                !address.state
+              }
             >
               Continue
             </Button>

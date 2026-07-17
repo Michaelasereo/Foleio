@@ -57,6 +57,7 @@ export async function createCreatorLink(data: CreatorLinkInput) {
     });
 
     revalidatePath('/settings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, data: link };
   } catch (error) {
     console.error('Error creating creator link:', error);
@@ -103,6 +104,7 @@ export async function updateCreatorLink(linkId: string, data: Partial<CreatorLin
     });
 
     revalidatePath('/settings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, data: link };
   } catch (error) {
     console.error('Error updating creator link:', error);
@@ -142,6 +144,7 @@ export async function deleteCreatorLink(linkId: string) {
     });
 
     revalidatePath('/settings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true };
   } catch (error) {
     console.error('Error deleting creator link:', error);
@@ -184,6 +187,7 @@ export async function toggleCreatorLinkActive(linkId: string) {
     });
 
     revalidatePath('/settings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, data: link };
   } catch (error) {
     console.error('Error toggling creator link:', error);
@@ -220,6 +224,7 @@ export async function reorderCreatorLinks(linkIds: string[]) {
     );
 
     revalidatePath('/settings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true };
   } catch (error) {
     console.error('Error reordering creator links:', error);

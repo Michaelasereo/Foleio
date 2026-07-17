@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import { ServicesShopTabs } from '@/components/creator/ServicesShopTabs';
+import { PriceListManager } from '@/components/creator/PriceListManager';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +47,7 @@ export default async function PriceListPage() {
           </p>
         </div>
 
-        <ServicesShopTabs creatorId={creator.id} initialPriceList={priceListItems} />
+        <PriceListManager creatorId={creator.id} initialPriceList={priceListItems} />
       </div>
     );
   } catch {
@@ -65,4 +65,3 @@ export default async function PriceListPage() {
     );
   }
 }
-

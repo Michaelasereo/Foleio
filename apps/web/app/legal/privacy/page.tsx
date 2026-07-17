@@ -6,7 +6,7 @@ export const metadata = {
 export default function PrivacyPage() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="font-display text-4xl font-bold text-foreground mb-2">
+      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
         Privacy Policy
       </h1>
       <p className="text-muted-foreground text-sm mb-10">
@@ -14,11 +14,6 @@ export default function PrivacyPage() {
         Act (NDPA) 2023
       </p>
       <div className="legal-content">
-        <div className="draft-notice">
-          ⚠️ DRAFT - This document has not yet been reviewed by a lawyer. It is
-          not yet legally binding. Do not publish until reviewed.
-        </div>
-
         <p>
           At Foleio, we take your privacy seriously. This Privacy Policy explains
           how we collect, use, store, and protect your personal data when you

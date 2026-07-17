@@ -1,39 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
+  AlertCircle,
   Check,
   Circle,
   Clock,
-  Mail,
-  Calendar,
-  User,
-  AlertCircle,
   Loader2,
+  Mail,
+  User,
 } from 'lucide-react';
 import { FanSupportChat } from '@/components/ai/FanSupportChat';
 import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
+import { authCss } from '@/components/auth/styles';
 import { formatBookingWhen } from '@/lib/booking/slots';
+import { BOOKING_STATUS_LABELS } from '@/lib/booking/status';
+import foleioLogo from '../../../../../foleio-logo.png';
 
 interface BookingData {
   id: string;
@@ -74,6 +59,539 @@ interface BookingData {
   };
 }
 
+const trackingCss = `
+${authCss}
+
+body:has(.foleio-track-root) footer:not(.foleio-auth-legal) {
+  display: none !important;
+}
+
+.foleio-track-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 32px 20px 48px;
+  box-sizing: border-box;
+}
+
+.foleio-track-brand {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.foleio-track-brand img {
+  height: 32px;
+  width: auto;
+  filter: brightness(0) invert(1);
+}
+
+.foleio-track-card {
+  width: 100%;
+  max-width: 460px;
+  background: #212121;
+  border-radius: 12px;
+  padding: 28px 24px;
+}
+
+.foleio-track-title {
+  margin: 0;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  font-size: clamp(1.5rem, 3vw, 1.85rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.foleio-track-desc {
+  margin: 10px 0 0;
+  color: #adadad;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.foleio-track-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px auto 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f4f5;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.foleio-track-status.is-danger {
+  background: rgba(252, 165, 165, 0.12);
+  color: #fca5a5;
+}
+
+.foleio-track-status.is-ok {
+  background: rgba(134, 239, 172, 0.12);
+  color: #86efac;
+}
+
+.foleio-track-status.is-muted {
+  background: rgba(255, 255, 255, 0.06);
+  color: #adadad;
+}
+
+.foleio-track-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.foleio-track-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #1a1816;
+}
+
+.foleio-track-input-wrap svg {
+  color: #adadad;
+  flex-shrink: 0;
+}
+
+.foleio-track-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  outline: none;
+}
+
+.foleio-track-input::placeholder {
+  color: #5c6070;
+}
+
+.foleio-track-error {
+  margin: 10px 0 0;
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.foleio-track-btn,
+.foleio-track-btn-outline,
+.foleio-track-btn-ghost,
+.foleio-track-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  border-radius: 9px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.foleio-track-btn:hover,
+.foleio-track-btn-outline:hover,
+.foleio-track-btn-ghost:hover,
+.foleio-track-btn-danger:hover {
+  opacity: 0.92;
+}
+
+.foleio-track-btn:disabled,
+.foleio-track-btn-outline:disabled,
+.foleio-track-btn-ghost:disabled,
+.foleio-track-btn-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.foleio-track-btn {
+  border: 1px solid #ffffff;
+  background: #ffffff;
+  color: #001035;
+}
+
+.foleio-track-btn-outline {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #f4f4f5;
+}
+
+.foleio-track-btn-ghost {
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.06);
+  color: #adadad;
+}
+
+.foleio-track-btn-danger {
+  border: 1px solid rgba(252, 165, 165, 0.35);
+  background: rgba(252, 165, 165, 0.12);
+  color: #fca5a5;
+}
+
+.foleio-track-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.foleio-track-hint {
+  margin: 8px 0 0;
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.foleio-track-section {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.foleio-track-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(252, 165, 165, 0.1);
+  color: #fca5a5;
+}
+
+.foleio-track-alert p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #f4f4f5;
+}
+
+.foleio-track-alert span {
+  display: block;
+  margin-top: 6px;
+  color: #adadad;
+  font-size: 12px;
+}
+
+.foleio-track-steps {
+  display: grid;
+  gap: 0;
+  position: relative;
+}
+
+.foleio-track-step {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 18px;
+  position: relative;
+}
+
+.foleio-track-step:last-child {
+  padding-bottom: 0;
+}
+
+.foleio-track-step-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.foleio-track-step-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #2b2b2b;
+  color: #828282;
+  flex-shrink: 0;
+}
+
+.foleio-track-step-dot.is-done {
+  background: rgba(134, 239, 172, 0.12);
+  color: #86efac;
+}
+
+.foleio-track-step-dot.is-current {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fafafa;
+}
+
+.foleio-track-step-line {
+  width: 2px;
+  flex: 1;
+  min-height: 18px;
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.foleio-track-step-line.is-done {
+  background: rgba(134, 239, 172, 0.35);
+}
+
+.foleio-track-step-copy h4 {
+  margin: 2px 0 0;
+  color: #f4f4f5;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.foleio-track-step-copy h4.is-muted {
+  color: #828282;
+}
+
+.foleio-track-step-copy p {
+  margin: 4px 0 0;
+  color: #adadad;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.foleio-track-creator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.foleio-track-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #2b2b2b;
+  color: #adadad;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.foleio-track-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.foleio-track-creator-name {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.foleio-track-creator-meta {
+  margin: 2px 0 0;
+  color: #adadad;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.foleio-track-receipt {
+  background: #1a1816;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.foleio-track-receipt-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.foleio-track-receipt-label {
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.foleio-track-receipt-value {
+  color: #f4f4f5;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+
+.foleio-track-receipt-value.is-strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.foleio-track-receipt-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 2px 0;
+}
+
+.foleio-track-link {
+  display: inline-block;
+  margin-top: 14px;
+  color: #adadad;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  text-align: center;
+  width: 100%;
+}
+
+.foleio-track-link:hover {
+  color: #fafafa;
+}
+
+.foleio-track-footer {
+  margin-top: 28px;
+  text-align: center;
+}
+
+.foleio-track-footer a {
+  color: #828282;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.foleio-track-footer a:hover {
+  color: #adadad;
+}
+
+.foleio-track-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.foleio-track-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #212121;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.foleio-track-modal h2 {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.foleio-track-modal p {
+  margin: 8px 0 0;
+  color: #adadad;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.foleio-track-textarea {
+  width: 100%;
+  margin-top: 16px;
+  min-height: 110px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #1a1816;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+}
+
+.foleio-track-textarea::placeholder {
+  color: #5c6070;
+}
+
+.foleio-track-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.foleio-track-modal-actions .foleio-track-btn-outline,
+.foleio-track-modal-actions .foleio-track-btn-danger {
+  flex: 1;
+}
+`;
+
+function formatPrice(priceInKobo: number) {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+  }).format(priceInKobo / 100);
+}
+
+function statusBadgeClass(status: string) {
+  if (status === 'disputed' || status === 'balance_overdue') return 'is-danger';
+  if (status === 'completed') return 'is-ok';
+  if (status === 'refunded' || status === 'cancelled') return 'is-muted';
+  return '';
+}
+
+function TrackingBrand() {
+  return (
+    <Link href="/" className="foleio-track-brand" aria-label="Foleio home">
+      <Image
+        src={foleioLogo}
+        alt="Foleio"
+        height={32}
+        className="h-8 w-auto"
+        style={{ filter: 'brightness(0) invert(1)' }}
+        priority
+      />
+    </Link>
+  );
+}
+
+function TrackingFooter() {
+  return (
+    <div className="foleio-track-footer">
+      <Link href="/signup">Are you a creator? Start on Foleio</Link>
+    </div>
+  );
+}
+
 export default function TrackingPage() {
   const params = useParams();
   const token = params.token as string;
@@ -85,15 +603,13 @@ export default function TrackingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Refund dialog state
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [refundReason, setRefundReason] = useState('');
   const [isRequestingRefund, setIsRequestingRefund] = useState(false);
   const [isPayingBalance, setIsPayingBalance] = useState(false);
 
-  // Load preview on mount
   useEffect(() => {
-    loadPreview();
+    void loadPreview();
   }, [token]);
 
   async function loadPreview() {
@@ -105,13 +621,13 @@ export default function TrackingPage() {
       if (!response.ok) {
         setError(data.error || 'Booking not found');
       }
-    } catch (e) {
+    } catch {
       setError('Failed to load booking');
     }
     setIsLoading(false);
   }
 
-  async function handleVerify(e: React.FormEvent) {
+  async function handleVerify(e: FormEvent) {
     e.preventDefault();
     setIsVerifying(true);
     setError(null);
@@ -131,15 +647,27 @@ export default function TrackingPage() {
         setBooking(data.data);
         setIsVerified(true);
       }
-    } catch (e) {
+    } catch {
       setError('Verification failed. Please try again.');
     }
     setIsVerifying(false);
   }
 
+  async function reloadBooking() {
+    const response = await fetch(`/api/tracking/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setBooking(data.data);
+    }
+  }
+
   async function handleRefundRequest() {
     if (!refundReason.trim()) return;
-    
+
     setIsRequestingRefund(true);
     try {
       const response = await fetch('/api/bookings/refund-request', {
@@ -157,73 +685,15 @@ export default function TrackingPage() {
       if (response.ok) {
         setRefundDialogOpen(false);
         setRefundReason('');
-        // Reload booking to show updated status
-        await handleVerify({ preventDefault: () => {} } as React.FormEvent);
+        await reloadBooking();
       } else {
         setError(data.error || 'Failed to submit refund request');
       }
-    } catch (e) {
+    } catch {
       setError('Failed to submit refund request');
     }
     setIsRequestingRefund(false);
   }
-
-  const formatPrice = (priceInKobo: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(priceInKobo / 100);
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-NG', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-      pending: { label: 'Pending Payment', variant: 'outline' },
-      deposit_paid: { label: 'Deposit paid', variant: 'default' },
-      balance_overdue: { label: 'Balance overdue', variant: 'destructive' },
-      paid: { label: 'Paid', variant: 'default' },
-      first_payout_done: { label: 'Confirmed', variant: 'default' },
-      service_day: { label: 'Service Day', variant: 'default' },
-      completed: { label: 'Completed', variant: 'default' },
-      disputed: { label: 'Disputed', variant: 'destructive' },
-      refunded: { label: 'Refunded', variant: 'secondary' },
-      cancelled: { label: 'Cancelled', variant: 'secondary' },
-    };
-    const config = statusConfig[status] || { label: status, variant: 'outline' as const };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const TrackingBrandingFooter = () => (
-    <div className="mt-8 border-t border-border pt-4 text-center">
-      <a
-        href="/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 group"
-      >
-        <span className="text-muted-foreground text-xs">Powered by</span>
-        <span className="font-display text-base font-bold text-primary group-hover:opacity-80 transition-opacity">
-          Foleio
-        </span>
-      </a>
-      <div className="mt-2">
-        <a
-          href="/signup"
-          className="text-xs font-medium text-accent underline underline-offset-2 hover:opacity-80 transition-opacity"
-        >
-          Are you a creator? Start your Foleio →
-        </a>
-      </div>
-    </div>
-  );
 
   if (isLoading) {
     return (
@@ -258,265 +728,265 @@ export default function TrackingPage() {
     );
   }
 
-  // Email verification form
   if (!isVerified) {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-muted/30">
-          <Card className="max-w-md w-full">
-            <CardHeader className="text-center">
-              <CardTitle>Track Your Booking</CardTitle>
-              <CardDescription>
-                Enter the email address you used to make this booking
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleVerify} className="space-y-4">
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
+        <div className="foleio-auth-root foleio-track-root">
+          <style dangerouslySetInnerHTML={{ __html: trackingCss }} />
+          <TrackingBrand />
+          <div className="foleio-track-card">
+            <h1 className="foleio-track-title">Track your booking</h1>
+            <p className="foleio-track-desc">
+              Enter the email you used when you booked.
+            </p>
+            <form onSubmit={handleVerify}>
+              <div className="foleio-track-field">
+                <label className="foleio-auth-label" htmlFor="tracking-email">
+                  Email
+                </label>
+                <div className="foleio-track-input-wrap">
+                  <Mail className="h-4 w-4" strokeWidth={1.5} />
+                  <input
+                    id="tracking-email"
+                    className="foleio-track-input"
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder="you@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
                     required
+                    autoComplete="email"
                   />
                 </div>
-                {error && (
-                  <p className="text-sm text-destructive">{error}</p>
-                )}
-                <Button type="submit" className="w-full" disabled={isVerifying}>
+              </div>
+              {error ? <p className="foleio-track-error">{error}</p> : null}
+              <div className="foleio-track-actions">
+                <button
+                  type="submit"
+                  className="foleio-track-btn"
+                  disabled={isVerifying}
+                >
                   {isVerifying ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    'View Booking'
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  ) : null}
+                  {isVerifying ? 'Verifying…' : 'View booking'}
+                </button>
+              </div>
+            </form>
+          </div>
+          <TrackingFooter />
         </div>
-        <TrackingBrandingFooter />
         <FanSupportChat />
       </>
     );
   }
 
-  // Booking details view
   if (!booking) return null;
+
+  const statusLabel =
+    BOOKING_STATUS_LABELS[booking.status] || booking.status.replace(/_/g, ' ');
+  const showProgress =
+    Boolean(booking.progress) &&
+    !['disputed', 'refunded', 'cancelled'].includes(booking.status);
+  const showBalancePay =
+    ['deposit_paid', 'balance_overdue'].includes(booking.status) &&
+    Boolean(booking.balanceAmount);
+  const showRefund =
+    ['deposit_paid', 'balance_overdue', 'paid', 'first_payout_done', 'service_day'].includes(
+      booking.status
+    );
 
   return (
     <>
-      <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-background to-muted/30">
-        <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Booking Details</h1>
-          <p className="text-muted-foreground">Track your booking status</p>
-          <a href="/fan/dashboard" className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline">
-            View all your bookings →
-          </a>
-        </div>
+      <div className="foleio-auth-root foleio-track-root">
+        <style dangerouslySetInnerHTML={{ __html: trackingCss }} />
+        <TrackingBrand />
+        <div className="foleio-track-card">
+          <h1 className="foleio-track-title">Booking details</h1>
+          <p className="foleio-track-desc">Track your booking with {booking.creator.displayName}</p>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <span className={`foleio-track-status ${statusBadgeClass(booking.status)}`}>
+              {statusLabel}
+            </span>
+          </div>
 
-        {/* Status Badge */}
-        <div className="flex justify-center">
-          {getStatusBadge(booking.status)}
-        </div>
-
-        {/* Progress Steps */}
-        {booking.progress && !['disputed', 'refunded', 'cancelled'].includes(booking.status) && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="relative">
-                {/* Progress line */}
-                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-muted" />
-                
-                <div className="space-y-8">
-                  {booking.progress.steps.map((step, index) => (
-                    <div key={index} className="relative flex gap-4">
-                      {/* Step indicator */}
-                      <div
-                        className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                          step.status === 'completed'
-                            ? 'bg-green-500 text-white'
-                            : step.status === 'current'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {step.status === 'completed' ? (
-                          <Check className="h-6 w-6" />
-                        ) : step.status === 'current' ? (
-                          <Clock className="h-6 w-6" />
-                        ) : (
-                          <Circle className="h-6 w-6" />
-                        )}
-                      </div>
-
-                      {/* Step content */}
-                      <div className="pt-2">
-                        <h4
-                          className={`font-semibold ${
-                            step.status === 'upcoming'
-                              ? 'text-muted-foreground'
-                              : ''
-                          }`}
-                        >
-                          {step.name}
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          {step.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Disputed Status */}
-        {booking.status === 'disputed' && (
-          <Card className="border-destructive">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-4">
-                <AlertCircle className="h-6 w-6 text-destructive shrink-0" />
+          {booking.status === 'disputed' ? (
+            <div className="foleio-track-section">
+              <div className="foleio-track-alert">
+                <AlertCircle className="h-5 w-5 shrink-0" strokeWidth={1.5} />
                 <div>
-                  <h4 className="font-semibold">Refund Requested</h4>
-                  <p className="text-sm text-muted-foreground">
+                  <p>Refund requested</p>
+                  <span>
                     Your refund request is being reviewed by the creator.
-                  </p>
-                  {booking.disputeReason && (
-                    <p className="text-sm mt-2">
-                      <strong>Reason:</strong> {booking.disputeReason}
-                    </p>
-                  )}
+                    {booking.disputeReason
+                      ? ` Reason: ${booking.disputeReason}`
+                      : ''}
+                  </span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          ) : null}
 
-        {booking.status === 'balance_overdue' ? (
-          <Card className="border-destructive">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-4">
-                <AlertCircle className="h-6 w-6 text-destructive shrink-0" />
+          {booking.status === 'balance_overdue' ? (
+            <div className="foleio-track-section">
+              <div className="foleio-track-alert">
+                <AlertCircle className="h-5 w-5 shrink-0" strokeWidth={1.5} />
                 <div>
-                  <h4 className="font-semibold">Balance overdue</h4>
-                  <p className="text-sm text-muted-foreground">
+                  <p>Balance overdue</p>
+                  <span>
                     Your remaining balance
                     {booking.balanceDueDateLabel
                       ? ` was due by ${booking.balanceDueDateLabel}`
                       : ' is past due'}
                     . Pay now to settle your outstanding invoice.
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {showProgress ? (
+            <div className="foleio-track-section">
+              <div className="foleio-track-steps">
+                {booking.progress.steps.map((step, index) => {
+                  const isLast = index === booking.progress.steps.length - 1;
+                  return (
+                    <div key={`${step.name}-${index}`} className="foleio-track-step">
+                      <div className="foleio-track-step-rail">
+                        <div
+                          className={`foleio-track-step-dot${
+                            step.status === 'completed'
+                              ? ' is-done'
+                              : step.status === 'current'
+                                ? ' is-current'
+                                : ''
+                          }`}
+                        >
+                          {step.status === 'completed' ? (
+                            <Check className="h-3.5 w-3.5" strokeWidth={2} />
+                          ) : step.status === 'current' ? (
+                            <Clock className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          ) : (
+                            <Circle className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          )}
+                        </div>
+                        {!isLast ? (
+                          <div
+                            className={`foleio-track-step-line${
+                              step.status === 'completed' ? ' is-done' : ''
+                            }`}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="foleio-track-step-copy">
+                        <h4 className={step.status === 'upcoming' ? 'is-muted' : undefined}>
+                          {step.name}
+                        </h4>
+                        <p>{step.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="foleio-track-section">
+            <div className="foleio-track-receipt" aria-label="Booking information">
+              <div className="foleio-track-creator">
+                <div className="foleio-track-avatar">
+                  {booking.creator.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={booking.creator.avatarUrl}
+                      alt={booking.creator.displayName}
+                    />
+                  ) : (
+                    <User className="h-5 w-5" strokeWidth={1.5} />
+                  )}
+                </div>
+                <div>
+                  <p className="foleio-track-creator-name">
+                    {booking.creator.displayName}
+                  </p>
+                  <p className="foleio-track-creator-meta">
+                    @{booking.creator.username}
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ) : null}
 
-        {/* Booking Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Booking Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Creator info */}
-            <div className="flex items-center gap-3 pb-4 border-b">
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                {booking.creator.avatarUrl ? (
-                  <img
-                    src={booking.creator.avatarUrl}
-                    alt={booking.creator.displayName}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="h-6 w-6 text-muted-foreground" />
-                )}
+              <div className="foleio-track-receipt-row">
+                <span className="foleio-track-receipt-label">Service</span>
+                <span className="foleio-track-receipt-value is-strong">
+                  {booking.priceListItem.name}
+                </span>
               </div>
-              <div>
-                <p className="font-semibold">{booking.creator.displayName}</p>
-                <p className="text-sm text-muted-foreground">
-                  @{booking.creator.username}
-                </p>
-              </div>
-            </div>
-
-            {/* Service */}
-            <div>
-              <p className="text-sm text-muted-foreground">Service</p>
-              <p className="font-medium">{booking.priceListItem.name}</p>
-              {booking.priceListItem.category && (
-                <Badge variant="outline" className="mt-1">
-                  {booking.priceListItem.category}
-                </Badge>
-              )}
-            </div>
-
-            {/* Date */}
-            <div className="flex items-start gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-sm text-muted-foreground">Date</p>
-                <p className="font-medium">
+              {booking.priceListItem.category ? (
+                <div className="foleio-track-receipt-row">
+                  <span className="foleio-track-receipt-label">Category</span>
+                  <span className="foleio-track-receipt-value">
+                    {booking.priceListItem.category}
+                  </span>
+                </div>
+              ) : null}
+              <div className="foleio-track-receipt-row">
+                <span className="foleio-track-receipt-label">Date</span>
+                <span className="foleio-track-receipt-value">
                   {formatBookingWhen(
                     booking.bookingDate,
                     booking.startTime,
                     booking.endTime
                   )}
-                </p>
+                </span>
               </div>
-            </div>
-
-            {/* Amount */}
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {['deposit_paid', 'balance_overdue'].includes(booking.status)
-                  ? 'Amount paid (deposit)'
-                  : 'Amount Paid'}
-              </p>
-              <p className="font-bold text-lg">
-                {formatPrice(booking.amountPaid ?? booking.totalAmount)}
-              </p>
+              <div className="foleio-track-receipt-divider" />
+              <div className="foleio-track-receipt-row">
+                <span className="foleio-track-receipt-label">
+                  {['deposit_paid', 'balance_overdue'].includes(booking.status)
+                    ? 'Deposit paid'
+                    : 'Amount paid'}
+                </span>
+                <span className="foleio-track-receipt-value is-strong">
+                  {formatPrice(booking.amountPaid ?? booking.totalAmount)}
+                </span>
+              </div>
               {['deposit_paid', 'balance_overdue'].includes(booking.status) &&
               booking.balanceAmount ? (
                 <>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Balance due: {formatPrice(booking.balanceAmount)}
-                  </p>
+                  <div className="foleio-track-receipt-row">
+                    <span className="foleio-track-receipt-label">Balance due</span>
+                    <span className="foleio-track-receipt-value">
+                      {formatPrice(booking.balanceAmount)}
+                    </span>
+                  </div>
                   {booking.balanceDueDateLabel ? (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {booking.status === 'balance_overdue' ? 'Was due by' : 'Due by'}:{' '}
-                      {booking.balanceDueDateLabel}
-                    </p>
+                    <div className="foleio-track-receipt-row">
+                      <span className="foleio-track-receipt-label">
+                        {booking.status === 'balance_overdue' ? 'Was due by' : 'Due by'}
+                      </span>
+                      <span className="foleio-track-receipt-value">
+                        {booking.balanceDueDateLabel}
+                      </span>
+                    </div>
                   ) : null}
                 </>
               ) : null}
+              {booking.notes ? (
+                <>
+                  <div className="foleio-track-receipt-divider" />
+                  <div className="foleio-track-receipt-row">
+                    <span className="foleio-track-receipt-label">Notes</span>
+                    <span className="foleio-track-receipt-value">{booking.notes}</span>
+                  </div>
+                </>
+              ) : null}
             </div>
+          </div>
 
-            {/* Notes */}
-            {booking.notes && (
-              <div>
-                <p className="text-sm text-muted-foreground">Notes</p>
-                <p className="text-sm">{booking.notes}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {['deposit_paid', 'balance_overdue'].includes(booking.status) &&
-        booking.balanceAmount ? (
-          <Card>
-            <CardContent className="pt-6">
-              <Button
-                className="w-full"
+          <div className="foleio-track-actions">
+            {showBalancePay ? (
+              <button
+                type="button"
+                className="foleio-track-btn"
                 disabled={isPayingBalance}
                 onClick={async () => {
                   setIsPayingBalance(true);
@@ -531,7 +1001,9 @@ export default function TrackingPage() {
                     });
                     const initData = await initRes.json();
                     if (!initRes.ok) {
-                      throw new Error(initData.error || 'Could not start balance payment');
+                      throw new Error(
+                        initData.error || 'Could not start balance payment'
+                      );
                     }
 
                     // @ts-ignore
@@ -576,73 +1048,91 @@ export default function TrackingPage() {
                 }}
               >
                 {isPayingBalance ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
                 ) : null}
-                Pay balance ({formatPrice(booking.balanceAmount)})
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
+                Pay balance ({formatPrice(booking.balanceAmount || 0)})
+              </button>
+            ) : null}
 
-        {/* Refund Request Button */}
-        {['deposit_paid', 'balance_overdue', 'paid', 'first_payout_done', 'service_day'].includes(booking.status) && (
-          <Card>
-            <CardContent className="pt-6">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setRefundDialogOpen(true)}
-              >
-                Request Refund
-              </Button>
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                Only request a refund if the service was not provided as agreed.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+            <Link
+              href={`/creator/${booking.creator.username}`}
+              className="foleio-track-btn-outline"
+            >
+              View creator profile
+            </Link>
+
+            {showRefund ? (
+              <>
+                <button
+                  type="button"
+                  className="foleio-track-btn-ghost"
+                  onClick={() => setRefundDialogOpen(true)}
+                >
+                  Request refund
+                </button>
+                <p className="foleio-track-hint">
+                  Only request a refund if the service was not provided as agreed.
+                </p>
+              </>
+            ) : null}
+          </div>
+
+          <Link href="/fan/dashboard" className="foleio-track-link">
+            View all your bookings →
+          </Link>
         </div>
+        <TrackingFooter />
 
-        {/* Refund Dialog */}
-        <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Request Refund</DialogTitle>
-              <DialogDescription>
-                Please explain why you&apos;re requesting a refund. The creator will review your request.
-              </DialogDescription>
-            </DialogHeader>
-            <Textarea
-              placeholder="Please provide a detailed reason for your refund request..."
-              value={refundReason}
-              onChange={(e) => setRefundReason(e.target.value)}
-              rows={4}
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleRefundRequest}
-                disabled={!refundReason.trim() || isRequestingRefund}
-              >
-                {isRequestingRefund ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  'Submit Request'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {refundDialogOpen ? (
+          <div
+            className="foleio-track-modal-backdrop"
+            onClick={() => setRefundDialogOpen(false)}
+            role="presentation"
+          >
+            <div
+              className="foleio-track-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="refund-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="refund-title">Request refund</h2>
+              <p>
+                Explain why you&apos;re requesting a refund. The creator will review
+                your request.
+              </p>
+              <textarea
+                className="foleio-track-textarea"
+                placeholder="Please provide a detailed reason…"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                rows={4}
+              />
+              <div className="foleio-track-modal-actions">
+                <button
+                  type="button"
+                  className="foleio-track-btn-outline"
+                  onClick={() => setRefundDialogOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="foleio-track-btn-danger"
+                  onClick={() => void handleRefundRequest()}
+                  disabled={!refundReason.trim() || isRequestingRefund}
+                >
+                  {isRequestingRefund ? (
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  ) : null}
+                  {isRequestingRefund ? 'Submitting…' : 'Submit request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
-      <TrackingBrandingFooter />
       <FanSupportChat />
     </>
   );
 }
-

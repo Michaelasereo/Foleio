@@ -11,6 +11,12 @@ function toKobo(value: unknown) {
   return Math.round(parsed * 100);
 }
 
+function parseTierType(raw: unknown): 'paid' | 'free' | 'pickup' {
+  const value = String(raw || 'paid').toLowerCase();
+  if (value === 'free' || value === 'pickup') return value;
+  return 'paid';
+}
+
 async function getCreatorId() {
   const supabase = await createRouteHandlerClient();
   const {
@@ -37,7 +43,7 @@ export async function GET() {
 
     const deliveryTiers = await prisma.deliveryTier.findMany({
       where: { creatorId },
-      orderBy: { flatRate: 'asc' },
+      orderBy: { createdAt: 'asc' },
     });
 
     return NextResponse.json({ deliveryTiers });
@@ -57,14 +63,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const name = String(body?.name || '').trim();
     const description = body?.description ? String(body.description) : null;
-    const estimatedDays = body?.estimatedDays ? String(body.estimatedDays) : null;
-    const flatRate = toKobo(body?.flatRate);
+    const type = parseTierType(body?.type);
+    const flatRate = type === 'paid' ? toKobo(body?.flatRate) : 0;
 
     if (!name) {
-      return NextResponse.json({ error: 'Tier name is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Option name is required' }, { status: 400 });
     }
-
-    if (flatRate < 0) {
+    if (type === 'paid' && flatRate < 0) {
       return NextResponse.json({ error: 'Flat rate is invalid' }, { status: 400 });
     }
 
@@ -74,7 +79,8 @@ export async function POST(request: Request) {
         creatorId,
         name,
         description,
-        estimatedDays,
+        type,
+        estimatedDays: null,
         flatRate,
       },
     });

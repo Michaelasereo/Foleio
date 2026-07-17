@@ -24,6 +24,8 @@ const PAID_BOOKING_STATUSES = [
   'completed',
 ];
 
+const DEPOSIT_BOOKING_STATUSES = ['deposit_paid', 'balance_overdue'];
+
 function creatorShareFromGross(grossKobo: number, feePct: number) {
   const amount = Number(grossKobo) || 0;
   const platformFee = Math.round(amount * (feePct / 100));
@@ -82,6 +84,10 @@ export async function GET() {
       id: string;
       status: string;
       totalAmount: number;
+      depositAmount: number;
+      balanceAmount: number;
+      amountPaid: number;
+      paymentPlan: string | null;
       paymentReference: string | null;
       createdAt: Date;
       bookingDate: Date;
@@ -92,14 +98,20 @@ export async function GET() {
       bookings = await prisma.booking.findMany({
         where: {
           creatorId: creator.id,
-          status: { in: PAID_BOOKING_STATUSES },
+          status: {
+            in: [...PAID_BOOKING_STATUSES, ...DEPOSIT_BOOKING_STATUSES],
+          },
         },
         orderBy: { createdAt: 'desc' },
-        take: 50,
+        take: 100,
         select: {
           id: true,
           status: true,
           totalAmount: true,
+          depositAmount: true,
+          balanceAmount: true,
+          amountPaid: true,
+          paymentPlan: true,
           paymentReference: true,
           createdAt: true,
           bookingDate: true,
@@ -134,7 +146,9 @@ export async function GET() {
       if (tx?.reference) txByReference.set(String(tx.reference), tx);
     }
 
-    let settledToBank = 0;
+    let fullPayments = 0;
+    let deposits = 0;
+    let outstanding = 0;
     const activityRows: any[] = [];
     const monthlyMap = new Map<string, number>();
     const streamMap = new Map<string, number>();
@@ -142,17 +156,33 @@ export async function GET() {
 
     for (const booking of bookings) {
       seenBookingIds.add(booking.id);
+      const isDepositHold = DEPOSIT_BOOKING_STATUSES.includes(booking.status);
       const matchedTx =
-        txByBookingId.get(booking.id) ||
-        (booking.paymentReference
-          ? txByReference.get(booking.paymentReference)
-          : null);
+        !isDepositHold
+          ? txByBookingId.get(booking.id) ||
+            (booking.paymentReference
+              ? txByReference.get(booking.paymentReference)
+              : null)
+          : null;
 
       let creatorEarnings: number;
       let platformFee: number;
       let amount: number;
 
-      if (
+      if (isDepositHold) {
+        amount = Math.max(
+          0,
+          Number(booking.amountPaid || booking.depositAmount || 0)
+        );
+        const split = creatorShareFromGross(amount, feePct);
+        creatorEarnings = split.creatorEarnings;
+        platformFee = split.platformFee;
+
+        const balanceGross = Math.max(0, Number(booking.balanceAmount || 0));
+        if (balanceGross > 0) {
+          outstanding += creatorShareFromGross(balanceGross, feePct).creatorEarnings;
+        }
+      } else if (
         matchedTx &&
         SUCCESS_TX_STATUSES.has(String(matchedTx.status || '')) &&
         matchedTx.creatorEarnings != null
@@ -167,21 +197,30 @@ export async function GET() {
         platformFee = split.platformFee;
       }
 
-      if (!Number.isFinite(creatorEarnings)) continue;
-      settledToBank += creatorEarnings;
+      if (!Number.isFinite(creatorEarnings) || creatorEarnings <= 0) continue;
+
+      if (isDepositHold) {
+        deposits += creatorEarnings;
+      } else {
+        fullPayments += creatorEarnings;
+      }
 
       const createdAt = booking.createdAt;
       if (createdAt >= sixMonthsAgo) {
         const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
         monthlyMap.set(key, (monthlyMap.get(key) || 0) + creatorEarnings);
-        streamMap.set('booking', (streamMap.get('booking') || 0) + creatorEarnings);
+        streamMap.set(
+          isDepositHold ? 'deposit' : 'booking',
+          (streamMap.get(isDepositHold ? 'deposit' : 'booking') || 0) +
+            creatorEarnings
+        );
       }
 
       activityRows.push({
         id: matchedTx?.id || `booking_${booking.id}`,
         createdAt: booking.createdAt,
         status: matchedTx?.status || booking.status,
-        type: 'booking',
+        type: isDepositHold ? 'deposit' : 'booking',
         amount,
         creatorEarnings,
         platformFee,
@@ -192,6 +231,8 @@ export async function GET() {
           service: booking.priceListItem?.name || 'Booking',
           customerName: booking.customerName,
           bookingDate: booking.bookingDate,
+          paymentPlan: booking.paymentPlan || null,
+          balanceAmount: isDepositHold ? booking.balanceAmount : 0,
         },
       });
     }
@@ -208,7 +249,7 @@ export async function GET() {
       const rawAmount = Number(tx?.creatorEarnings ?? 0);
       if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
 
-      settledToBank += rawAmount;
+      fullPayments += rawAmount;
 
       const createdAt = tx?.createdAt ? new Date(tx.createdAt) : null;
       if (createdAt && !Number.isNaN(createdAt.getTime()) && createdAt >= sixMonthsAgo) {
@@ -238,7 +279,8 @@ export async function GET() {
       amount,
     }));
 
-    const totalEarnings = settledToBank;
+    const totalEarnings = fullPayments + deposits;
+    const settledToBank = fullPayments;
 
     const payload = {
       creator: {
@@ -260,6 +302,9 @@ export async function GET() {
       byStream,
       stats: {
         totalEarnings,
+        fullPayments,
+        deposits,
+        outstanding,
         settledToBank,
         platformFeePercent: feePct,
       },
@@ -288,6 +333,9 @@ export async function GET() {
         byStream: [],
         stats: {
           totalEarnings: 0,
+          fullPayments: 0,
+          deposits: 0,
+          outstanding: 0,
           settledToBank: 0,
         },
       },

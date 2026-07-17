@@ -36,6 +36,9 @@ const signupSchema = z
       ),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
+    acceptTerms: z.boolean().refine((value) => value === true, {
+      message: 'You must accept the Terms & Conditions to continue',
+    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -65,6 +68,7 @@ export function CreateAccountPage() {
       username: '',
       password: '',
       confirmPassword: '',
+      acceptTerms: false,
     },
   });
 
@@ -337,6 +341,49 @@ export function CreateAccountPage() {
               />
             </div>
           </div>
+
+          <FormField
+            control={form.control}
+            name="acceptTerms"
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <div className="foleio-auth-terms">
+                    <input
+                      id="accept-terms"
+                      type="checkbox"
+                      className="foleio-auth-terms-check"
+                      checked={field.value}
+                      onChange={(event) => field.onChange(event.target.checked)}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                    <label htmlFor="accept-terms" className="foleio-auth-terms-label">
+                      I accept the{' '}
+                      <Link href="/legal/terms" target="_blank" rel="noopener noreferrer">
+                        Terms &amp; Conditions
+                      </Link>
+                      ,{' '}
+                      <Link href="/legal/privacy" target="_blank" rel="noopener noreferrer">
+                        Privacy Policy
+                      </Link>
+                      , and{' '}
+                      <Link
+                        href="/legal/creator-agreement"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Creator Agreement
+                      </Link>{' '}
+                      of Foleio.
+                    </label>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <button type="submit" className={authButtonClass} disabled={isLoading}>
             {isLoading ? 'Submitting…' : 'Request invite'}

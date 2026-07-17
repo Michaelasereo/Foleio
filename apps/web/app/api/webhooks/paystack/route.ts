@@ -387,9 +387,43 @@ async function handleChargeSuccess(eventData: any) {
 
     if (metadata?.type === 'shop_order' && metadata?.orderId) {
       try {
-        const updatedOrder = await prisma.order.update({
+        const pendingOrder = await prisma.order.findUnique({
           where: { id: metadata.orderId },
-          data: { status: 'confirmed' },
+          include: { items: true },
+        });
+
+        if (!pendingOrder) {
+          console.error('[webhook] shop order not found:', metadata.orderId);
+          return;
+        }
+
+        if (pendingOrder.status === 'pending') {
+          await prisma.$transaction(async (tx) => {
+            await tx.order.update({
+              where: { id: pendingOrder.id },
+              data: { status: 'confirmed' },
+            });
+
+            for (const item of pendingOrder.items) {
+              const product = await tx.product.findUnique({
+                where: { id: item.productId },
+                select: { id: true, stock: true, status: true },
+              });
+              if (!product) continue;
+              const nextStock = Math.max(0, (product.stock ?? 0) - item.quantity);
+              await tx.product.update({
+                where: { id: product.id },
+                data: {
+                  stock: nextStock,
+                  ...(nextStock <= 0 ? { status: 'draft' } : {}),
+                },
+              });
+            }
+          });
+        }
+
+        const updatedOrder = await prisma.order.findUnique({
+          where: { id: metadata.orderId },
           include: {
             creator: { select: { displayName: true } },
             items: {
@@ -406,6 +440,8 @@ async function handleChargeSuccess(eventData: any) {
             deliveryTier: true,
           },
         });
+
+        if (!updatedOrder) return;
 
         const deliveryAddress = (updatedOrder.deliveryAddress || {}) as Record<string, string>;
         const recipientEmail = String(deliveryAddress.email || '').trim();

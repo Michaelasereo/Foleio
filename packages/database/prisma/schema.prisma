@@ -636,21 +636,28 @@ model PriceListItem {
   @@index([isActive])
 }
 
-// Shop products (physical or digital)
+// Shop products (physical)
 model Product {
-  id             String   @id @default(uuid())
-  creatorId      String   @map("creator_id")
-  name           String
-  description    String?
-  price          Int      // in kobo
-  weight         Float?   // kg, for physical only
-  type           String   @default("physical") // physical | digital
-  imageUrl       String?  @map("image_url")
-  digitalFileUrl String?  @map("digital_file_url")
-  stock          Int?     // null = unlimited
-  status         String   @default("draft") // draft | active
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  creatorId        String   @map("creator_id")
+  name             String
+  description      String?
+  price            Int      // in kobo (charge / sale price)
+  compareAtPrice   Int?     @map("compare_at_price") // original price in kobo; when > price shows discount
+  weight           Float?   // kg, for physical only
+  type             String   @default("physical") // physical only for v1
+  imageUrl         String?  @map("image_url") // primary / first image (compat)
+  imageUrls        String[] @default([]) @map("image_urls") // up to 2 product photos
+  digitalFileUrl   String?  @map("digital_file_url")
+  stock            Int?     // required for sellable products in v1
+  status           String   @default("draft") // draft | active
+  orderIndex       Int      @default(0) @map("order_index")
+  waiveDeliveryFee Boolean  @default(false) @map("waive_delivery_fee")
+  isPreorder       Boolean  @default(false) @map("is_preorder")
+  preorderSettings Json?    @map("preorder_settings") // { releaseAt, preorderPrice, preorderCompareAtPrice, postPreorderPrice, postPreorderCompareAtPrice, phases[] }
+  addons           Json     @default("[]") // [{ id, name, required, options:[{ id, name, price }] }] price in kobo; legacy flat [{id,name,price}] still parsed
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   creator      Creator          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   variants     ProductVariant[]
@@ -659,6 +666,7 @@ model Product {
   @@map("products")
   @@index([creatorId])
   @@index([status])
+  @@index([creatorId, orderIndex])
 }
 
 model ProductVariant {
@@ -679,8 +687,9 @@ model DeliveryTier {
   creatorId     String   @map("creator_id")
   name          String
   description   String?
-  flatRate      Int      @map("flat_rate") // in kobo
-  estimatedDays String?  @map("estimated_days")
+  type          String   @default("paid") // paid | free | pickup
+  flatRate      Int      @map("flat_rate") // in kobo; 0 for free/pickup
+  estimatedDays String?  @map("estimated_days") // unused in v1 UI
   createdAt     DateTime @default(now()) @map("created_at")
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
@@ -695,7 +704,7 @@ model Order {
   fanId             String   @map("fan_id")
   creatorId         String   @map("creator_id")
   deliveryTierId    String?  @map("delivery_tier_id")
-  deliveryAddress   Json     @map("delivery_address") // {name,email,phone,address,city,state}
+  deliveryAddress   Json     @map("delivery_address") // {firstName,lastName,name,email,phone,notes?,address?,city?,state?}
   subtotal          Int      // in kobo
   deliveryFee       Int      @map("delivery_fee") // in kobo
   total             Int      // in kobo
@@ -721,8 +730,9 @@ model OrderItem {
   orderId         String   @map("order_id")
   productId       String   @map("product_id")
   variantSelected Json?    @map("variant_selected")
+  addonsSelected  Json?    @map("addons_selected") // [{ id, name, price }]
   quantity        Int      @default(1)
-  unitPrice       Int      @map("unit_price") // in kobo at purchase time
+  unitPrice       Int      @map("unit_price") // in kobo at purchase time (base + addons)
   createdAt       DateTime @default(now()) @map("created_at")
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)

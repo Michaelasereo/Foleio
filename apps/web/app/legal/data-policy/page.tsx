@@ -9,7 +9,7 @@ export const metadata = {
 export default function DataPolicyPage() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="font-display text-4xl font-bold text-foreground mb-2">
+      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
         Data Policy
       </h1>
       <p className="text-muted-foreground text-sm mb-10">
@@ -17,11 +17,6 @@ export default function DataPolicyPage() {
         Act (NDPA) 2023
       </p>
       <div className="legal-content">
-        <div className="draft-notice">
-          ⚠️ DRAFT - This document has not yet been reviewed by a lawyer. It is
-          not yet legally binding. Do not publish until reviewed.
-        </div>
-
         <p>
           This Data Policy explains how Foleio collects, uses, stores, shares,
           and protects personal data when you use our platform. It applies to

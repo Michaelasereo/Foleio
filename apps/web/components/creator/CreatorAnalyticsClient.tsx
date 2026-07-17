@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   CalendarClock,
   CheckCircle2,
+  Package,
+  ShoppingBag,
   TrendingUp,
   Users,
   Wallet,
@@ -18,8 +20,11 @@ import {
   YAxis,
 } from 'recharts';
 import { formatNaira } from '@foleio/utils';
+import { AnalyticsLoadingSkeleton } from '@/components/creator/AnalyticsLoadingSkeleton';
 
-type AnalyticsStats = {
+type AnalyticsTab = 'bookings' | 'shop';
+
+type BookingAnalytics = {
   totalBookings: number;
   bookingsThisMonth: number;
   totalEarnings: number;
@@ -49,88 +54,63 @@ type AnalyticsStats = {
   }>;
 };
 
-/** Preview-only dummy data so the dark UI can be designed without waiting on live stats. */
-const DUMMY_ANALYTICS: AnalyticsStats = {
-  totalBookings: 128,
-  bookingsThisMonth: 18,
-  totalEarnings: 51240000, // ₦512,400
-  upcomingBookings: 7,
-  averageBookingValue: 4500000, // ₦45,000
+type ShopAnalytics = {
+  totalOrders: number;
+  ordersThisMonth: number;
+  totalRevenue: number;
+  productsSold: number;
+  averageOrderValue: number;
   percentageChanges: {
-    bookings: '+22%',
-    earnings: '+14%',
-  },
-  monthlySeries: [
-    { month: 'Feb', income: 6200000, bookings: 14 },
-    { month: 'Mar', income: 7800000, bookings: 17 },
-    { month: 'Apr', income: 5400000, bookings: 12 },
-    { month: 'May', income: 9100000, bookings: 21 },
-    { month: 'Jun', income: 8600000, bookings: 19 },
-    { month: 'Jul', income: 11200000, bookings: 18 },
-  ],
-  topServices: [
-    {
-      id: 'svc-1',
-      name: '1:1 Strategy Session',
-      bookingCount: 42,
-      revenue: 18900000,
-    },
-    {
-      id: 'svc-2',
-      name: 'Brand Photoshoot',
-      bookingCount: 28,
-      revenue: 16800000,
-    },
-    {
-      id: 'svc-3',
-      name: 'Content Review Call',
-      bookingCount: 35,
-      revenue: 8750000,
-    },
-    {
-      id: 'svc-4',
-      name: 'Portfolio Critique',
-      bookingCount: 23,
-      revenue: 6900000,
-    },
-  ],
-  recentBookings: [
-    {
-      id: 'bk-1',
-      customerName: 'Adaobi Okonkwo',
-      bookingDate: '2026-07-10T14:00:00.000Z',
-      totalAmount: 5000000,
-      priceListItem: { name: '1:1 Strategy Session' },
-    },
-    {
-      id: 'bk-2',
-      customerName: 'Tunde Balogun',
-      bookingDate: '2026-07-08T11:00:00.000Z',
-      totalAmount: 8000000,
-      priceListItem: { name: 'Brand Photoshoot' },
-    },
-    {
-      id: 'bk-3',
-      customerName: 'Chioma Eze',
-      bookingDate: '2026-07-05T16:30:00.000Z',
-      totalAmount: 2500000,
-      priceListItem: { name: 'Content Review Call' },
-    },
-    {
-      id: 'bk-4',
-      customerName: 'Ibrahim Musa',
-      bookingDate: '2026-07-02T09:00:00.000Z',
-      totalAmount: 3000000,
-      priceListItem: { name: 'Portfolio Critique' },
-    },
-    {
-      id: 'bk-5',
-      customerName: 'Funke Adeyemi',
-      bookingDate: '2026-06-28T13:00:00.000Z',
-      totalAmount: 5000000,
-      priceListItem: { name: '1:1 Strategy Session' },
-    },
-  ],
+    orders: string | null;
+    revenue: string | null;
+  };
+  monthlySeries: Array<{
+    month: string;
+    income: number;
+    orders: number;
+  }>;
+  topProducts: Array<{
+    id: string;
+    name: string;
+    unitsSold: number;
+    revenue: number;
+  }>;
+  recentOrders: Array<{
+    id: string;
+    customerName: string;
+    createdAt: string;
+    totalAmount: number;
+    itemLabel: string;
+  }>;
+};
+
+type AnalyticsPayload = {
+  bookings: BookingAnalytics;
+  shop: ShopAnalytics;
+};
+
+const EMPTY_BOOKINGS: BookingAnalytics = {
+  totalBookings: 0,
+  bookingsThisMonth: 0,
+  totalEarnings: 0,
+  upcomingBookings: 0,
+  averageBookingValue: 0,
+  percentageChanges: { bookings: null, earnings: null },
+  monthlySeries: [],
+  topServices: [],
+  recentBookings: [],
+};
+
+const EMPTY_SHOP: ShopAnalytics = {
+  totalOrders: 0,
+  ordersThisMonth: 0,
+  totalRevenue: 0,
+  productsSold: 0,
+  averageOrderValue: 0,
+  percentageChanges: { orders: null, revenue: null },
+  monthlySeries: [],
+  topProducts: [],
+  recentOrders: [],
 };
 
 const CHART_ACCENT = '#3B5FDB';
@@ -171,75 +151,27 @@ function ChartTooltip({
   );
 }
 
-export function CreatorAnalyticsClient() {
-  const [stats] = useState<AnalyticsStats>(DUMMY_ANALYTICS);
-  // preview-build: v3-income-chart
-
-  const maxServiceBookings = Math.max(
-    ...stats.topServices.map((s) => s.bookingCount),
-    1
-  );
-
-  const summary = [
-    {
-      title: 'Total bookings',
-      value: String(stats.totalBookings),
-      change: null as string | null,
-      hint: 'All time',
-      icon: Users,
-    },
-    {
-      title: 'This month',
-      value: String(stats.bookingsThisMonth),
-      change: stats.percentageChanges.bookings,
-      hint: 'vs last month',
-      icon: CalendarClock,
-    },
-    {
-      title: 'Income',
-      value: formatNaira(stats.totalEarnings / 100),
-      change: stats.percentageChanges.earnings,
-      hint: 'vs last month',
-      icon: Wallet,
-    },
-    {
-      title: 'Upcoming',
-      value: String(stats.upcomingBookings),
-      change: null,
-      hint: 'Confirmed ahead',
-      icon: TrendingUp,
-    },
-    {
-      title: 'Avg booking value',
-      value: formatNaira(stats.averageBookingValue / 100),
-      change: null,
-      hint: 'Per paid booking',
-      icon: CheckCircle2,
-    },
-  ];
-
+function IncomeTrendChart({
+  title,
+  data,
+  gradientId,
+}: {
+  title: string;
+  data: Array<{ month: string; income: number }>;
+  gradientId: string;
+}) {
   return (
-    <div>
-      <div className="foleio-dash-header">
-        <div>
-          <h1 className="foleio-auth-title">Analytics</h1>
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-            Bookings, income, and service performance · Preview data
-          </p>
-        </div>
-      </div>
-
-      <div className="foleio-dash-panel" style={{ marginBottom: 14 }}>
-        <h2 className="foleio-dash-panel-title">Income trend</h2>
-        <p className="foleio-dash-panel-meta">Last 6 months</p>
+    <div className="foleio-dash-panel" style={{ marginBottom: 14 }}>
+      <h2 className="foleio-dash-panel-title">{title}</h2>
+      <p className="foleio-dash-panel-meta">Last 6 months</p>
+      {data.length === 0 ? (
+        <p className="foleio-dash-empty">No trend data yet.</p>
+      ) : (
         <div style={{ width: '100%', height: 220, marginTop: 4 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={stats.monthlySeries}
-              margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
-            >
+            <AreaChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
               <defs>
-                <linearGradient id="analyticsIncomeFill" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.35} />
                   <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0.02} />
                 </linearGradient>
@@ -256,23 +188,298 @@ export function CreatorAnalyticsClient() {
                 tickLine={false}
                 width={56}
                 tick={{ fill: '#828282', fontSize: 12 }}
-                tickFormatter={(value) =>
-                  `₦${Math.round(Number(value) / 100000)}k`
-                }
+                tickFormatter={(value) => `₦${Math.round(Number(value) / 100000)}k`}
               />
-              <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.12)' }} />
+              <Tooltip
+                content={<ChartTooltip />}
+                cursor={{ stroke: 'rgba(255,255,255,0.12)' }}
+              />
               <Area
                 type="monotone"
                 dataKey="income"
                 stroke={CHART_ACCENT}
                 strokeWidth={2}
-                fill="url(#analyticsIncomeFill)"
+                fill={`url(#${gradientId})`}
                 activeDot={{ r: 4, strokeWidth: 0, fill: CHART_ACCENT }}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      )}
+    </div>
+  );
+}
+
+function RankingBars({
+  title,
+  meta,
+  empty,
+  rows,
+}: {
+  title: string;
+  meta: string;
+  empty: string;
+  rows: Array<{
+    id: string;
+    name: string;
+    countLabel: string;
+    revenue: number;
+    percent: number;
+  }>;
+}) {
+  return (
+    <div className="foleio-dash-panel">
+      <h2 className="foleio-dash-panel-title">{title}</h2>
+      <p className="foleio-dash-panel-meta">{meta}</p>
+      {rows.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+          {rows.map((row) => (
+            <div key={row.id}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <p
+                    style={{
+                      color: '#f4f4f5',
+                      fontSize: 14,
+                      fontWeight: 500,
+                      margin: 0,
+                    }}
+                  >
+                    {row.name}
+                  </p>
+                  <p style={{ color: '#828282', fontSize: 12, margin: '2px 0 0' }}>
+                    {row.countLabel}
+                  </p>
+                </div>
+                <span
+                  style={{
+                    color: '#adadad',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatNaira(row.revenue / 100)}
+                </span>
+              </div>
+              <div
+                style={{
+                  height: 6,
+                  borderRadius: 999,
+                  background: '#2b2b2b',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${row.percent}%`,
+                    height: '100%',
+                    borderRadius: 999,
+                    background: 'hsl(var(--accent))',
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="foleio-dash-empty">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+export function CreatorAnalyticsClient() {
+  const [tab, setTab] = useState<AnalyticsTab>('bookings');
+  const [bookings, setBookings] = useState<BookingAnalytics>(EMPTY_BOOKINGS);
+  const [shop, setShop] = useState<ShopAnalytics>(EMPTY_SHOP);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+
+  const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch('/api/creator/analytics', {
+      cache: 'no-store',
+      signal,
+    });
+    const payload = (await response.json()) as AnalyticsPayload & { error?: string };
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to load analytics');
+    }
+    setBookings({ ...EMPTY_BOOKINGS, ...(payload.bookings || {}) });
+    setShop({ ...EMPTY_SHOP, ...(payload.shop || {}) });
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    loadAnalytics(controller.signal)
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Failed to load analytics');
+        setBookings(EMPTY_BOOKINGS);
+        setShop(EMPTY_SHOP);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [loadAnalytics, retryKey]);
+
+  if (loading) {
+    return <AnalyticsLoadingSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h1 className="foleio-auth-title">Analytics</h1>
+        <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
+          {error}
+        </p>
+        <button
+          type="button"
+          className="foleio-dash-btn-outline"
+          style={{ marginTop: 16 }}
+          onClick={() => setRetryKey((prev) => prev + 1)}
+        >
+          Try again
+        </button>
       </div>
+    );
+  }
+
+  const maxServiceBookings = Math.max(
+    ...bookings.topServices.map((s) => s.bookingCount),
+    1
+  );
+  const maxProductUnits = Math.max(...shop.topProducts.map((p) => p.unitsSold), 1);
+
+  const bookingSummary = [
+    {
+      title: 'Total bookings',
+      value: String(bookings.totalBookings),
+      change: null as string | null,
+      hint: 'All time',
+      icon: Users,
+    },
+    {
+      title: 'This month',
+      value: String(bookings.bookingsThisMonth),
+      change: bookings.percentageChanges.bookings,
+      hint: 'vs last month',
+      icon: CalendarClock,
+    },
+    {
+      title: 'Income',
+      value: formatNaira(bookings.totalEarnings / 100),
+      change: bookings.percentageChanges.earnings,
+      hint: 'vs last month',
+      icon: Wallet,
+    },
+    {
+      title: 'Upcoming',
+      value: String(bookings.upcomingBookings),
+      change: null,
+      hint: 'Confirmed ahead',
+      icon: TrendingUp,
+    },
+    {
+      title: 'Avg booking value',
+      value: formatNaira(bookings.averageBookingValue / 100),
+      change: null,
+      hint: 'Per paid booking',
+      icon: CheckCircle2,
+    },
+  ];
+
+  const shopSummary = [
+    {
+      title: 'Total orders',
+      value: String(shop.totalOrders),
+      change: null as string | null,
+      hint: 'All time',
+      icon: ShoppingBag,
+    },
+    {
+      title: 'This month',
+      value: String(shop.ordersThisMonth),
+      change: shop.percentageChanges.orders,
+      hint: 'vs last month',
+      icon: CalendarClock,
+    },
+    {
+      title: 'Shop revenue',
+      value: formatNaira(shop.totalRevenue / 100),
+      change: shop.percentageChanges.revenue,
+      hint: 'vs last month',
+      icon: Wallet,
+    },
+    {
+      title: 'Products sold',
+      value: String(shop.productsSold),
+      change: null,
+      hint: 'Units fulfilled',
+      icon: Package,
+    },
+    {
+      title: 'Avg order value',
+      value: formatNaira(shop.averageOrderValue / 100),
+      change: null,
+      hint: 'Per paid order',
+      icon: CheckCircle2,
+    },
+  ];
+
+  const summary = tab === 'bookings' ? bookingSummary : shopSummary;
+
+  return (
+    <div>
+      <div className="foleio-dash-header">
+        <div>
+          <h1 className="foleio-auth-title">Analytics</h1>
+          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+            {tab === 'bookings'
+              ? 'Bookings, income, and service performance'
+              : 'Orders, product sales, and shop revenue'}
+          </p>
+        </div>
+      </div>
+
+      <div className="foleio-dash-tabs" role="tablist" aria-label="Analytics sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'bookings'}
+          className={`foleio-dash-tab${tab === 'bookings' ? ' is-active' : ''}`}
+          onClick={() => setTab('bookings')}
+        >
+          Bookings
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'shop'}
+          className={`foleio-dash-tab${tab === 'shop' ? ' is-active' : ''}`}
+          onClick={() => setTab('shop')}
+        >
+          Shop
+        </button>
+      </div>
+
+      <IncomeTrendChart
+        title={tab === 'bookings' ? 'Income trend' : 'Shop revenue trend'}
+        data={tab === 'bookings' ? bookings.monthlySeries : shop.monthlySeries}
+        gradientId={tab === 'bookings' ? 'analyticsIncomeFill' : 'analyticsShopFill'}
+      />
 
       <div className="foleio-dash-stats">
         {summary.map((stat) => {
@@ -303,107 +510,87 @@ export function CreatorAnalyticsClient() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         }}
       >
-        <div className="foleio-dash-panel">
-          <h2 className="foleio-dash-panel-title">Top services</h2>
-          <p className="foleio-dash-panel-meta">By booking volume</p>
-          {stats.topServices.length ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-              {stats.topServices.map((service) => {
-                const percent = Math.round(
-                  (service.bookingCount / maxServiceBookings) * 100
-                );
-                return (
-                  <div key={service.id}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        marginBottom: 6,
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          style={{
-                            color: '#f4f4f5',
-                            fontSize: 14,
-                            fontWeight: 500,
-                            margin: 0,
-                          }}
-                        >
-                          {service.name}
-                        </p>
-                        <p
-                          style={{
-                            color: '#828282',
-                            fontSize: 12,
-                            margin: '2px 0 0',
-                          }}
-                        >
-                          {service.bookingCount} bookings
+        {tab === 'bookings' ? (
+          <>
+            <RankingBars
+              title="Top services"
+              meta="By booking volume"
+              empty="No booking analytics yet."
+              rows={bookings.topServices.map((service) => ({
+                id: service.id,
+                name: service.name,
+                countLabel: `${service.bookingCount} bookings`,
+                revenue: service.revenue,
+                percent: Math.round((service.bookingCount / maxServiceBookings) * 100),
+              }))}
+            />
+
+            <div className="foleio-dash-panel">
+              <h2 className="foleio-dash-panel-title">Recent paid bookings</h2>
+              <p className="foleio-dash-panel-meta">Latest confirmed bookings</p>
+              {bookings.recentBookings.length ? (
+                <div>
+                  {bookings.recentBookings.map((booking) => (
+                    <div key={booking.id} className="foleio-dash-sub-row">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p className="foleio-dash-sub-name">{booking.customerName}</p>
+                        <p className="foleio-dash-sub-date">
+                          {booking.priceListItem?.name || 'Service'} ·{' '}
+                          {new Date(booking.bookingDate).toLocaleDateString()}
                         </p>
                       </div>
-                      <span
-                        style={{
-                          color: '#adadad',
-                          fontSize: 13,
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {formatNaira(service.revenue / 100)}
+                      <span style={{ color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
+                        {formatNaira(booking.totalAmount / 100)}
                       </span>
                     </div>
-                    <div
-                      style={{
-                        height: 6,
-                        borderRadius: 999,
-                        background: '#2b2b2b',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${percent}%`,
-                          height: '100%',
-                          borderRadius: 999,
-                          background: 'hsl(var(--accent))',
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="foleio-dash-empty">No booking analytics yet.</p>
-          )}
-        </div>
-
-        <div className="foleio-dash-panel">
-          <h2 className="foleio-dash-panel-title">Recent paid bookings</h2>
-          <p className="foleio-dash-panel-meta">Latest confirmed bookings</p>
-          {stats.recentBookings.length ? (
-            <div>
-              {stats.recentBookings.map((booking) => (
-                <div key={booking.id} className="foleio-dash-sub-row">
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <p className="foleio-dash-sub-name">{booking.customerName}</p>
-                    <p className="foleio-dash-sub-date">
-                      {booking.priceListItem?.name || 'Service'} ·{' '}
-                      {new Date(booking.bookingDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span style={{ color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
-                    {formatNaira(booking.totalAmount / 100)}
-                  </span>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <p className="foleio-dash-empty">No paid bookings yet.</p>
+              )}
             </div>
-          ) : (
-            <p className="foleio-dash-empty">No paid bookings yet.</p>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            <RankingBars
+              title="Top products"
+              meta="By units sold"
+              empty="No shop analytics yet."
+              rows={shop.topProducts.map((product) => ({
+                id: product.id,
+                name: product.name,
+                countLabel: `${product.unitsSold} sold`,
+                revenue: product.revenue,
+                percent: Math.round((product.unitsSold / maxProductUnits) * 100),
+              }))}
+            />
+
+            <div className="foleio-dash-panel">
+              <h2 className="foleio-dash-panel-title">Recent orders</h2>
+              <p className="foleio-dash-panel-meta">Latest paid shop orders</p>
+              {shop.recentOrders.length ? (
+                <div>
+                  {shop.recentOrders.map((order) => (
+                    <div key={order.id} className="foleio-dash-sub-row">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p className="foleio-dash-sub-name">{order.customerName}</p>
+                        <p className="foleio-dash-sub-date">
+                          {order.itemLabel} ·{' '}
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span style={{ color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
+                        {formatNaira(order.totalAmount / 100)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="foleio-dash-empty">No paid orders yet.</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

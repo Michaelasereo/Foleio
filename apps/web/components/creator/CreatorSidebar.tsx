@@ -71,6 +71,11 @@ const navGroups: { title: string; items: NavItem[] }[] = [
             href: '/price-list',
             matchPath: '/price-list',
           },
+          {
+            label: 'Shop',
+            href: '/bookings?tab=shop',
+            queryTab: 'shop',
+          },
         ],
       },
     ],

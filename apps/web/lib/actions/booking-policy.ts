@@ -72,6 +72,7 @@ export async function updateBookingPaymentPolicy(input: z.infer<typeof policySch
 
   revalidatePath('/bookings');
   revalidatePath('/settings');
+  revalidatePath(`/creator/${creator.username}`);
   return {
     success: true,
     data: {

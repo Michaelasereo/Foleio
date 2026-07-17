@@ -11,10 +11,12 @@ import {
   Copy,
   ImageOff,
   LayoutDashboard,
+  Menu,
   MoreHorizontal,
   Settings,
   UserRound,
   Wallet,
+  X,
 } from 'lucide-react';
 import { AuthLegalFooter } from '@/components/auth/AuthLegalFooter';
 import { authCss } from '@/components/auth/styles';
@@ -168,6 +170,62 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-creator-root .foleio-auth-topbar-nav {
   flex: 1;
   min-width: 0;
+  position: relative;
+}
+.foleio-auth-topbar-nav-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.foleio-auth-topbar-mobile-menu {
+  display: none;
+  position: relative;
+}
+.foleio-auth-topbar-mobile-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #2b2b2b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.foleio-auth-topbar-mobile-pop a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #adadad;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+.foleio-auth-topbar-mobile-pop a:hover,
+.foleio-auth-topbar-mobile-pop a.is-active {
+  color: #fafafa;
+  background: rgba(255, 255, 255, 0.06);
+}
+.foleio-auth-topbar-mobile-pop a svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+@media (max-width: 767px) {
+  .foleio-auth-topbar-nav-links {
+    display: none;
+  }
+  .foleio-auth-topbar-mobile-menu {
+    display: block;
+  }
 }
 .foleio-auth-topbar-actions {
   display: inline-flex;
@@ -480,6 +538,10 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   background: rgba(134, 239, 172, 0.12);
   color: #86efac;
 }
+.foleio-dash-badge.is-warning {
+  background: rgba(250, 204, 21, 0.18);
+  color: #facc15;
+}
 .foleio-dash-badge.is-danger {
   background: rgba(252, 165, 165, 0.12);
   color: #fca5a5;
@@ -571,7 +633,7 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-dash-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -591,7 +653,7 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-dash-drawer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 100;
   background: rgba(0, 0, 0, 0.55);
 }
 .foleio-dash-drawer {
@@ -599,7 +661,7 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 81;
+  z-index: 101;
   display: flex;
   flex-direction: column;
   width: min(420px, 100vw);
@@ -1610,6 +1672,8 @@ function CreatorShellProfile({
 
 export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
   const pathname = usePathname();
+  const navMenuRef = useRef<HTMLDivElement>(null);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [bannerUrl, setBannerUrl] = useState<string | null>(
     creator?.bannerUrl ?? null
   );
@@ -1629,31 +1693,100 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
     return subscribeAvatarUpdated(setAvatarUrl);
   }, []);
 
+  useEffect(() => {
+    setNavMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!navMenuOpen) return undefined;
+
+    function onPointerDown(event: MouseEvent) {
+      if (!navMenuRef.current?.contains(event.target as Node)) {
+        setNavMenuOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setNavMenuOpen(false);
+    }
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [navMenuOpen]);
+
   return (
     <div className="foleio-auth-root foleio-creator-root relative flex min-h-screen flex-col">
       <style dangerouslySetInnerHTML={{ __html: creatorShellCss }} />
 
       <div className="foleio-auth-shell">
-        <header className="foleio-auth-topbar relative z-10">
-          <nav className="foleio-auth-topbar-nav">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              const active =
-                item.href === '/dashboard'
-                  ? pathname === '/dashboard'
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  data-tour={item.tourId}
-                  className={active ? 'is-active' : undefined}
-                >
-                  <Icon strokeWidth={1.5} />
-                  {item.label}
-                </Link>
-              );
-            })}
+        <header className="foleio-auth-topbar relative z-30">
+          <nav className="foleio-auth-topbar-nav" aria-label="Creator">
+            <div className="foleio-auth-topbar-nav-links">
+              {NAV.map((item) => {
+                const Icon = item.icon;
+                const active =
+                  item.href === '/dashboard'
+                    ? pathname === '/dashboard'
+                    : pathname === item.href ||
+                      pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    data-tour={item.tourId}
+                    className={active ? 'is-active' : undefined}
+                  >
+                    <Icon strokeWidth={1.5} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="foleio-auth-topbar-mobile-menu" ref={navMenuRef}>
+              <button
+                type="button"
+                className="foleio-auth-topbar-icon"
+                aria-label={navMenuOpen ? 'Close menu' : 'Open menu'}
+                aria-haspopup="menu"
+                aria-expanded={navMenuOpen}
+                onClick={() => setNavMenuOpen((open) => !open)}
+              >
+                {navMenuOpen ? (
+                  <X strokeWidth={1.5} />
+                ) : (
+                  <Menu strokeWidth={1.5} />
+                )}
+              </button>
+              {navMenuOpen ? (
+                <div className="foleio-auth-topbar-mobile-pop" role="menu">
+                  {NAV.map((item) => {
+                    const Icon = item.icon;
+                    const active =
+                      item.href === '/dashboard'
+                        ? pathname === '/dashboard'
+                        : pathname === item.href ||
+                          pathname.startsWith(`${item.href}/`);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        role="menuitem"
+                        data-tour={item.tourId}
+                        className={active ? 'is-active' : undefined}
+                        onClick={() => setNavMenuOpen(false)}
+                      >
+                        <Icon strokeWidth={1.5} />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </nav>
           <div className="foleio-auth-topbar-actions">
             <Link
@@ -1679,7 +1812,7 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
           </div>
         </header>
 
-        <main className="foleio-auth-main relative z-10 flex-1">
+        <main className="foleio-auth-main relative flex-1">
           <div className="foleio-auth-columns">
             <div className="foleio-auth-left">
               <BusinessCoverCard

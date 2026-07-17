@@ -21,13 +21,17 @@ export async function GET(
 
     const [products, deliveryTiers] = await Promise.all([
       prisma.product.findMany({
-        where: { creatorId: creator.id, status: 'active' },
+        where: {
+          creatorId: creator.id,
+          status: 'active',
+          stock: { gt: 0 },
+        },
         include: { variants: true },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ orderIndex: 'asc' }, { createdAt: 'desc' }],
       }),
       prisma.deliveryTier.findMany({
         where: { creatorId: creator.id },
-        orderBy: { flatRate: 'asc' },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
 

@@ -11,6 +11,11 @@ export const PAID_BOOKING_STATUSES = [
   'completed',
 ] as const;
 
+export const DEPOSIT_BOOKING_STATUSES = [
+  'deposit_paid',
+  'balance_overdue',
+] as const;
+
 const SUCCESS_TX_STATUSES = new Set([
   'SUCCESS',
   'COMPLETED',
@@ -72,11 +77,16 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
     prisma.booking.findMany({
       where: {
         creatorId,
-        status: { in: [...PAID_BOOKING_STATUSES] },
+        status: {
+          in: [...PAID_BOOKING_STATUSES, ...DEPOSIT_BOOKING_STATUSES],
+        },
       },
       select: {
         id: true,
+        status: true,
         totalAmount: true,
+        depositAmount: true,
+        amountPaid: true,
         paymentReference: true,
         createdAt: true,
       },
@@ -127,22 +137,34 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
 
   for (const booking of bookings) {
     seenBookingIds.add(booking.id);
-    const matchedTx =
-      txByBookingId.get(booking.id) ||
-      (booking.paymentReference
-        ? txByReference.get(booking.paymentReference)
-        : undefined);
+    const isDepositHold = (DEPOSIT_BOOKING_STATUSES as readonly string[]).includes(
+      booking.status
+    );
 
     let creatorEarnings: number;
-    if (
-      matchedTx &&
-      SUCCESS_TX_STATUSES.has(String(matchedTx.status || '')) &&
-      matchedTx.creatorEarnings != null
-    ) {
-      creatorEarnings = Number(matchedTx.creatorEarnings);
+    if (isDepositHold) {
+      const gross = Math.max(
+        0,
+        Number(booking.amountPaid || booking.depositAmount || 0)
+      );
+      creatorEarnings = creatorShareFromGross(gross, feePct).creatorEarnings;
     } else {
-      creatorEarnings = creatorShareFromGross(Number(booking.totalAmount), feePct)
-        .creatorEarnings;
+      const matchedTx =
+        txByBookingId.get(booking.id) ||
+        (booking.paymentReference
+          ? txByReference.get(booking.paymentReference)
+          : undefined);
+
+      if (
+        matchedTx &&
+        SUCCESS_TX_STATUSES.has(String(matchedTx.status || '')) &&
+        matchedTx.creatorEarnings != null
+      ) {
+        creatorEarnings = Number(matchedTx.creatorEarnings);
+      } else {
+        creatorEarnings = creatorShareFromGross(Number(booking.totalAmount), feePct)
+          .creatorEarnings;
+      }
     }
 
     addAmount(creatorEarnings, booking.createdAt);

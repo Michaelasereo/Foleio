@@ -7,8 +7,6 @@ import {
   ArrowLeft,
   Check,
   Loader2,
-  Mail,
-  Phone,
 } from 'lucide-react';
 import { completeService, processRefund, rejectRefund } from '@/lib/actions/booking';
 import {
@@ -189,16 +187,6 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                     )}
                   </span>
                 </div>
-                <div className="foleio-dash-booking-contacts">
-                  <span>
-                    <Mail className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    {booking.customerEmail}
-                  </span>
-                  <span>
-                    <Phone className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    {booking.customerPhone}
-                  </span>
-                </div>
                 {booking.notes ? (
                   <p className="foleio-dash-booking-notes">{booking.notes}</p>
                 ) : null}
@@ -229,6 +217,12 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                         booking.amountPaid ?? booking.depositAmount ?? 0
                       )}
                     </div>
+                    <span
+                      className="foleio-dash-badge is-muted"
+                      style={{ marginTop: 6, display: 'inline-flex' }}
+                    >
+                      Deposit paid
+                    </span>
                     <div
                       style={{
                         fontSize: 12,
@@ -237,7 +231,7 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                           booking.status === 'balance_overdue'
                             ? '#f87171'
                             : '#adadad',
-                        marginTop: 4,
+                        marginTop: 6,
                       }}
                     >
                       Balance {formatBookingPrice(booking.balanceAmount)}
@@ -247,7 +241,18 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                     </div>
                   </div>
                 ) : (
-                  formatBookingPrice(booking.totalAmount)
+                  <div style={{ textAlign: 'right' }}>
+                    <div>{formatBookingPrice(booking.totalAmount)}</div>
+                    {booking.paymentPlan === 'deposit' &&
+                    (booking.amountPaid ?? 0) > 0 ? (
+                      <span
+                        className="foleio-dash-badge is-muted"
+                        style={{ marginTop: 6, display: 'inline-flex' }}
+                      >
+                        Deposit paid
+                      </span>
+                    ) : null}
+                  </div>
                 )}
               </div>
             </div>

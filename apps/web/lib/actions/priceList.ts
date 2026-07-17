@@ -311,7 +311,7 @@ export async function reorderPriceListItems(itemIds: string[]) {
       )
     );
 
-    revalidatePath('/settings');
+    revalidatePriceListPaths(creator.username);
     return { success: true };
   } catch (error) {
     console.error('Error reordering price list items:', error);

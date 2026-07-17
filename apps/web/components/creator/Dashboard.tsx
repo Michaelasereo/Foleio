@@ -5,7 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   DollarSign,
-  TrendingUp,
+  Package,
 } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
@@ -59,7 +59,7 @@ export function CreatorDashboard({
       },
       {
         target: '[data-tour="analytics"]',
-        text: 'See how you’re performing — views, engagement, and growth.',
+        text: 'See how you’re performing — bookings, earnings, and product sales.',
         position: 'bottom',
       },
       {
@@ -142,10 +142,13 @@ export function CreatorDashboard({
       icon: CalendarClock,
     },
     {
-      title: 'Engagement Rate',
-      value: `${analytics?.engagementRate || '0.0'}%`,
-      change: analytics?.percentageChanges?.engagement || null,
-      icon: TrendingUp,
+      title: 'Total products sold',
+      value:
+        analytics?.shopSetup === true
+          ? Number(analytics?.productsSold || 0).toLocaleString()
+          : 'N/A',
+      change: null as string | null,
+      icon: Package,
     },
   ];
 

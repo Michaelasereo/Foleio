@@ -107,6 +107,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isSprintHiddenRoute) {
+      // Allow Paystack return URL for shop checkouts.
+      if (matchesPrefix(pathname, '/shop/order-success')) {
+        return supabaseResponse;
+      }
+
       // Public/marketplace/fan routes → home; creator-tool routes → dashboard when authed.
       const isPublicHide =
         matchesPrefix(pathname, '/fan') ||

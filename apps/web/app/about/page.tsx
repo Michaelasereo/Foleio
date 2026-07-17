@@ -34,7 +34,13 @@ export const dynamic = 'force-static';
 
 export default function AboutPage() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="foleio-about-root min-h-screen bg-white">
+      <style
+        dangerouslySetInnerHTML={{
+          __html:
+            'body:has(.foleio-about-root) .foleio-site-footer { display: none !important; }',
+        }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -441,30 +447,53 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <footer className="border-t border-stone-100 px-6 py-8">
+      <footer className="border-t border-white/10 bg-[#1a1816] px-6 py-8">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 md:flex-row">
           <a
             href="/"
-            className="text-xl font-bold text-[#F97316]"
-            style={{ fontFamily: 'Georgia, serif' }}
+            className="text-xl font-medium tracking-tight text-[#fafafa]"
+            style={{ fontFamily: 'var(--font-body), system-ui, sans-serif' }}
           >
-            foleio.
+            Foleio
           </a>
-          <div className="flex items-center gap-6 text-sm text-stone-500">
-            <a href="/about" className="transition-colors hover:text-stone-800">
+          <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 text-xs">
+            <a
+              href="/about"
+              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
+            >
               About
             </a>
-            <a href="/legal/privacy" className="transition-colors hover:text-stone-800">
+            <span aria-hidden="true" className="select-none px-1 text-white/25">
+              ·
+            </span>
+            <a
+              href="/legal/privacy"
+              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
+            >
               Privacy
             </a>
-            <a href="/legal/terms" className="transition-colors hover:text-stone-800">
+            <span aria-hidden="true" className="select-none px-1 text-white/25">
+              ·
+            </span>
+            <a
+              href="/legal/terms"
+              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
+            >
               Terms
             </a>
-            <a href="mailto:hello@foleio.com" className="transition-colors hover:text-stone-800">
+            <span aria-hidden="true" className="select-none px-1 text-white/25">
+              ·
+            </span>
+            <a
+              href="mailto:hello@foleio.com"
+              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
+            >
               Contact
             </a>
           </div>
-          <p className="text-sm text-stone-400">© {new Date().getFullYear()} Foleio. Lagos, Nigeria.</p>
+          <p className="text-xs text-white/30">
+            © {new Date().getFullYear()} Foleio. Lagos, Nigeria.
+          </p>
         </div>
       </footer>
     </main>

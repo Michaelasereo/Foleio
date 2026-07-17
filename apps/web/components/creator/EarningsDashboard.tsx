@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Building2,
+  AlertCircle,
+  CheckCircle2,
   Download,
   Loader2,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import { type BankAccount } from '@/components/creator/BankSetupForm';
 import { PayoutSetupFlow } from '@/components/creator/PayoutSetupFlow';
+import { EarningsLoadingSkeleton } from '@/components/creator/EarningsLoadingSkeleton';
 
 type EarningsPayload = {
   creator: {
@@ -45,6 +48,9 @@ type EarningsPayload = {
   }>;
   stats?: {
     totalEarnings: number;
+    fullPayments?: number;
+    deposits?: number;
+    outstanding?: number;
     settledToBank?: number;
     platformFeePercent?: number;
   };
@@ -71,6 +77,9 @@ const EMPTY_EARNINGS: EarningsPayload = {
   transactions: [],
   stats: {
     totalEarnings: 0,
+    fullPayments: 0,
+    deposits: 0,
+    outstanding: 0,
     settledToBank: 0,
   },
 };
@@ -79,6 +88,7 @@ function badgeTone(status: string) {
   const s = status.toUpperCase();
   if (s === 'PENDING') return 'is-info';
   if (s === 'PROCESSING') return 'is-info';
+  if (s === 'DEPOSIT_PAID' || s === 'BALANCE_OVERDUE') return 'is-info';
   if (
     s === 'SUCCESS' ||
     s === 'COMPLETED' ||
@@ -96,7 +106,8 @@ function badgeTone(status: string) {
 
 function streamLabel(type: string) {
   if (type === 'subscription') return 'Subscriptions';
-  if (type === 'booking') return 'Bookings';
+  if (type === 'booking') return 'Full payments';
+  if (type === 'deposit') return 'Deposits';
   if (type === 'one_time') return 'Content sales';
   return type.replace(/_/g, ' ');
 }
@@ -197,18 +208,7 @@ export function EarningsDashboard() {
   }, [data]);
 
   if (state === 'loading' && !data) {
-    return (
-      <div>
-        <h1 className="foleio-auth-title">Earnings</h1>
-        <p
-          className="foleio-dash-panel-meta"
-          style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-          Loading earnings…
-        </p>
-      </div>
-    );
+    return <EarningsLoadingSkeleton />;
   }
 
   if (state === 'error' && !data?.creator) {
@@ -234,7 +234,9 @@ export function EarningsDashboard() {
   const totalEarned = Number(
     earnings.stats?.totalEarnings ?? earnings.creator.totalEarned ?? 0
   );
-  const settledToBank = Number(earnings.stats?.settledToBank ?? totalEarned);
+  const fullPayments = Number(earnings.stats?.fullPayments ?? 0);
+  const deposits = Number(earnings.stats?.deposits ?? 0);
+  const outstanding = Number(earnings.stats?.outstanding ?? 0);
 
   async function handleExport() {
     setExporting(true);
@@ -257,14 +259,26 @@ export function EarningsDashboard() {
     {
       title: 'Total earnings',
       value: formatNaira(totalEarned / 100),
-      hint: 'Your share after platform fee',
+      hint: 'Full payments + deposits after fees',
       icon: TrendingUp,
     },
     {
-      title: 'Settled to bank',
-      value: formatNaira(settledToBank / 100),
-      hint: 'Paid via Paystack split',
-      icon: Building2,
+      title: 'Full payments',
+      value: formatNaira(fullPayments / 100),
+      hint: 'Fully paid bookings',
+      icon: CheckCircle2,
+    },
+    {
+      title: 'Deposits',
+      value: formatNaira(deposits / 100),
+      hint: 'Paid now · balance still due',
+      icon: Wallet,
+    },
+    {
+      title: 'Outstanding',
+      value: formatNaira(outstanding / 100),
+      hint: 'Balances clients still owe',
+      icon: AlertCircle,
     },
   ];
 
@@ -283,7 +297,7 @@ export function EarningsDashboard() {
         <div>
           <h1 className="foleio-auth-title">Earnings</h1>
           <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-            Booking payments settle to your bank via Paystack.
+            Full payments and deposits, your share after platform fee.
           </p>
         </div>
       </div>
@@ -302,7 +316,10 @@ export function EarningsDashboard() {
         </p>
       ) : null}
 
-      <div className="foleio-dash-stats">
+      <div
+        className="foleio-dash-stats"
+        style={{ gridTemplateColumns: '1fr 1fr' }}
+      >
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

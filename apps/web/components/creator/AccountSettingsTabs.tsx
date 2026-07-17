@@ -9,6 +9,7 @@ import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 import { PortfolioGallerySettings } from '@/components/creator/PortfolioGallerySettings';
 import { BillingPage } from '@/components/creator/BillingPage';
 import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
+import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
 import { BIO_MAX_WORDS, countBioWords, trimBioToMaxWords } from '@/lib/creator/bio';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { parseSocialUrl } from '@/lib/creator/social-urls';
@@ -16,7 +17,7 @@ import { parseSocialUrl } from '@/lib/creator/social-urls';
 type SettingsTab =
   | 'profile'
   | 'notifications'
-  | 'security'
+  | 'policy'
   | 'portfolio'
   | 'billing'
   | 'support';
@@ -26,7 +27,7 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'portfolio', label: 'Portfolio' },
   { id: 'billing', label: 'Billing' },
   { id: 'notifications', label: 'Notifications' },
-  { id: 'security', label: 'Security' },
+  { id: 'policy', label: 'Deposits & policy' },
   { id: 'support', label: 'Chat with us' },
 ];
 
@@ -106,7 +107,7 @@ export function AccountSettingsTabs({
     if (
       tab === 'profile' ||
       tab === 'notifications' ||
-      tab === 'security' ||
+      tab === 'policy' ||
       tab === 'portfolio' ||
       tab === 'billing' ||
       tab === 'support'
@@ -691,14 +692,7 @@ export function AccountSettingsTabs({
         </div>
       ) : null}
 
-      {activeTab === 'security' ? (
-        <div className="foleio-dash-panel" style={{ maxWidth: 560 }}>
-          <h2 className="foleio-dash-panel-title">Security</h2>
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
-            Password and account security controls will appear here.
-          </p>
-        </div>
-      ) : null}
+      {activeTab === 'policy' ? <BookingPolicySettings /> : null}
 
       {activeTab === 'support' ? (
         <SupportChatSettings

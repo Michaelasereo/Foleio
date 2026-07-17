@@ -131,19 +131,32 @@ export async function getCreatorAnalytics(creatorId: string) {
       prevMonthContentStats._sum.viewCount || 0
     );
 
-    // Calculate engagement rate (simplified: views per subscriber)
-    const currentEngagement = subscriptionStats._count.id > 0
-      ? ((currentMonthContentStats._sum.viewCount || 0) / subscriptionStats._count.id) * 100
-      : 0;
-    
-    const prevEngagement = subscriptionStats._count.id > 0
-      ? ((prevMonthContentStats._sum.viewCount || 0) / subscriptionStats._count.id) * 100
-      : 0;
+    let shopSetup = false;
+    let productsSold: number | null = null;
+    try {
+      const productCount = await prisma.product.count({
+        where: { creatorId },
+      });
+      shopSetup = productCount > 0;
 
-    const engagementChange = calculatePercentageChange(currentEngagement, prevEngagement);
-    const engagementRate = subscriptionStats._count.id > 0
-      ? ((contentStats._sum.viewCount || 0) / subscriptionStats._count.id) * 100
-      : 0;
+      if (shopSetup) {
+        const paidOrderStatuses = ['confirmed', 'processing', 'delivered', 'in_progress', 'shipped'];
+        const soldAgg = await prisma.orderItem.aggregate({
+          where: {
+            order: {
+              creatorId,
+              status: { in: paidOrderStatuses },
+            },
+          },
+          _sum: { quantity: true },
+        });
+        productsSold = soldAgg._sum.quantity || 0;
+      }
+    } catch (shopError) {
+      console.warn('[analytics] products sold lookup failed:', shopError);
+      shopSetup = false;
+      productsSold = null;
+    }
 
     const result = {
       totalViews: contentStats._sum.viewCount || 0,
@@ -155,9 +168,9 @@ export async function getCreatorAnalytics(creatorId: string) {
         earnings: earningsChange,
         subscribers: subscribersChange,
         views: viewsChange,
-        engagement: engagementChange,
       },
-      engagementRate: engagementRate.toFixed(1),
+      shopSetup,
+      productsSold,
     };
 
     // Serialize all Prisma special types

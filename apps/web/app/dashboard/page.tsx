@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { CreatorDashboard } from '@/components/creator/Dashboard';
-import { getCreatorAnalytics } from '@/lib/actions/analytics';
+import { sumCreatorEarnings } from '@/lib/creator/earnings';
+import { getCreatorForUser, getCurrentUser } from '@/lib/creator/cached-lookups';
 
 export const revalidate = 0;
 
@@ -34,6 +34,47 @@ function monthBounds(date = new Date()) {
   return { start, end };
 }
 
+async function getLeanDashboardAnalytics(creatorId: string) {
+  const paidOrderStatuses = ['confirmed', 'processing', 'delivered', 'in_progress', 'shipped'];
+
+  const [earnings, productCount, soldAgg] = await Promise.all([
+    sumCreatorEarnings(creatorId).catch(() => ({
+      totalEarnings: 0,
+      currentMonth: 0,
+      prevMonth: 0,
+    })),
+    prisma.product.count({ where: { creatorId } }).catch(() => 0),
+    prisma.orderItem
+      .aggregate({
+        where: {
+          order: {
+            creatorId,
+            status: { in: paidOrderStatuses },
+          },
+        },
+        _sum: { quantity: true },
+      })
+      .catch(() => ({ _sum: { quantity: null as number | null } })),
+  ]);
+
+  const shopSetup = productCount > 0;
+
+  return {
+    totalViews: 0,
+    contentCount: 0,
+    subscriberCount: 0,
+    totalRevenue: earnings.totalEarnings,
+    recentTransactions: [],
+    percentageChanges: {
+      earnings: null as string | null,
+      subscribers: null as string | null,
+      views: null as string | null,
+    },
+    shopSetup,
+    productsSold: shopSetup ? soldAgg._sum.quantity || 0 : null,
+  };
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -42,10 +83,7 @@ export default async function DashboardPage({
   const params = (await searchParams) || {};
   const isPreview = params.preview === '1';
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user && !isPreview) {
     redirect('/login');
@@ -66,27 +104,7 @@ export default async function DashboardPage({
 
   if (user) {
     try {
-      const dbCreator = await withTimeout(
-        prisma.creator.findUnique({
-          where: { userId: user.id },
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            category: true,
-            platformPlan: true,
-            currentBalance: true,
-            hasSeenWelcome: true,
-            hasCompletedTour: true,
-            _count: {
-              select: {
-                content: { where: { isPublished: true } },
-              },
-            },
-          },
-        }),
-        12000
-      );
+      const dbCreator = await getCreatorForUser(user.id);
 
       if (dbCreator) {
         creator = {
@@ -96,7 +114,7 @@ export default async function DashboardPage({
           category: dbCreator.category,
           platformPlan: dbCreator.platformPlan,
           currentBalance: Number(dbCreator.currentBalance ?? 0),
-          contentCount: dbCreator._count.content,
+          contentCount: dbCreator.contentCount || 0,
           hasSeenWelcome: dbCreator.hasSeenWelcome,
           hasCompletedTour: dbCreator.hasCompletedTour,
           email: user.email || undefined,
@@ -150,12 +168,12 @@ export default async function DashboardPage({
       earnings: null as string | null,
       subscribers: null as string | null,
       views: null as string | null,
-      engagement: null as string | null,
     },
-    engagementRate: '0.0',
+    shopSetup: false,
+    productsSold: null as number | null,
   };
 
-  let analyticsResult = null;
+  let analyticsResult = emptyAnalytics;
   let totalBookingsResult = 0;
   let upcomingCountResult = 0;
   let upcomingBookingsResult: Array<{
@@ -168,55 +186,52 @@ export default async function DashboardPage({
   }> = [];
 
   if (creator.id !== 'preview') {
-    // Sequential queries — safer with pooled Supabase connections than Promise.all fan-out.
-    analyticsResult = await withTimeout(getCreatorAnalytics(creator.id), 12000).catch(
-      () => null
-    );
-
-    const upcomingBookings = await withTimeout(
-      prisma.booking.findMany({
-        where: {
-          creatorId: creator.id,
-          bookingDate: { gte: today, lte: monthEnd },
-          status: { notIn: ['cancelled', 'canceled', 'refunded'] },
-        },
-        orderBy: { bookingDate: 'asc' },
-        take: 2,
-        select: {
-          id: true,
-          customerName: true,
-          bookingDate: true,
-          totalAmount: true,
-          status: true,
-          priceListItem: {
-            select: { name: true },
+    const [analytics, upcomingBookings, totalBookings] = await Promise.all([
+      withTimeout(getLeanDashboardAnalytics(creator.id), 8000).catch(() => emptyAnalytics),
+      withTimeout(
+        prisma.booking.findMany({
+          where: {
+            creatorId: creator.id,
+            bookingDate: { gte: today, lte: monthEnd },
+            status: { notIn: ['cancelled', 'canceled', 'refunded'] },
           },
-        },
-      }),
-      5000
-    ).catch(() => []);
+          orderBy: { bookingDate: 'asc' },
+          take: 2,
+          select: {
+            id: true,
+            customerName: true,
+            bookingDate: true,
+            totalAmount: true,
+            status: true,
+            priceListItem: {
+              select: { name: true },
+            },
+          },
+        }),
+        5000
+      ).catch(() => []),
+      withTimeout(
+        prisma.booking.count({
+          where: {
+            creatorId: creator.id,
+            status: { in: activeBookingStatuses },
+          },
+        }),
+        5000
+      ).catch(() => 0),
+    ]);
 
+    analyticsResult = analytics;
     upcomingBookingsResult = upcomingBookings || [];
     upcomingCountResult = upcomingBookingsResult.length;
-
-    totalBookingsResult = await withTimeout(
-      prisma.booking.count({
-        where: {
-          creatorId: creator.id,
-          status: { in: activeBookingStatuses },
-        },
-      }),
-      5000
-    ).catch(() => 0);
+    totalBookingsResult = totalBookings || 0;
   }
-
-  const analytics = analyticsResult || emptyAnalytics;
 
   return (
     <CreatorDashboard
       creator={creator}
       profileIncomplete={false}
-      analytics={analytics}
+      analytics={analyticsResult}
       bookingStats={{
         totalBookings: totalBookingsResult || 0,
         upcomingBookings: upcomingCountResult || 0,

@@ -11,6 +11,12 @@ function toKobo(value: unknown) {
   return Math.round(parsed * 100);
 }
 
+function parseTierType(raw: unknown): 'paid' | 'free' | 'pickup' {
+  const value = String(raw || 'paid').toLowerCase();
+  if (value === 'free' || value === 'pickup') return value;
+  return 'paid';
+}
+
 async function getCreatorId() {
   const supabase = await createRouteHandlerClient();
   const {
@@ -42,17 +48,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
 
     if (!existing) {
-      return NextResponse.json({ error: 'Delivery tier not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Delivery option not found' }, { status: 404 });
     }
 
     const body = await request.json();
     const name = String(body?.name || '').trim();
     const description = body?.description ? String(body.description) : null;
-    const estimatedDays = body?.estimatedDays ? String(body.estimatedDays) : null;
-    const flatRate = toKobo(body?.flatRate);
+    const type = parseTierType(body?.type);
+    const flatRate = type === 'paid' ? toKobo(body?.flatRate) : 0;
 
     if (!name) {
-      return NextResponse.json({ error: 'Tier name is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Option name is required' }, { status: 400 });
     }
 
     const deliveryTier = await prisma.deliveryTier.update({
@@ -60,7 +66,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data: {
         name,
         description,
-        estimatedDays,
+        type,
+        estimatedDays: null,
         flatRate,
       },
     });
@@ -86,7 +93,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     });
 
     if (!existing) {
-      return NextResponse.json({ error: 'Delivery tier not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Delivery option not found' }, { status: 404 });
     }
 
     await prisma.deliveryTier.delete({ where: { id } });

@@ -373,6 +373,7 @@ export async function updateAvailabilityMaxBookings(date: Date, _maxBookings: nu
 
     revalidatePath('/settings');
     revalidatePath('/bookings');
+    revalidatePath(`/creator/${creator.username}`);
     return { success: true, data: availability };
   } catch (error) {
     console.error('Error updating max bookings:', error);

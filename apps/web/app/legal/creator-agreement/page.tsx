@@ -7,18 +7,13 @@ export const metadata = {
 export default function CreatorAgreementPage() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="font-display text-4xl font-bold text-foreground mb-2">
+      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
         Creator Agreement
       </h1>
       <p className="text-muted-foreground text-sm mb-10">
         Effective Date: March 2026 · Last Updated: March 2026
       </p>
       <div className="legal-content">
-        <div className="draft-notice">
-          ⚠️ DRAFT - This document has not yet been reviewed by a lawyer. It is
-          not yet legally binding. Do not publish until reviewed.
-        </div>
-
         <p>
           This Creator Agreement (&quot;Agreement&quot;) is entered into between
           you (&quot;Creator&quot;) and Foleio (&quot;Platform,&quot; &quot;we,&quot;

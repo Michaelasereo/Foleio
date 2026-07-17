@@ -95,9 +95,9 @@
 }
 
 .legal-content h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-body), system-ui, sans-serif;
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 500;
   margin-top: 2rem;
   margin-bottom: 0.5rem;
   color: hsl(var(--foreground));
@@ -118,17 +118,6 @@
   margin-bottom: 0.4rem;
   line-height: 1.8;
   list-style-type: disc;
-}
-
-.legal-content .draft-notice {
-  background: #fef2f2;
-  border: 1px solid #fca5a5;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 2rem;
-  color: #dc2626;
-  font-size: 0.875rem;
-  font-weight: 600;
 }
 
 .chat-bubble-btn {
