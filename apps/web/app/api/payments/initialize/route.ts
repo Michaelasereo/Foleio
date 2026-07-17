@@ -4,6 +4,7 @@ import { paystack } from '@/lib/paystack';
 import { prisma } from '@foleio/database';
 import { withRateLimit, rateLimiters } from '@/lib/rate-limit/rate-limiter';
 import { z } from 'zod';
+import { paystackTransactionChargeKobo } from '@/lib/billing/platform-fee';
 
 const paymentSchema = z.object({
   email: z.string().email(),
@@ -59,9 +60,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize Paystack payment
+    const amountKobo = validatedData.amount * 100;
+    const transactionCharge = creator.paystackSubaccountCode
+      ? paystackTransactionChargeKobo(amountKobo, creator)
+      : undefined;
     const paymentData = await paystack.initializePayment({
       email: validatedData.email,
-      amount: validatedData.amount * 100, // Convert to kobo
+      amount: amountKobo,
       metadata: {
         creator_id: validatedData.creatorId,
         plan_id: validatedData.planId,
@@ -69,8 +74,12 @@ export async function POST(request: NextRequest) {
         type: validatedData.type,
         phone: validatedData.phone, // Store phone in metadata
         subscriber_email: validatedData.email,
+        ...(transactionCharge
+          ? { platformFeeType: 'flat', platformFeeKobo: transactionCharge }
+          : {}),
       },
       subaccount: creator.paystackSubaccountCode || undefined,
+      transaction_charge: transactionCharge,
       callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'}/payment/callback`,
     });
 

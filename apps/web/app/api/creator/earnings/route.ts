@@ -3,7 +3,7 @@ import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { serializePrismaObject } from '@/lib/utils/serialization';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
-import { feePercentForCreator } from '@/lib/billing/platform-fee';
+import { feePercentForCreator, platformFeeFromGross } from '@/lib/billing/platform-fee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,11 +27,10 @@ const PAID_BOOKING_STATUSES = [
 const DEPOSIT_BOOKING_STATUSES = ['deposit_paid', 'balance_overdue'];
 
 function creatorShareFromGross(grossKobo: number, feePct: number) {
-  const amount = Number(grossKobo) || 0;
-  const platformFee = Math.round(amount * (feePct / 100));
+  const split = platformFeeFromGross(grossKobo, feePct);
   return {
-    platformFee,
-    creatorEarnings: Math.max(0, amount - platformFee),
+    platformFee: split.platformFee,
+    creatorEarnings: split.creatorEarnings,
   };
 }
 

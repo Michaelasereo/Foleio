@@ -45,7 +45,7 @@ const PLAN_COPY: Record<
     cta: 'Current plan',
     features: [
       'Full access to bookings, services, and tools',
-      '5% Foleio fee per booking',
+      '5% Foleio fee per booking (₦300 flat under ₦5,000)',
       'Paystack processing fees still apply',
     ],
   },
@@ -263,7 +263,7 @@ export function BillingPage({
             ? cancelAtPeriodEnd
               ? `Pro — cancels on ${formatDate(periodEnd)}. After that, Free (5% fee).`
               : `Pro — 0% Foleio booking fee. Renews around ${formatDate(periodEnd)}.`
-            : 'Free — full access with a 5% Foleio fee per booking.'}
+            : 'Free — full access with a 5% Foleio fee per booking (₦300 flat under ₦5,000).'}
         </p>
         <p className="foleio-dash-panel-meta" style={{ marginTop: 8, textTransform: 'capitalize' }}>
           Status: {currentStatus.replace(/_/g, ' ')}

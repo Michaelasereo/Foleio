@@ -11,6 +11,7 @@ import {
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
+import { paystackTransactionChargeKobo } from '@/lib/billing/platform-fee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -277,17 +278,22 @@ export async function POST(request: Request) {
 
     let paymentData;
     try {
+      const transactionCharge = paystackTransactionChargeKobo(total, creator);
       paymentData = await paystack.initializePayment({
         email,
         amount: total,
         channels: ['card', 'bank', 'ussd'],
         subaccount: subaccountCode,
+        transaction_charge: transactionCharge,
         metadata: {
           type: 'shop_order',
           orderId: order.id,
           creatorId,
           fanId,
           paymentType: 'DIRECT_SUBACCOUNT',
+          ...(transactionCharge
+            ? { platformFeeType: 'flat', platformFeeKobo: transactionCharge }
+            : {}),
         },
         callback_url: `${
           process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com'

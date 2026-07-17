@@ -15,6 +15,8 @@ interface InitializePaymentParams {
   metadata?: Record<string, unknown>;
   channels?: string[];
   subaccount?: string;
+  /** Flat fee (kobo) to main account; overrides subaccount percentage_charge */
+  transaction_charge?: number;
   callback_url?: string;
   plan?: string;
 }
@@ -82,6 +84,10 @@ export const paystack = {
           metadata: params.metadata,
           channels: params.channels || ['card', 'bank', 'ussd'],
           subaccount: params.subaccount,
+          ...(typeof params.transaction_charge === 'number' &&
+          params.transaction_charge > 0
+            ? { transaction_charge: params.transaction_charge }
+            : {}),
           callback_url: params.callback_url,
         }),
       });

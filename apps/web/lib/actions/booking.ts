@@ -11,7 +11,7 @@ import {
   resolveSelectedAddons,
 } from '@/lib/booking/deposit';
 import { computePolicyRefundKobo } from '@/lib/booking/cancellation-policy';
-import { feePercentForCreator } from '@/lib/billing/platform-fee';
+import { feePercentForCreator, platformFeeFromGross } from '@/lib/billing/platform-fee';
 import { dayBookingCapacity } from '@/lib/booking/day-capacity';
 import { isSlotOpen, isValidHHmm } from '@/lib/booking/slots';
 
@@ -454,8 +454,10 @@ export async function recordBookingPaymentTransaction(opts: {
     }
 
     const feePct = feePercentForCreator(booking.creator);
-    const platformFee = Math.round(amount * (feePct / 100));
-    const creatorEarnings = Math.max(0, amount - platformFee);
+    const { platformFee, creatorEarnings, feeType } = platformFeeFromGross(
+      amount,
+      booking.creator
+    );
 
     const metadata = {
       type: 'booking',
@@ -463,6 +465,7 @@ export async function recordBookingPaymentTransaction(opts: {
       service: booking.priceListItem?.name || 'Booking',
       paymentType,
       platformFeePercent: feePct,
+      platformFeeType: feeType,
     };
 
     const transaction = await prisma.transaction.upsert({

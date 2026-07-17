@@ -2,6 +2,7 @@ import { prisma } from '@foleio/database';
 import {
   defaultPlatformFeePercent,
   feePercentForCreator,
+  platformFeeFromGross,
 } from '@/lib/billing/platform-fee';
 
 export const PAID_BOOKING_STATUSES = [
@@ -34,11 +35,10 @@ export function creatorShareFromGross(
   grossKobo: number,
   feePct = defaultPlatformFeePercent()
 ) {
-  const amount = Number(grossKobo) || 0;
-  const platformFee = Math.round(amount * (feePct / 100));
+  const split = platformFeeFromGross(grossKobo, feePct);
   return {
-    platformFee,
-    creatorEarnings: Math.max(0, amount - platformFee),
+    platformFee: split.platformFee,
+    creatorEarnings: split.creatorEarnings,
   };
 }
 
