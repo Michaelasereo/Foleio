@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 import { type CreatorHealthRow, type CreatorHealthStatus } from '@/lib/admin/creator-health';
 import {
   adminMutedClass,
@@ -62,34 +63,61 @@ function filterCreators(creators: CreatorHealthRow[], filter: Filter) {
   return creators.filter((creator) => creator.healthStatus === filter);
 }
 
+function isLikelyE2e(creator: CreatorHealthRow): boolean {
+  const username = creator.username.toLowerCase();
+  const email = creator.email.toLowerCase();
+  return (
+    username.startsWith('e2e') ||
+    email.includes('+e2e') ||
+    email.startsWith('e2e') ||
+    /e2e\d/.test(username)
+  );
+}
+
 export default function AdminCreatorsPage() {
+  const { toast } = useToast();
   const [activeFilter, setActiveFilter] = useState<Filter>('all');
   const [creators, setCreators] = useState<CreatorHealthRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [e2eCount, setE2eCount] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingE2e, setDeletingE2e] = useState(false);
 
-  useEffect(() => {
+  const loadCreators = useCallback(async () => {
     type CreatorHealthApiRow = Omit<CreatorHealthRow, 'createdAt' | 'lastContentDate'> & {
       createdAt: string;
       lastContentDate: string | null;
     };
 
-    async function load() {
-      const response = await fetch('/api/admin/creators', { cache: 'no-store' });
-      if (!response.ok) {
-        setLoading(false);
-        return;
-      }
-      const data = (await response.json()) as { creators: CreatorHealthApiRow[] };
-      const normalizedCreators: CreatorHealthRow[] = data.creators.map((creator) => ({
-        ...creator,
-        createdAt: new Date(creator.createdAt),
-        lastContentDate: creator.lastContentDate ? new Date(creator.lastContentDate) : null,
-      }));
-      setCreators(normalizedCreators);
-      setLoading(false);
+    const [creatorsRes, e2eRes] = await Promise.all([
+      fetch('/api/admin/creators', { cache: 'no-store' }),
+      fetch('/api/admin/creators/delete-e2e', { cache: 'no-store' }),
+    ]);
+
+    if (creatorsRes.ok) {
+      const data = (await creatorsRes.json()) as { creators: CreatorHealthApiRow[] };
+      setCreators(
+        data.creators.map((creator) => ({
+          ...creator,
+          createdAt: new Date(creator.createdAt),
+          lastContentDate: creator.lastContentDate
+            ? new Date(creator.lastContentDate)
+            : null,
+        }))
+      );
     }
-    void load();
+
+    if (e2eRes.ok) {
+      const data = (await e2eRes.json()) as { count: number };
+      setE2eCount(Number(data.count || 0));
+    }
+
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    void loadCreators();
+  }, [loadCreators]);
 
   const filtered = useMemo(() => filterCreators(creators, activeFilter), [creators, activeFilter]);
 
@@ -100,13 +128,124 @@ export default function AdminCreatorsPage() {
   ).length;
   const needsBank = creators.filter((c) => !c.paymentsReady).length;
 
+  async function handleDeleteCreator(creator: CreatorHealthRow) {
+    const typed = window.prompt(
+      `Permanently delete @${creator.username} and all related data?\n\nType the username to confirm:`
+    );
+    if (!typed) return;
+    if (typed.trim().toLowerCase() !== creator.username.toLowerCase()) {
+      toast({
+        title: 'Username did not match',
+        description: 'Deletion cancelled.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDeletingId(creator.id);
+    try {
+      const response = await fetch(`/api/admin/creators/${creator.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmUsername: creator.username }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast({
+          title: 'Could not delete creator',
+          description: data.error || 'Try again',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({
+        title: `Deleted @${creator.username}`,
+        description: data.deleted?.authDeleted
+          ? 'Database and auth user removed.'
+          : 'Database removed; auth cleanup may have failed.',
+      });
+      await loadCreators();
+    } catch {
+      toast({
+        title: 'Could not delete creator',
+        description: 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleDeleteE2e() {
+    if (e2eCount === 0) {
+      toast({ title: 'No e2e accounts found' });
+      return;
+    }
+    const typed = window.prompt(
+      `Delete ${e2eCount} e2e creator account${e2eCount === 1 ? '' : 's'}?\n\nType DELETE_E2E to confirm:`
+    );
+    if (typed !== 'DELETE_E2E') {
+      toast({ title: 'Cancelled', description: 'Confirmation phrase did not match.' });
+      return;
+    }
+
+    setDeletingE2e(true);
+    try {
+      const response = await fetch('/api/admin/creators/delete-e2e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DELETE_E2E' }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast({
+          title: 'Could not delete e2e accounts',
+          description: data.error || 'Try again',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({
+        title: `Deleted ${data.deletedCount || 0} e2e account${
+          (data.deletedCount || 0) === 1 ? '' : 's'
+        }`,
+        description:
+          data.failedCount > 0 ? `${data.failedCount} failed` : 'Analytics should be cleaner now.',
+      });
+      await loadCreators();
+    } catch {
+      toast({
+        title: 'Could not delete e2e accounts',
+        description: 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingE2e(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="foleio-admin-title">Creators</h1>
-        <p className={`foleio-admin-meta ${adminMutedClass}`}>
-          KYC, bank, subaccount, and Pro fee readiness
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="foleio-admin-title">Creators</h1>
+          <p className={`foleio-admin-meta ${adminMutedClass}`}>
+            KYC, bank, subaccount, and Pro fee readiness
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10 hover:text-red-200"
+          disabled={deletingE2e || loading || e2eCount === 0}
+          onClick={() => void handleDeleteE2e()}
+        >
+          {deletingE2e
+            ? 'Deleting e2e…'
+            : e2eCount > 0
+              ? `Delete e2e accounts (${e2eCount})`
+              : 'No e2e accounts'}
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -178,10 +317,21 @@ export default function AdminCreatorsPage() {
                     <td className={adminTableCellClass}>
                       <p className="font-medium">{creator.displayName}</p>
                       <p className={`text-xs ${adminMutedClass}`}>@{creator.username}</p>
-                      <p className={`text-[10px] ${adminMutedClass}`}>{relativeDate(creator.createdAt)}</p>
+                      <p className={`text-[10px] ${adminMutedClass}`}>
+                        {relativeDate(creator.createdAt)}
+                      </p>
+                      {isLikelyE2e(creator) ? (
+                        <Badge className="mt-1 border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                          e2e
+                        </Badge>
+                      ) : null}
                     </td>
                     <td className={adminTableCellClass}>
-                      <Badge className={`border ${statusBadgeClass(creator.bvnVerified ? 'active' : 'pending')}`}>
+                      <Badge
+                        className={`border ${statusBadgeClass(
+                          creator.bvnVerified ? 'active' : 'pending'
+                        )}`}
+                      >
                         {creator.bvnVerified ? 'Verified' : 'Pending'}
                       </Badge>
                     </td>
@@ -198,7 +348,9 @@ export default function AdminCreatorsPage() {
                     </td>
                     <td className={adminTableCellClass}>
                       <Badge
-                        className={`border ${statusBadgeClass(creator.paymentsReady ? 'active' : 'pending')}`}
+                        className={`border ${statusBadgeClass(
+                          creator.paymentsReady ? 'active' : 'pending'
+                        )}`}
                       >
                         {creator.paymentsReady ? 'Ready' : 'Blocked'}
                       </Badge>
@@ -208,7 +360,9 @@ export default function AdminCreatorsPage() {
                       <p className={`text-xs ${adminMutedClass}`}>{creator.feePercent}% fee</p>
                     </td>
                     <td className={adminTableCellClass}>{creator.completedBookings}</td>
-                    <td className={adminTableCellClass}>{formatMoneyFromKobo(creator.totalEarned)}</td>
+                    <td className={adminTableCellClass}>
+                      {formatMoneyFromKobo(creator.totalEarned)}
+                    </td>
                     <td className={adminTableCellClass}>
                       <div className="flex items-center gap-2">
                         <span className="text-xs">{creator.healthScore}</span>
@@ -217,13 +371,31 @@ export default function AdminCreatorsPage() {
                     </td>
                     <td className={adminTableCellClass}>
                       <div className="flex flex-col gap-1">
-                        <Button asChild size="sm" variant="outline" className="border-white/10 bg-transparent">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="border-white/10 bg-transparent"
+                        >
                           <a href={`mailto:${creator.email}`}>Email</a>
                         </Button>
-                        <Button asChild size="sm" className="bg-white/10 text-[#f4f4f5] hover:bg-white/15">
+                        <Button
+                          asChild
+                          size="sm"
+                          className="bg-white/10 text-[#f4f4f5] hover:bg-white/15"
+                        >
                           <Link href={`/creator/${creator.username}`} target="_blank">
                             Profile
                           </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                          disabled={deletingId === creator.id || deletingE2e}
+                          onClick={() => void handleDeleteCreator(creator)}
+                        >
+                          {deletingId === creator.id ? 'Deleting…' : 'Delete'}
                         </Button>
                       </div>
                     </td>

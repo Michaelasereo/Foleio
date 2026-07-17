@@ -303,7 +303,8 @@ export function UnifiedBookingsManager({
         ? disputedBookings
         : completedBookings;
 
-  const previewList = listForTab.slice(0, 5);
+  const previewLimit = statusTab === 'upcoming' ? 2 : 5;
+  const previewList = listForTab.slice(0, previewLimit);
 
   return (
     <div>

@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   ShoppingBag,
+  TrendingUp,
   Users,
   X,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ import foleioLogo from '../../../../foleio-logo.png';
 
 const navItems = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/revenue', label: 'Revenue', icon: TrendingUp },
   { href: '/admin/creators', label: 'Creators', icon: Users },
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },

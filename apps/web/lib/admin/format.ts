@@ -42,8 +42,11 @@ export function statusBadgeClass(status?: string | null): string {
 
 export function transactionTypeBadgeClass(type?: string | null): string {
   const normalized = String(type || '').toLowerCase();
-  if (normalized === 'subscription') return 'bg-sky-500/15 text-sky-300 border-[#201e1c]';
+  if (normalized === 'subscription' || normalized === 'platform_subscription') {
+    return 'bg-sky-500/15 text-sky-300 border-[#201e1c]';
+  }
   if (normalized === 'booking') return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
+  if (normalized === 'shop_order') return 'bg-teal-500/15 text-teal-300 border-[#201e1c]';
   if (normalized === 'one_time') return 'bg-emerald-500/15 text-emerald-300 border-[#201e1c]';
   if (normalized === 'payout') return 'bg-violet-500/15 text-violet-300 border-[#201e1c]';
   if (normalized === 'refund') return 'bg-red-500/15 text-red-300 border-[#201e1c]';
