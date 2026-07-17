@@ -14,6 +14,7 @@ import {
   Menu,
   Settings,
   Shield,
+  ShoppingBag,
   Users,
   X,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/creators', label: 'Creators', icon: Users },
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { href: '/admin/billing', label: 'Billing', icon: Crown },
   { href: '/admin/payouts', label: 'Payouts', icon: Banknote },
   { href: '/admin/access', label: 'Access', icon: Shield },

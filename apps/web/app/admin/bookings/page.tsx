@@ -57,6 +57,47 @@ function tabLabel(tab: (typeof tabs)[number]) {
 export default function AdminBookingsPage() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('all');
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendNotice, setResendNotice] = useState<{
+    id: string;
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
+  async function resendEmail(booking: Booking) {
+    if (resendingId) return;
+    setResendingId(booking.id);
+    setResendNotice(null);
+    try {
+      const response = await fetch('/api/admin/emails/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'booking', id: booking.id }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setResendNotice({
+          id: booking.id,
+          ok: false,
+          message: data?.error || 'Failed to resend email',
+        });
+      } else {
+        setResendNotice({
+          id: booking.id,
+          ok: true,
+          message: `Sent to ${data?.sentTo || booking.customerEmail || 'customer'}`,
+        });
+      }
+    } catch {
+      setResendNotice({
+        id: booking.id,
+        ok: false,
+        message: 'Failed to resend email',
+      });
+    } finally {
+      setResendingId(null);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -153,15 +194,33 @@ export default function AdminBookingsPage() {
                     {booking.trackingToken || '—'}
                   </td>
                   <td className={adminTableCellClass}>
-                    {booking.trackingToken ? (
-                      <Button asChild size="sm" variant="outline" className="border-white/10 bg-transparent">
-                        <Link href={`/tracking/${booking.trackingToken}`} target="_blank">
-                          View
-                        </Link>
-                      </Button>
-                    ) : (
-                      '—'
-                    )}
+                    <div className="flex items-center gap-2">
+                      {booking.trackingToken ? (
+                        <Button asChild size="sm" variant="outline" className="border-white/10 bg-transparent">
+                          <Link href={`/tracking/${booking.trackingToken}`} target="_blank">
+                            View
+                          </Link>
+                        </Button>
+                      ) : null}
+                      {booking.status !== 'pending' && booking.customerEmail ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-white/10 bg-transparent"
+                          disabled={resendingId === booking.id}
+                          onClick={() => void resendEmail(booking)}
+                        >
+                          {resendingId === booking.id ? 'Sending…' : 'Resend email'}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {resendNotice?.id === booking.id ? (
+                      <p
+                        className={`mt-1 text-xs ${resendNotice.ok ? 'text-emerald-400' : 'text-red-400'}`}
+                      >
+                        {resendNotice.message}
+                      </p>
+                    ) : null}
                   </td>
                 </tr>
               ))}
