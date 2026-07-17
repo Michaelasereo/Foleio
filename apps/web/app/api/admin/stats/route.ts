@@ -57,9 +57,11 @@ export async function GET(request: Request) {
       _count: { _all: true },
     }),
     (async () => {
-      const waitlistModel = (prisma as any).waitlistEntry;
-      if (!waitlistModel) return 0;
-      return waitlistModel.count({ where: { status: 'pending' } });
+      try {
+        return await prisma.waitlistEntry.count({ where: { status: 'pending' } });
+      } catch {
+        return 0;
+      }
     })(),
     prisma.platformSubscription.aggregate({
       where: { status: { in: ['active', 'trialing'] } },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   Calendar,
@@ -144,6 +145,7 @@ export default function AdminOverviewPage() {
         value: Number(stats?.waitlistCount || 0),
         icon: CreditCard,
         color: 'text-teal-400',
+        href: '/admin/access',
       },
     ],
     [stats]
@@ -182,8 +184,8 @@ export default function AdminOverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <div key={card.label} className={adminPanelClass}>
+        {cards.map((card) => {
+          const content = (
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
@@ -194,8 +196,26 @@ export default function AdminOverviewPage() {
               </div>
               <card.icon className={`h-5 w-5 ${card.color}`} />
             </div>
-          </div>
-        ))}
+          );
+
+          if ('href' in card && card.href) {
+            return (
+              <Link
+                key={card.label}
+                href={card.href}
+                className={`${adminPanelClass} block transition hover:bg-white/[0.03]`}
+              >
+                {content}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={card.label} className={adminPanelClass}>
+              {content}
+            </div>
+          );
+        })}
       </div>
 
       {statusChips.length ? (

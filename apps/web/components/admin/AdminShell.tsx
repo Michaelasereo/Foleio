@@ -24,13 +24,13 @@ import foleioLogo from '../../../../foleio-logo.png';
 
 const navItems = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/access', label: 'Invites', icon: Shield },
   { href: '/admin/revenue', label: 'Revenue', icon: TrendingUp },
   { href: '/admin/creators', label: 'Creators', icon: Users },
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { href: '/admin/billing', label: 'Billing', icon: Crown },
   { href: '/admin/payouts', label: 'Payouts', icon: Banknote },
-  { href: '/admin/access', label: 'Access', icon: Shield },
   { href: '/admin/integrity', label: 'Integrity', icon: CreditCard },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
@@ -40,18 +40,24 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPayoutCount, setPendingPayoutCount] = useState(0);
+  const [pendingInviteCount, setPendingInviteCount] = useState(0);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadMeta() {
       try {
-        const [payoutRes, meRes] = await Promise.all([
+        const [payoutRes, meRes, statsRes] = await Promise.all([
           fetch('/api/admin/payouts/pending-count', { cache: 'no-store' }),
           fetch('/api/admin/auth/me', { cache: 'no-store' }),
+          fetch('/api/admin/stats', { cache: 'no-store' }),
         ]);
         if (payoutRes.ok) {
           const data = await payoutRes.json();
           setPendingPayoutCount(Number(data.pendingCount || 0));
+        }
+        if (statsRes.ok) {
+          const stats = await statsRes.json();
+          setPendingInviteCount(Number(stats.waitlistCount || 0));
         }
         if (meRes.ok) {
           const me = await meRes.json();
@@ -166,7 +172,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
 
-            <nav className="flex flex-1 flex-col gap-1">
+            <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
               {navItems.map((item) => {
                 const active =
                   item.href === '/admin'
@@ -185,6 +191,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     {item.href === '/admin/payouts' && pendingPayoutCount > 0 ? (
                       <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
                         {pendingPayoutCount}
+                      </span>
+                    ) : null}
+                    {item.href === '/admin/access' && pendingInviteCount > 0 ? (
+                      <span className="rounded-full bg-teal-500/20 px-2 py-0.5 text-[11px] font-semibold text-teal-300">
+                        {pendingInviteCount}
                       </span>
                     ) : null}
                   </Link>
