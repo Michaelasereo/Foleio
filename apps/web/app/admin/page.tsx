@@ -118,6 +118,7 @@ export default function AdminOverviewPage() {
         label: 'Platform fees',
         value: Number(stats?.platformRevenue || 0),
         formatter: (value: number) => formatMoneyFromKobo(value),
+        hint: 'All time · see Revenue for ranges',
         icon: TrendingUp,
         color: 'text-emerald-400',
       },

@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     totalCreators,
     creatorPaymentsSnap,
     totalTransactions,
-    platformRevenue,
+    feeLedgerRows,
     totalPayouts,
     pendingPayouts,
     bookingStatusGroups,
@@ -40,9 +40,12 @@ export async function GET(request: Request) {
       },
     }),
     prisma.transaction.count({ where: successTxWhere }),
-    prisma.transaction.aggregate({
+    // Per-row fee fields so we can mirror revenue's platformFee || feeAmount logic.
+    // A single aggregate SUM(platformFee) || SUM(feeAmount) undercounts when some
+    // rows only populate one of the two columns.
+    prisma.transaction.findMany({
       where: successTxWhere,
-      _sum: { platformFee: true, feeAmount: true },
+      select: { platformFee: true, feeAmount: true },
     }),
     prisma.payout.aggregate({
       where: { status: 'success' },
@@ -164,9 +167,10 @@ export async function GET(request: Request) {
     creatorEarnings: values.creatorEarnings,
   }));
 
-  const platformFeeTotal =
-    Number(platformRevenue._sum.platformFee || 0) ||
-    Number(platformRevenue._sum.feeAmount || 0);
+  const platformFeeTotal = feeLedgerRows.reduce(
+    (sum, tx) => sum + platformFeeFromTransaction(tx),
+    0
+  );
 
   return Response.json({
     totalCreators,
