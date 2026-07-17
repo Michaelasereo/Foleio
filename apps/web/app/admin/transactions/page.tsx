@@ -73,6 +73,34 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
     return `Showing ${current} of ${total}`;
   }, [data]);
 
+  async function handleDeleteTx(tx: Tx) {
+    const typed = window.prompt(
+      `Delete transaction ${tx.reference || tx.id}?\n\nType DELETE to confirm:`
+    );
+    if (typed !== 'DELETE') return;
+
+    const response = await fetch(`/api/admin/transactions/${tx.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: 'DELETE' }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      window.alert(payload.error || 'Could not delete transaction');
+      return;
+    }
+
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            transactions: prev.transactions.filter((row) => row.id !== tx.id),
+            total: Math.max(0, prev.total - 1),
+          }
+        : prev
+    );
+  }
+
   return (
     <div className="space-y-5">
       {!embedded ? <h2 className="foleio-admin-title">Transactions</h2> : null}
@@ -89,6 +117,8 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
           <option value="">All Types</option>
           <option value="subscription">Subscription</option>
           <option value="booking">Booking</option>
+          <option value="deposit">Deposit</option>
+          <option value="shop_order">Shop order</option>
           <option value="one_time">One-time</option>
           <option value="payout">Payout</option>
           <option value="refund">Refund</option>
@@ -147,6 +177,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
                 <th className={adminTableCellClass}>Creator share</th>
                 <th className={adminTableCellClass}>Status</th>
                 <th className={adminTableCellClass}>Date</th>
+                <th className={adminTableCellClass}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -192,6 +223,16 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
                       title={new Date(tx.createdAt).toLocaleString()}
                     >
                       {formatRelativeTime(tx.createdAt)}
+                    </td>
+                    <td className={adminTableCellClass}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                        onClick={() => void handleDeleteTx(tx)}
+                      >
+                        Delete
+                      </Button>
                     </td>
                   </tr>
                 );

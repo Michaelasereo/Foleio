@@ -71,6 +71,7 @@ type RevenuePayload = {
     platformFee: number;
     creatorEarnings: number;
     createdAt: string;
+    deletable?: boolean;
     creator?: { displayName?: string | null; username?: string | null } | null;
     user?: { email?: string | null; fullName?: string | null } | null;
   }>;
@@ -113,7 +114,15 @@ function MetricCards({ totals }: { totals: Totals }) {
   );
 }
 
-function RecentTable({ rows }: { rows: RevenuePayload['recent'] }) {
+function RecentTable({
+  rows,
+  onDelete,
+  deletingId,
+}: {
+  rows: RevenuePayload['recent'];
+  onDelete: (tx: RevenuePayload['recent'][number]) => void;
+  deletingId: string | null;
+}) {
   if (rows.length === 0) {
     return (
       <div className={`${adminPanelClass} py-10 text-center ${adminMutedClass}`}>
@@ -136,6 +145,7 @@ function RecentTable({ rows }: { rows: RevenuePayload['recent'] }) {
               <th className={adminTableCellClass}>Creator cut</th>
               <th className={adminTableCellClass}>When</th>
               <th className={adminTableCellClass}>Reference</th>
+              <th className={adminTableCellClass}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -169,6 +179,21 @@ function RecentTable({ rows }: { rows: RevenuePayload['recent'] }) {
                 <td className={`${adminTableCellClass} font-mono text-xs ${adminMutedClass}`}>
                   {tx.reference}
                 </td>
+                <td className={adminTableCellClass}>
+                  {tx.deletable === false ? (
+                    <span className={`text-xs ${adminMutedClass}`}>Booking-linked</span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                      disabled={deletingId === tx.id}
+                      onClick={() => onDelete(tx)}
+                    >
+                      {deletingId === tx.id ? 'Deleting…' : 'Delete'}
+                    </Button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -181,6 +206,7 @@ function RecentTable({ rows }: { rows: RevenuePayload['recent'] }) {
 export default function AdminRevenuePage() {
   const [channel, setChannel] = useState<Channel>('all');
   const [range, setRange] = useState<Range>('30d');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetcher = async (url: string) => {
     const response = await fetch(url, { cache: 'no-store' });
@@ -188,11 +214,35 @@ export default function AdminRevenuePage() {
     return (await response.json()) as RevenuePayload;
   };
 
-  const { data, isLoading, error } = useSWR(
+  const { data, isLoading, error, mutate } = useSWR(
     `/api/admin/revenue?range=${range}&channel=${channel}`,
     fetcher,
     { refreshInterval: 60000 }
   );
+
+  async function handleDelete(tx: RevenuePayload['recent'][number]) {
+    const typed = window.prompt(
+      `Delete transaction ${tx.reference}?\n\nType DELETE to confirm:`
+    );
+    if (typed !== 'DELETE') return;
+
+    setDeletingId(tx.id);
+    try {
+      const response = await fetch(`/api/admin/transactions/${tx.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        window.alert(payload.error || 'Could not delete transaction');
+        return;
+      }
+      await mutate();
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const scopedTotals = useMemo(() => {
     if (!data) return emptyLike();
@@ -485,7 +535,11 @@ export default function AdminRevenuePage() {
 
       <div>
         <h3 className="mb-3 text-base font-semibold text-[#f4f4f5]">Recent transactions</h3>
-        <RecentTable rows={data.recent} />
+        <RecentTable
+          rows={data.recent}
+          onDelete={(tx) => void handleDelete(tx)}
+          deletingId={deletingId}
+        />
       </div>
     </div>
   );

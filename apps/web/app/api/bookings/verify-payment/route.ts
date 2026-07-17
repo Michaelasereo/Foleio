@@ -32,6 +32,7 @@ async function finalizeFullyPaidBooking(opts: {
   reference: string;
   metadataPaymentType: string | null;
   gatewayResponse: unknown;
+  paymentKind?: 'initial' | 'balance' | 'full';
   creator: {
     paystackSubaccountCode?: string | null;
     payoutMethod?: string | null;
@@ -47,6 +48,7 @@ async function finalizeFullyPaidBooking(opts: {
     bookingId: opts.bookingId,
     reference: opts.reference,
     paymentType: isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+    paymentKind: opts.paymentKind === 'balance' ? 'balance' : 'full',
     gatewayResponse: opts.gatewayResponse,
   });
   if (recordResult.error) {
@@ -159,8 +161,24 @@ export async function POST(request: NextRequest) {
         reference,
         metadataPaymentType,
         gatewayResponse,
+        paymentKind: paymentKind === 'balance' ? 'balance' : 'full',
         creator: booking?.creator ?? null,
       });
+    } else if (confirmResult.data?.status === 'deposit_paid') {
+      const isSubaccount = usedSubaccountSplit({
+        metadataPaymentType,
+        creator: booking?.creator ?? null,
+      });
+      const recordResult = await recordBookingPaymentTransaction({
+        bookingId,
+        reference,
+        paymentType: isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+        paymentKind: 'initial',
+        gatewayResponse,
+      });
+      if (recordResult.error) {
+        console.error('Deposit transaction record error:', recordResult.error);
+      }
     }
 
     try {
@@ -228,7 +246,21 @@ export async function PUT(request: NextRequest) {
               reference,
               metadataPaymentType: metadata?.paymentType ?? null,
               gatewayResponse: data,
+              paymentKind: paymentKind === 'balance' ? 'balance' : 'full',
               creator: booking.creator,
+            });
+          } else if (confirmResult.data?.status === 'deposit_paid') {
+            await recordBookingPaymentTransaction({
+              bookingId: booking.id,
+              reference,
+              paymentType: usedSubaccountSplit({
+                metadataPaymentType: metadata?.paymentType,
+                creator: booking.creator,
+              })
+                ? 'DIRECT_SUBACCOUNT'
+                : 'PLATFORM_HELD',
+              paymentKind: 'initial',
+              gatewayResponse: data,
             });
           }
 

@@ -27,7 +27,7 @@ import {
 import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import { useToast } from '@/components/ui/use-toast';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
-import { subscribeAvatarUpdated } from '@/lib/creator/profile-live';
+import { subscribeAvatarUpdated, subscribeBannerUpdated } from '@/lib/creator/profile-live';
 
 const creatorShellCss = `
 ${authCss}
@@ -1691,6 +1691,10 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
 
   useEffect(() => {
     return subscribeAvatarUpdated(setAvatarUrl);
+  }, []);
+
+  useEffect(() => {
+    return subscribeBannerUpdated(setBannerUrl);
   }, []);
 
   useEffect(() => {

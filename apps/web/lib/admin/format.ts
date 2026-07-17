@@ -45,7 +45,12 @@ export function transactionTypeBadgeClass(type?: string | null): string {
   if (normalized === 'subscription' || normalized === 'platform_subscription') {
     return 'bg-sky-500/15 text-sky-300 border-[#201e1c]';
   }
-  if (normalized === 'booking') return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
+  if (normalized === 'booking' || normalized === 'booking_balance') {
+    return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
+  }
+  if (normalized === 'deposit' || normalized === 'booking_deposit') {
+    return 'bg-amber-500/15 text-amber-300 border-[#201e1c]';
+  }
   if (normalized === 'shop_order') return 'bg-teal-500/15 text-teal-300 border-[#201e1c]';
   if (normalized === 'one_time') return 'bg-emerald-500/15 text-emerald-300 border-[#201e1c]';
   if (normalized === 'payout') return 'bg-violet-500/15 text-violet-300 border-[#201e1c]';

@@ -5,6 +5,7 @@ import { UploadService } from '@/lib/storage/upload-service';
 import { randomUUID } from 'crypto'; // ✅ FIXED: Add missing import
 import { checkImageModeration } from '@/lib/services/moderation';
 import { MAX_THUMBNAIL_SIZE_BYTES, MAX_THUMBNAIL_SIZE_LABEL } from '@/lib/utils/constants';
+import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for large files
@@ -38,7 +39,8 @@ export async function POST(request: NextRequest) {
 
     // Get creator
     const creator = await prisma.creator.findUnique({
-      where: { userId: user.id }
+      where: { userId: user.id },
+      select: { id: true, username: true },
     });
 
     if (!creator) {
@@ -167,6 +169,7 @@ export async function POST(request: NextRequest) {
         where: { id: creator.id },
         data: updateData
       });
+      revalidatePublicCreator(creator.username);
     }
 
     console.log(`✅ Creator ${creator.id} updated with new ${type} URL: ${uploadResult.url}`);

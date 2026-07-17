@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { broadcastBannerUpdated } from '@/lib/creator/profile-live';
 
 interface BusinessCoverCardProps {
   bannerUrl?: string | null;
@@ -43,6 +44,7 @@ export function BusinessCoverCard({
       return;
     }
 
+    const previousUrl = bannerUrl;
     setUploading(true);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
@@ -50,33 +52,46 @@ export function BusinessCoverCard({
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('type', 'banner');
 
-      const response = await fetch('/api/upload/profile', {
+      let response = await fetch('/api/creator/upload-banner', {
         method: 'POST',
         body: formData,
       });
-      const data = (await response.json().catch(() => ({}))) as {
+      let data = (await response.json().catch(() => ({}))) as {
         error?: string;
+        details?: string;
         data?: { url?: string };
         url?: string;
       };
+      let url = data.data?.url || data.url;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
+      // Fallback to legacy profile upload if primary route fails
+      if (!response.ok || !url) {
+        const fallbackForm = new FormData();
+        fallbackForm.append('file', file);
+        fallbackForm.append('type', 'banner');
+
+        response = await fetch('/api/upload/profile', {
+          method: 'POST',
+          body: fallbackForm,
+        });
+        data = (await response.json().catch(() => ({}))) as typeof data;
+        url = data.data?.url || data.url;
+
+        if (!response.ok || !url) {
+          throw new Error(data.details || data.error || 'Upload failed');
+        }
       }
-
-      const url = data.data?.url || data.url;
-      if (!url) throw new Error('No URL returned from upload');
 
       setPreviewUrl(url);
       onBannerChange?.(url);
+      broadcastBannerUpdated(url);
       toast({
-        title: 'Banner updated',
+        title: 'Cover updated',
         description: 'Your business cover is live on your public page.',
       });
     } catch (error) {
-      setPreviewUrl(bannerUrl);
+      setPreviewUrl(previousUrl);
       toast({
         title: 'Upload failed',
         description:
@@ -91,8 +106,6 @@ export function BusinessCoverCard({
   }
 
   const hasImage = Boolean(previewUrl);
-  // Upload affordance only while empty — once set, manage via ⋮ menu
-  const showUploadControl = editable && (!hasImage || uploading);
 
   return (
     <div
@@ -112,12 +125,12 @@ export function BusinessCoverCard({
         </div>
       )}
 
-      {showUploadControl ? (
+      {editable ? (
         <>
           <button
             type="button"
             className="foleio-auth-preview-upload"
-            aria-label="Upload business cover"
+            aria-label={hasImage ? 'Replace business cover' : 'Upload business cover'}
             disabled={uploading}
             onClick={() => inputRef.current?.click()}
           >
@@ -157,4 +170,5 @@ export async function removeCreatorBanner(): Promise<void> {
     };
     throw new Error(data.error || 'Could not remove banner');
   }
+  broadcastBannerUpdated(null);
 }

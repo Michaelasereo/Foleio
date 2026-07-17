@@ -4,6 +4,7 @@ import { prisma } from '@foleio/database';
 import { getPlanLimits } from '@/lib/utils/plan-limits';
 import { cleanSocialUrl, parseSocialUrl } from '@/lib/creator/social-urls';
 import { trimBioToMaxWords } from '@/lib/creator/bio';
+import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 
 export const dynamic = 'force-dynamic';
 
@@ -343,6 +344,16 @@ export async function PATCH(request: Request) {
       select: { linkType: true, url: true },
     });
 
+    if (
+      Object.prototype.hasOwnProperty.call(data, 'avatarUrl') ||
+      Object.prototype.hasOwnProperty.call(data, 'bannerUrl') ||
+      Object.prototype.hasOwnProperty.call(data, 'displayName') ||
+      Object.prototype.hasOwnProperty.call(data, 'bio') ||
+      Object.prototype.hasOwnProperty.call(data, 'username')
+    ) {
+      revalidatePublicCreator(updatedCreator.username);
+    }
+
     return NextResponse.json({
       success: true,
       creator: {
@@ -479,6 +490,8 @@ export async function PUT(request: Request) {
     }
 
     // 7. Return updated creator data
+    revalidatePublicCreator(updatedCreator.username);
+
     return NextResponse.json({
       success: true,
       message: 'Profile updated successfully',

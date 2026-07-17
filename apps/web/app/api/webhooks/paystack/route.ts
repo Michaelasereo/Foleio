@@ -351,6 +351,7 @@ async function handleChargeSuccess(eventData: any) {
             bookingId: booking.id,
             reference,
             paymentType: usedSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+            paymentKind: paymentKind === 'balance' ? 'balance' : 'full',
             gatewayResponse: eventData,
           });
           if (recordResult.error) {
@@ -366,6 +367,17 @@ async function handleChargeSuccess(eventData: any) {
             console.log(
               `⏭️ Skipping processFirstPayout for subaccount booking ${booking.id}`
             );
+          }
+        } else if (confirmResult.data?.status === 'deposit_paid') {
+          const recordResult = await recordBookingPaymentTransaction({
+            bookingId: booking.id,
+            reference,
+            paymentType: usedSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD',
+            paymentKind: 'initial',
+            gatewayResponse: eventData,
+          });
+          if (recordResult.error) {
+            console.error('Deposit transaction record error:', recordResult.error);
           }
         }
 

@@ -5,10 +5,11 @@ import { UploadService } from '@/lib/storage/upload-service';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 /**
- * Avatar uploads go to Supabase Storage bucket `crealio` (same as banners).
- * Requires bucket + policies from scripts/crealio-storage-policies.sql
+ * Banner / business cover uploads → Supabase Storage bucket `crealio`.
+ * Mirrors `/api/creator/upload-avatar` for immediate DB persistence.
  */
 export async function POST(request: Request) {
   try {
@@ -35,48 +36,39 @@ export async function POST(request: Request) {
     if (!file || typeof file === 'string') {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Use JPG, PNG or WebP.' },
+        { error: 'Invalid file type. Use JPG, PNG, WebP, or GIF.' },
         { status: 400 }
       );
     }
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 5MB.' },
+        { error: 'File too large. Maximum size is 10MB.' },
         { status: 400 }
       );
     }
-
-    console.log('[upload-avatar] Upload start', {
-      creatorId: creator.id,
-      userId: user.id,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-    });
 
     const uploaded = await UploadService.upload({
       userId: user.id,
       file,
-      type: 'avatar',
+      type: 'banner',
       metadata: {
         creatorId: creator.id,
-        uploadType: 'avatar',
+        uploadType: 'banner',
       },
       optimizeImages: true,
-      maxSizeMB: 5,
+      maxSizeMB: 10,
     });
 
     await prisma.creator.update({
       where: { id: creator.id },
-      data: { avatarUrl: uploaded.url },
+      data: { bannerUrl: uploaded.url },
     });
 
     revalidatePublicCreator(creator.username);
-
-    console.log('[upload-avatar] Supabase + DB success:', uploaded.url);
 
     return NextResponse.json({
       success: true,
@@ -88,7 +80,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: unknown) {
-    console.error('[upload-avatar] Error:', error);
+    console.error('[upload-banner] Error:', error);
     return NextResponse.json(
       {
         error: 'Upload failed',

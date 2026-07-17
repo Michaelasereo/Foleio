@@ -411,13 +411,20 @@ export async function confirmBookingPayment(
 }
 
 /**
- * Idempotent earnings ledger row for a paid booking.
+ * Idempotent earnings ledger row for a booking payment.
  * Subaccount path: Paystack already split funds — mark released, no Foleio balance credit.
+ *
+ * Deposit plans create two rows over time:
+ * - initial deposit → type `deposit` (depositAmount)
+ * - balance → type `booking` (balanceAmount)
+ * Full pay → type `booking` (totalAmount)
  */
 export async function recordBookingPaymentTransaction(opts: {
   bookingId: string;
   reference: string;
   paymentType?: 'DIRECT_SUBACCOUNT' | 'PLATFORM_HELD';
+  paymentKind?: 'initial' | 'balance' | 'full';
+  amount?: number;
   gatewayResponse?: unknown;
 }) {
   try {
@@ -448,7 +455,31 @@ export async function recordBookingPaymentTransaction(opts: {
       Boolean(booking.creator.paystackSubaccountCode);
 
     const paymentType = isSubaccount ? 'DIRECT_SUBACCOUNT' : 'PLATFORM_HELD';
-    const amount = Number(booking.totalAmount);
+    const isDepositPlan =
+      booking.paymentPlan === 'deposit' && Number(booking.balanceAmount || 0) > 0;
+
+    let paymentKind = opts.paymentKind;
+    if (!paymentKind) {
+      if (isDepositPlan && ['deposit_paid', 'balance_overdue'].includes(booking.status)) {
+        paymentKind = 'initial';
+      } else if (isDepositPlan && opts.amount != null && opts.amount === Number(booking.balanceAmount)) {
+        paymentKind = 'balance';
+      } else {
+        paymentKind = 'full';
+      }
+    }
+
+    let amount: number;
+    if (opts.amount != null && Number.isFinite(opts.amount)) {
+      amount = Math.round(Number(opts.amount));
+    } else if (paymentKind === 'balance') {
+      amount = Math.round(Number(booking.balanceAmount || 0));
+    } else if (paymentKind === 'initial' && isDepositPlan) {
+      amount = Math.round(Number(booking.depositAmount || booking.amountPaid || 0));
+    } else {
+      amount = Math.round(Number(booking.totalAmount || 0));
+    }
+
     if (!Number.isFinite(amount) || amount < 0) {
       return { error: 'Invalid booking amount' };
     }
@@ -459,11 +490,15 @@ export async function recordBookingPaymentTransaction(opts: {
       booking.creator
     );
 
+    const txType = paymentKind === 'initial' && isDepositPlan ? 'deposit' : 'booking';
+
     const metadata = {
-      type: 'booking',
+      type: txType,
       bookingId: booking.id,
       service: booking.priceListItem?.name || 'Booking',
       paymentType,
+      paymentKind,
+      paymentPlan: booking.paymentPlan,
       platformFeePercent: feePct,
       platformFeeType: feeType,
     };
@@ -480,7 +515,7 @@ export async function recordBookingPaymentTransaction(opts: {
         netAmount: BigInt(Math.round(creatorEarnings)),
         status: 'SUCCESS',
         paymentType,
-        type: 'booking',
+        type: txType,
         fundsReleased: isSubaccount,
         fundsReleasedAt: isSubaccount ? new Date() : null,
         gateway: 'paystack',
@@ -489,11 +524,13 @@ export async function recordBookingPaymentTransaction(opts: {
       },
       update: {
         status: 'SUCCESS',
+        amount: BigInt(Math.round(amount)),
         creatorEarnings: BigInt(Math.round(creatorEarnings)),
         platformFee: BigInt(Math.round(platformFee)),
         feeAmount: BigInt(Math.round(platformFee)),
         netAmount: BigInt(Math.round(creatorEarnings)),
         paymentType,
+        type: txType,
         fundsReleased: isSubaccount ? true : undefined,
         fundsReleasedAt: isSubaccount ? new Date() : undefined,
         gatewayResponse: (opts.gatewayResponse as object) || undefined,
@@ -502,7 +539,7 @@ export async function recordBookingPaymentTransaction(opts: {
     });
 
     // Subaccount: advance past escrow "first payout" without crediting Foleio ledger
-    if (isSubaccount && booking.status === 'paid') {
+    if (isSubaccount && booking.status === 'paid' && txType === 'booking') {
       await prisma.booking.update({
         where: { id: booking.id },
         data: {
