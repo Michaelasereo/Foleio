@@ -66,7 +66,7 @@ export default function AdminOverviewPage() {
   };
 
   const { data: stats, isLoading, mutate } = useSWR('/api/admin/stats', fetcher, {
-    refreshInterval: 60000,
+    refreshInterval: 30000,
   });
 
   useEffect(() => {
@@ -225,13 +225,20 @@ export default function AdminOverviewPage() {
                 tick={{ fontSize: 12, fill: '#828282' }}
                 tickFormatter={(value) => value.slice(5)}
               />
-              <YAxis tick={{ fontSize: 12, fill: '#828282' }} />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#828282' }}
+                tickFormatter={(value) => formatMoneyFromKobo(Number(value))}
+              />
               <Tooltip
                 contentStyle={{
                   background: '#212121',
                   border: '1px solid #201e1c',
                   borderRadius: 8,
                 }}
+                formatter={(value: number, name: string) => [
+                  formatMoneyFromKobo(Number(value)),
+                  name === 'platformRevenue' ? 'Platform fees' : 'Creator earnings',
+                ]}
               />
               <Line type="monotone" dataKey="platformRevenue" stroke="#f59e0b" strokeWidth={2} />
               <Line type="monotone" dataKey="creatorEarnings" stroke="#38bdf8" strokeWidth={2} />

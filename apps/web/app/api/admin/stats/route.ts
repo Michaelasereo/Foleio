@@ -3,6 +3,12 @@ import { deadLetterQueue, webhookQueue } from '@/lib/queue/queue-manager';
 import { isAdminAuthed } from '@/lib/admin/auth';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
+import {
+  ADMIN_SUCCESS_TX_STATUSES,
+  platformFeeFromTransaction,
+} from '@/lib/admin/stats-helpers';
+
+const successTxWhere = { status: { in: [...ADMIN_SUCCESS_TX_STATUSES] } };
 
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
@@ -33,10 +39,10 @@ export async function GET(request: Request) {
         subaccountStatus: true,
       },
     }),
-    prisma.transaction.count({ where: { status: 'success' } }),
+    prisma.transaction.count({ where: successTxWhere }),
     prisma.transaction.aggregate({
-      where: { status: 'success' },
-      _sum: { feeAmount: true },
+      where: successTxWhere,
+      _sum: { platformFee: true, feeAmount: true },
     }),
     prisma.payout.aggregate({
       where: { status: 'success' },
@@ -66,7 +72,7 @@ export async function GET(request: Request) {
       },
     }),
     prisma.transaction.findMany({
-      where: { status: 'success' },
+      where: successTxWhere,
       include: {
         creator: { select: { displayName: true, username: true } },
         user: { select: { email: true, fullName: true } },
@@ -76,11 +82,12 @@ export async function GET(request: Request) {
     }),
     prisma.transaction.findMany({
       where: {
-        status: 'success',
+        ...successTxWhere,
         createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
       select: {
         createdAt: true,
+        platformFee: true,
         feeAmount: true,
         creatorEarnings: true,
       },
@@ -145,7 +152,7 @@ export async function GET(request: Request) {
     const key = tx.createdAt.toISOString().slice(0, 10);
     const current = seriesMap.get(key);
     if (!current) continue;
-    current.platformRevenue += Number(tx.feeAmount || 0);
+    current.platformRevenue += platformFeeFromTransaction(tx);
     current.creatorEarnings += Number(tx.creatorEarnings || 0);
   }
 
@@ -155,6 +162,10 @@ export async function GET(request: Request) {
     creatorEarnings: values.creatorEarnings,
   }));
 
+  const platformFeeTotal =
+    Number(platformRevenue._sum.platformFee || 0) ||
+    Number(platformRevenue._sum.feeAmount || 0);
+
   return Response.json({
     totalCreators,
     paymentsReadyCreators,
@@ -162,7 +173,7 @@ export async function GET(request: Request) {
       totalCreators > 0 ? Math.round((paymentsReadyCreators / totalCreators) * 100) : 0,
     proCreators,
     totalTransactions,
-    platformRevenue: Number(platformRevenue._sum.feeAmount || 0),
+    platformRevenue: platformFeeTotal,
     totalPayouts: Number(totalPayouts._sum.amount || 0),
     pendingPayouts: Number(pendingPayouts._sum.amount || 0),
     totalBookings,

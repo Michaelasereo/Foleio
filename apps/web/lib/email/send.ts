@@ -25,10 +25,15 @@ async function sendEmail(payload: {
   subject: string;
   html: string;
   withLogo?: boolean;
+  /** Optional admin/operator copy of the same message */
+  sampleTo?: string;
 }) {
   if (!canSendEmails()) {
     console.log('📧 Email skipped (dev mode):', payload.subject, payload.to);
-    return { success: true };
+    if (payload.sampleTo) {
+      console.log('📧 Admin sample skipped (dev mode):', payload.sampleTo);
+    }
+    return { success: true, sampleSent: Boolean(payload.sampleTo) };
   }
 
   try {
@@ -55,7 +60,24 @@ async function sendEmail(payload: {
       return { success: false, error: error.message };
     }
 
-    return { success: true, id: data?.id };
+    let sampleSent = false;
+    const sampleTo = payload.sampleTo?.trim().toLowerCase();
+    if (sampleTo && sampleTo !== payload.to.trim().toLowerCase()) {
+      const sample = await resend.emails.send({
+        from: resolveFromEmail(),
+        to: sampleTo,
+        subject: `[Admin sample] ${payload.subject}`,
+        html: payload.html,
+        ...(attachments ? { attachments } : {}),
+      });
+      if (sample.error) {
+        console.error('Admin sample email send failed:', sample.error);
+      } else {
+        sampleSent = true;
+      }
+    }
+
+    return { success: true, id: data?.id, sampleSent };
   } catch (error) {
     console.error('Resend email send failed:', error);
     return { success: false };
@@ -112,6 +134,7 @@ export async function sendBookingConfirmation(data: {
   balanceAmount?: number;
   balanceDueDateLabel?: string;
   status?: string;
+  sampleTo?: string;
 }) {
   try {
     const { subject, html } = bookingConfirmationEmail(data);
@@ -120,6 +143,7 @@ export async function sendBookingConfirmation(data: {
       subject,
       html,
       withLogo: true,
+      sampleTo: data.sampleTo,
     });
   } catch (error) {
     console.error('sendBookingConfirmation failed:', error);

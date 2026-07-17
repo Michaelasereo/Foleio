@@ -1,5 +1,6 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
+import { bookingAmountForAdmin } from '@/lib/admin/stats-helpers';
 
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
@@ -21,5 +22,10 @@ export async function GET(request: Request) {
     take: 100,
   });
 
-  return Response.json({ bookings });
+  const mapped = bookings.map((booking) => ({
+    ...booking,
+    amount: bookingAmountForAdmin(booking),
+  }));
+
+  return Response.json({ bookings: mapped });
 }

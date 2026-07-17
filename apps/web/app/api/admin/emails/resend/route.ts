@@ -1,14 +1,30 @@
 import { prisma } from '@foleio/database';
-import { isAdminAuthed } from '@/lib/admin/auth';
+import { getAdminIdFromRequest, isAdminAuthed } from '@/lib/admin/auth';
 import { sendBookingConfirmationEmail } from '@/lib/actions/email';
 import { sendOrderConfirmationEmail } from '@/lib/email/resend';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+async function resolveAdminSampleEmail(request: Request): Promise<string | null> {
+  const adminId = getAdminIdFromRequest(request);
+  if (!adminId) return null;
+  try {
+    const admin = await (prisma as any).adminUser.findUnique({
+      where: { id: adminId },
+      select: { email: true },
+    });
+    const email = String(admin?.email || '').trim();
+    return email || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Admin: re-trigger a customer email after a delivery failure (e.g. Resend
  * outage or misconfiguration that has since been fixed).
+ * Also sends a sample copy of the customer email to the logged-in admin.
  *
  * Body: { type: 'booking' | 'shop_order', id: string }
  */
@@ -33,6 +49,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const sampleTo = await resolveAdminSampleEmail(request);
+
   try {
     if (type === 'booking') {
       const booking = await prisma.booking.findUnique({
@@ -49,7 +67,9 @@ export async function POST(request: Request) {
         );
       }
 
-      const result = await sendBookingConfirmationEmail(booking.id);
+      const result = await sendBookingConfirmationEmail(booking.id, {
+        sampleTo: sampleTo || undefined,
+      });
       if ('error' in result && result.error) {
         return Response.json({ error: result.error }, { status: 502 });
       }
@@ -59,6 +79,8 @@ export async function POST(request: Request) {
         creatorNotified: Boolean(
           'creatorNotified' in result && result.creatorNotified
         ),
+        sampleSent: Boolean('sampleSent' in result && result.sampleSent),
+        sampleTo: sampleTo || null,
       });
     }
 
@@ -122,6 +144,7 @@ export async function POST(request: Request) {
       deliveryFee: order.deliveryFee,
       total: order.total,
       creatorName: order.creator.displayName,
+      sampleTo: sampleTo || undefined,
     });
 
     if (!result.success) {
@@ -131,7 +154,12 @@ export async function POST(request: Request) {
       );
     }
 
-    return Response.json({ success: true, sentTo: recipientEmail });
+    return Response.json({
+      success: true,
+      sentTo: recipientEmail,
+      sampleSent: Boolean('sampleSent' in result && result.sampleSent),
+      sampleTo: sampleTo || null,
+    });
   } catch (error) {
     console.error('[admin/emails/resend] failed:', error);
     return Response.json({ error: 'Failed to resend email' }, { status: 500 });

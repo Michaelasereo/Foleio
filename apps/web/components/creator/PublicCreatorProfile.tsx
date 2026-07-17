@@ -409,9 +409,6 @@ body:has(.foleio-public-root) footer { display: none !important; }
 }
 `;
 
-const SAMPLE_BIO =
-  'Soft glam, bridal, and editorial makeup for clients who want skin that looks like skin — polished, not painted. Sessions in Lagos, with travel for shoots and wedding parties.';
-
 function isPlaceholderBio(bio?: string | null) {
   const value = bio?.trim() || '';
   if (!value) return true;
@@ -420,58 +417,6 @@ function isPlaceholderBio(bio?: string | null) {
   if (/^(.)\1+$/i.test(value)) return true;
   if (!/[aeiou]/i.test(value) && value.length < 20) return true;
   return false;
-}
-
-const SAMPLE_GROUPED: GroupedPriceList[] = [
-  {
-    category: null,
-    items: [
-      {
-        id: 'sample-soft-glam',
-        category: null,
-        name: 'Soft glam session',
-        description: 'Natural everyday glam with skin-first finish. Includes lashes.',
-        price: 4500000,
-        durationMinutes: 90,
-      },
-      {
-        id: 'sample-bridal',
-        category: null,
-        name: 'Bridal makeup',
-        description: 'Full bridal look with trial option. Travel available in Lagos.',
-        price: 12000000,
-        durationMinutes: 150,
-      },
-      {
-        id: 'sample-editorial',
-        category: null,
-        name: 'Editorial / shoot',
-        description: 'Creative looks for campaigns, lookbooks, and content days.',
-        price: 8000000,
-        durationMinutes: 120,
-      },
-    ],
-  },
-];
-
-function buildSampleAvailability(): Availability[] {
-  const dates: Availability[] = [];
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  for (let i = 2; i <= 16; i += 2) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
-    dates.push({
-      id: `sample-avail-${i}`,
-      date,
-      isAvailable: true,
-      maxBookings: 1,
-      bookingCount: i % 4 === 0 ? 1 : 0,
-      isFullyBooked: false,
-      mode: 'full_day',
-    });
-  }
-  return dates;
 }
 
 export function PublicCreatorProfile({
@@ -551,14 +496,11 @@ export function PublicCreatorProfile({
 
   const hasRealServices = groupedPriceList.length > 0 || hasServicesHint;
   const hasShop = Boolean(hasActiveProducts);
-  const usingSampleServices = !hasRealServices && !hasShop;
-  const displayGrouped = usingSampleServices ? SAMPLE_GROUPED : groupedPriceList;
+  const displayGrouped = groupedPriceList;
   const displayPriceListItems = displayGrouped.flatMap((group) => group.items);
-  const displayAvailability = usingSampleServices
-    ? buildSampleAvailability()
-    : creator.availability;
+  const displayAvailability = creator.availability;
   const showOfferingsPanel =
-    Boolean(offeringsSlot) || hasRealServices || hasShop || usingSampleServices;
+    Boolean(offeringsSlot) || hasRealServices || hasShop || !hasServicesHint;
   const showBothTabs = hasRealServices && hasShop && !offeringsSlot;
   const panelTitle = !hasRealServices && hasShop ? 'Shop' : 'Services';
   const activeOfferingsTab = showBothTabs
@@ -618,8 +560,7 @@ export function PublicCreatorProfile({
   // Show Book when services + payments are ready. Past-only availability
   // still opens the drawer (calendar shows "No available dates right now").
   // hasServicesHint covers shell mode while offerings stream in.
-  const canBook =
-    (hasPriceList || hasServicesHint) && (usingSampleServices || paymentsReady);
+  const canBook = (hasPriceList || hasServicesHint) && paymentsReady;
   const shopOnly = hasShop && !hasRealServices;
   const showPrimaryCta = shopOnly || canBook;
 
@@ -678,11 +619,10 @@ export function PublicCreatorProfile({
       }),
   ].filter(Boolean) as Array<{ id: string; label: string; url: string }>;
 
-  const displayBio = isPlaceholderBio(creator.bio) ? SAMPLE_BIO : creator.bio!.trim();
+  const displayBio = isPlaceholderBio(creator.bio) ? null : creator.bio!.trim();
 
-  const servicesMeta = usingSampleServices
-    ? 'Sample services for preview — publish your own from Bookings.'
-    : activeOfferingsTab === 'shop'
+  const servicesMeta =
+    activeOfferingsTab === 'shop'
       ? 'Browse products and checkout'
       : canBook
         ? hasAvailability
@@ -767,7 +707,9 @@ export function PublicCreatorProfile({
             ) : null}
             {activeOfferingsTab !== 'shop' ? (
               displayGrouped.length === 0 ? (
-              <p className="foleio-public-empty">Check back soon for booking options.</p>
+              <p className="foleio-public-empty">
+                No services published yet. Check back soon.
+              </p>
             ) : (
               displayGrouped.map((group) => (
                 <div key={group.category || 'uncategorized'} className="foleio-public-group">
@@ -885,7 +827,7 @@ export function PublicCreatorProfile({
             creatorName={creator.displayName}
             availableDates={displayAvailability}
             onBack={handleBackToServices}
-            isPreview={usingSampleServices}
+            isPreview={false}
           />
         ) : null}
       </>
@@ -1088,7 +1030,9 @@ export function PublicCreatorProfile({
               ) : null}
               {activeOfferingsTab !== 'shop' ? (
                 displayGrouped.length === 0 ? (
-                <p className="foleio-public-empty">Check back soon for booking options.</p>
+                <p className="foleio-public-empty">
+                  No services published yet. Check back soon.
+                </p>
               ) : (
                 displayGrouped.map((group) => (
                   <div key={group.category || 'uncategorized'} className="foleio-public-group">
@@ -1218,7 +1162,7 @@ export function PublicCreatorProfile({
           creatorName={creator.displayName}
           availableDates={displayAvailability}
           onBack={handleBackToServices}
-          isPreview={usingSampleServices}
+          isPreview={false}
         />
       ) : null}
 

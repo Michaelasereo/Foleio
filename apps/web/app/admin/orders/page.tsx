@@ -88,10 +88,14 @@ export default function AdminOrdersPage() {
           message: data?.error || 'Failed to resend email',
         });
       } else {
+        const parts = [`Sent to ${data?.sentTo || order.customerEmail || 'customer'}`];
+        if (data?.sampleSent && data?.sampleTo) {
+          parts.push(`sample to ${data.sampleTo}`);
+        }
         setResendNotice({
           id: order.id,
           ok: true,
-          message: `Sent to ${data?.sentTo || order.customerEmail || 'customer'}`,
+          message: parts.join(' · '),
         });
       }
     } catch {

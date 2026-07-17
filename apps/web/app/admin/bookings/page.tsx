@@ -82,10 +82,17 @@ export default function AdminBookingsPage() {
           message: data?.error || 'Failed to resend email',
         });
       } else {
+        const parts = [`Sent to ${data?.sentTo || booking.customerEmail || 'customer'}`];
+        if (data?.sampleSent && data?.sampleTo) {
+          parts.push(`sample to ${data.sampleTo}`);
+        }
+        if (data?.creatorNotified) {
+          parts.push('creator notified');
+        }
         setResendNotice({
           id: booking.id,
           ok: true,
-          message: `Sent to ${data?.sentTo || booking.customerEmail || 'customer'}`,
+          message: parts.join(' · '),
         });
       }
     } catch {

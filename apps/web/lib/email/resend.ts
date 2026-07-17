@@ -205,10 +205,14 @@ export async function sendOrderConfirmationEmail({
   deliveryFee,
   total,
   creatorName,
-}: OrderConfirmationEmailProps) {
+  sampleTo,
+}: OrderConfirmationEmailProps & { sampleTo?: string }) {
   if (!canSendEmails()) {
     console.log('📧 Email skipped (dev mode):', `Order confirmed — ${creatorName}`, email);
-    return { success: true };
+    if (sampleTo) {
+      console.log('📧 Admin sample skipped (dev mode):', sampleTo);
+    }
+    return { success: true, sampleSent: Boolean(sampleTo) };
   }
 
   const digitalItems = items.filter(
@@ -229,14 +233,10 @@ export async function sendOrderConfirmationEmail({
     )
     .join('');
 
-  try {
-    const { data, error } = await resend.emails.send({
-      from: resolveFromEmail(),
-      to: email,
-      subject: `Order confirmed — ${creatorName}'s Shop 🎉`,
-      html: baseEmailTemplate({
-        previewText: "Your order has been confirmed. Here's your summary.",
-        body: `
+  const subject = `Order confirmed — ${creatorName}'s Shop 🎉`;
+  const html = baseEmailTemplate({
+    previewText: "Your order has been confirmed. Here's your summary.",
+    body: `
           <h1 style="font-size:28px;color:#1C1008;margin:0 0 12px;">Order Confirmed! 🎉</h1>
           <p style="font-size:15px;color:#6B5E52;line-height:1.6;">
             Hi ${fanName || 'there'}, your order from <strong>${creatorName}</strong> has been confirmed.
@@ -322,13 +322,37 @@ export async function sendOrderConfirmationEmail({
               : ''
           }
         `,
-      }),
+  });
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
+      to: email,
+      subject,
+      html,
     });
     if (error) {
       console.error('Order confirmation email send error:', error);
       return { success: false, error: error.message };
     }
-    return { success: true, id: data?.id };
+
+    let sampleSent = false;
+    const sampleEmail = sampleTo?.trim().toLowerCase();
+    if (sampleEmail && sampleEmail !== email.trim().toLowerCase()) {
+      const sample = await resend.emails.send({
+        from: resolveFromEmail(),
+        to: sampleEmail,
+        subject: `[Admin sample] ${subject}`,
+        html,
+      });
+      if (sample.error) {
+        console.error('Admin sample order email send failed:', sample.error);
+      } else {
+        sampleSent = true;
+      }
+    }
+
+    return { success: true, id: data?.id, sampleSent };
   } catch (error) {
     console.error('Order confirmation email send error:', error);
     return { success: false };

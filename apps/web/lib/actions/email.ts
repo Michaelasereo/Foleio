@@ -21,7 +21,10 @@ import {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
 // Send booking confirmation emails to customer and creator
-export async function sendBookingConfirmationEmail(bookingId: string) {
+export async function sendBookingConfirmationEmail(
+  bookingId: string,
+  opts?: { sampleTo?: string }
+) {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
@@ -85,6 +88,7 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
       balanceAmount: balanceNaira,
       balanceDueDateLabel: dueLabel,
       status: booking.status,
+      sampleTo: opts?.sampleTo,
     });
 
     let creatorResult: { success: boolean } | null = null;
@@ -130,6 +134,9 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
       success: true,
       trackingUrl,
       creatorNotified: Boolean(creatorResult?.success),
+      sampleSent: Boolean(
+        'sampleSent' in customerResult && customerResult.sampleSent
+      ),
     };
   } catch (error) {
     console.error('Error sending booking confirmation email:', error);
