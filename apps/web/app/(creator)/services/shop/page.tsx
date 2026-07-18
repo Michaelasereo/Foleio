@@ -1,9 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { CreatorShopManager } from '@/components/shop/CreatorShopManager';
-
-export { CreatorShopManager };
-
-export default function CreatorShopPage() {
-  return <CreatorShopManager />;
+/** Legacy path — shop now lives at /shop. */
+export default function LegacyCreatorShopPage() {
+  redirect('/shop');
 }

@@ -7,15 +7,13 @@ import {
   AlertTriangle,
   CalendarClock,
   CalendarDays,
-  Check,
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
-import { completeService, processRefund, rejectRefund } from '@/lib/actions/booking';
+import { processRefund, rejectRefund } from '@/lib/actions/booking';
 import { AvailabilitySetupForm } from '@/components/booking/AvailabilitySetupForm';
 import { BookingsServicesManager } from '@/components/booking/BookingsServicesManager';
 import type { ServiceItem } from '@/components/booking/BookingsServicesManager';
-import { CreatorShopManager } from '@/components/shop/CreatorShopManager';
 import {
   BOOKING_STATUS_LABELS,
   STATUS_FILTER_META,
@@ -60,7 +58,7 @@ interface Booking {
 
 type PriceListItem = ServiceItem;
 
-type PrimaryView = 'bookings' | 'services' | 'availability' | 'shop';
+type PrimaryView = 'bookings' | 'services' | 'availability';
 
 interface UnifiedBookingsManagerProps {
   creator: Creator;
@@ -91,15 +89,22 @@ export function UnifiedBookingsManager({
       ? 'availability'
       : tabParam === 'services'
         ? 'services'
-        : tabParam === 'shop'
-          ? 'shop'
-          : 'bookings';
+        : 'bookings';
 
   const [primaryView, setPrimaryView] = useState<PrimaryView>(initialView);
+  const [statusTab, setStatusTab] = useState<BookingStatusFilter>('upcoming');
+  const [loading, setLoading] = useState<string | null>(null);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [refundReason, setRefundReason] = useState('');
 
   useEffect(() => {
     if (tabParam === 'policy') {
       router.replace('/settings?tab=policy');
+      return;
+    }
+    if (tabParam === 'shop') {
+      router.replace('/shop');
       return;
     }
     const nextView: PrimaryView =
@@ -107,17 +112,9 @@ export function UnifiedBookingsManager({
         ? 'availability'
         : tabParam === 'services'
           ? 'services'
-          : tabParam === 'shop'
-            ? 'shop'
-            : 'bookings';
+          : 'bookings';
     setPrimaryView(nextView);
   }, [tabParam, router]);
-  const [statusTab, setStatusTab] = useState<BookingStatusFilter>('upcoming');
-  const [loading, setLoading] = useState<string | null>(null);
-  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [refundReason, setRefundReason] = useState('');
-
   const totalBookings =
     upcomingBookings.length + disputedBookings.length + completedBookings.length;
 
@@ -167,18 +164,6 @@ export function UnifiedBookingsManager({
     const url =
       view === 'bookings' ? '/bookings' : `/bookings?tab=${view}`;
     router.replace(url, { scroll: false });
-  };
-
-  const handleCompleteService = async (bookingId: string) => {
-    setLoading(bookingId);
-    try {
-      await completeService(bookingId);
-      window.location.reload();
-    } catch (error) {
-      console.error('Error completing service:', error);
-    } finally {
-      setLoading(null);
-    }
   };
 
   const handleRefundRequest = async () => {
@@ -235,15 +220,9 @@ export function UnifiedBookingsManager({
             <p className="foleio-dash-booking-notes">{booking.disputeReason}</p>
           </div>
         ) : null}
-        <div className="foleio-dash-booking-actions">
-          <Link
-            href={`/bookings/detail/${booking.id}`}
-            className="foleio-dash-btn-outline"
-          >
-            View details
-          </Link>
-          {actions}
-        </div>
+        {actions ? (
+          <div className="foleio-dash-booking-actions">{actions}</div>
+        ) : null}
       </div>
       <div className="foleio-dash-booking-amount">
         {booking.paymentPlan === 'deposit' &&
@@ -271,6 +250,12 @@ export function UnifiedBookingsManager({
                 ? ` · due ${booking.balanceDueDateLabel}`
                 : ''}
             </div>
+            <Link
+              href={`/bookings/detail/${booking.id}`}
+              className="foleio-dash-booking-details"
+            >
+              View details
+            </Link>
           </div>
         ) : (
           <div style={{ textAlign: 'right' }}>
@@ -284,6 +269,12 @@ export function UnifiedBookingsManager({
                 Deposit paid
               </span>
             ) : null}
+            <Link
+              href={`/bookings/detail/${booking.id}`}
+              className="foleio-dash-booking-details"
+            >
+              View details
+            </Link>
           </div>
         )}
       </div>
@@ -346,15 +337,6 @@ export function UnifiedBookingsManager({
         >
           Manage availability
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'shop'}
-          className={`foleio-dash-tab${primaryView === 'shop' ? ' is-active' : ''}`}
-          onClick={() => setView('shop')}
-        >
-          Shop
-        </button>
       </div>
 
       {primaryView === 'availability' ? (
@@ -367,8 +349,6 @@ export function UnifiedBookingsManager({
           creatorId={creator.id}
           initialPriceList={priceList}
         />
-      ) : primaryView === 'shop' ? (
-        <CreatorShopManager />
       ) : (
         <>
           <div className="foleio-dash-stats">
@@ -459,24 +439,7 @@ export function UnifiedBookingsManager({
             ) : (
               previewList.map((booking) => {
                 if (statusTab === 'upcoming') {
-                  return renderBookingRow(
-                    booking,
-                    ['paid', 'first_payout_done'].includes(booking.status) ? (
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-primary"
-                        onClick={() => handleCompleteService(booking.id)}
-                        disabled={loading === booking.id}
-                      >
-                        {loading === booking.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                        ) : (
-                          <Check className="h-4 w-4" strokeWidth={1.5} />
-                        )}
-                        Complete
-                      </button>
-                    ) : null
-                  );
+                  return renderBookingRow(booking);
                 }
 
                 if (statusTab === 'disputed') {

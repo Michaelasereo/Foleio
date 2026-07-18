@@ -10,6 +10,7 @@ import {
   CreditCard,
   Crown,
   LayoutDashboard,
+  Link2,
   LogOut,
   Menu,
   Settings,
@@ -22,11 +23,25 @@ import {
 import { cn } from '@/lib/utils';
 import foleioLogo from '../../../../foleio-logo.png';
 
-const navItems = [
-  { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  match?: 'exact' | 'prefix';
+  indent?: boolean;
+};
+
+const navItems: NavItem[] = [
+  { href: '/admin', label: 'Overview', icon: LayoutDashboard, match: 'exact' },
   { href: '/admin/access', label: 'Invites', icon: Shield },
   { href: '/admin/revenue', label: 'Revenue', icon: TrendingUp },
-  { href: '/admin/creators', label: 'Creators', icon: Users },
+  { href: '/admin/creators', label: 'Creators', icon: Users, match: 'exact' },
+  {
+    href: '/admin/creators/links',
+    label: 'Creator links',
+    icon: Link2,
+    indent: true,
+  },
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { href: '/admin/billing', label: 'Billing', icon: Crown },
@@ -148,7 +163,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen">
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-40 w-64 border-r border-[#201e1c] bg-[#141210] transition-transform lg:static lg:translate-x-0',
+            'fixed inset-y-0 left-0 z-50 w-64 border-r border-[#201e1c] bg-[#141210] transition-transform lg:static lg:translate-x-0',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
@@ -175,15 +190,22 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
               {navItems.map((item) => {
                 const active =
-                  item.href === '/admin'
-                    ? pathname === '/admin'
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  item.match === 'exact'
+                    ? pathname === item.href
+                    : item.href === '/admin'
+                      ? pathname === '/admin'
+                      : pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`);
                 const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={cn('foleio-admin-nav-link', active && 'is-active')}
+                    className={cn(
+                      'foleio-admin-nav-link',
+                      active && 'is-active',
+                      item.indent && 'ml-4'
+                    )}
                     onClick={() => setSidebarOpen(false)}
                   >
                     <Icon className="h-4 w-4" strokeWidth={1.75} />
@@ -231,7 +253,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         {sidebarOpen ? (
           <button
             type="button"
-            className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
             aria-label="Close sidebar"
             onClick={() => setSidebarOpen(false)}
           />

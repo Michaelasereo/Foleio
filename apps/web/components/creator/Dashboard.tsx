@@ -58,13 +58,8 @@ export function CreatorDashboard({
         position: 'bottom',
       },
       {
-        target: '[data-tour="analytics"]',
-        text: 'See how you’re performing — bookings, earnings, and product sales.',
-        position: 'bottom',
-      },
-      {
         target: '[data-tour="earnings"]',
-        text: 'Track revenue and connect your bank so booking payments can settle to you.',
+        text: 'Track revenue, open Analytics from the Earnings tab, and connect your bank so payments can settle to you.',
         position: 'bottom',
       },
       {

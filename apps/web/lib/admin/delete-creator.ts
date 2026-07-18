@@ -84,9 +84,17 @@ export function isE2eCreator(input: {
   const email = input.email.toLowerCase();
   return (
     username.startsWith('e2e') ||
-    email.includes('+e2e') ||
-    email.startsWith('e2e') ||
+    isE2eEmail(email) ||
     /e2e\d/.test(username)
+  );
+}
+
+export function isE2eEmail(email: string): boolean {
+  const value = email.trim().toLowerCase();
+  return (
+    value.includes('+e2e') ||
+    value.startsWith('e2e') ||
+    /e2e\d/.test(value)
   );
 }
 
@@ -111,4 +119,54 @@ export async function findE2eCreatorIds(): Promise<
       username: creator.username,
       email: creator.user.email,
     }));
+}
+
+/** Remove waitlist rows that look like e2e / test invites. */
+export async function deleteE2eWaitlistEntries(emails?: string[]): Promise<number> {
+  if (emails && emails.length > 0) {
+    const normalized = [
+      ...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean)),
+    ];
+    const result = await prisma.waitlistEntry.deleteMany({
+      where: { email: { in: normalized } },
+    });
+    return result.count;
+  }
+
+  const entries = await prisma.waitlistEntry.findMany({
+    select: { id: true, email: true },
+  });
+  const ids = entries
+    .filter((entry) => isE2eEmail(entry.email))
+    .map((entry) => entry.id);
+  if (ids.length === 0) return 0;
+  const result = await prisma.waitlistEntry.deleteMany({
+    where: { id: { in: ids } },
+  });
+  return result.count;
+}
+
+export async function deleteE2eCreatorByEmail(email: string): Promise<{
+  deletedCreator: DeletedCreatorSummary | null;
+  waitlistDeleted: number;
+}> {
+  const normalized = email.trim().toLowerCase();
+  if (!isE2eEmail(normalized)) {
+    throw new Error('NOT_E2E_EMAIL');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalized },
+    select: {
+      creator: { select: { id: true } },
+    },
+  });
+
+  let deletedCreator: DeletedCreatorSummary | null = null;
+  if (user?.creator?.id) {
+    deletedCreator = await deleteCreatorById(user.creator.id);
+  }
+
+  const waitlistDeleted = await deleteE2eWaitlistEntries([normalized]);
+  return { deletedCreator, waitlistDeleted };
 }

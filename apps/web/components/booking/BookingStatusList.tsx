@@ -3,12 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ReactNode } from 'react';
-import {
-  ArrowLeft,
-  Check,
-  Loader2,
-} from 'lucide-react';
-import { completeService, processRefund, rejectRefund } from '@/lib/actions/booking';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { processRefund, rejectRefund } from '@/lib/actions/booking';
 import {
   UpcomingBookingsCalendar,
   normalizeBookingDate,
@@ -44,18 +40,6 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
     );
   }, [bookings, selectedDate, status]);
 
-  const handleCompleteService = async (bookingId: string) => {
-    setLoading(bookingId);
-    try {
-      await completeService(bookingId);
-      router.refresh();
-    } catch (error) {
-      console.error('Error completing service:', error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
   const handleRefundRequest = async () => {
     if (!selectedBooking || !refundReason.trim()) return;
     setLoading(selectedBooking.id);
@@ -85,25 +69,6 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
   };
 
   const renderActions = (booking: CreatorBookingRow): ReactNode => {
-    if (status === 'upcoming') {
-      if (!['paid', 'first_payout_done'].includes(booking.status)) return null;
-      return (
-        <button
-          type="button"
-          className="foleio-dash-btn-primary"
-          onClick={() => handleCompleteService(booking.id)}
-          disabled={loading === booking.id}
-        >
-          {loading === booking.id ? (
-            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-          ) : (
-            <Check className="h-4 w-4" strokeWidth={1.5} />
-          )}
-          Complete
-        </button>
-      );
-    }
-
     if (status === 'disputed') {
       return (
         <>
@@ -166,7 +131,9 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
             {selectedDate ? 'No upcoming bookings on this date.' : meta.empty}
           </p>
         ) : (
-          visibleBookings.map((booking) => (
+          visibleBookings.map((booking) => {
+            const actions = renderActions(booking);
+            return (
             <div key={booking.id} className="foleio-dash-booking-row">
               <div className="foleio-dash-booking-main">
                 <div className="foleio-dash-booking-top">
@@ -196,15 +163,9 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                     <p className="foleio-dash-booking-notes">{booking.disputeReason}</p>
                   </div>
                 ) : null}
-                <div className="foleio-dash-booking-actions">
-                  <Link
-                    href={`/bookings/detail/${booking.id}`}
-                    className="foleio-dash-btn-outline"
-                  >
-                    View details
-                  </Link>
-                  {renderActions(booking)}
-                </div>
+                {actions ? (
+                  <div className="foleio-dash-booking-actions">{actions}</div>
+                ) : null}
               </div>
               <div className="foleio-dash-booking-amount">
                 {booking.paymentPlan === 'deposit' &&
@@ -239,6 +200,12 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                         ? ` · due ${booking.balanceDueDateLabel}`
                         : ''}
                     </div>
+                    <Link
+                      href={`/bookings/detail/${booking.id}`}
+                      className="foleio-dash-booking-details"
+                    >
+                      View details
+                    </Link>
                   </div>
                 ) : (
                   <div style={{ textAlign: 'right' }}>
@@ -252,11 +219,18 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
                         Deposit paid
                       </span>
                     ) : null}
+                    <Link
+                      href={`/bookings/detail/${booking.id}`}
+                      className="foleio-dash-booking-details"
+                    >
+                      View details
+                    </Link>
                   </div>
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

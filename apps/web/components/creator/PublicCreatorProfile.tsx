@@ -263,6 +263,38 @@ body:has(.foleio-public-root) footer { display: none !important; }
   width: 16px;
   height: 16px;
 }
+.foleio-public-cta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  width: 100%;
+}
+.foleio-public-cta-row .foleio-public-cta {
+  margin-top: 0;
+}
+.foleio-public-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background: transparent;
+  color: #fafafa;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.foleio-public-cta-secondary:hover { opacity: 0.9; }
+.foleio-public-cta-secondary svg {
+  width: 16px;
+  height: 16px;
+}
 
 .foleio-public-links {
   display: flex;
@@ -518,8 +550,31 @@ export function PublicCreatorProfile({
     prefetchPublicShop(creator.username);
   }, [hasShop, creator.username]);
 
-  function openShopPanel() {
-    if (showBothTabs) setOfferingsTab('shop');
+  // Shell CTA and offerings panel are separate React trees (streaming). Bridge via events.
+  useEffect(() => {
+    if (variant === 'shell') return;
+
+    function onOpenShop() {
+      if (!hasShop) return;
+      setOfferingsTab('shop');
+    }
+
+    function onOpenBook(event: Event) {
+      const detail = (event as CustomEvent<{ serviceId?: string }>).detail;
+      setOfferingsTab('services');
+      setPreselectedServiceId(detail?.serviceId || null);
+      setPriceListOpen(true);
+    }
+
+    window.addEventListener('foleio:open-shop', onOpenShop);
+    window.addEventListener('foleio:open-book', onOpenBook);
+    return () => {
+      window.removeEventListener('foleio:open-shop', onOpenShop);
+      window.removeEventListener('foleio:open-book', onOpenBook);
+    };
+  }, [variant, hasShop]);
+
+  function scrollToOfferings() {
     const target =
       offeringsPanelRef.current ||
       (typeof document !== 'undefined'
@@ -528,9 +583,24 @@ export function PublicCreatorProfile({
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function openShopPanel() {
+    if (showBothTabs) setOfferingsTab('shop');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('foleio:open-shop'));
+    }
+    scrollToOfferings();
+  }
+
   function openServiceDrawer(serviceId?: string) {
     if (offeringsSlot) {
-      openShopPanel();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('foleio:open-book', {
+            detail: { serviceId },
+          })
+        );
+      }
+      scrollToOfferings();
       return;
     }
     setPreselectedServiceId(serviceId || null);
@@ -561,7 +631,8 @@ export function PublicCreatorProfile({
   // still opens the drawer (calendar shows "No available dates right now").
   // hasServicesHint covers shell mode while offerings stream in.
   const canBook = (hasPriceList || hasServicesHint) && paymentsReady;
-  const shopOnly = hasShop && !hasRealServices;
+  const shopOnly = hasShop && !canBook;
+  const showBookAndShop = canBook && hasShop;
   const showPrimaryCta = shopOnly || canBook;
 
   const plan = (creator.platformPlan || '').toUpperCase();
@@ -870,23 +941,44 @@ export function PublicCreatorProfile({
             {displayBio ? <p className="foleio-public-bio">{displayBio}</p> : null}
 
             {showPrimaryCta ? (
-              <button
-                type="button"
-                className="foleio-public-cta"
-                onClick={() => (shopOnly ? openShopPanel() : openServiceDrawer())}
-              >
-                {shopOnly ? (
-                  <>
-                    <ShoppingBag strokeWidth={1.75} />
-                    Shop products
-                  </>
-                ) : (
-                  <>
+              showBookAndShop ? (
+                <div className="foleio-public-cta-row">
+                  <button
+                    type="button"
+                    className="foleio-public-cta"
+                    onClick={() => openServiceDrawer()}
+                  >
                     <Calendar strokeWidth={1.75} />
-                    Book service
-                  </>
-                )}
-              </button>
+                    Book a service
+                  </button>
+                  <button
+                    type="button"
+                    className="foleio-public-cta-secondary"
+                    onClick={() => openShopPanel()}
+                  >
+                    <ShoppingBag strokeWidth={1.75} />
+                    Shop
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="foleio-public-cta"
+                  onClick={() => (shopOnly ? openShopPanel() : openServiceDrawer())}
+                >
+                  {shopOnly ? (
+                    <>
+                      <ShoppingBag strokeWidth={1.75} />
+                      Shop
+                    </>
+                  ) : (
+                    <>
+                      <Calendar strokeWidth={1.75} />
+                      Book a service
+                    </>
+                  )}
+                </button>
+              )
             ) : null}
 
             {socialLinks.length > 0 ? (

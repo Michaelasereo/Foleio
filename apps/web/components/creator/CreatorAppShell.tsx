@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BadgeCheck,
-  BarChart3,
   Bell,
   CalendarDays,
   Copy,
@@ -14,6 +13,7 @@ import {
   Menu,
   MoreHorizontal,
   Settings,
+  ShoppingBag,
   UserRound,
   Wallet,
   X,
@@ -25,6 +25,7 @@ import {
   removeCreatorBanner,
 } from '@/components/creator/BusinessCoverCard';
 import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
+import { CreatorSetupTourCard } from '@/components/creator/CreatorSetupTourCard';
 import { useToast } from '@/components/ui/use-toast';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { subscribeAvatarUpdated, subscribeBannerUpdated } from '@/lib/creator/profile-live';
@@ -166,6 +167,8 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  overflow: visible;
+  z-index: 40;
 }
 .foleio-creator-root .foleio-auth-topbar-nav {
   flex: 1;
@@ -182,13 +185,13 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-auth-topbar-mobile-menu {
   display: none;
   position: relative;
+  z-index: 70;
 }
 .foleio-auth-topbar-mobile-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 50;
-  min-width: 200px;
+  position: fixed;
+  z-index: 80;
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 24px));
   padding: 6px;
   border-radius: 12px;
   background: #2b2b2b;
@@ -219,9 +222,9 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   height: 18px;
   flex-shrink: 0;
 }
-@media (max-width: 767px) {
+@media (max-width: 899px) {
   .foleio-auth-topbar-nav-links {
-    display: none;
+    display: none !important;
   }
   .foleio-auth-topbar-mobile-menu {
     display: block;
@@ -511,6 +514,26 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.foleio-dash-booking-amount .foleio-dash-booking-details {
+  display: inline-flex;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #adadad;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.foleio-dash-booking-amount .foleio-dash-booking-details:hover {
+  color: #fafafa;
 }
 .foleio-dash-booking-actions {
   display: flex;
@@ -1459,6 +1482,198 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   gap: 6px;
   flex-shrink: 0;
 }
+
+.foleio-setup-tour {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 14px;
+  background: #2b2b2b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.foleio-setup-tour-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.foleio-setup-tour-title {
+  margin: 0;
+  color: #fafafa;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+.foleio-setup-tour-meta {
+  margin: 4px 0 0;
+  color: #828282;
+  font-family: var(--font-body), sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+.foleio-setup-tour-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #adadad;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.foleio-setup-tour-close:hover {
+  color: #fafafa;
+  background: rgba(255, 255, 255, 0.06);
+}
+.foleio-setup-tour-close svg {
+  width: 16px;
+  height: 16px;
+}
+.foleio-setup-tour-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.foleio-setup-tour-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #f4f4f5;
+  transition: background 0.15s ease;
+}
+.foleio-setup-tour-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.foleio-setup-tour-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #adadad;
+  font-family: var(--font-body), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.foleio-setup-tour-check {
+  width: 22px;
+  height: 22px;
+  color: #86efac;
+  flex-shrink: 0;
+}
+.foleio-setup-tour-item.is-done .foleio-setup-tour-label {
+  color: #adadad;
+}
+.foleio-setup-tour-label {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.foleio-setup-tour-arrow {
+  width: 16px;
+  height: 16px;
+  color: #828282;
+  flex-shrink: 0;
+}
+.foleio-setup-tour-item:hover .foleio-setup-tour-arrow {
+  color: #fafafa;
+}
+.foleio-setup-tour-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: #2b2b2b;
+  color: #f4f4f5;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.foleio-setup-tour-fab:hover {
+  background: #333;
+  color: #fff;
+}
+.foleio-setup-tour-fab svg {
+  width: 20px;
+  height: 20px;
+}
+.foleio-setup-tour-fab-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #86efac;
+  color: #14532d;
+  font-family: var(--font-body), sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .foleio-setup-tour,
+  .foleio-setup-tour-fab {
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+.foleio-dash-policy {
+  color: #adadad;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.foleio-dash-policy h2 {
+  margin: 22px 0 8px;
+  color: #fafafa;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.foleio-dash-policy h2:first-child {
+  margin-top: 0;
+}
+.foleio-dash-policy p {
+  margin: 0 0 12px;
+}
+.foleio-dash-policy ul {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+.foleio-dash-policy li {
+  margin-bottom: 6px;
+}
+.foleio-dash-policy strong {
+  color: #f4f4f5;
+  font-weight: 600;
+}
 `;
 
 interface CreatorAppShellProps {
@@ -1478,8 +1693,8 @@ interface CreatorAppShellProps {
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
   { href: '/bookings', label: 'Bookings', icon: CalendarDays, tourId: 'bookings' },
+  { href: '/shop', label: 'Shop', icon: ShoppingBag, tourId: 'shop' },
   { href: '/earnings', label: 'Earnings', icon: Wallet, tourId: 'earnings' },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3, tourId: 'analytics' },
 ] as const;
 
 function categoryHashtag(category?: string | null) {
@@ -1673,7 +1888,11 @@ function CreatorShellProfile({
 export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
   const pathname = usePathname();
   const navMenuRef = useRef<HTMLDivElement>(null);
+  const navMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
+  const [navMenuPos, setNavMenuPos] = useState<{ top: number; left: number } | null>(
+    null
+  );
   const [bannerUrl, setBannerUrl] = useState<string | null>(
     creator?.bannerUrl ?? null
   );
@@ -1702,28 +1921,67 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!navMenuOpen) return undefined;
+    if (!navMenuOpen) {
+      setNavMenuPos(null);
+      return undefined;
+    }
 
-    function onPointerDown(event: MouseEvent) {
-      if (!navMenuRef.current?.contains(event.target as Node)) {
+    function placeMenu() {
+      const button = navMenuButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const width = 220;
+      const left = Math.min(
+        Math.max(12, rect.left),
+        window.innerWidth - width - 12
+      );
+      setNavMenuPos({
+        top: rect.bottom + 8,
+        left,
+      });
+    }
+
+    placeMenu();
+
+    let removeOutside: (() => void) | undefined;
+    // Defer outside-close so the opening tap doesn't immediately dismiss.
+    const timer = window.setTimeout(() => {
+      function onPointerDown(event: PointerEvent) {
+        const target = event.target as Node | null;
+        if (!target) return;
+        if (navMenuRef.current?.contains(target)) return;
+        if (navMenuButtonRef.current?.contains(target)) return;
         setNavMenuOpen(false);
       }
-    }
+      document.addEventListener('pointerdown', onPointerDown);
+      removeOutside = () => document.removeEventListener('pointerdown', onPointerDown);
+    }, 0);
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setNavMenuOpen(false);
     }
 
-    document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', placeMenu);
+    window.addEventListener('scroll', placeMenu, true);
+
     return () => {
-      document.removeEventListener('mousedown', onPointerDown);
+      window.clearTimeout(timer);
+      removeOutside?.();
       document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', placeMenu);
+      window.removeEventListener('scroll', placeMenu, true);
     };
   }, [navMenuOpen]);
 
   return (
     <div className="foleio-auth-root foleio-creator-root relative flex min-h-screen flex-col">
-      <style dangerouslySetInnerHTML={{ __html: creatorShellCss }} />
+      <style
+        // Large inline CSS can disagree between SSR and the client chunk during HMR;
+        // styles are static and safe to skip attribute reconciliation.
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: creatorShellCss }}
+      />
 
       <div className="foleio-auth-shell">
         <header className="foleio-auth-topbar relative z-30">
@@ -1733,9 +1991,16 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
                 const Icon = item.icon;
                 const active =
                   item.href === '/dashboard'
-                    ? pathname === '/dashboard'
-                    : pathname === item.href ||
-                      pathname.startsWith(`${item.href}/`);
+                    ? pathname === '/dashboard' ||
+                      pathname.startsWith('/dashboard/')
+                    : item.href === '/shop'
+                      ? pathname === '/shop' ||
+                        pathname.startsWith('/services/shop')
+                      : item.href === '/earnings'
+                        ? pathname.startsWith('/earnings') ||
+                          pathname.startsWith('/analytics')
+                        : pathname === item.href ||
+                          pathname.startsWith(`${item.href}/`);
                 return (
                   <Link
                     key={item.href}
@@ -1750,14 +2015,33 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
               })}
             </div>
 
-            <div className="foleio-auth-topbar-mobile-menu" ref={navMenuRef}>
+            <div className="foleio-auth-topbar-mobile-menu">
               <button
+                ref={navMenuButtonRef}
                 type="button"
                 className="foleio-auth-topbar-icon"
                 aria-label={navMenuOpen ? 'Close menu' : 'Open menu'}
                 aria-haspopup="menu"
                 aria-expanded={navMenuOpen}
-                onClick={() => setNavMenuOpen((open) => !open)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  if (navMenuOpen) {
+                    setNavMenuOpen(false);
+                    return;
+                  }
+                  const button = event.currentTarget;
+                  const rect = button.getBoundingClientRect();
+                  const width = 220;
+                  setNavMenuPos({
+                    top: rect.bottom + 8,
+                    left: Math.min(
+                      Math.max(12, rect.left),
+                      window.innerWidth - width - 12
+                    ),
+                  });
+                  setNavMenuOpen(true);
+                }}
               >
                 {navMenuOpen ? (
                   <X strokeWidth={1.5} />
@@ -1766,14 +2050,29 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
                 )}
               </button>
               {navMenuOpen ? (
-                <div className="foleio-auth-topbar-mobile-pop" role="menu">
+                <div
+                  ref={navMenuRef}
+                  className="foleio-auth-topbar-mobile-pop"
+                  role="menu"
+                  style={{
+                    top: navMenuPos?.top ?? 56,
+                    left: navMenuPos?.left ?? 12,
+                  }}
+                >
                   {NAV.map((item) => {
                     const Icon = item.icon;
                     const active =
                       item.href === '/dashboard'
-                        ? pathname === '/dashboard'
-                        : pathname === item.href ||
-                          pathname.startsWith(`${item.href}/`);
+                        ? pathname === '/dashboard' ||
+                          pathname.startsWith('/dashboard/')
+                        : item.href === '/shop'
+                          ? pathname === '/shop' ||
+                            pathname.startsWith('/services/shop')
+                          : item.href === '/earnings'
+                            ? pathname.startsWith('/earnings') ||
+                              pathname.startsWith('/analytics')
+                            : pathname === item.href ||
+                              pathname.startsWith(`${item.href}/`);
                     return (
                       <Link
                         key={item.href}
@@ -1839,6 +2138,7 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
           </div>
         </main>
       </div>
+      <CreatorSetupTourCard creatorId={creator?.id} />
     </div>
   );
 }

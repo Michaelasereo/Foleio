@@ -69,13 +69,15 @@ export async function middleware(request: NextRequest) {
       '/payouts',
       '/earnings',
       '/settings',
+      '/shop',
     ];
     const isCreatorProtectedRoute = creatorProtectedPrefixes.some((prefix) =>
       matchesPrefix(pathname, prefix)
-    );
+    ) && !matchesPrefix(pathname, '/shop/order-success');
 
     // MVP scope: hide content-monetization and marketplace surfaces.
     // /price-list is intentionally NOT hidden (FR-3.1 services & pricing).
+    // /shop is the creator shop manager (protected above); only order-success is public.
     const sprintHiddenPrefixes = [
       '/content',
       '/collections',
@@ -87,7 +89,6 @@ export async function middleware(request: NextRequest) {
       '/fan',
       '/creators',
       '/subscriptions',
-      '/shop',
     ];
     const isSprintHiddenRoute = sprintHiddenPrefixes.some((prefix) =>
       matchesPrefix(pathname, prefix)
@@ -107,17 +108,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isSprintHiddenRoute) {
-      // Allow Paystack return URL for shop checkouts.
-      if (matchesPrefix(pathname, '/shop/order-success')) {
-        return supabaseResponse;
-      }
-
       // Public/marketplace/fan routes → home; creator-tool routes → dashboard when authed.
       const isPublicHide =
         matchesPrefix(pathname, '/fan') ||
         matchesPrefix(pathname, '/creators') ||
-        matchesPrefix(pathname, '/subscriptions') ||
-        matchesPrefix(pathname, '/shop');
+        matchesPrefix(pathname, '/subscriptions');
 
       if (matchesPrefix(pathname, '/billing')) {
         return copyCookies(
@@ -133,6 +128,11 @@ export async function middleware(request: NextRequest) {
         return copyCookies(NextResponse.redirect(new URL('/login', request.url)));
       }
       return copyCookies(NextResponse.redirect(new URL('/dashboard', request.url)));
+    }
+
+    // Public Paystack return for customer shop checkouts.
+    if (matchesPrefix(pathname, '/shop/order-success')) {
+      return supabaseResponse;
     }
 
     if (isOnboardingRoute || isCreatorProtectedRoute) {
@@ -180,6 +180,7 @@ export const config = {
     '/fan/:path*',
     '/creators/:path*',
     '/subscriptions/:path*',
+    '/shop',
     '/shop/:path*',
     '/creator/:path*',
     '/admin/:path*',

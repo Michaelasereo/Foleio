@@ -8,6 +8,10 @@ const createSchema = z.object({
   email: z.string().trim().email('Invalid email'),
 });
 
+const deleteSchema = z.object({
+  id: z.string().trim().min(1, 'Invite id is required'),
+});
+
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -95,5 +99,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
     }
     return NextResponse.json({ error: 'Failed to add invite' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!isAdminAuthed(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const parsed = deleteSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid payload' },
+        { status: 400 }
+      );
+    }
+
+    const entry = await prisma.waitlistEntry.findUnique({
+      where: { id: parsed.data.id },
+      select: { id: true, email: true, status: true, name: true },
+    });
+    if (!entry) {
+      return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
+    }
+
+    const status = String(entry.status || 'pending').toLowerCase();
+    if (status === 'activated') {
+      return NextResponse.json(
+        {
+          error:
+            'Activated invites cannot be deleted here. Use Delete e2e for test accounts.',
+        },
+        { status: 400 }
+      );
+    }
+
+    await prisma.waitlistEntry.delete({ where: { id: entry.id } });
+
+    return NextResponse.json({
+      success: true,
+      deleted: { id: entry.id, email: entry.email, name: entry.name, status },
+    });
+  } catch (error) {
+    console.error('Admin waitlist delete error:', error);
+    return NextResponse.json({ error: 'Failed to delete invite' }, { status: 500 });
   }
 }

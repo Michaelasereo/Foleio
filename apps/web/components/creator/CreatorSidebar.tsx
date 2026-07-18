@@ -13,7 +13,7 @@ import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import {
   LayoutDashboard,
   Calendar as CalendarIcon,
-  BarChart3,
+  ShoppingBag,
   Wallet,
   Settings2,
   ExternalLink,
@@ -71,22 +71,33 @@ const navGroups: { title: string; items: NavItem[] }[] = [
             href: '/price-list',
             matchPath: '/price-list',
           },
-          {
-            label: 'Shop',
-            href: '/bookings?tab=shop',
-            queryTab: 'shop',
-          },
         ],
+      },
+      {
+        label: 'Shop',
+        href: '/shop',
+        icon: ShoppingBag,
+        tourId: 'shop',
       },
     ],
   },
   {
-    title: 'Insights',
-    items: [{ label: 'Analytics', href: '/analytics', icon: BarChart3, tourId: 'analytics' }],
-  },
-  {
     title: 'Payments',
-    items: [{ label: 'Earnings', href: '/earnings', icon: Wallet, tourId: 'earnings' }],
+    items: [
+      {
+        label: 'Earnings',
+        href: '/earnings',
+        icon: Wallet,
+        tourId: 'earnings',
+        subItems: [
+          {
+            label: 'Analytics',
+            href: '/earnings?tab=analytics',
+            queryTab: 'analytics',
+          },
+        ],
+      },
+    ],
   },
 ];
 
@@ -97,12 +108,16 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({
     Bookings: pathname.startsWith('/bookings') || pathname.startsWith('/price-list'),
+    Earnings: pathname.startsWith('/earnings') || pathname.startsWith('/analytics'),
   });
-  const currentBookingsTab = searchParams.get('tab');
+  const currentTab = searchParams.get('tab');
 
   useEffect(() => {
     if (pathname.startsWith('/bookings') || pathname.startsWith('/price-list')) {
       setExpandedNav((prev) => ({ ...prev, Bookings: true }));
+    }
+    if (pathname.startsWith('/earnings') || pathname.startsWith('/analytics')) {
+      setExpandedNav((prev) => ({ ...prev, Earnings: true }));
     }
   }, [pathname]);
 
@@ -284,8 +299,10 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
                         const subActive = subItem.matchPath
                           ? pathname === subItem.matchPath ||
                             pathname.startsWith(`${subItem.matchPath}/`)
-                          : pathname === '/bookings' &&
-                            subItem.queryTab === currentBookingsTab;
+                          : Boolean(subItem.queryTab) &&
+                            subItem.queryTab === currentTab &&
+                            (pathname.startsWith('/bookings') ||
+                              pathname.startsWith('/earnings'));
                         return (
                           <Link
                             key={subItem.href}

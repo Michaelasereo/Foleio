@@ -17,7 +17,7 @@ type PriceListItem = {
   isActive: boolean;
 };
 
-/** @deprecated Shop lives under Bookings → Shop. Kept for any lingering imports. */
+/** @deprecated Shop now lives at /shop. Kept for any lingering imports. */
 export function ServicesShopTabs({
   creatorId,
   initialPriceList,

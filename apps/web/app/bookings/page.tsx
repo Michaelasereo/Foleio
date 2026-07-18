@@ -29,6 +29,9 @@ export default async function BookingsPage({
   if (params.tab === 'portfolio') {
     redirect('/settings?tab=portfolio');
   }
+  if (params.tab === 'shop') {
+    redirect('/shop');
+  }
 
   const user = await getCurrentUser();
 

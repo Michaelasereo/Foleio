@@ -125,7 +125,7 @@ function normalizeBank(raw: any): BankAccount | null {
   };
 }
 
-export function EarningsDashboard() {
+export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean }) {
   const [data, setData] = useState<EarningsPayload | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [retryKey, setRetryKey] = useState(0);
@@ -214,8 +214,8 @@ export function EarningsDashboard() {
   if (state === 'error' && !data?.creator) {
     return (
       <div>
-        <h1 className="foleio-auth-title">Earnings</h1>
-        <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
+        {hideHeader ? null : <h1 className="foleio-auth-title">Earnings</h1>}
+        <p className="foleio-dash-panel-meta" style={{ marginTop: hideHeader ? 0 : 8 }}>
           Could not load earnings right now.
         </p>
         <button
@@ -293,14 +293,16 @@ export function EarningsDashboard() {
 
   return (
     <div>
-      <div className="foleio-dash-header">
-        <div>
-          <h1 className="foleio-auth-title">Earnings</h1>
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-            Full payments and deposits, your share after platform fee.
-          </p>
+      {hideHeader ? null : (
+        <div className="foleio-dash-header">
+          <div>
+            <h1 className="foleio-auth-title">Earnings</h1>
+            <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+              Full payments and deposits, your share after platform fee.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {state === 'error' ? (
         <p className="foleio-dash-panel-meta" style={{ color: '#fca5a5', marginBottom: 12 }}>

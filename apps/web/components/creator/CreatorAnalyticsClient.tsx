@@ -296,7 +296,11 @@ function RankingBars({
   );
 }
 
-export function CreatorAnalyticsClient() {
+export function CreatorAnalyticsClient({
+  hideHeader = false,
+}: {
+  hideHeader?: boolean;
+}) {
   const [tab, setTab] = useState<AnalyticsTab>('bookings');
   const [bookings, setBookings] = useState<BookingAnalytics>(EMPTY_BOOKINGS);
   const [shop, setShop] = useState<ShopAnalytics>(EMPTY_SHOP);
@@ -341,8 +345,8 @@ export function CreatorAnalyticsClient() {
   if (error) {
     return (
       <div>
-        <h1 className="foleio-auth-title">Analytics</h1>
-        <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
+        {hideHeader ? null : <h1 className="foleio-auth-title">Analytics</h1>}
+        <p className="foleio-dash-panel-meta" style={{ marginTop: hideHeader ? 0 : 8 }}>
           {error}
         </p>
         <button
@@ -443,16 +447,18 @@ export function CreatorAnalyticsClient() {
 
   return (
     <div>
-      <div className="foleio-dash-header">
-        <div>
-          <h1 className="foleio-auth-title">Analytics</h1>
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-            {tab === 'bookings'
-              ? 'Bookings, income, and service performance'
-              : 'Orders, product sales, and shop revenue'}
-          </p>
+      {hideHeader ? null : (
+        <div className="foleio-dash-header">
+          <div>
+            <h1 className="foleio-auth-title">Analytics</h1>
+            <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+              {tab === 'bookings'
+                ? 'Bookings, income, and service performance'
+                : 'Orders, product sales, and shop revenue'}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="foleio-dash-tabs" role="tablist" aria-label="Analytics sections">
         <button
