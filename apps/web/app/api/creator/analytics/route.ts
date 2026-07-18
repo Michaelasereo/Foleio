@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import { feePercentForCreator } from '@/lib/billing/platform-fee';
+import { feePercentForCreator, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
 import {
   creatorShareFromGross,
   sumCreatorEarnings,
@@ -103,6 +103,10 @@ export async function GET() {
         id: true,
         platformPlan: true,
         platformSubscriptionActive: true,
+        platformSubscriptions: {
+          select: PLATFORM_SUB_FEE_SELECT,
+          take: 1,
+        },
       },
     });
 
@@ -110,7 +114,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
     }
 
-    const feePct = feePercentForCreator(creator);
+    const feePct = feePercentForCreator(toFeePlanInput(creator));
     const now = new Date();
     const { start: currentMonthStart, end: currentMonthEnd } = monthBounds(0, now);
     const { start: prevMonthStart, end: prevMonthEnd } = monthBounds(-1, now);

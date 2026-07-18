@@ -36,6 +36,7 @@ type SubscriptionRecord = {
   plan: string;
   amount: number;
   status: string;
+  billingInterval?: string | null;
   currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
@@ -55,6 +56,7 @@ interface AccountSettingsTabsProps {
     tiktokHandle?: string | null;
     twitterUrl?: string | null;
     portfolioUrl?: string | null;
+    growthEligible?: boolean;
   };
   billing?: {
     currentSubscription: SubscriptionRecord | null;
@@ -677,7 +679,11 @@ export function AccountSettingsTabs({
       {activeTab === 'billing' ? (
         <BillingPage
           embedded
-          creator={{ id: creator.id, displayName: creator.displayName }}
+          creator={{
+            id: creator.id,
+            displayName: creator.displayName,
+            growthEligible: creator.growthEligible,
+          }}
           currentSubscription={billing?.currentSubscription || null}
           billingHistory={billing?.billingHistory || []}
         />

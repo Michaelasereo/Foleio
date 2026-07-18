@@ -4,7 +4,7 @@ import { prisma } from '@foleio/database';
 import { paystack } from '@/lib/paystack';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
-import { paystackTransactionChargeKobo } from '@/lib/billing/platform-fee';
+import { paystackTransactionChargeKobo, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
 
 const schema = z.object({
   bookingId: z.string().uuid(),
@@ -35,6 +35,10 @@ export async function POST(request: NextRequest) {
             subaccountStatus: true,
             platformPlan: true,
             platformSubscriptionActive: true,
+            platformSubscriptions: {
+              select: PLATFORM_SUB_FEE_SELECT,
+              take: 1,
+            },
           },
         },
         priceListItem: {
@@ -105,7 +109,10 @@ export async function POST(request: NextRequest) {
 
     let paymentData;
     try {
-      const transactionCharge = paystackTransactionChargeKobo(amount, booking.creator);
+      const transactionCharge = paystackTransactionChargeKobo(
+        amount,
+        toFeePlanInput(booking.creator)
+      );
       paymentData = await paystack.initializePayment({
         email: booking.customerEmail,
         amount,

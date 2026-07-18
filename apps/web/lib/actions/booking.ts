@@ -11,7 +11,7 @@ import {
   resolveSelectedAddons,
 } from '@/lib/booking/deposit';
 import { computePolicyRefundKobo } from '@/lib/booking/cancellation-policy';
-import { feePercentForCreator, platformFeeFromGross } from '@/lib/billing/platform-fee';
+import { feePercentForCreator, platformFeeFromGross, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
 import { dayBookingCapacity } from '@/lib/booking/day-capacity';
 import { isSlotOpen, isValidHHmm } from '@/lib/booking/slots';
 
@@ -440,6 +440,10 @@ export async function recordBookingPaymentTransaction(opts: {
             subaccountStatus: true,
             platformPlan: true,
             platformSubscriptionActive: true,
+            platformSubscriptions: {
+              select: PLATFORM_SUB_FEE_SELECT,
+              take: 1,
+            },
           },
         },
       },
@@ -484,10 +488,11 @@ export async function recordBookingPaymentTransaction(opts: {
       return { error: 'Invalid booking amount' };
     }
 
-    const feePct = feePercentForCreator(booking.creator);
+    const feeInput = toFeePlanInput(booking.creator);
+    const feePct = feePercentForCreator(feeInput);
     const { platformFee, creatorEarnings, feeType } = platformFeeFromGross(
       amount,
-      booking.creator
+      feeInput
     );
 
     const txType = paymentKind === 'initial' && isDepositPlan ? 'deposit' : 'booking';

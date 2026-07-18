@@ -11,6 +11,13 @@ import {
   updatePriceListItem,
 } from '@/lib/actions/priceList';
 import { RemoteImage } from '@/components/creator/RemoteImage';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import {
+  getCreatorPlan,
+  getCreatorPlanLimits,
+  type PlatformPlan,
+} from '@/lib/utils/plan-limits';
 
 export type ServiceAddon = {
   id: string;
@@ -101,9 +108,13 @@ function parseAddons(raw: unknown): ServiceAddon[] {
 export function BookingsServicesManager({
   creatorId: _creatorId,
   initialPriceList,
+  platformPlan = null,
+  platformSubscriptionActive = false,
 }: {
   creatorId: string;
   initialPriceList: ServiceItem[];
+  platformPlan?: string | null;
+  platformSubscriptionActive?: boolean | null;
 }) {
   const [items, setItems] = useState<ServiceItem[]>(initialPriceList);
   const [loading, setLoading] = useState(false);
@@ -116,6 +127,12 @@ export function BookingsServicesManager({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
+  const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
+  const limits = getCreatorPlanLimits({
+    platformPlan,
+    platformSubscriptionActive,
+  });
 
   useEffect(() => {
     setItems(initialPriceList);
@@ -149,6 +166,10 @@ export function BookingsServicesManager({
   }
 
   function openCreate() {
+    if (items.length >= limits.maxServices) {
+      showUpgradeModal('maxServices');
+      return;
+    }
     setEditing(null);
     setForm(EMPTY_FORM);
     resetImagePreview();
@@ -373,6 +394,13 @@ export function BookingsServicesManager({
       } else {
         const result = await createPriceListItem(payload);
         if (result?.error) {
+          if (
+            'limitType' in result &&
+            result.limitType === 'maxServices'
+          ) {
+            showUpgradeModal('maxServices');
+            return;
+          }
           setError(result.error);
           return;
         }
@@ -941,6 +969,15 @@ export function BookingsServicesManager({
             </div>
           </aside>
         </>
+      ) : null}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
       ) : null}
     </div>
   );

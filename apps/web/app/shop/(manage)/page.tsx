@@ -10,5 +10,10 @@ export default async function CreatorShopPage() {
   if (!creator) redirect('/onboarding');
   if (creator.isBanned) redirect('/dashboard');
 
-  return <CreatorShopManager />;
+  return (
+    <CreatorShopManager
+      platformPlan={creator.platformPlan}
+      platformSubscriptionActive={creator.platformSubscriptionActive}
+    />
+  );
 }

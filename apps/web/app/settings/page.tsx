@@ -17,6 +17,29 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
+  const creatorLinkSelect = {
+    where: {
+      linkType: { in: ['twitter', 'portfolio'] },
+      isActive: true,
+    },
+    select: {
+      linkType: true,
+      url: true,
+    },
+  } as const;
+
+  const creatorBaseSelect = {
+    id: true,
+    username: true,
+    displayName: true,
+    bio: true,
+    category: true,
+    avatarUrl: true,
+    instagramHandle: true,
+    tiktokHandle: true,
+    creatorLinks: creatorLinkSelect,
+  } as const;
+
   let creator: {
     id: string;
     username: string;
@@ -26,50 +49,43 @@ export default async function SettingsPage() {
     avatarUrl: string | null;
     instagramHandle: string | null;
     tiktokHandle: string | null;
+    growthEligible: boolean;
     creatorLinks: Array<{ linkType: string; url: string }>;
   } | null = null;
 
   try {
-    creator = await prisma.creator.findUnique({
+    const row = await prisma.creator.findUnique({
       where: { userId: session.user.id },
       select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        category: true,
-        avatarUrl: true,
-        instagramHandle: true,
-        tiktokHandle: true,
-        creatorLinks: {
-          where: {
-            linkType: { in: ['twitter', 'portfolio'] },
-            isActive: true,
-          },
-          select: {
-            linkType: true,
-            url: true,
-          },
-        },
+        ...creatorBaseSelect,
+        growthEligible: true,
       },
     });
-  } catch {
-    console.warn('Settings page creator lookup failed (non-fatal).');
-    return (
-      <div>
-        <h1 className="foleio-auth-title">Settings</h1>
-        <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
-          We could not load your account right now. Please try again in a moment.
-        </p>
-        <div style={{ marginTop: 24 }}>
-          <OnboardingPrompt
-            userEmail={session.user.email || 'user'}
-            completedSteps={0}
-            totalSteps={4}
-          />
+    if (row) {
+      creator = { ...row, growthEligible: Boolean(row.growthEligible) };
+    }
+  } catch (error) {
+    // Schema may lag deploy (missing growth_eligible). Retry without it.
+    console.warn('Settings page creator lookup failed; retrying without growthEligible.', error);
+    try {
+      const row = await prisma.creator.findUnique({
+        where: { userId: session.user.id },
+        select: creatorBaseSelect,
+      });
+      if (row) {
+        creator = { ...row, growthEligible: false };
+      }
+    } catch (retryError) {
+      console.warn('Settings page creator lookup failed (non-fatal).', retryError);
+      return (
+        <div>
+          <h1 className="foleio-auth-title">Settings</h1>
+          <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
+            We could not load your account right now. Please try again in a moment.
+          </p>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
   if (!creator) {
@@ -152,6 +168,7 @@ export default async function SettingsPage() {
           tiktokHandle: creator.tiktokHandle,
           twitterUrl,
           portfolioUrl,
+          growthEligible: creator.growthEligible,
         }}
         userEmail={session.user.email}
         billing={{

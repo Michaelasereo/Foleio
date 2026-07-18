@@ -25,6 +25,13 @@ import {
   parseProductCsv,
   type ParsedProductCsvRow,
 } from '@/lib/shop/product-csv';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import {
+  getCreatorPlan,
+  getCreatorPlanLimits,
+  type PlatformPlan,
+} from '@/lib/utils/plan-limits';
 
 type Variant = { id?: string; name: string; options: string[] };
 type Addon = { id: string; name: string; price: number };
@@ -267,8 +274,20 @@ function emptyTierForm() {
   };
 }
 
-export function CreatorShopManager() {
+export function CreatorShopManager({
+  platformPlan = null,
+  platformSubscriptionActive = false,
+}: {
+  platformPlan?: string | null;
+  platformSubscriptionActive?: boolean | null;
+} = {}) {
   const { toast } = useToast();
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
+  const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
+  const limits = getCreatorPlanLimits({
+    platformPlan,
+    platformSubscriptionActive,
+  });
   const [tab, setTab] = useState<'products' | 'orders' | 'delivery'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -326,6 +345,10 @@ export function CreatorShopManager() {
   }, []);
 
   function openCreateProduct() {
+    if (products.length >= limits.maxProducts) {
+      showUpgradeModal('maxProducts');
+      return;
+    }
     setProductForm(emptyProductForm());
     setSlotPreview({});
     setProductError('');
@@ -386,6 +409,10 @@ export function CreatorShopManager() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        if (data.limitType === 'maxProducts') {
+          showUpgradeModal('maxProducts');
+          return;
+        }
         toast({
           title: 'Import failed',
           description: data.error || 'Could not import products',
@@ -459,6 +486,17 @@ export function CreatorShopManager() {
   }
 
   function setPreorderEnabled(enabled: boolean) {
+    if (enabled) {
+      const alreadyPreorder = Boolean(productForm.isPreorder);
+      const editingId = productForm.id;
+      const otherPreorders = products.filter(
+        (p) => p.isPreorder && p.id !== editingId
+      ).length;
+      if (!alreadyPreorder && otherPreorders >= limits.maxPreorderProducts) {
+        showUpgradeModal('maxPreorderProducts');
+        return;
+      }
+    }
     setProductForm((prev) => {
       if (!enabled) {
         return {
@@ -628,6 +666,13 @@ export function CreatorShopManager() {
     setIsSavingProduct(false);
 
     if (!response.ok) {
+      if (
+        data.limitType === 'maxProducts' ||
+        data.limitType === 'maxPreorderProducts'
+      ) {
+        showUpgradeModal(data.limitType);
+        return;
+      }
       setProductError(
         data.details || data.error || 'Could not save product'
       );
@@ -3369,6 +3414,15 @@ export function CreatorShopManager() {
             </div>
           </aside>
         </>
+      ) : null}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
       ) : null}
     </div>
   );

@@ -34,7 +34,11 @@ export function getNextPayoutDate(frequency: string, now = new Date()): Date {
 export function getEstimatedArrival(plan: string | null): string {
   const normalized = (plan || '').toUpperCase();
   const now = new Date();
-  if (normalized === 'PRO' || normalized === 'PREMIUM') {
+  if (
+    normalized === 'PRO' ||
+    normalized === 'GROWTH' ||
+    normalized === 'PREMIUM'
+  ) {
     if (now.getHours() < 14) return 'Today';
     return 'Next business day';
   }
@@ -43,7 +47,11 @@ export function getEstimatedArrival(plan: string | null): string {
 
 export function shouldProcessImmediately(plan: string | null): boolean {
   const normalized = (plan || '').toUpperCase();
-  if (normalized === 'PRO' || normalized === 'PREMIUM') {
+  if (
+    normalized === 'PRO' ||
+    normalized === 'GROWTH' ||
+    normalized === 'PREMIUM'
+  ) {
     return new Date().getHours() < 14;
   }
   return false;

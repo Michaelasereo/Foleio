@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { isValidHHmm, timeToMinutes, type TimeRange } from '@/lib/booking/slots';
+import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,11 @@ async function requireCreator() {
 
   const creator = await prisma.creator.findUnique({
     where: { userId: user.id },
-    select: { id: true },
+    select: {
+      id: true,
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
   });
   if (!creator) return { error: 'Creator profile not found' as const, status: 404 };
   return { creator };
@@ -45,6 +50,14 @@ export async function POST(request: Request) {
     const auth = await requireCreator();
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const limits = getCreatorPlanLimits(auth.creator);
+    if (!limits.canUseAvailabilityTemplates) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'availabilityTemplates' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

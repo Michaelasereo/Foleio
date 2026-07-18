@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { normalizeAddonCategoriesInput } from '@/lib/shop/product-addons';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { validatePreorderSettingsInput } from '@/lib/shop/preorder';
+import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -98,7 +99,12 @@ async function getCreatorSession() {
   if (authError || !user) return null;
   const creator = await prisma.creator.findUnique({
     where: { userId: user.id },
-    select: { id: true, username: true },
+    select: {
+      id: true,
+      username: true,
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
   });
   return creator;
 }
@@ -130,6 +136,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     const creatorId = creator.id;
+    const limits = getCreatorPlanLimits(creator);
+
+    const productCount = await prisma.product.count({ where: { creatorId } });
+    if (productCount >= limits.maxProducts) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'maxProducts' },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const name = String(body?.name || '').trim();
@@ -148,6 +163,18 @@ export async function POST(request: Request) {
     const isPreorder = Boolean(body?.isPreorder);
     const addons = parseAddons(body?.addons);
     const variants = parseVariants(body?.variants);
+
+    if (isPreorder) {
+      const preorderCount = await prisma.product.count({
+        where: { creatorId, isPreorder: true },
+      });
+      if (preorderCount >= limits.maxPreorderProducts) {
+        return NextResponse.json(
+          { error: 'Plan limit reached', limitType: 'maxPreorderProducts' },
+          { status: 403 }
+        );
+      }
+    }
 
     let price = toKobo(body?.price);
     let compareAtPrice: number | null =

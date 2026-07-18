@@ -2011,13 +2011,13 @@ function CreatorShellProfile({
       <div
         className={`foleio-auth-stub-badge${
           Boolean(creator?.platformSubscriptionActive) &&
-          ['PRO', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
+          ['PRO', 'GROWTH', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
             ? ' is-pro'
             : ''
         }`}
         aria-label={
           Boolean(creator?.platformSubscriptionActive) &&
-          ['PRO', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
+          ['PRO', 'GROWTH', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
             ? 'Pro verified'
             : 'Verified'
         }

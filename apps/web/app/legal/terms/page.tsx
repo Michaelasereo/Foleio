@@ -127,19 +127,29 @@ export default function TermsPage() {
 
         <h2>6. Payments, Fees &amp; Payouts</h2>
         <p>
-          <strong>Platform Transaction Fees:</strong> Foleio charges a
-          transaction fee on all revenue generated through the Platform, based on
-          your subscription plan:
+          <strong>Platform &amp; service fees:</strong> A combined platform
+          &amp; service fee is deducted from revenue generated through the
+          Platform, based on your subscription plan. The rate below is the full
+          fee — there is no separate processing fee on top:
         </p>
         <ul>
-          <li>Starter (Free): 8% transaction fee per sale</li>
-          <li>Pro (₦8,000/month): 5% transaction fee per sale</li>
-          <li>Premium (₦15,000/month): 3% transaction fee per sale</li>
+          <li>
+            Free (₦0): 5% platform &amp; service fees (or ₦300 flat on charges
+            under ₦5,000)
+          </li>
+          <li>
+            Pro (₦12,000 / 6 months or ₦24,000 / year): 4% platform &amp; service
+            fees while active
+          </li>
+          <li>
+            Growth (₦35,000 / 6 months or ₦70,000 / year, invite-only): 3.5%
+            platform &amp; service fees while active
+          </li>
         </ul>
         <p>
           These fees are deducted automatically before funds are credited to your
-          creator balance. Paystack&apos;s own processing fees are charged
-          separately.
+          creator balance. Creators on the previous monthly Pro plan keep 0%
+          platform &amp; service fees until the end of their current paid period.
         </p>
         <p>
           <strong>Booking Payout Structure:</strong> For booking services, 60% of
@@ -147,16 +157,16 @@ export default function TermsPage() {
           and 40% is held and released upon successful completion of the service.
         </p>
         <p>
-          <strong>Payout Processing:</strong> Payouts are made to your registered
-          Nigerian bank account via Paystack. The minimum payout amount is
-          ₦1,000. Payouts are typically processed within 1-3 business days.
+          <strong>Payout Processing:</strong> Customer payments settle to your
+          registered Nigerian bank account via Paystack (typically next business
+          day). Where manual payouts apply, the minimum amount is ₦1,000.
         </p>
         <p>
-          <strong>Platform Subscription Plans:</strong> Creator platform
-          subscriptions are billed monthly in advance. A 3-day free trial is
-          available to first-time Pro subscribers only. You may cancel at any
+          <strong>Platform Subscription Plans:</strong> Paid creator plans are
+          billed for six months or yearly in advance. Growth requires Foleio to
+          unlock eligibility before you can subscribe. You may cancel at any
           time; cancellation takes effect at the end of the current billing
-          period.
+          period, after which Free fees apply.
         </p>
         <p>
           <strong>Taxes:</strong> Creators are solely responsible for determining

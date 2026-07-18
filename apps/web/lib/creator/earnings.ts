@@ -3,6 +3,8 @@ import {
   defaultPlatformFeePercent,
   feePercentForCreator,
   platformFeeFromGross,
+  toFeePlanInput,
+  PLATFORM_SUB_FEE_SELECT,
 } from '@/lib/billing/platform-fee';
 
 export const PAID_BOOKING_STATUSES = [
@@ -56,9 +58,13 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
     select: {
       platformPlan: true,
       platformSubscriptionActive: true,
+      platformSubscriptions: {
+        select: PLATFORM_SUB_FEE_SELECT,
+        take: 1,
+      },
     },
   });
-  const feePct = feePercentForCreator(creator || {});
+  const feePct = feePercentForCreator(toFeePlanInput(creator || {}));
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const currentMonthEnd = new Date(

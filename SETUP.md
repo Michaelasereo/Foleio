@@ -64,18 +64,23 @@ PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
 FOLEIO_PLATFORM_FEE_PERCENT=5
-# Foleio Pro (₦10,000/month) — create Plan in Paystack Dashboard, paste code:
-PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxx
-# Optional legacy fallback only (prefer per-subscription email_token stored in DB):
-# PAYSTACK_SUBSCRIPTION_DISABLE_TOKEN=
+# Platform plans (create in Paystack Dashboard → Plans, NGN):
+PAYSTACK_PRO_6MO_PLAN_CODE=PLN_xxxxxxxx   # ₦12,000 / 6 months
+PAYSTACK_PRO_YR_PLAN_CODE=PLN_xxxxxxxx    # ₦24,000 / year
+PAYSTACK_GROWTH_6MO_PLAN_CODE=PLN_xxxxxxxx # ₦35,000 / 6 months (invite-only)
+PAYSTACK_GROWTH_YR_PLAN_CODE=PLN_xxxxxxxx  # ₦70,000 / year
+# Optional legacy monthly Pro alias during cutover:
+# PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxx
 ```
 
-**Foleio Pro plan (Paystack Dashboard):**
-1. Payments → Plans → Create plan
-2. Name: `Foleio Pro`, amount `1000000` (kobo = ₦10,000), interval monthly, currency NGN
-3. Copy the plan code into `PAYSTACK_PRO_PLAN_CODE`
-4. Free creators keep a 5% `percentage_charge` on their subaccount; Pro sets it to 0% automatically after upgrade (Paystack processor fees still apply)
-5. Cancel stores/uses each subscription’s Paystack `email_token` in the database (no shared disable token required)
+**Foleio platform plans (Paystack Dashboard):**
+1. Payments → Plans → Create plan (currency NGN) for each row below
+2. Pro 6mo: amount `1200000` (₦12,000), interval biannually (or every 6 months)
+3. Pro yearly: amount `2400000` (₦24,000), interval annually
+4. Growth 6mo: amount `3500000` (₦35,000); Growth yearly: `7000000` (₦70,000)
+5. Copy each plan code into the matching env var (Growth is invite-only in-app)
+6. Subaccount `percentage_charge`: Free **5%**, Pro **4%**, Growth **3.5%** (legacy monthly Pro at ₦10,000 stays **0%** until period end). This is the combined platform & service fee rate.
+7. Cancel stores/uses each subscription’s Paystack `email_token` in the database (no shared disable token required)
 
 **Webhook Setup (for production):**
 1. Go to https://dashboard.paystack.com/#/settings/developer

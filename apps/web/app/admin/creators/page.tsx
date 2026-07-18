@@ -124,9 +124,43 @@ export default function AdminCreatorsPage() {
   const totalCreators = creators.length;
   const readyCount = creators.filter((c) => c.paymentsReady).length;
   const proCount = creators.filter(
-    (c) => c.platformSubscriptionActive || c.platformPlan === 'PRO'
+    (c) =>
+      c.platformSubscriptionActive ||
+      ['PRO', 'GROWTH', 'PREMIUM'].includes((c.platformPlan || '').toUpperCase())
   ).length;
   const needsBank = creators.filter((c) => !c.paymentsReady).length;
+
+  async function handleToggleGrowth(creator: CreatorHealthRow) {
+    const next = !creator.growthEligible;
+    try {
+      const response = await fetch(`/api/admin/creators/${creator.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ growthEligible: next }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Could not update Growth eligibility');
+      }
+      setCreators((rows) =>
+        rows.map((row) =>
+          row.id === creator.id ? { ...row, growthEligible: next } : row
+        )
+      );
+      toast({
+        title: next ? 'Growth unlocked' : 'Growth revoked',
+        description: next
+          ? `@${creator.username} can upgrade to Growth in Billing.`
+          : `@${creator.username} can no longer self-serve Growth.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not update Growth',
+        description: error instanceof Error ? error.message : 'Try again.',
+        variant: 'destructive',
+      });
+    }
+  }
 
   async function handleDeleteCreator(creator: CreatorHealthRow) {
     const typed = window.prompt(
@@ -387,6 +421,14 @@ export default function AdminCreatorsPage() {
                           <Link href={`/creator/${creator.username}`} target="_blank">
                             Profile
                           </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-white/10 bg-transparent"
+                          onClick={() => void handleToggleGrowth(creator)}
+                        >
+                          {creator.growthEligible ? 'Revoke Growth' : 'Grant Growth'}
                         </Button>
                         <Button
                           size="sm"

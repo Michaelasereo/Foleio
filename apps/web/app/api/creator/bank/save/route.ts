@@ -5,7 +5,7 @@ import { createTransferRecipient } from '@/lib/services/paystack';
 import { paystack } from '@/lib/paystack';
 import { serializePrismaObject } from '@/lib/utils/serialization';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
-import { feePercentForCreator } from '@/lib/billing/platform-fee';
+import { feePercentForCreator, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
 
 export async function POST(request: Request) {
   try {
@@ -40,6 +40,10 @@ export async function POST(request: Request) {
         paystackSubaccountCode: true,
         platformPlan: true,
         platformSubscriptionActive: true,
+        platformSubscriptions: {
+          select: PLATFORM_SUB_FEE_SELECT,
+          take: 1,
+        },
         user: {
           select: {
             email: true,
@@ -77,7 +81,7 @@ export async function POST(request: Request) {
     const contactEmail = creator.user?.email || user.email || `${creator.username}@foleio.com`;
     const contactName = creator.displayName || body.accountName;
     const contactPhone = creator.user?.phoneNumber || '08000000000';
-    const percentageCharge = feePercentForCreator(creator);
+    const percentageCharge = feePercentForCreator(toFeePlanInput(creator));
 
     let subaccountCode = creator.paystackSubaccountCode;
     let subaccountStatus: 'ACTIVE' | 'PENDING_CREATION' | 'INACTIVE' = 'PENDING_CREATION';

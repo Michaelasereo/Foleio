@@ -15,11 +15,14 @@ import {
   formatMoneyFromKobo,
   statusBadgeClass,
 } from '@/lib/admin/format';
+import { LEGACY_PRO_MONTHLY_KOBO } from '@/lib/billing/platform-plans';
 
 type PlatformSubscription = {
   id: string;
+  plan?: string;
   amount: number;
   status: string;
+  billingInterval?: string | null;
   feePercent?: number;
   feeSynced?: boolean;
   trialEndsAt?: string | null;
@@ -30,6 +33,7 @@ type PlatformSubscription = {
     username?: string | null;
     platformPlan?: string | null;
     platformSubscriptionActive?: boolean | null;
+    growthEligible?: boolean | null;
     user?: { email?: string | null } | null;
   } | null;
 };
@@ -51,34 +55,44 @@ export default function AdminBillingPage() {
     const active = platformSubs.filter((s) =>
       ['active', 'trialing'].includes(String(s.status || '').toLowerCase())
     );
-    const pro = active.filter((s) => (s.creator?.platformPlan || '').toUpperCase() === 'PRO');
-    const zeroFee = active.filter((s) => Number(s.feePercent) === 0);
-    const fiveFee = active.filter((s) => Number(s.feePercent) === 5 || Number(s.feePercent) > 0);
-    const proMrr = pro.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+    const planOf = (s: PlatformSubscription) =>
+      (s.creator?.platformPlan || s.plan || '').toUpperCase();
+    const pro = active.filter((s) => planOf(s) === 'PRO');
+    const growth = active.filter(
+      (s) => planOf(s) === 'GROWTH' || planOf(s) === 'PREMIUM'
+    );
+    const legacyZero = active.filter(
+      (s) =>
+        planOf(s) === 'PRO' &&
+        Number(s.amount) === LEGACY_PRO_MONTHLY_KOBO &&
+        Number(s.feePercent) === 0
+    );
+    const recurring = active.reduce((sum, s) => sum + Number(s.amount || 0), 0);
     return {
       proCount: pro.length,
-      proMrr,
-      zeroFee: zeroFee.length,
-      fiveFee: fiveFee.length,
+      growthCount: growth.length,
+      legacyZero: legacyZero.length,
       activeCount: active.length,
+      recurring,
     };
   }, [platformSubs]);
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="foleio-admin-title">Billing (Platform Pro)</h2>
+        <h2 className="foleio-admin-title">Billing (platform plans)</h2>
         <p className={`foleio-admin-meta ${adminMutedClass}`}>
-          Pro subscriptions and fee sync (0% vs 5%)
+          Free 5% · Pro 4% · Growth 3.5% (invite) · legacy Pro 0% until period end
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
         {[
-          { label: 'Active Pro', value: String(stats.proCount) },
-          { label: 'Pro MRR', value: formatMoneyFromKobo(stats.proMrr) },
-          { label: '0% fee synced', value: String(stats.zeroFee) },
-          { label: 'Default fee (5%)', value: String(stats.fiveFee) },
+          { label: 'Active paid', value: String(stats.activeCount) },
+          { label: 'Pro', value: String(stats.proCount) },
+          { label: 'Growth', value: String(stats.growthCount) },
+          { label: 'Legacy 0%', value: String(stats.legacyZero) },
+          { label: 'Recurring (period)', value: formatMoneyFromKobo(stats.recurring) },
         ].map((card) => (
           <div key={card.label} className={adminPanelClass}>
             <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
@@ -94,17 +108,18 @@ export default function AdminBillingPage() {
               <tr className={adminTableHeadingRowClass}>
                 <th className={adminTableCellClass}>Creator</th>
                 <th className={adminTableCellClass}>Plan</th>
+                <th className={adminTableCellClass}>Interval</th>
                 <th className={adminTableCellClass}>Status</th>
                 <th className={adminTableCellClass}>Amount</th>
                 <th className={adminTableCellClass}>Fee %</th>
+                <th className={adminTableCellClass}>Growth invite</th>
                 <th className={adminTableCellClass}>Fee sync</th>
                 <th className={adminTableCellClass}>Period end</th>
-                <th className={adminTableCellClass}>Joined</th>
               </tr>
             </thead>
             <tbody>
               {platformSubs.map((sub) => {
-                const plan = (sub.creator?.platformPlan || 'FREE').toUpperCase();
+                const plan = (sub.creator?.platformPlan || sub.plan || 'FREE').toUpperCase();
                 return (
                   <tr key={sub.id} className={adminTableRowClass}>
                     <td className={adminTableCellClass}>
@@ -118,10 +133,16 @@ export default function AdminBillingPage() {
                       </Badge>
                     </td>
                     <td className={adminTableCellClass}>
+                      {sub.billingInterval || (Number(sub.amount) === LEGACY_PRO_MONTHLY_KOBO ? 'monthly (legacy)' : '—')}
+                    </td>
+                    <td className={adminTableCellClass}>
                       <Badge className={`border ${statusBadgeClass(sub.status)}`}>{sub.status}</Badge>
                     </td>
-                    <td className={adminTableCellClass}>{formatMoneyFromKobo(sub.amount)}/mo</td>
+                    <td className={adminTableCellClass}>{formatMoneyFromKobo(sub.amount)}</td>
                     <td className={adminTableCellClass}>{Number(sub.feePercent ?? 5)}%</td>
+                    <td className={adminTableCellClass}>
+                      {sub.creator?.growthEligible ? 'Eligible' : '—'}
+                    </td>
                     <td className={adminTableCellClass}>
                       <Badge
                         className={`border ${statusBadgeClass(sub.feeSynced ? 'active' : 'pending')}`}
@@ -133,9 +154,6 @@ export default function AdminBillingPage() {
                       {sub.currentPeriodEnd
                         ? new Date(sub.currentPeriodEnd).toLocaleDateString()
                         : '—'}
-                    </td>
-                    <td className={adminTableCellClass}>
-                      {new Date(sub.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
                 );

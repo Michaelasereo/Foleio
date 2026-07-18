@@ -21,6 +21,13 @@ import {
   type ClockParts12,
   type TimeRange,
 } from '@/lib/booking/slots';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import {
+  getCreatorPlan,
+  getCreatorPlanLimits,
+  type PlatformPlan,
+} from '@/lib/utils/plan-limits';
 
 interface AvailabilityItem {
   id: string;
@@ -40,6 +47,8 @@ interface AvailabilityItem {
 interface AvailabilitySetupFormProps {
   creatorId: string;
   availability: AvailabilityItem[];
+  platformPlan?: string | null;
+  platformSubscriptionActive?: boolean | null;
 }
 
 type TimeMode = 'full' | 'hours';
@@ -238,7 +247,17 @@ function Time12Field({
 
 export function AvailabilitySetupForm({
   availability: initialAvailability,
+  platformPlan = null,
+  platformSubscriptionActive = false,
 }: AvailabilitySetupFormProps) {
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
+  const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
+  const limits = getCreatorPlanLimits({
+    platformPlan,
+    platformSubscriptionActive,
+  });
+  const canUseTemplates = limits.canUseAvailabilityTemplates;
+
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const todayDate = useMemo(() => parseDateKey(todayKey), [todayKey]);
 
@@ -594,6 +613,10 @@ export function AvailabilitySetupForm({
   };
 
   const saveTemplate = async () => {
+    if (!canUseTemplates) {
+      showUpgradeModal('availabilityTemplates');
+      return;
+    }
     const name = templateName.trim();
     if (!name) {
       setMessageTone('err');
@@ -615,7 +638,13 @@ export function AvailabilitySetupForm({
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not save template');
+      if (!res.ok) {
+        if (data.limitType === 'availabilityTemplates') {
+          showUpgradeModal('availabilityTemplates');
+          return;
+        }
+        throw new Error(data.error || 'Could not save template');
+      }
       setTemplates((prev) => [data.template, ...prev]);
       setTemplateName('');
       setMessageTone('ok');
@@ -1253,9 +1282,12 @@ export function AvailabilitySetupForm({
                 </div>
               ) : (
                 <p className="foleio-avail-mgmt-hint" style={{ marginTop: 6 }}>
-                  Save this day’s schedule to reuse on other dates
+                  {canUseTemplates
+                    ? 'Save this day’s schedule to reuse on other dates'
+                    : 'Schedule templates are a Pro feature. You can still set each day manually.'}
                 </p>
               )}
+              {canUseTemplates ? (
               <div
                 style={{
                   display: 'flex',
@@ -1287,6 +1319,16 @@ export function AvailabilitySetupForm({
                   Save template
                 </button>
               </div>
+              ) : (
+                <button
+                  type="button"
+                  className="foleio-avail-time-mode"
+                  style={{ marginTop: 10 }}
+                  onClick={() => showUpgradeModal('availabilityTemplates')}
+                >
+                  Unlock templates with Pro
+                </button>
+              )}
             </div>
           ) : null}
         </div>
@@ -1314,6 +1356,15 @@ export function AvailabilitySetupForm({
         <p className={`foleio-avail-message ${messageTone === 'err' ? 'is-err' : 'is-ok'}`}>
           {message}
         </p>
+      ) : null}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={currentPlan}
+        />
       ) : null}
     </div>
   );

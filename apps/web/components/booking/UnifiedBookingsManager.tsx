@@ -27,6 +27,8 @@ interface Creator {
   id: string;
   displayName: string;
   username: string;
+  platformPlan?: string | null;
+  platformSubscriptionActive?: boolean | null;
 }
 
 interface Booking {
@@ -342,11 +344,15 @@ export function UnifiedBookingsManager({
       {primaryView === 'availability' ? (
         <AvailabilitySetupForm
           creatorId={creator.id}
+          platformPlan={creator.platformPlan}
+          platformSubscriptionActive={creator.platformSubscriptionActive}
           availability={availability as any}
         />
       ) : primaryView === 'services' ? (
         <BookingsServicesManager
           creatorId={creator.id}
+          platformPlan={creator.platformPlan}
+          platformSubscriptionActive={creator.platformSubscriptionActive}
           initialPriceList={priceList}
         />
       ) : (

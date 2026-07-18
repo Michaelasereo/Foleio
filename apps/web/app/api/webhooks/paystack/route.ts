@@ -277,6 +277,8 @@ async function handleChargeSuccess(eventData: any) {
         creatorId,
         plan: metadata.plan || 'pro',
         amountKobo: typeof amount === 'number' ? amount : undefined,
+        billingInterval:
+          metadata.billingInterval || metadata.billing_interval || null,
         subscriptionCode:
           eventData.subscription_code ||
           eventData.subscription?.subscription_code ||

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -106,6 +107,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Creator profile not found' },
         { status: 404 }
+      );
+    }
+
+    const limits = getCreatorPlanLimits(creator);
+    const serviceCount = await prisma.priceListItem.count({
+      where: { creatorId: creator.id },
+    });
+    if (serviceCount >= limits.maxServices) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'maxServices' },
+        { status: 403 }
       );
     }
 

@@ -5,6 +5,53 @@ import { prisma } from '@foleio/database';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  try {
+    if (!isAdminAuthed(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await context.params;
+    if (!id) {
+      return NextResponse.json({ error: 'Creator id is required' }, { status: 400 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      growthEligible?: boolean;
+    };
+
+    if (typeof body.growthEligible !== 'boolean') {
+      return NextResponse.json(
+        { error: 'growthEligible boolean is required' },
+        { status: 400 }
+      );
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!creator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    const updated = await prisma.creator.update({
+      where: { id },
+      data: { growthEligible: body.growthEligible },
+      select: {
+        id: true,
+        username: true,
+        growthEligible: true,
+      },
+    });
+
+    return NextResponse.json({ success: true, creator: updated });
+  } catch (error) {
+    console.error('Admin patch creator error:', error);
+    return NextResponse.json({ error: 'Failed to update creator' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     if (!isAdminAuthed(request)) {

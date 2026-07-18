@@ -638,7 +638,7 @@ export function PublicCreatorProfile({
   const plan = (creator.platformPlan || '').toUpperCase();
   const isProBadge =
     Boolean(creator.platformSubscriptionActive) &&
-    (plan === 'PRO' || plan === 'PREMIUM');
+    (plan === 'PRO' || plan === 'GROWTH' || plan === 'PREMIUM');
 
   const industryLabel =
     INDUSTRY_OPTIONS.find((option) => option.value === creator.category)?.label ||

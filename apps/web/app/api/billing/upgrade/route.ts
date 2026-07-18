@@ -3,17 +3,20 @@ import { z } from 'zod';
 import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { paystack } from '@/lib/paystack';
+import {
+  amountForPlan,
+  resolvePaystackPlanCode,
+} from '@/lib/billing/platform-plans';
 
 /**
- * Paystack setup:
- * 1. Dashboard → Plans → create "Foleio Pro", amount 1000000 kobo, interval monthly, NGN
- * 2. Set PAYSTACK_PRO_PLAN_CODE=PLN_...
+ * Paystack setup (create 4 plans in dashboard, set env):
+ * - PAYSTACK_PRO_6MO_PLAN_CODE / PAYSTACK_PRO_YR_PLAN_CODE
+ * - PAYSTACK_GROWTH_6MO_PLAN_CODE / PAYSTACK_GROWTH_YR_PLAN_CODE
  */
 const upgradeSchema = z.object({
-  plan: z.literal('pro'),
+  plan: z.enum(['pro', 'growth']),
+  interval: z.enum(['biannual', 'annual']),
 });
-
-const PRO_AMOUNT_KOBO = 1_000_000; // ₦10,000
 
 export async function POST(request: Request) {
   try {
@@ -30,24 +33,38 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const parsed = upgradeSchema.safeParse(payload);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid plan selection' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid plan or interval. Use pro|growth and biannual|annual.' },
+        { status: 400 }
+      );
     }
 
-    const planCode = process.env.PAYSTACK_PRO_PLAN_CODE;
+    const { plan, interval } = parsed.data;
+    const amountKobo = amountForPlan(plan, interval);
+    const planCode = resolvePaystackPlanCode(plan, interval);
     if (!planCode) {
       return NextResponse.json(
-        { error: 'Missing env var PAYSTACK_PRO_PLAN_CODE' },
+        {
+          error: `Missing Paystack plan code for ${plan} / ${interval}. Set the matching PAYSTACK_*_PLAN_CODE env var.`,
+        },
         { status: 500 }
       );
     }
 
     const creator = await prisma.creator.findUnique({
       where: { userId: user.id },
-      select: { id: true },
+      select: { id: true, growthEligible: true },
     });
 
     if (!creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    if (plan === 'growth' && !creator.growthEligible) {
+      return NextResponse.json(
+        { error: 'Growth is invite-only. Ask Foleio to unlock it for your account.' },
+        { status: 403 }
+      );
     }
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com').replace(
@@ -57,12 +74,13 @@ export async function POST(request: Request) {
 
     const payment = await paystack.initializePayment({
       email: user.email || '',
-      amount: PRO_AMOUNT_KOBO,
+      amount: amountKobo,
       plan: planCode,
       metadata: {
         type: 'platform_subscription',
         creatorId: creator.id,
-        plan: 'pro',
+        plan,
+        billingInterval: interval,
       },
       callback_url: `${appUrl}/settings?tab=billing&upgraded=true`,
     });
@@ -70,16 +88,18 @@ export async function POST(request: Request) {
     await prisma.platformSubscription.upsert({
       where: { creatorId: creator.id },
       update: {
-        plan: 'pro',
+        plan,
         status: 'pending',
-        amount: PRO_AMOUNT_KOBO,
+        amount: amountKobo,
+        billingInterval: interval,
         cancelAtPeriodEnd: false,
       },
       create: {
         creatorId: creator.id,
-        plan: 'pro',
+        plan,
         status: 'pending',
-        amount: PRO_AMOUNT_KOBO,
+        amount: amountKobo,
+        billingInterval: interval,
       },
     });
 

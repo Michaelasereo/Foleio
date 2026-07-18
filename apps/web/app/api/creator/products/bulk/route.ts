@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
+import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,12 @@ async function getCreatorSession() {
   if (authError || !user) return null;
   return prisma.creator.findUnique({
     where: { userId: user.id },
-    select: { id: true, username: true },
+    select: {
+      id: true,
+      username: true,
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
   });
 }
 
@@ -122,6 +128,28 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { created: 0, products: [], failed },
         { status: 400 }
+      );
+    }
+
+    const limits = getCreatorPlanLimits(creator);
+    const productCount = await prisma.product.count({
+      where: { creatorId: creator.id },
+    });
+    const remaining = limits.maxProducts - productCount;
+    if (remaining <= 0) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'maxProducts' },
+        { status: 403 }
+      );
+    }
+    if (valid.length > remaining) {
+      return NextResponse.json(
+        {
+          error: `Free includes up to ${limits.maxProducts} products. You can import ${remaining} more, or upgrade to Pro.`,
+          limitType: 'maxProducts',
+          remaining,
+        },
+        { status: 403 }
       );
     }
 

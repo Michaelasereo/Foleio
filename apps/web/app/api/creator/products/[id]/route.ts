@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { normalizeAddonCategoriesInput } from '@/lib/shop/product-addons';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { validatePreorderSettingsInput } from '@/lib/shop/preorder';
+import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -97,7 +98,12 @@ async function getCreatorSession() {
   if (authError || !user) return null;
   return prisma.creator.findUnique({
     where: { userId: user.id },
-    select: { id: true, username: true },
+    select: {
+      id: true,
+      username: true,
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
   });
 }
 
@@ -112,7 +118,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params;
     const existing = await prisma.product.findFirst({
       where: { id, creatorId },
-      select: { id: true },
+      select: { id: true, isPreorder: true },
     });
 
     if (!existing) {
@@ -166,6 +172,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     let preorderSettings: ReturnType<
       typeof validatePreorderSettingsInput
     >['settings'] = null;
+
+    if (isPreorder && !existing.isPreorder) {
+      const limits = getCreatorPlanLimits(creator);
+      const preorderCount = await prisma.product.count({
+        where: { creatorId, isPreorder: true },
+      });
+      if (preorderCount >= limits.maxPreorderProducts) {
+        return NextResponse.json(
+          { error: 'Plan limit reached', limitType: 'maxPreorderProducts' },
+          { status: 403 }
+        );
+      }
+    }
 
     if (isPreorder) {
       const validated = validatePreorderSettingsInput(

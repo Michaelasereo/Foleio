@@ -89,9 +89,12 @@ model Creator {
   introVideoId String? @map("intro_video_id")
 
   // Platform subscription
+  /// starter | pro | growth (legacy: premium → treated as growth)
   platformPlan              String?  @map("platform_plan") @default("starter")
   platformSubscriptionActive Boolean @default(false) @map("platform_subscription_active")
   platformSubscriptionEndsAt DateTime? @map("platform_subscription_ends_at")
+  /// Admin-granted: creator may self-serve upgrade to Growth
+  growthEligible            Boolean  @default(false) @map("growth_eligible")
 
   // HYBRID PAYMENT SYSTEM
   // Balance System (Selar Model)
@@ -555,9 +558,12 @@ model PayoutSchedule {
 model PlatformSubscription {
   id                    String   @id @default(uuid())
   creatorId             String   @unique @map("creator_id")
-  plan                  String   // starter, pro, premium
+  /// starter | pro | growth (legacy: premium)
+  plan                  String
   amount                Int      // in kobo
-  status                String   @default("active") // active, canceled, past_due
+  status                String   @default("active") // active, canceled, past_due, pending
+  /// biannual | annual (null for legacy monthly)
+  billingInterval       String?  @map("billing_interval")
   currentPeriodStart    DateTime? @map("current_period_start")
   currentPeriodEnd      DateTime? @map("current_period_end")
   trialEndsAt           DateTime? @map("trial_ends_at")

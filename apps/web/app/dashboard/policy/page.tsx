@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@foleio/database';
 import { DashboardCreatorPolicy } from '@/components/creator/DashboardCreatorPolicy';
 
 export const metadata = {
@@ -7,7 +9,24 @@ export const metadata = {
   description: 'Platform fees and creator policy for Foleio.',
 };
 
-export default function DashboardCreatorPolicyPage() {
+export default async function DashboardCreatorPolicyPage() {
+  let growthEligible = false;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      const creator = await prisma.creator.findUnique({
+        where: { userId: session.user.id },
+        select: { growthEligible: true },
+      });
+      growthEligible = Boolean(creator?.growthEligible);
+    }
+  } catch {
+    growthEligible = false;
+  }
+
   return (
     <div>
       <div className="foleio-dash-header">
@@ -31,7 +50,7 @@ export default function DashboardCreatorPolicyPage() {
       </div>
 
       <div className="foleio-dash-panel">
-        <DashboardCreatorPolicy />
+        <DashboardCreatorPolicy growthEligible={growthEligible} />
       </div>
     </div>
   );

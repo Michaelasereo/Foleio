@@ -1,12 +1,11 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
+import { feePercentForCreator } from '@/lib/billing/platform-fee';
 
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const { feePercentForCreator } = await import('@/lib/billing/platform-fee');
 
   const platformSubs = await prisma.platformSubscription.findMany({
     include: {
@@ -16,6 +15,7 @@ export async function GET(request: Request) {
           username: true,
           platformPlan: true,
           platformSubscriptionActive: true,
+          growthEligible: true,
           paystackSubaccountCode: true,
           user: { select: { email: true } },
         },
@@ -33,6 +33,12 @@ export async function GET(request: Request) {
     const feePercent = feePercentForCreator({
       platformPlan,
       platformSubscriptionActive,
+      platformSubscription: {
+        plan: sub.plan,
+        amount: sub.amount,
+        status: sub.status,
+        currentPeriodEnd: sub.currentPeriodEnd,
+      },
     });
     return {
       ...sub,

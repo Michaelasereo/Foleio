@@ -1,19 +1,41 @@
 import { prisma } from '@foleio/database';
 import { paystack } from '@/lib/paystack';
 import { syncCreatorSubaccountFee } from '@/lib/billing/platform-fee';
-
-const PRO_AMOUNT_KOBO = 1_000_000;
+import {
+  type BillingInterval,
+  type PaidPlatformPlan,
+  PLATFORM_PLAN_AMOUNTS_KOBO,
+  amountForPlan,
+  intervalFromAmount,
+  periodEndFromInterval,
+} from '@/lib/billing/platform-plans';
 
 export type ActivatePlatformSubscriptionInput = {
   creatorId: string;
   plan?: string | null;
   amountKobo?: number | null;
+  billingInterval?: BillingInterval | string | null;
   subscriptionCode?: string | null;
   emailToken?: string | null;
 };
 
+function resolvePaidPlan(plan: string): PaidPlatformPlan {
+  const normalized = plan.toLowerCase();
+  if (normalized === 'growth' || normalized === 'premium') return 'growth';
+  return 'pro';
+}
+
+function resolveInterval(
+  plan: PaidPlatformPlan,
+  interval: string | null | undefined,
+  amountKobo: number
+): BillingInterval {
+  if (interval === 'annual' || interval === 'biannual') return interval;
+  return intervalFromAmount(plan, amountKobo);
+}
+
 /**
- * Mark a creator's platform subscription active (Pro) and sync Paystack fee to 0%.
+ * Mark a creator's platform subscription active and sync Paystack fee %.
  * Idempotent — safe to call from webhook and callback verify.
  */
 export async function activatePlatformSubscription(
@@ -23,11 +45,18 @@ export async function activatePlatformSubscription(
     throw new Error('creatorId is required');
   }
 
-  const plan = String(input.plan || 'pro').toLowerCase();
-  const amount = input.amountKobo && input.amountKobo > 0 ? input.amountKobo : PRO_AMOUNT_KOBO;
+  const paidPlan = resolvePaidPlan(String(input.plan || 'pro'));
+  const amount =
+    input.amountKobo && input.amountKobo > 0
+      ? input.amountKobo
+      : amountForPlan(paidPlan, 'biannual');
+  const billingInterval = resolveInterval(
+    paidPlan,
+    input.billingInterval,
+    amount
+  );
   const now = new Date();
-  const periodEnd = new Date(now);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  const periodEnd = periodEndFromInterval(billingInterval, now);
 
   let emailToken = input.emailToken ? String(input.emailToken) : null;
   const subscriptionCode = input.subscriptionCode
@@ -50,9 +79,10 @@ export async function activatePlatformSubscription(
   await prisma.platformSubscription.upsert({
     where: { creatorId: input.creatorId },
     update: {
-      plan,
+      plan: paidPlan,
       status: 'active',
       amount,
+      billingInterval,
       ...(subscriptionCode ? { paystackSubscriptionId: subscriptionCode } : {}),
       ...(emailToken ? { paystackEmailToken: emailToken } : {}),
       currentPeriodStart: now,
@@ -61,9 +91,10 @@ export async function activatePlatformSubscription(
     },
     create: {
       creatorId: input.creatorId,
-      plan,
+      plan: paidPlan,
       status: 'active',
       amount,
+      billingInterval,
       paystackSubscriptionId: subscriptionCode || undefined,
       paystackEmailToken: emailToken || undefined,
       currentPeriodStart: now,
@@ -75,7 +106,8 @@ export async function activatePlatformSubscription(
     where: { id: input.creatorId },
     data: {
       platformSubscriptionActive: true,
-      platformPlan: plan.toUpperCase(),
+      platformPlan: paidPlan.toUpperCase(),
+      platformSubscriptionEndsAt: periodEnd,
     },
   });
 
@@ -83,10 +115,12 @@ export async function activatePlatformSubscription(
     await syncCreatorSubaccountFee(input.creatorId);
   } catch (feeErr) {
     console.error(
-      '[activatePlatformSubscription] failed to sync Pro platform fee',
+      '[activatePlatformSubscription] failed to sync platform fee',
       feeErr
     );
   }
 
-  return { plan, periodEnd };
+  return { plan: paidPlan, billingInterval, periodEnd, amount };
 }
+
+export { PLATFORM_PLAN_AMOUNTS_KOBO };

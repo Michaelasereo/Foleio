@@ -37,7 +37,9 @@ export function PayoutModal({
   const [requestError, setRequestError] = useState('');
 
   const amountKobo = Math.round((Number(amountNaira) || 0) * 100);
-  const isPro = ['PRO', 'PREMIUM'].includes((platformPlan || '').toUpperCase());
+  const isPro = ['PRO', 'GROWTH', 'PREMIUM'].includes(
+    (platformPlan || '').toUpperCase()
+  );
 
   const estimatedArrival = useMemo(() => {
     if (isPro) return 'Today / next business day';

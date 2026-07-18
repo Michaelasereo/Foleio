@@ -149,15 +149,15 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   const creatorPlan = getCreatorPlan(creator.platformPlan ?? null);
 
   const planBadgeClass =
-    creatorPlan === 'PREMIUM'
+    creatorPlan === 'GROWTH'
       ? 'bg-blue-100 text-blue-700 border border-blue-200'
       : creatorPlan === 'PRO'
         ? 'bg-orange-100 text-orange-700 border border-orange-200'
         : 'bg-slate-100 text-slate-700 border border-slate-200';
 
   const planLabel =
-    creatorPlan === 'PREMIUM'
-      ? 'Premium ✦'
+    creatorPlan === 'GROWTH'
+      ? 'Growth ✦'
       : creatorPlan === 'PRO'
         ? 'Pro ✦'
         : 'Starter';

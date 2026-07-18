@@ -14,48 +14,44 @@ import { Button } from '@/components/ui/button';
 import {
   PLAN_LIMIT_MESSAGES,
   type PlatformPlan,
-  type PlanLimitType,
 } from '@/lib/utils/plan-limits';
 
 interface UpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  limitType: PlanLimitType;
+  limitType: keyof typeof PLAN_LIMIT_MESSAGES;
   currentPlan: PlatformPlan;
 }
 
 type PlanCardInfo = {
   name: PlatformPlan;
   price: string;
-  trial: boolean;
-  slug: 'pro' | 'premium';
+  slug: 'pro' | 'growth';
   features: string[];
 };
 
 function getUpgradeTarget(currentPlan: PlatformPlan): PlanCardInfo {
-  if (currentPlan === 'STARTER') {
+  if (currentPlan === 'STARTER' || currentPlan === 'PRO') {
     return {
       name: 'PRO',
-      price: 'NGN 8,000/month',
-      trial: true,
+      price: 'from ₦12,000 / 6 months',
       slug: 'pro',
       features: [
-        'Unlimited content uploads',
-        'Up to 3 subscription plans',
-        'Collections and analytics',
+        '4% platform & service fees (vs 5% on Free)',
+        'Full bookings, shop, and creator tools',
+        'Cancel anytime — benefits last until period end',
       ],
     };
   }
 
   return {
-    name: 'PREMIUM',
-    price: 'NGN 15,000/month',
-    trial: false,
-    slug: 'premium',
+    name: 'GROWTH',
+    price: 'from ₦35,000 / 6 months',
+    slug: 'growth',
     features: [
-      'Unlimited subscription plans',
-      'Advanced analytics',
-      'Priority growth support',
+      '3.5% platform & service fees',
+      'Invite-only — request access via support',
+      'Same tools as Pro at a lower fee',
     ],
   };
 }
@@ -108,9 +104,6 @@ export function UpgradeModal({
                 <p className="font-display text-lg">{targetPlan.name}</p>
                 <p className="text-xs font-medium text-muted-foreground">{targetPlan.price}</p>
               </div>
-              {targetPlan.trial ? (
-                <Badge className="mt-2 bg-orange-600 text-white">3-day free trial</Badge>
-              ) : null}
               <div className="mt-3 space-y-1.5 text-sm">
                 <div className="flex items-start gap-2">
                   <Check className="mt-0.5 h-4 w-4 text-green-600" />
@@ -128,7 +121,9 @@ export function UpgradeModal({
 
           <div className="mt-6 space-y-2">
             <Button asChild className="w-full bg-orange-600 text-white hover:bg-orange-700">
-              <Link href={`/billing?upgrade=${targetPlan.slug}`}>Upgrade to {targetPlan.name}</Link>
+              <Link href={`/settings?tab=billing&upgrade=${targetPlan.slug}`}>
+                View {targetPlan.name} plans
+              </Link>
             </Button>
             <Button variant="ghost" className="w-full" onClick={onClose}>
               Maybe later

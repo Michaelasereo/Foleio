@@ -10,8 +10,7 @@ const verifySchema = z.object({
 });
 
 /**
- * Confirms a platform Pro upgrade via Paystack transaction verify.
- * Needed locally (webhooks can't reach localhost) and as a safety net in prod.
+ * Confirms a platform plan upgrade via Paystack transaction verify.
  */
 export async function POST(request: Request) {
   try {
@@ -54,14 +53,17 @@ export async function POST(request: Request) {
     const type = metadata.type || metadata.Type;
     if (type !== 'platform_subscription') {
       return NextResponse.json(
-        { error: 'This payment is not a Foleio Pro upgrade.' },
+        { error: 'This payment is not a Foleio platform plan upgrade.' },
         { status: 400 }
       );
     }
 
     const metaCreatorId = metadata.creatorId || metadata.creator_id;
     if (metaCreatorId && metaCreatorId !== creator.id) {
-      return NextResponse.json({ error: 'Payment does not belong to this account.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Payment does not belong to this account.' },
+        { status: 403 }
+      );
     }
 
     const subscriptionCode =
@@ -75,15 +77,20 @@ export async function POST(request: Request) {
       metadata.email_token ||
       null;
 
-    await activatePlatformSubscription({
+    const result = await activatePlatformSubscription({
       creatorId: creator.id,
       plan: metadata.plan || 'pro',
       amountKobo: typeof txn.amount === 'number' ? txn.amount : undefined,
+      billingInterval: metadata.billingInterval || metadata.billing_interval || null,
       subscriptionCode,
       emailToken,
     });
 
-    return NextResponse.json({ success: true, plan: 'pro' });
+    return NextResponse.json({
+      success: true,
+      plan: result.plan,
+      billingInterval: result.billingInterval,
+    });
   } catch (error: unknown) {
     console.error('[billing/verify]', error);
     return NextResponse.json(

@@ -49,38 +49,38 @@ export function CreatorAgreementContent() {
         profile.
       </p>
       <p>
-        <strong>Platform Fees (bookings, shop, and most paid transactions):</strong>{' '}
-        Foleio deducts a platform fee from the gross customer payment based on
-        your platform plan:
+        <strong>Platform &amp; service fees (bookings, shop, and most paid transactions):</strong>{' '}
+        A combined platform &amp; service fee is deducted from the gross customer
+        payment based on your platform plan. The rate below is the full fee —
+        there is no separate processing fee on top:
       </p>
       <ul>
         <li>
           <strong>Free plan:</strong> 5% of each transaction at or above ₦5,000.
-          For charges under ₦5,000, Foleio charges a flat ₦300 platform fee
-          (capped at the charge amount) instead of 5%.
+          For charges under ₦5,000, a flat ₦300 platform &amp; service fee
+          applies (capped at the charge amount) instead of 5%. The flat fee
+          applies on Free only.
         </li>
         <li>
-          <strong>Pro plan (₦10,000/month):</strong> 0% Foleio platform fee on
-          those transactions while your Pro subscription is active.
+          <strong>Pro plan (₦12,000 / 6 months or ₦24,000 / year):</strong> 4%
+          platform &amp; service fees while your Pro subscription is active.
+        </li>
+        <li>
+          <strong>Growth plan (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
+          3.5% platform &amp; service fees while your Growth subscription is
+          active. Growth is invite-only.
         </li>
       </ul>
       <p>
-        After the Foleio platform fee, you keep the remaining creator share
-        (95% on Free for standard-sized charges, or 100% on Pro, before any
-        payment-processor fees described below). Confirmed customer payments are
-        settled to your linked bank account as described under Settlement.
-      </p>
-      <p>
-        <strong>Payment processing:</strong> Paystack&apos;s processing fees are
-        separate from Foleio&apos;s platform fee and are deducted or settled
-        according to Paystack&apos;s terms at the point of transaction. Even on
-        Pro (0% Foleio fee), Paystack fees still apply.
+        After platform &amp; service fees, you keep the remaining creator share.
+        Confirmed customer payments are settled to your linked bank account as
+        described under Settlement.
       </p>
       <p>
         <strong>Deposits &amp; balances:</strong> You may offer deposit-based
         bookings. Deposits and remaining balances are subject to the same
-        platform fee rules as other bookings. Unpaid balances remain the
-        customer&apos;s obligation under the booking terms you set.
+        platform &amp; service fee rules as other bookings. Unpaid balances remain
+        the customer&apos;s obligation under the booking terms you set.
       </p>
       <p>
         <strong>Your pricing:</strong> You set your own service, shop, and
@@ -130,7 +130,7 @@ export function CreatorAgreementContent() {
         <li>Not artificially inflate views, subscribers, or engagement metrics;</li>
         <li>
           Not solicit payments from fans outside the Platform to circumvent
-          Foleio&apos;s fees;
+          platform &amp; service fees;
         </li>
         <li>Not use the Platform to promote or sell illegal goods or services;</li>
         <li>
@@ -140,35 +140,35 @@ export function CreatorAgreementContent() {
       </ul>
 
       <h2>6. Platform Plans &amp; Subscription</h2>
-      <p>
-        Foleio currently offers two creator platform plans:
-      </p>
+      <p>Foleio offers three creator platform plans:</p>
       <ul>
         <li>
           <strong>Free (₦0):</strong> Full access to bookings, shop, services,
-          and creator tools, with a <strong>5%</strong> Foleio fee on qualifying
-          transactions (or <strong>₦300 flat</strong> on charges under ₦5,000).
-          Paystack processing fees still apply.
+          and creator tools, with <strong>5%</strong> platform &amp; service fees
+          on qualifying transactions (or <strong>₦300 flat</strong> on charges
+          under ₦5,000).
         </li>
         <li>
-          <strong>Pro (₦10,000/month):</strong> Everything on Free, with{' '}
-          <strong>0%</strong> Foleio platform fee on bookings, shop, and other
-          covered transactions while the subscription is active. Only Paystack
-          processing fees apply to those charges.
+          <strong>Pro (₦12,000 / 6 months or ₦24,000 / year):</strong> Everything
+          on Free, with <strong>4%</strong> platform &amp; service fees while the
+          subscription is active. Self-serve via Billing.
+        </li>
+        <li>
+          <strong>Growth (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
+          Everything on Pro, with <strong>3.5%</strong> platform &amp; service
+          fees. Growth is invite-only; Foleio must unlock eligibility before you
+          can subscribe.
         </li>
       </ul>
       <p>
-        Pro is billed monthly in advance through Paystack. You may cancel at any
-        time; your Pro benefits remain active until the end of the current paid
-        period, after which your account returns to Free and the 5% / ₦300 fee
-        schedule resumes. Foleio reserves the right to change platform
-        subscription pricing with 30 days&apos; advance notice to existing
-        subscribers.
-      </p>
-      <p>
-        Legacy or invite-only Premium accounts, if any, are treated like Pro for
-        platform fee purposes (0% Foleio fee while active) unless we notify you
-        otherwise.
+        Paid plans are billed for six months or yearly in advance through
+        Paystack. You may cancel at any time; benefits remain active until the
+        end of the current paid period, after which your account returns to Free
+        and the 5% / ₦300 fee schedule resumes. Creators on the previous monthly
+        Pro plan (₦10,000/month at 0% platform &amp; service fees) keep that rate
+        until their current period ends. Foleio reserves the right to change
+        platform subscription pricing with 30 days&apos; advance notice to
+        existing subscribers.
       </p>
 
       <h2>7. Cancellations &amp; Refunds</h2>

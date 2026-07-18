@@ -3,7 +3,7 @@ import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { serializePrismaObject } from '@/lib/utils/serialization';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
-import { feePercentForCreator, platformFeeFromGross } from '@/lib/billing/platform-fee';
+import { feePercentForCreator, platformFeeFromGross, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,6 +53,10 @@ export async function GET() {
         userId: true,
         platformPlan: true,
         platformSubscriptionActive: true,
+        platformSubscriptions: {
+          select: PLATFORM_SUB_FEE_SELECT,
+          take: 1,
+        },
         bvnVerified: true,
         identityVerifiedAt: true,
         displayName: true,
@@ -66,7 +70,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
     }
 
-    const feePct = feePercentForCreator(creator);
+    const feePct = feePercentForCreator(toFeePlanInput(creator));
 
     let transactions: any[] = [];
     try {

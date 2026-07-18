@@ -28,6 +28,7 @@ export type CreatorHealthRow = {
   bvnVerified: boolean;
   platformPlan: string;
   platformSubscriptionActive: boolean;
+  growthEligible: boolean;
   feePercent: number;
 };
 
@@ -62,6 +63,15 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
         select: { id: true },
       },
       bankAccount: { select: { id: true } },
+      platformSubscriptions: {
+        select: {
+          plan: true,
+          amount: true,
+          status: true,
+          currentPeriodEnd: true,
+        },
+        take: 1,
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -96,6 +106,7 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
     const feePercent = feePercentForCreator({
       platformPlan,
       platformSubscriptionActive,
+      platformSubscription: creator.platformSubscriptions[0] ?? null,
     });
 
     let healthScore = 0;
@@ -104,7 +115,15 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
     if (creator.bvnVerified || !requireKyc) healthScore += 15;
     if (completedBookings > 0) healthScore += 25;
     if (totalEarnedKobo > 0) healthScore += 10;
-    if (platformSubscriptionActive || platformPlan === 'PRO') healthScore += 10;
+    const planUpper = platformPlan.toUpperCase();
+    if (
+      platformSubscriptionActive ||
+      planUpper === 'PRO' ||
+      planUpper === 'GROWTH' ||
+      planUpper === 'PREMIUM'
+    ) {
+      healthScore += 10;
+    }
 
     return {
       id: creator.id,
@@ -129,6 +148,7 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
       bvnVerified: Boolean(creator.bvnVerified),
       platformPlan,
       platformSubscriptionActive,
+      growthEligible: Boolean(creator.growthEligible),
       feePercent,
     };
   });

@@ -4,14 +4,26 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Check, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  LEGACY_PRO_MONTHLY_KOBO,
+  PLATFORM_FEE_PERCENT,
+  PLATFORM_PLAN_AMOUNTS_KOBO,
+  formatPlanPrice,
+  isLegacyZeroFeeSubscription,
+  planCompareAtKobo,
+  planDiscountPercent,
+  type BillingInterval,
+  type PaidPlatformPlan,
+} from '@/lib/billing/platform-plans';
 
-type PlanKey = 'free' | 'pro';
+type PlanKey = 'free' | 'pro' | 'growth';
 
 type SubscriptionRecord = {
   id: string;
   plan: string;
   amount: number;
   status: string;
+  billingInterval?: string | null;
   currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
@@ -23,42 +35,11 @@ type BillingPageProps = {
   creator: {
     id: string;
     displayName: string;
+    growthEligible?: boolean;
   };
   currentSubscription: SubscriptionRecord | null;
   billingHistory: SubscriptionRecord[];
-  /** When true, omit the page h1 (Settings tab already has chrome). */
   embedded?: boolean;
-};
-
-const PLAN_COPY: Record<
-  PlanKey,
-  {
-    title: string;
-    price: string;
-    cta: string;
-    features: string[];
-  }
-> = {
-  free: {
-    title: 'Free',
-    price: '₦0',
-    cta: 'Current plan',
-    features: [
-      'Full access to bookings, services, and tools',
-      '5% Foleio fee per booking (₦300 flat under ₦5,000)',
-      'Paystack processing fees still apply',
-    ],
-  },
-  pro: {
-    title: 'Pro',
-    price: '₦10,000/month',
-    cta: 'Upgrade to Pro',
-    features: [
-      'Everything on Free',
-      '0% Foleio fee on bookings',
-      'Only Paystack processing fees apply',
-    ],
-  },
 };
 
 function formatDate(value?: string | null) {
@@ -70,10 +51,18 @@ function parseActivePlan(sub: SubscriptionRecord | null): PlanKey {
   if (!sub) return 'free';
   const plan = sub.plan?.toLowerCase();
   const status = sub.status?.toLowerCase();
-  const paid =
-    (plan === 'pro' || plan === 'premium') &&
-    (status === 'active' || status === 'trialing');
-  return paid ? 'pro' : 'free';
+  const paid = status === 'active' || status === 'trialing';
+  if (!paid) return 'free';
+  if (plan === 'growth' || plan === 'premium') return 'growth';
+  if (plan === 'pro') return 'pro';
+  return 'free';
+}
+
+function feeLabelForPlan(plan: PlanKey, isLegacyZero: boolean): string {
+  if (isLegacyZero) return `${PLATFORM_FEE_PERCENT.legacyPro}% platform & service fees (legacy)`;
+  if (plan === 'growth') return `${PLATFORM_FEE_PERCENT.growth}% platform & service fees`;
+  if (plan === 'pro') return `${PLATFORM_FEE_PERCENT.pro}% platform & service fees`;
+  return `${PLATFORM_FEE_PERCENT.free}% platform & service fees (₦300 flat under ₦5,000)`;
 }
 
 export function BillingPage({
@@ -86,13 +75,21 @@ export function BillingPage({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState<{
+    plan: PaidPlatformPlan;
+    interval: BillingInterval;
+  } | null>(null);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('biannual');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const verifyAttemptRef = useRef<string | null>(null);
 
+  const growthEligible = Boolean(creator.growthEligible);
   const currentPlan = parseActivePlan(currentSubscription);
-  const isPaidPlan = currentPlan === 'pro';
+  const isPaidPlan = currentPlan === 'pro' || currentPlan === 'growth';
+  const isLegacyZero = Boolean(
+    currentSubscription && isLegacyZeroFeeSubscription(currentSubscription)
+  );
   const currentStatus = currentSubscription?.status || 'active';
   const periodEnd = currentSubscription?.currentPeriodEnd || null;
   const cancelAtPeriodEnd = Boolean(currentSubscription?.cancelAtPeriodEnd);
@@ -131,23 +128,27 @@ export function BillingPage({
 
           if (!response.ok) {
             toast({
-              title: 'Could not confirm Pro upgrade',
+              title: 'Could not confirm upgrade',
               description:
                 data?.error ||
                 'Payment may still be processing. Refresh this page in a moment.',
               variant: 'destructive',
             });
           } else {
+            const planName = data?.plan === 'growth' ? 'Growth' : 'Pro';
             toast({
-              title: 'Welcome to Foleio Pro',
-              description:
-                'Your subscription is active. Platform booking fees are now 0%.',
+              title: `Welcome to Foleio ${planName}`,
+              description: `Your subscription is active. Platform fee is now ${
+                data?.plan === 'growth'
+                  ? PLATFORM_FEE_PERCENT.growth
+                  : PLATFORM_FEE_PERCENT.pro
+              }%.`,
             });
           }
         } catch {
           if (cancelled) return;
           toast({
-            title: 'Could not confirm Pro upgrade',
+            title: 'Could not confirm upgrade',
             description: 'Check your connection and refresh billing.',
             variant: 'destructive',
           });
@@ -155,7 +156,7 @@ export function BillingPage({
       } else if (upgraded === 'true') {
         toast({
           title: 'Payment received',
-          description: 'Confirming your Pro plan…',
+          description: 'Confirming your plan…',
         });
       }
 
@@ -169,26 +170,13 @@ export function BillingPage({
     };
   }, [searchParams, pathname, router, toast]);
 
-  useEffect(() => {
-    const upgrade = searchParams.get('upgrade');
-    if (upgrade !== 'pro') return;
-    setUpgradeOpen(true);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('upgrade');
-    if (!params.get('tab') && pathname.includes('/settings')) {
-      params.set('tab', 'billing');
-    }
-    const q = params.toString();
-    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [searchParams, pathname, router]);
-
-  async function handleUpgrade() {
+  async function handleUpgrade(plan: PaidPlatformPlan, interval: BillingInterval) {
     setIsSubmitting(true);
     try {
       const response = await fetch('/api/billing/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: 'pro' }),
+        body: JSON.stringify({ plan, interval }),
       });
 
       const data = await response.json();
@@ -210,6 +198,7 @@ export function BillingPage({
       });
     } finally {
       setIsSubmitting(false);
+      setUpgradeTarget(null);
     }
   }
 
@@ -227,7 +216,7 @@ export function BillingPage({
 
       toast({
         title: 'Subscription cancelled',
-        description: 'Pro stays active until the end of this billing cycle, then Free (5% fee) resumes.',
+        description: `Your plan stays active until the end of this billing cycle, then Free (${PLATFORM_FEE_PERCENT.free}% fee) resumes.`,
       });
       setCancelOpen(false);
       router.refresh();
@@ -243,6 +232,113 @@ export function BillingPage({
     }
   }
 
+  const showGrowth = growthEligible || currentPlan === 'growth';
+
+  const plans: Array<{
+    key: PlanKey;
+    title: string;
+    fee: string;
+    features: string[];
+  }> = [
+    {
+      key: 'free',
+      title: 'Free',
+      fee: `${PLATFORM_FEE_PERCENT.free}%`,
+      features: [
+        'Full access to bookings, shop, and tools',
+        `${PLATFORM_FEE_PERCENT.free}% platform & service fees (₦300 flat under ₦5,000)`,
+        'Up to 10 services and 10 products (5 preorders)',
+      ],
+    },
+    {
+      key: 'pro',
+      title: 'Pro',
+      fee: `${PLATFORM_FEE_PERCENT.pro}%`,
+      features: [
+        'Everything on Free',
+        `${PLATFORM_FEE_PERCENT.pro}% platform & service fees on transactions`,
+        'Unlimited services & products',
+        'Schedule templates',
+        'Self-serve upgrade',
+      ],
+    },
+  ];
+
+  if (showGrowth) {
+    plans.push({
+      key: 'growth',
+      title: 'Growth',
+      fee: `${PLATFORM_FEE_PERCENT.growth}%`,
+      features: [
+        'Everything on Pro',
+        `${PLATFORM_FEE_PERCENT.growth}% platform & service fees on transactions`,
+        'Unlimited services & products',
+        'Invite unlocked',
+      ],
+    });
+  }
+
+  const intervalLabel =
+    billingInterval === 'annual' ? 'Yearly' : 'Biannually';
+
+  function priceForPaidPlan(plan: PaidPlatformPlan): string {
+    return formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO[plan][billingInterval]);
+  }
+
+  function renderPaidPrice(plan: PaidPlatformPlan) {
+    const compareAt = planCompareAtKobo(plan, billingInterval);
+    const discountPct = planDiscountPercent(plan, billingInterval);
+    return (
+      <div style={{ marginTop: 12 }}>
+        <p
+          className="foleio-dash-panel-meta"
+          style={{
+            marginBottom: 0,
+            color: '#fafafa',
+            fontWeight: 600,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+            gap: 8,
+          }}
+        >
+          {compareAt && discountPct > 0 ? (
+            <span
+              style={{
+                color: '#828282',
+                fontWeight: 400,
+                textDecoration: 'line-through',
+              }}
+            >
+              {formatPlanPrice(compareAt)}
+            </span>
+          ) : null}
+          <span>
+            {priceForPaidPlan(plan)}
+            <span style={{ fontWeight: 400, color: '#adadad' }}>
+              {' '}
+              / {intervalLabel.toLowerCase()}
+            </span>
+          </span>
+          {discountPct > 0 ? (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#4ade80',
+                background: 'rgba(74, 222, 128, 0.12)',
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}
+            >
+              Save {discountPct}%
+            </span>
+          ) : null}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       {!embedded ? (
@@ -256,100 +352,147 @@ export function BillingPage({
         </div>
       ) : null}
 
+      {isLegacyZero ? (
+        <div className="foleio-dash-panel">
+          <h2 className="foleio-dash-panel-title">Legacy Pro rate</h2>
+          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
+            You are on the previous Pro plan ({formatPlanPrice(LEGACY_PRO_MONTHLY_KOBO)}
+            /month) with <strong>0% platform &amp; service fees until {formatDate(periodEnd)}</strong>.
+            After that you move to Free ({PLATFORM_FEE_PERCENT.free}%) unless you
+            renew on the new Pro ({PLATFORM_FEE_PERCENT.pro}%).
+          </p>
+        </div>
+      ) : null}
+
       <div className="foleio-dash-panel">
         <h2 className="foleio-dash-panel-title">Current plan</h2>
         <p className="foleio-dash-panel-meta">
-          {currentPlan === 'pro'
-            ? cancelAtPeriodEnd
-              ? `Pro — cancels on ${formatDate(periodEnd)}. After that, Free (5% fee).`
-              : `Pro — 0% Foleio booking fee. Renews around ${formatDate(periodEnd)}.`
-            : 'Free — full access with a 5% Foleio fee per booking (₦300 flat under ₦5,000).'}
+          {currentPlan === 'free'
+            ? `Free — ${feeLabelForPlan('free', false)}.`
+            : cancelAtPeriodEnd
+              ? `${currentPlan === 'growth' ? 'Growth' : 'Pro'} — cancels on ${formatDate(periodEnd)}. After that, Free (${PLATFORM_FEE_PERCENT.free}% fee).`
+              : `${currentPlan === 'growth' ? 'Growth' : 'Pro'} — ${feeLabelForPlan(currentPlan, isLegacyZero)}. Renews around ${formatDate(periodEnd)}.`}
         </p>
         <p className="foleio-dash-panel-meta" style={{ marginTop: 8, textTransform: 'capitalize' }}>
           Status: {currentStatus.replace(/_/g, ' ')}
         </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-          {currentPlan === 'free' ? (
-            <button
-              type="button"
-              className="foleio-dash-btn-primary"
-              onClick={() => setUpgradeOpen(true)}
-            >
-              Upgrade to Pro
-            </button>
-          ) : (
+        {isPaidPlan ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
             <button
               type="button"
               className="foleio-dash-btn-outline"
               onClick={() => setCancelOpen(true)}
               disabled={cancelAtPeriodEnd}
             >
-              {cancelAtPeriodEnd ? 'Cancellation scheduled' : 'Cancel subscription'}
+              {cancelAtPeriodEnd ? 'Cancellation scheduled' : 'Cancel plan'}
             </button>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       <div
         style={{
           display: 'grid',
           gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         }}
       >
-        {(Object.keys(PLAN_COPY) as PlanKey[]).map((plan) => {
-          const copy = PLAN_COPY[plan];
-          const isCurrent = plan === currentPlan;
+        {plans.map((plan) => {
+          const isCurrent = currentPlan === plan.key;
+          const isPaidCard = plan.key === 'pro' || plan.key === 'growth';
+          const paidKey = plan.key as PaidPlatformPlan;
+          const canUpgradePaid =
+            plan.key === 'pro'
+              ? !(isCurrent && !isLegacyZero)
+              : !isCurrent;
+
           return (
-            <div
-              key={plan}
-              className="foleio-dash-panel"
-              style={{
-                border: isCurrent ? '1px solid rgba(250,250,250,0.28)' : undefined,
-              }}
-            >
+            <div key={plan.key} className="foleio-dash-panel" style={{ margin: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <h3 className="foleio-dash-panel-title">{copy.title}</h3>
-                {isCurrent ? (
-                  <span className="foleio-dash-badge is-success">Current</span>
-                ) : null}
+                <h3 className="foleio-dash-panel-title">{plan.title}</h3>
+                <span style={{ color: '#fafafa', fontWeight: 600 }}>{plan.fee}</span>
               </div>
-              <p className="foleio-dash-panel-meta" style={{ marginTop: 4 }}>
-                {copy.price}
-              </p>
-              <ul style={{ margin: '14px 0 0', padding: 0, listStyle: 'none' }}>
-                {copy.features.map((feature) => (
-                  <li
-                    key={feature}
+
+              {isPaidCard ? (
+                <>
+                  <div
+                    role="tablist"
+                    aria-label={`${plan.title} billing interval`}
                     style={{
-                      display: 'flex',
-                      gap: 8,
-                      alignItems: 'flex-start',
-                      marginBottom: 8,
-                      color: '#adadad',
-                      fontSize: 13,
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 4,
+                      marginTop: 12,
+                      padding: 4,
+                      borderRadius: 10,
+                      background: 'rgba(255,255,255,0.06)',
                     }}
                   >
-                    <Check className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.5} />
-                    <span>{feature}</span>
+                    {(
+                      [
+                        { id: 'biannual', label: 'Biannually' },
+                        { id: 'annual', label: 'Yearly' },
+                      ] as const
+                    ).map((tab) => {
+                      const active = billingInterval === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          className={
+                            active ? 'foleio-dash-btn-primary' : 'foleio-dash-btn-ghost'
+                          }
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            fontSize: 12,
+                            borderRadius: 8,
+                          }}
+                          onClick={() => setBillingInterval(tab.id)}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {renderPaidPrice(paidKey)}
+                </>
+              ) : (
+                <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 8 }}>
+                  ₦0
+                </p>
+              )}
+
+              <ul style={{ margin: '12px 0', paddingLeft: 18, color: '#adadad', fontSize: 13 }}>
+                {plan.features.map((feature) => (
+                  <li key={feature} style={{ marginBottom: 6 }}>
+                    <Check className="inline h-3.5 w-3.5" style={{ marginRight: 6 }} />
+                    {feature}
                   </li>
                 ))}
               </ul>
-              <button
-                type="button"
-                className={
-                  isCurrent || plan === 'free'
-                    ? 'foleio-dash-btn-outline'
-                    : 'foleio-dash-btn-primary'
-                }
-                style={{ width: '100%', marginTop: 12 }}
-                disabled={isCurrent || plan === 'free'}
-                onClick={() => {
-                  if (plan === 'pro') setUpgradeOpen(true);
-                }}
-              >
-                {isCurrent ? 'Current plan' : copy.cta}
-              </button>
+
+              {plan.key === 'free' ? (
+                <button type="button" className="foleio-dash-btn-outline" style={{ width: '100%' }} disabled>
+                  {isCurrent ? 'Current plan' : 'Included'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="foleio-dash-btn-primary"
+                  style={{ width: '100%' }}
+                  disabled={!canUpgradePaid}
+                  onClick={() =>
+                    setUpgradeTarget({ plan: paidKey, interval: billingInterval })
+                  }
+                >
+                  {!canUpgradePaid
+                    ? 'Current plan'
+                    : `Upgrade to ${plan.title}`}
+                </button>
+              )}
             </div>
           );
         })}
@@ -362,30 +505,24 @@ export function BillingPage({
             No billing history yet.
           </p>
         ) : (
-          <div style={{ overflowX: 'auto', marginTop: 12 }}>
-            <table className="w-full min-w-[520px] text-left text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table className="w-full text-sm">
               <thead>
-                <tr style={{ color: '#828282' }}>
-                  <th className="py-2 font-medium">Date</th>
-                  <th className="py-2 font-medium">Plan</th>
-                  <th className="py-2 font-medium">Amount</th>
+                <tr className="text-left text-[#828282]">
+                  <th className="py-2 pr-4 font-medium">Plan</th>
+                  <th className="py-2 pr-4 font-medium">Amount</th>
                   <th className="py-2 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {billingHistory.map((entry) => (
-                  <tr key={entry.id} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <td className="py-3">{formatDate(entry.createdAt)}</td>
-                    <td className="py-3" style={{ textTransform: 'capitalize' }}>
+                  <tr key={entry.id} className="border-t border-white/5 text-[#adadad]">
+                    <td className="py-3 pr-4 capitalize">
                       {entry.plan === 'starter' ? 'Free' : entry.plan}
+                      {entry.billingInterval ? ` · ${entry.billingInterval}` : ''}
                     </td>
-                    <td className="py-3">
-                      {entry.amount > 0
-                        ? new Intl.NumberFormat('en-NG', {
-                            style: 'currency',
-                            currency: 'NGN',
-                          }).format(entry.amount / 100)
-                        : 'Free'}
+                    <td className="py-3 pr-4">
+                      {entry.amount > 0 ? formatPlanPrice(entry.amount) : 'Free'}
                     </td>
                     <td className="py-3 capitalize">{entry.status.replace('_', ' ')}</td>
                   </tr>
@@ -396,7 +533,7 @@ export function BillingPage({
         )}
       </div>
 
-      {upgradeOpen ? (
+      {upgradeTarget ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
           style={{ background: 'rgba(0,0,0,0.72)' }}
@@ -405,16 +542,26 @@ export function BillingPage({
             className="w-full max-w-md rounded-2xl p-6"
             style={{ background: '#212121', border: '1px solid rgba(255,255,255,0.08)' }}
           >
-            <h3 className="foleio-dash-panel-title">Upgrade to Pro</h3>
+            <h3 className="foleio-dash-panel-title">
+              Upgrade to {upgradeTarget.plan === 'growth' ? 'Growth' : 'Pro'}
+            </h3>
             <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
-              ₦10,000/month. Platform booking fees drop to 0% (Paystack fees still apply).
+              {formatPlanPrice(
+                PLATFORM_PLAN_AMOUNTS_KOBO[upgradeTarget.plan][upgradeTarget.interval]
+              )}{' '}
+              / {upgradeTarget.interval === 'annual' ? 'year' : '6 months'}. Platform
+              &amp; service fees become{' '}
+              {upgradeTarget.plan === 'growth'
+                ? PLATFORM_FEE_PERCENT.growth
+                : PLATFORM_FEE_PERCENT.pro}
+              %.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button
                 type="button"
                 className="foleio-dash-btn-outline"
                 style={{ flex: 1 }}
-                onClick={() => setUpgradeOpen(false)}
+                onClick={() => setUpgradeTarget(null)}
               >
                 Not now
               </button>
@@ -423,10 +570,12 @@ export function BillingPage({
                 className="foleio-dash-btn-primary"
                 style={{ flex: 1 }}
                 disabled={isSubmitting}
-                onClick={() => void handleUpgrade()}
+                onClick={() =>
+                  void handleUpgrade(upgradeTarget.plan, upgradeTarget.interval)
+                }
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? 'Processing…' : 'Upgrade now'}
+                {isSubmitting ? 'Processing…' : 'Continue'}
               </button>
             </div>
           </div>
@@ -442,10 +591,12 @@ export function BillingPage({
             className="w-full max-w-md rounded-2xl p-6"
             style={{ background: '#212121', border: '1px solid rgba(255,255,255,0.08)' }}
           >
-            <h3 className="foleio-dash-panel-title">Cancel Pro?</h3>
+            <h3 className="foleio-dash-panel-title">
+              Cancel {currentPlan === 'growth' ? 'Growth' : 'Pro'}?
+            </h3>
             <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
-              Your plan stays active until {formatDate(periodEnd)}. After that you move to Free
-              and the 5% booking fee returns.
+              Your plan stays active until {formatDate(periodEnd)}. After that you move to
+              Free and the {PLATFORM_FEE_PERCENT.free}% fee returns.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button
@@ -454,16 +605,17 @@ export function BillingPage({
                 style={{ flex: 1 }}
                 onClick={() => setCancelOpen(false)}
               >
-                Keep Pro
+                Keep plan
               </button>
               <button
                 type="button"
-                className="foleio-dash-btn-danger"
+                className="foleio-dash-btn-primary"
                 style={{ flex: 1 }}
                 disabled={isSubmitting}
                 onClick={() => void handleCancel()}
               >
-                {isSubmitting ? 'Cancelling…' : 'Cancel subscription'}
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Confirm cancel
               </button>
             </div>
           </div>

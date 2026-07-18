@@ -11,7 +11,7 @@ import {
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
-import { paystackTransactionChargeKobo } from '@/lib/billing/platform-fee';
+import { paystackTransactionChargeKobo, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,6 +61,10 @@ export async function POST(request: Request) {
         subaccountStatus: true,
         platformPlan: true,
         platformSubscriptionActive: true,
+        platformSubscriptions: {
+          select: PLATFORM_SUB_FEE_SELECT,
+          take: 1,
+        },
       },
     });
 
@@ -278,7 +282,10 @@ export async function POST(request: Request) {
 
     let paymentData;
     try {
-      const transactionCharge = paystackTransactionChargeKobo(total, creator);
+      const transactionCharge = paystackTransactionChargeKobo(
+        total,
+        toFeePlanInput(creator)
+      );
       paymentData = await paystack.initializePayment({
         email,
         amount: total,

@@ -28,7 +28,8 @@ export function validateEnvironment(): EnvValidationResult {
     'DIRECT_URL',
     'NEXTAUTH_URL',
     'NEXTAUTH_SECRET',
-    'PAYSTACK_PRO_PLAN_CODE',
+    'PAYSTACK_PRO_6MO_PLAN_CODE',
+    'PAYSTACK_PRO_YR_PLAN_CODE',
     'RESEND_API_KEY',
     'ANTHROPIC_API_KEY',
     'CRON_SECRET',
@@ -48,6 +49,9 @@ export function validateEnvironment(): EnvValidationResult {
     'NEXT_PUBLIC_DOJAH_PUBLIC_KEY',
     'NEXT_PUBLIC_DOJAH_WIDGET_ID',
     'DOJAH_SECRET_KEY',
+    'PAYSTACK_GROWTH_6MO_PLAN_CODE',
+    'PAYSTACK_GROWTH_YR_PLAN_CODE',
+    'PAYSTACK_PRO_PLAN_CODE',
   ];
 
   const missing: string[] = [];

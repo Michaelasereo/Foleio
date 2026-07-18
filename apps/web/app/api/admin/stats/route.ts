@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     }),
     prisma.creator.count({
       where: {
-        platformPlan: { in: ['PRO', 'PREMIUM'] },
+        platformPlan: { in: ['PRO', 'GROWTH', 'PREMIUM'] },
         platformSubscriptionActive: true,
       },
     }),
