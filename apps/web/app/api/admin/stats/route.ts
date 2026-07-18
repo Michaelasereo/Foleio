@@ -6,6 +6,7 @@ import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import {
   ADMIN_SUCCESS_TX_STATUSES,
   platformFeeFromTransaction,
+  sumAdminPlatformFees,
 } from '@/lib/admin/stats-helpers';
 
 const successTxWhere = { status: { in: [...ADMIN_SUCCESS_TX_STATUSES] } };
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
     totalCreators,
     creatorPaymentsSnap,
     totalTransactions,
-    feeLedgerRows,
+    platformFeeTotal,
     totalPayouts,
     pendingPayouts,
     bookingStatusGroups,
@@ -40,13 +41,8 @@ export async function GET(request: Request) {
       },
     }),
     prisma.transaction.count({ where: successTxWhere }),
-    // Per-row fee fields so we can mirror revenue's platformFee || feeAmount logic.
-    // A single aggregate SUM(platformFee) || SUM(feeAmount) undercounts when some
-    // rows only populate one of the two columns.
-    prisma.transaction.findMany({
-      where: successTxWhere,
-      select: { platformFee: true, feeAmount: true },
-    }),
+    // Same fee sources as Admin → Revenue (ledger + deposit booking fallback).
+    sumAdminPlatformFees(),
     prisma.payout.aggregate({
       where: { status: 'success' },
       _sum: { amount: true },
@@ -166,11 +162,6 @@ export async function GET(request: Request) {
     platformRevenue: values.platformRevenue,
     creatorEarnings: values.creatorEarnings,
   }));
-
-  const platformFeeTotal = feeLedgerRows.reduce(
-    (sum, tx) => sum + platformFeeFromTransaction(tx),
-    0
-  );
 
   return Response.json({
     totalCreators,

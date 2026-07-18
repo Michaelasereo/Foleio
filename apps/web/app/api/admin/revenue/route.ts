@@ -1,6 +1,7 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
 import {
+  ADMIN_REVENUE_TX_TYPES,
   ADMIN_SUCCESS_TX_STATUSES,
   platformFeeFromTransaction,
 } from '@/lib/admin/stats-helpers';
@@ -16,11 +17,7 @@ const CHANNEL_TYPES: Record<Exclude<RevenueChannel, 'all'>, string[]> = {
   subscriptions: ['subscription', 'platform_subscription'],
 };
 
-const ALL_REVENUE_TYPES = [
-  ...CHANNEL_TYPES.shop,
-  ...CHANNEL_TYPES.services,
-  ...CHANNEL_TYPES.subscriptions,
-];
+const ALL_REVENUE_TYPES = [...ADMIN_REVENUE_TX_TYPES];
 
 function parseRange(value: string | null): RevenueRange {
   if (value === '7d' || value === '90d') return value;
