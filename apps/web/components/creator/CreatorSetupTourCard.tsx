@@ -2,9 +2,17 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ChevronRight, ListChecks, X } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  ListChecks,
+  Percent,
+  X,
+} from 'lucide-react';
 
-const STEPS = [
+const SETUP_STEPS = [
   {
     id: 'cover',
     label: 'Update cover image',
@@ -25,12 +33,15 @@ const STEPS = [
     label: 'Setup bookings / shop',
     href: '/bookings',
   },
-  {
-    id: 'policy',
-    label: 'Read our creator policy',
-    href: '/dashboard/policy',
-  },
 ] as const;
+
+const FEES_STEP = {
+  id: 'policy',
+  label: 'Review platform fees',
+  href: '/dashboard/policy',
+} as const;
+
+const STEPS = [...SETUP_STEPS, FEES_STEP] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
 
@@ -87,7 +98,6 @@ export function CreatorSetupTourCard({
 }: {
   creatorId?: string | null;
 }) {
-  // Defer localStorage-driven UI until after mount to avoid SSR/client HTML drift.
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -95,6 +105,7 @@ export function CreatorSetupTourCard({
   );
 
   const [minimized, setMinimized] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const [done, setDone] = useState<Set<StepId>>(() => new Set());
 
   useEffect(() => {
@@ -113,6 +124,7 @@ export function CreatorSetupTourCard({
       }
     }
     setMinimized(true);
+    setListOpen(false);
   }
 
   function expand() {
@@ -137,22 +149,43 @@ export function CreatorSetupTourCard({
     });
   }
 
+  function openSetupStep(stepId: StepId) {
+    markDone(stepId);
+    minimize();
+  }
+
   if (!mounted || !creatorId) return null;
 
-  const doneCount = done.size;
-  const total = STEPS.length;
+  const setupDoneCount = SETUP_STEPS.filter((step) => done.has(step.id)).length;
+  const setupComplete = setupDoneCount === SETUP_STEPS.length;
+  const nextSetupStep = SETUP_STEPS.find((step) => !done.has(step.id)) ?? null;
+
+  // After setup is finished, keep only the same small floating fees shortcut.
+  if (setupComplete) {
+    return (
+      <Link
+        href={FEES_STEP.href}
+        className="foleio-setup-tour-fab"
+        aria-label="Review platform fees"
+        title="Review platform fees"
+        onClick={() => markDone(FEES_STEP.id)}
+      >
+        <Percent strokeWidth={1.75} />
+      </Link>
+    );
+  }
 
   if (minimized) {
     return (
       <button
         type="button"
         className="foleio-setup-tour-fab"
-        aria-label={`Open setup tour (${doneCount} of ${total} done)`}
+        aria-label={`Open setup tour (${setupDoneCount} of ${SETUP_STEPS.length} done)`}
         onClick={expand}
       >
         <ListChecks strokeWidth={1.75} />
-        {doneCount > 0 ? (
-          <span className="foleio-setup-tour-fab-badge">{doneCount}</span>
+        {setupDoneCount > 0 ? (
+          <span className="foleio-setup-tour-fab-badge">{setupDoneCount}</span>
         ) : null}
       </button>
     );
@@ -162,11 +195,9 @@ export function CreatorSetupTourCard({
     <aside className="foleio-setup-tour" aria-label="Creator setup tour">
       <div className="foleio-setup-tour-header">
         <div>
-          <p className="foleio-setup-tour-title">Setup tour</p>
+          <p className="foleio-setup-tour-title">Setup</p>
           <p className="foleio-setup-tour-meta">
-            {doneCount === total
-              ? 'All steps complete'
-              : `${doneCount} of ${total} complete`}
+            {setupDoneCount}/{SETUP_STEPS.length} complete
           </p>
         </div>
         <button
@@ -178,34 +209,88 @@ export function CreatorSetupTourCard({
           <X strokeWidth={1.75} />
         </button>
       </div>
-      <nav className="foleio-setup-tour-list">
-        {STEPS.map((step, index) => {
-          const isDone = done.has(step.id);
-          return (
-            <Link
-              key={step.id}
-              href={step.href}
-              className={`foleio-setup-tour-item${isDone ? ' is-done' : ''}`}
-              onClick={() => markDone(step.id)}
-            >
-              {isDone ? (
-                <CheckCircle2
-                  className="foleio-setup-tour-check"
+
+      {nextSetupStep ? (
+        <Link
+          href={nextSetupStep.href}
+          className="foleio-setup-tour-next"
+          onClick={() => openSetupStep(nextSetupStep.id)}
+        >
+          <span className="foleio-setup-tour-next-label">
+            Next: {nextSetupStep.label}
+          </span>
+          <ChevronRight className="foleio-setup-tour-arrow" strokeWidth={1.75} />
+        </Link>
+      ) : null}
+
+      <button
+        type="button"
+        className="foleio-setup-tour-toggle"
+        aria-expanded={listOpen}
+        onClick={() => setListOpen((open) => !open)}
+      >
+        {listOpen ? 'Hide steps' : 'All steps'}
+        {listOpen ? (
+          <ChevronUp strokeWidth={1.75} />
+        ) : (
+          <ChevronDown strokeWidth={1.75} />
+        )}
+      </button>
+
+      {listOpen ? (
+        <nav className="foleio-setup-tour-list">
+          {SETUP_STEPS.map((step, index) => {
+            const isDone = done.has(step.id);
+            return (
+              <Link
+                key={step.id}
+                href={step.href}
+                className={`foleio-setup-tour-item${isDone ? ' is-done' : ''}`}
+                onClick={() => openSetupStep(step.id)}
+              >
+                {isDone ? (
+                  <CheckCircle2
+                    className="foleio-setup-tour-check"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="foleio-setup-tour-index">{index + 1}</span>
+                )}
+                <span className="foleio-setup-tour-label">{step.label}</span>
+                <ChevronRight
+                  className="foleio-setup-tour-arrow"
                   strokeWidth={1.75}
-                  aria-hidden
                 />
-              ) : (
-                <span className="foleio-setup-tour-index">{index + 1}</span>
-              )}
-              <span className="foleio-setup-tour-label">{step.label}</span>
-              <ChevronRight
-                className="foleio-setup-tour-arrow"
+              </Link>
+            );
+          })}
+          <Link
+            href={FEES_STEP.href}
+            className={`foleio-setup-tour-item${
+              done.has(FEES_STEP.id) ? ' is-done' : ''
+            }`}
+            onClick={() => markDone(FEES_STEP.id)}
+          >
+            {done.has(FEES_STEP.id) ? (
+              <CheckCircle2
+                className="foleio-setup-tour-check"
                 strokeWidth={1.75}
+                aria-hidden
               />
-            </Link>
-          );
-        })}
-      </nav>
+            ) : (
+              <span className="foleio-setup-tour-index">
+                {SETUP_STEPS.length + 1}
+              </span>
+            )}
+            <span className="foleio-setup-tour-label">{FEES_STEP.label}</span>
+            <ChevronRight
+              className="foleio-setup-tour-arrow"
+              strokeWidth={1.75}
+            />
+          </Link>
+        </nav>
+      ) : null}
     </aside>
   );
 }

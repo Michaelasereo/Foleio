@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { CreatorAgreementContent } from '@/components/legal/CreatorAgreementContent';
+import { DashboardCreatorPolicy } from '@/components/creator/DashboardCreatorPolicy';
 
 export const metadata = {
   title: 'Creator policy · Foleio',
-  description: 'Creator Agreement for Foleio creators.',
+  description: 'Platform fees and creator policy for Foleio.',
 };
 
 export default function DashboardCreatorPolicyPage() {
@@ -25,13 +25,13 @@ export default function DashboardCreatorPolicyPage() {
             className="foleio-dash-panel-meta"
             style={{ marginBottom: 0, marginTop: 6 }}
           >
-            Effective Date: July 2026 · Last Updated: July 2026
+            What Foleio charges — and the full agreement if you need it
           </p>
         </div>
       </div>
 
-      <div className="foleio-dash-panel foleio-dash-policy">
-        <CreatorAgreementContent />
+      <div className="foleio-dash-panel">
+        <DashboardCreatorPolicy />
       </div>
     </div>
   );

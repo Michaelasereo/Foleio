@@ -1485,45 +1485,52 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 
 .foleio-setup-tour {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: 16px;
+  bottom: 16px;
   z-index: 60;
-  width: min(320px, calc(100vw - 32px));
-  padding: 14px;
-  border-radius: 14px;
+  width: min(240px, calc(100vw - 24px));
+  padding: 10px;
+  border-radius: 12px;
   background: #2b2b2b;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
 }
 .foleio-setup-tour-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 .foleio-setup-tour-title {
   margin: 0;
   color: #fafafa;
   font-family: var(--font-body), sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
 }
 .foleio-setup-tour-meta {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: #828282;
   font-family: var(--font-body), sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
+}
+.foleio-setup-tour-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 .foleio-setup-tour-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: #adadad;
   cursor: pointer;
@@ -1534,20 +1541,67 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   background: rgba(255, 255, 255, 0.06);
 }
 .foleio-setup-tour-close svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+}
+.foleio-setup-tour-next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  text-decoration: none;
+  color: #f4f4f5;
+}
+.foleio-setup-tour-next:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.foleio-setup-tour-next-label {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body), sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.foleio-setup-tour-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #828282;
+  font-family: var(--font-body), sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.foleio-setup-tour-toggle:hover {
+  color: #fafafa;
+}
+.foleio-setup-tour-toggle svg {
+  width: 14px;
+  height: 14px;
 }
 .foleio-setup-tour-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  margin-top: 4px;
+  max-height: 180px;
+  overflow: auto;
 }
 .foleio-setup-tour-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 10px;
-  border-radius: 10px;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
   text-decoration: none;
   color: #f4f4f5;
   transition: background 0.15s ease;
@@ -1559,19 +1613,19 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: #adadad;
   font-family: var(--font-body), sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   flex-shrink: 0;
 }
 .foleio-setup-tour-check {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   color: #86efac;
   flex-shrink: 0;
 }
@@ -1582,34 +1636,35 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   flex: 1;
   min-width: 0;
   font-family: var(--font-body), sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.3;
 }
 .foleio-setup-tour-arrow {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   color: #828282;
   flex-shrink: 0;
 }
-.foleio-setup-tour-item:hover .foleio-setup-tour-arrow {
+.foleio-setup-tour-item:hover .foleio-setup-tour-arrow,
+.foleio-setup-tour-next:hover .foleio-setup-tour-arrow {
   color: #fafafa;
 }
 .foleio-setup-tour-fab {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: 16px;
+  bottom: 16px;
   z-index: 60;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   background: #2b2b2b;
   color: #f4f4f5;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
   cursor: pointer;
 }
 .foleio-setup-tour-fab:hover {
@@ -1617,30 +1672,30 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   color: #fff;
 }
 .foleio-setup-tour-fab svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 .foleio-setup-tour-fab-badge {
   position: absolute;
   top: -2px;
   right: -2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border-radius: 999px;
   background: #86efac;
   color: #14532d;
   font-family: var(--font-body), sans-serif;
   font-size: 10px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 16px;
   text-align: center;
 }
 @media (max-width: 640px) {
   .foleio-setup-tour,
   .foleio-setup-tour-fab {
-    right: 12px;
-    bottom: 12px;
+    right: 10px;
+    bottom: 10px;
   }
 }
 
@@ -1673,6 +1728,94 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-dash-policy strong {
   color: #f4f4f5;
   font-weight: 600;
+}
+.foleio-dash-policy a {
+  color: #f4f4f5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.foleio-dash-fee-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 18px;
+}
+.foleio-dash-fee-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.foleio-dash-fee-row:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.foleio-dash-fee-plan {
+  margin: 0;
+  color: #fafafa;
+  font-size: 15px;
+  font-weight: 600;
+}
+.foleio-dash-fee-price {
+  margin: 4px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+}
+.foleio-dash-fee-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 2px;
+}
+.foleio-dash-fee-rate strong {
+  color: #fafafa;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.foleio-dash-fee-row.is-pro .foleio-dash-fee-rate strong {
+  color: #86efac;
+}
+.foleio-dash-fee-rate span {
+  color: #adadad;
+  font-size: 12px;
+  font-weight: 500;
+}
+.foleio-dash-fee-note {
+  color: #828282 !important;
+}
+.foleio-dash-policy-more {
+  margin-top: 8px;
+  padding-top: 4px;
+}
+.foleio-dash-policy-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fafafa;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.foleio-dash-policy-more-btn:hover {
+  color: #fff;
+}
+.foleio-dash-policy-more-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.foleio-dash-policy-full {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 `;
 
