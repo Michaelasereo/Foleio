@@ -48,9 +48,41 @@ export function DashboardCreatorPolicy() {
 
       <p>
         After the Foleio fee, you keep the rest (95% on Free for standard-sized
-        charges, or 100% on Pro) before Paystack&apos;s cut. Confirmed payments
-        go to your available balance. You can upgrade anytime in{' '}
-        <Link href="/settings?tab=billing">Settings → Billing</Link>.
+        charges, or 100% on Pro) before Paystack&apos;s cut. You can upgrade
+        anytime in <Link href="/settings?tab=billing">Settings → Billing</Link>.
+      </p>
+
+      <h2>Settlement</h2>
+      <p>
+        Foleio does not use a separate &quot;withdraw&quot; or payout-request step.
+        Your creator share settles <strong>directly to your linked Nigerian bank
+        account</strong> through Paystack, on Paystack&apos;s normal settlement
+        cycle (typically the <strong>next business day</strong> after a
+        successful payment).
+      </p>
+      <ul>
+        <li>
+          <strong>How it works:</strong> customer pays → Paystack splits the
+          Foleio fee and your share → your share is settled to the bank account
+          on your Paystack subaccount.
+        </li>
+        <li>
+          <strong>Bank account:</strong> must be a verified account in your name,
+          linked in Earnings / payment settings.
+        </li>
+        <li>
+          <strong>Timing:</strong> follows Paystack settlement (usually T+1
+          business day). Weekends and bank holidays can delay credit.
+        </li>
+        <li>
+          <strong>Holds:</strong> settlement may be delayed or held if there is a
+          dispute, refund, fraud check, KYC issue, or a legal requirement — we
+          will notify you if that happens.
+        </li>
+      </ul>
+      <p>
+        Manage your settlement bank account in{' '}
+        <Link href="/earnings">Earnings</Link>.
       </p>
 
       <div className="foleio-dash-policy-more">

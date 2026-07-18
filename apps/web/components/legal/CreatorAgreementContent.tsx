@@ -68,7 +68,7 @@ export function CreatorAgreementContent() {
         After the Foleio platform fee, you keep the remaining creator share
         (95% on Free for standard-sized charges, or 100% on Pro, before any
         payment-processor fees described below). Confirmed customer payments are
-        credited to your available balance under Platform settlement rules.
+        settled to your linked bank account as described under Settlement.
       </p>
       <p>
         <strong>Payment processing:</strong> Paystack&apos;s processing fees are
@@ -88,21 +88,25 @@ export function CreatorAgreementContent() {
         included benefits are accurate.
       </p>
 
-      <h2>4. Payouts</h2>
+      <h2>4. Settlement</h2>
       <p>
-        You may request a payout of your available balance at any time, subject
-        to a minimum of <strong>₦1,000</strong> for standard automated payouts
-        (manual or assisted payouts may require a higher minimum of ₦5,000).
-        Payouts are processed to your registered Nigerian bank account via
-        Paystack, typically within 1–3 business days. Active Pro creators may
-        receive faster processing (including same business day when requested
-        before 14:00 WAT, subject to banking and Paystack availability).
+        Foleio does not operate a separate creator withdrawal or payout-request
+        wallet. Your creator share is settled <strong>directly to your
+        registered Nigerian bank account</strong> via Paystack subaccount
+        settlement, on Paystack&apos;s normal schedule (typically the next
+        business day after a successful charge, subject to weekends, bank
+        holidays, and Paystack&apos;s processing).
       </p>
       <p>
-        <strong>Payout Holds:</strong> Foleio may place a temporary hold on your
-        payouts if a dispute or refund claim is pending, if we suspect fraudulent
-        activity, if we are required to do so by law, or if your identity or bank
-        account cannot be verified. We will notify you of any hold.
+        You must keep a verified bank account in your name linked on the
+        Platform. Settlement timing and banking rails are controlled by Paystack
+        and your bank; Foleio does not guarantee same-day credit.
+      </p>
+      <p>
+        <strong>Settlement holds:</strong> Foleio and/or Paystack may delay or
+        hold settlement if a dispute or refund claim is pending, if fraudulent
+        activity is suspected, if required by law, or if your identity or bank
+        account cannot be verified. We will notify you of any hold we control.
       </p>
 
       <h2>5. Creator Obligations &amp; Conduct</h2>
@@ -194,8 +198,9 @@ export function CreatorAgreementContent() {
       </p>
       <p>
         <strong>By You:</strong> You may close your account at any time by
-        contacting legal@foleio.com. Any pending payouts for legitimate
-        transactions completed before closure will be processed normally.
+        contacting legal@foleio.com. Amounts already settled or in progress with
+        Paystack for legitimate transactions completed before closure will follow
+        normal settlement.
       </p>
       <p>
         <strong>Effect of Termination:</strong> Upon termination, your public
