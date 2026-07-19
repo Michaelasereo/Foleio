@@ -62,8 +62,9 @@ export function CreatorAgreementContent() {
           applies on Free only.
         </li>
         <li>
-          <strong>Pro plan (₦12,000 / 6 months or ₦24,000 / year):</strong> 4%
-          platform &amp; service fees while your Pro subscription is active.
+          <strong>Pro plan (₦12,000 / 6 months or ₦24,000 / year):</strong> 3.5%
+          + ₦100 platform &amp; service fees while your Pro subscription is
+          active.
         </li>
         <li>
           <strong>Growth plan (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
@@ -150,8 +151,8 @@ export function CreatorAgreementContent() {
         </li>
         <li>
           <strong>Pro (₦12,000 / 6 months or ₦24,000 / year):</strong> Everything
-          on Free, with <strong>4%</strong> platform &amp; service fees while the
-          subscription is active. Self-serve via Billing.
+          on Free, with <strong>3.5% + ₦100</strong> platform &amp; service fees
+          while the subscription is active. Self-serve via Billing.
         </li>
         <li>
           <strong>Growth (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}

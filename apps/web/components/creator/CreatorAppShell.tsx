@@ -37,6 +37,41 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   display: none !important;
 }
 
+/* Mobile tool pages: hide cover + name/verified; keep on /dashboard only */
+@media (max-width: 899px) {
+  .foleio-creator-root .foleio-auth-left.is-hide-on-mobile {
+    display: none;
+  }
+}
+
+/* Narrow phones only: center cover + profile under full-width content */
+@media (max-width: 409px) {
+  .foleio-creator-root .foleio-auth-left:not(.is-hide-on-mobile) {
+    max-width: 333px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Tablet / wide phone: center cover/profile and main content columns */
+@media (min-width: 410px) and (max-width: 899px) {
+  .foleio-creator-root .foleio-auth-columns {
+    justify-items: center;
+  }
+  .foleio-creator-root .foleio-auth-left:not(.is-hide-on-mobile) {
+    max-width: 333px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .foleio-creator-root .foleio-auth-right {
+    width: 100%;
+    max-width: 542px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 .foleio-auth-stub-thumb.is-avatar {
   background: transparent;
   overflow: hidden;
@@ -1712,6 +1747,22 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   font-weight: 600;
   letter-spacing: -0.02em;
 }
+.foleio-dash-policy-fee-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  flex-wrap: wrap;
+}
+.foleio-dash-policy-fee-heading h2 {
+  margin: 0;
+}
+.foleio-dash-policy-fee-heading .foleio-dash-btn-outline {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+}
 .foleio-dash-policy h2:first-child {
   margin-top: 0;
 }
@@ -2030,6 +2081,7 @@ function CreatorShellProfile({
 
 export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
   const pathname = usePathname();
+  const isDashboardHome = pathname === '/dashboard';
   const navMenuRef = useRef<HTMLDivElement>(null);
   const navMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
@@ -2260,7 +2312,11 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
 
         <main className="foleio-auth-main relative flex-1">
           <div className="foleio-auth-columns">
-            <div className="foleio-auth-left">
+            <div
+              className={`foleio-auth-left${
+                isDashboardHome ? '' : ' is-hide-on-mobile'
+              }`}
+            >
               <BusinessCoverCard
                 bannerUrl={bannerUrl}
                 editable={Boolean(creator)}

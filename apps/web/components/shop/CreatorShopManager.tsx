@@ -6,11 +6,15 @@ import {
   ArrowLeft,
   ArrowUp,
   Download,
+  FileEdit,
   ImagePlus,
   Info,
   Loader2,
+  Package,
+  PackageCheck,
   Pencil,
   Plus,
+  ShoppingBag,
   Trash2,
   Upload,
   X,
@@ -289,6 +293,9 @@ export function CreatorShopManager({
     platformSubscriptionActive,
   });
   const [tab, setTab] = useState<'products' | 'orders' | 'delivery'>('products');
+  const [productFilter, setProductFilter] = useState<'all' | 'active' | 'draft'>(
+    'all'
+  );
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveryTiers, setDeliveryTiers] = useState<DeliveryTier[]>([]);
@@ -991,298 +998,389 @@ export function CreatorShopManager({
     if (response.ok) await fetchOrders();
   }
 
+  const activeProducts = products.filter((product) => product.status === 'active');
+  const draftProducts = products.filter((product) => product.status === 'draft');
+  const filteredProducts =
+    productFilter === 'active'
+      ? activeProducts
+      : productFilter === 'draft'
+        ? draftProducts
+        : products;
+
+  const productStats = [
+    {
+      title: 'Total products',
+      value: products.length.toLocaleString(),
+      hint: 'In your shop',
+      icon: Package,
+      onSelect: 'all' as const,
+    },
+    {
+      title: 'Active',
+      value: activeProducts.length.toLocaleString(),
+      hint: 'Live for sale',
+      icon: PackageCheck,
+      onSelect: 'active' as const,
+    },
+    {
+      title: 'Draft',
+      value: draftProducts.length.toLocaleString(),
+      hint: 'Not published yet',
+      icon: FileEdit,
+      onSelect: 'draft' as const,
+    },
+    {
+      title: 'Orders',
+      value: orders.length.toLocaleString(),
+      hint: 'All shop orders',
+      icon: ShoppingBag,
+      onSelect: null,
+    },
+  ];
+
   return (
     <div>
-      <div className="foleio-dash-panel" style={{ marginBottom: 14, paddingBottom: 10 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div
-            style={{
-              minWidth: 0,
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16,
-              flexWrap: 'wrap',
-            }}
+      <div className="foleio-dash-header">
+        <div>
+          <h1 className="foleio-auth-title">Shop</h1>
+          <p
+            className="foleio-dash-panel-meta"
+            style={{ marginBottom: 0, marginTop: 6 }}
           >
-            <h2
-              className="foleio-dash-panel-title"
-              style={{ margin: 0, lineHeight: 1 }}
-            >
-              Shop
-            </h2>
-            <div
-              role="tablist"
-              aria-label="Shop sections"
-              style={{
-                display: 'inline-flex',
-                flexWrap: 'wrap',
-                gap: 14,
-                margin: 0,
-              }}
-            >
-              {(
-                [
-                  { id: 'products', label: 'Products' },
-                  { id: 'orders', label: 'Orders' },
-                  { id: 'delivery', label: 'Delivery' },
-                ] as const
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === item.id}
-                  onClick={() => setTab(item.id)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 2px',
-                    border: 'none',
-                    borderBottom:
-                      tab === item.id
-                        ? '2px solid rgba(249, 115, 22, 0.55)'
-                        : '2px solid transparent',
-                    background: 'transparent',
-                    color: tab === item.id ? '#fafafa' : '#adadad',
-                    fontFamily: 'var(--font-body), sans-serif',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {item.label}
-                  {item.id === 'products' ? (
-                    <span className="foleio-dash-tab-count">{products.length}</span>
-                  ) : null}
-                  {item.id === 'orders' ? (
-                    <span className="foleio-dash-tab-count">{orders.length}</span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
+            Manage products, orders, and delivery
+          </p>
         </div>
       </div>
 
-      {tab === 'products' ? (
-        <div style={{ display: 'grid', gap: 14 }}>
-          <div className="foleio-dash-panel">
-            <div
+      <div className="foleio-dash-stats">
+        {productStats.map((stat) => {
+          const Icon = stat.icon;
+          const isSelected =
+            tab === 'products' &&
+            stat.onSelect != null &&
+            productFilter === stat.onSelect;
+          const content = (
+            <>
+              <div className="foleio-dash-stat-top">
+                <span className="foleio-dash-stat-label">{stat.title}</span>
+                <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
+              </div>
+              <div className="foleio-dash-stat-value">{stat.value}</div>
+              <p className="foleio-dash-stat-change">{stat.hint}</p>
+            </>
+          );
+
+          if (stat.onSelect == null) {
+            return (
+              <button
+                key={stat.title}
+                type="button"
+                className={`foleio-dash-stat${tab === 'orders' ? ' is-selected' : ''}`}
+                onClick={() => setTab('orders')}
+                style={{
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  border:
+                    tab === 'orders'
+                      ? '1px solid rgba(250,250,250,0.35)'
+                      : '1px solid transparent',
+                  width: '100%',
+                }}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={stat.title}
+              type="button"
+              className={`foleio-dash-stat${isSelected ? ' is-selected' : ''}`}
+              onClick={() => {
+                setTab('products');
+                setProductFilter(stat.onSelect);
+              }}
               style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between',
-                gap: 12,
-                flexWrap: 'wrap',
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: isSelected
+                  ? '1px solid rgba(250,250,250,0.35)'
+                  : '1px solid transparent',
+                width: '100%',
               }}
             >
-              <div>
-                <h3 className="foleio-dash-panel-title">Products</h3>
-                <p className="foleio-dash-panel-meta">
-                  Add a product manually or import drafts from CSV.
-                </p>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className="foleio-dash-btn-outline"
-                  onClick={() => downloadProductCsvTemplate()}
-                >
-                  <Download className="h-4 w-4" strokeWidth={1.5} />
-                  Template
-                </button>
-                <button
-                  type="button"
-                  className="foleio-dash-btn-outline"
-                  onClick={() => {
-                    setCsvImportOpen(true);
-                    setCsvParseError('');
-                  }}
-                >
-                  <Upload className="h-4 w-4" strokeWidth={1.5} />
-                  Import CSV
-                </button>
-                <button
-                  type="button"
-                  className="foleio-dash-btn-primary"
-                  onClick={openCreateProduct}
-                >
-                  <Plus className="h-4 w-4" strokeWidth={1.5} />
-                  Add product
-                </button>
-              </div>
-            </div>
+              {content}
+            </button>
+          );
+        })}
+      </div>
 
-            {csvImportOpen ? (
-              <div style={{ marginTop: 16 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    marginBottom: 12,
-                  }}
-                >
-                  <div>
-                    <h4
-                      className="foleio-dash-panel-title"
-                      style={{ margin: 0, fontSize: 15 }}
-                    >
-                      Import products from CSV
-                    </h4>
-                    <p className="foleio-dash-panel-meta" style={{ marginTop: 6 }}>
-                      Columns: name, description, price, stock, weight_kg. Products import as
-                      drafts — add photos later, then publish.
-                    </p>
-                  </div>
+      <div className="foleio-dash-tabs" role="tablist" aria-label="Shop views">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'products'}
+          className={`foleio-dash-tab${tab === 'products' ? ' is-active' : ''}`}
+          onClick={() => setTab('products')}
+        >
+          Products
+          <span className="foleio-dash-tab-count">{products.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'orders'}
+          className={`foleio-dash-tab${tab === 'orders' ? ' is-active' : ''}`}
+          onClick={() => setTab('orders')}
+        >
+          Orders
+          <span className="foleio-dash-tab-count">{orders.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'delivery'}
+          className={`foleio-dash-tab${tab === 'delivery' ? ' is-active' : ''}`}
+          onClick={() => setTab('delivery')}
+        >
+          Delivery
+          <span className="foleio-dash-tab-count">{deliveryTiers.length}</span>
+        </button>
+      </div>
+
+      {tab === 'products' ? (
+        <>
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div className="foleio-dash-panel">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <h2 className="foleio-dash-panel-title">Add products</h2>
+                  <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
+                    Add a product manually or import drafts from CSV.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                   <button
                     type="button"
                     className="foleio-dash-btn-outline"
-                    style={{ padding: 6, minWidth: 0 }}
-                    onClick={() => closeCsvImport()}
-                    disabled={isImportingCsv}
-                    aria-label="Close CSV import"
+                    onClick={() => downloadProductCsvTemplate()}
                   >
-                    <X className="h-4 w-4" strokeWidth={1.5} />
+                    <Download className="h-4 w-4" strokeWidth={1.5} />
+                    Template
+                  </button>
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-outline"
+                    onClick={() => {
+                      setCsvImportOpen(true);
+                      setCsvParseError('');
+                    }}
+                  >
+                    <Upload className="h-4 w-4" strokeWidth={1.5} />
+                    Import CSV
+                  </button>
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-primary"
+                    onClick={openCreateProduct}
+                  >
+                    <Plus className="h-4 w-4" strokeWidth={1.5} />
+                    Add product
                   </button>
                 </div>
+              </div>
 
-                <input
-                  ref={csvInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  style={{ display: 'none' }}
-                  onChange={handleCsvFileChange}
-                />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  <button
-                    type="button"
-                    className="foleio-dash-btn-outline"
-                    onClick={() => csvInputRef.current?.click()}
-                    disabled={isImportingCsv}
+              {csvImportOpen ? (
+                <div style={{ marginTop: 16 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      marginBottom: 12,
+                    }}
                   >
-                    Choose CSV file
-                  </button>
-                  {csvFileName ? (
-                    <span className="foleio-dash-panel-meta" style={{ alignSelf: 'center' }}>
-                      {csvFileName}
-                    </span>
+                    <div>
+                      <h4
+                        className="foleio-dash-panel-title"
+                        style={{ margin: 0, fontSize: 15 }}
+                      >
+                        Import products from CSV
+                      </h4>
+                      <p className="foleio-dash-panel-meta" style={{ marginTop: 6 }}>
+                        Columns: name, description, price, stock, weight_kg. Products import as
+                        drafts — add photos later, then publish.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-outline"
+                      style={{ padding: 6, minWidth: 0 }}
+                      onClick={() => closeCsvImport()}
+                      disabled={isImportingCsv}
+                      aria-label="Close CSV import"
+                    >
+                      <X className="h-4 w-4" strokeWidth={1.5} />
+                    </button>
+                  </div>
+
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    style={{ display: 'none' }}
+                    onChange={handleCsvFileChange}
+                  />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-outline"
+                      onClick={() => csvInputRef.current?.click()}
+                      disabled={isImportingCsv}
+                    >
+                      Choose CSV file
+                    </button>
+                    {csvFileName ? (
+                      <span className="foleio-dash-panel-meta" style={{ alignSelf: 'center' }}>
+                        {csvFileName}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {csvParseError ? (
+                    <p style={{ margin: '0 0 12px', color: '#f87171', fontSize: 13 }}>
+                      {csvParseError}
+                    </p>
+                  ) : null}
+
+                  {csvRows.length > 0 ? (
+                    <>
+                      <div
+                        style={{
+                          overflowX: 'auto',
+                          marginBottom: 12,
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 10,
+                        }}
+                      >
+                        <table
+                          style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
+                        >
+                          <thead>
+                            <tr style={{ textAlign: 'left', color: '#828282' }}>
+                              <th style={{ padding: '8px 10px' }}>Row</th>
+                              <th style={{ padding: '8px 10px' }}>Name</th>
+                              <th style={{ padding: '8px 10px' }}>Price</th>
+                              <th style={{ padding: '8px 10px' }}>Stock</th>
+                              <th style={{ padding: '8px 10px' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvRows.map((row) => (
+                              <tr
+                                key={row.rowNumber}
+                                style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                              >
+                                <td style={{ padding: '8px 10px', color: '#adadad' }}>
+                                  {row.rowNumber}
+                                </td>
+                                <td style={{ padding: '8px 10px' }}>{row.name || '—'}</td>
+                                <td style={{ padding: '8px 10px' }}>
+                                  {row.price != null
+                                    ? `₦${row.price.toLocaleString('en-NG')}`
+                                    : '—'}
+                                </td>
+                                <td style={{ padding: '8px 10px' }}>
+                                  {row.stock != null ? row.stock : '—'}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: '8px 10px',
+                                    color: row.error ? '#f87171' : '#34d399',
+                                  }}
+                                >
+                                  {row.error || 'Ready'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="foleio-dash-btn-primary"
+                          disabled={
+                            isImportingCsv ||
+                            csvRows.filter((row) => !row.error).length === 0
+                          }
+                          onClick={() => void importCsvProducts()}
+                        >
+                          {isImportingCsv ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                              Importing…
+                            </>
+                          ) : (
+                            `Import ${csvRows.filter((row) => !row.error).length} product${
+                              csvRows.filter((row) => !row.error).length === 1 ? '' : 's'
+                            }`
+                          )}
+                        </button>
+                        <span className="foleio-dash-panel-meta">
+                          {csvRows.filter((row) => row.error).length} invalid ·{' '}
+                          {csvRows.filter((row) => !row.error).length} valid
+                        </span>
+                      </div>
+                    </>
                   ) : null}
                 </div>
+              ) : null}
+            </div>
 
-                {csvParseError ? (
-                  <p style={{ margin: '0 0 12px', color: '#f87171', fontSize: 13 }}>
-                    {csvParseError}
-                  </p>
-                ) : null}
-
-                {csvRows.length > 0 ? (
-                  <>
-                    <div
-                      style={{
-                        overflowX: 'auto',
-                        marginBottom: 12,
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 10,
-                      }}
-                    >
-                      <table
-                        style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
-                      >
-                        <thead>
-                          <tr style={{ textAlign: 'left', color: '#828282' }}>
-                            <th style={{ padding: '8px 10px' }}>Row</th>
-                            <th style={{ padding: '8px 10px' }}>Name</th>
-                            <th style={{ padding: '8px 10px' }}>Price</th>
-                            <th style={{ padding: '8px 10px' }}>Stock</th>
-                            <th style={{ padding: '8px 10px' }}>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {csvRows.map((row) => (
-                            <tr
-                              key={row.rowNumber}
-                              style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-                            >
-                              <td style={{ padding: '8px 10px', color: '#adadad' }}>
-                                {row.rowNumber}
-                              </td>
-                              <td style={{ padding: '8px 10px' }}>{row.name || '—'}</td>
-                              <td style={{ padding: '8px 10px' }}>
-                                {row.price != null
-                                  ? `₦${row.price.toLocaleString('en-NG')}`
-                                  : '—'}
-                              </td>
-                              <td style={{ padding: '8px 10px' }}>
-                                {row.stock != null ? row.stock : '—'}
-                              </td>
-                              <td
-                                style={{
-                                  padding: '8px 10px',
-                                  color: row.error ? '#f87171' : '#34d399',
-                                }}
-                              >
-                                {row.error || 'Ready'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div
-                      style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}
-                    >
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-primary"
-                        disabled={
-                          isImportingCsv ||
-                          csvRows.filter((row) => !row.error).length === 0
-                        }
-                        onClick={() => void importCsvProducts()}
-                      >
-                        {isImportingCsv ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                            Importing…
-                          </>
-                        ) : (
-                          `Import ${csvRows.filter((row) => !row.error).length} product${
-                            csvRows.filter((row) => !row.error).length === 1 ? '' : 's'
-                          }`
-                        )}
-                      </button>
-                      <span className="foleio-dash-panel-meta">
-                        {csvRows.filter((row) => row.error).length} invalid ·{' '}
-                        {csvRows.filter((row) => !row.error).length} valid
-                      </span>
-                    </div>
-                  </>
-                ) : null}
+            <div className="foleio-dash-panel">
+              <div style={{ marginBottom: filteredProducts.length > 0 || loading ? 4 : 0 }}>
+                <h2 className="foleio-dash-panel-title">Product list</h2>
+                <p className="foleio-dash-panel-meta">
+                  {productFilter === 'active'
+                    ? 'Active products in your shop'
+                    : productFilter === 'draft'
+                      ? 'Draft products not yet published'
+                      : 'All products in your shop'}
+                </p>
               </div>
-            ) : null}
-          </div>
-
-          <div className="foleio-dash-panel">
           {loading && products.length === 0 ? (
             <p className="foleio-dash-empty">Loading products…</p>
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <p className="foleio-dash-empty">
-              No products yet. Add one or import a CSV.
+              {products.length === 0
+                ? 'No products yet. Add one or import a CSV.'
+                : productFilter === 'active'
+                  ? 'No active products yet.'
+                  : productFilter === 'draft'
+                    ? 'No draft products.'
+                    : 'No products yet. Add one or import a CSV.'}
             </p>
           ) : (
-            products.map((product, index) => {
+            filteredProducts.map((product) => {
+              const index = products.findIndex((item) => item.id === product.id);
               const pricing = resolveProductPricing({
                 price: product.price,
                 compareAtPrice: product.compareAtPrice,
@@ -1481,8 +1579,9 @@ export function CreatorShopManager({
               );
             })
           )}
+            </div>
           </div>
-        </div>
+        </>
       ) : null}
 
       {tab === 'orders' ? (

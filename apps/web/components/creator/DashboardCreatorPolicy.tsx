@@ -4,10 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { CreatorAgreementContent } from '@/components/legal/CreatorAgreementContent';
+import { FeeCalculatorDrawer } from '@/components/creator/FeeCalculatorDrawer';
 import {
   PLATFORM_FEE_PERCENT,
   PLATFORM_PLAN_AMOUNTS_KOBO,
   formatPlanPrice,
+  formatProFeeLabel,
 } from '@/lib/billing/platform-plans';
 
 export function DashboardCreatorPolicy({
@@ -16,10 +18,20 @@ export function DashboardCreatorPolicy({
   growthEligible?: boolean;
 }) {
   const [showFull, setShowFull] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
 
   return (
     <div className="foleio-dash-policy">
-      <h2>Platform &amp; service fees</h2>
+      <div className="foleio-dash-policy-fee-heading">
+        <h2>Platform &amp; service fees</h2>
+        <button
+          type="button"
+          className="foleio-dash-btn-outline"
+          onClick={() => setCalcOpen(true)}
+        >
+          Fee calculator
+        </button>
+      </div>
       <p>
         Platform &amp; service fees are taken from bookings, shop sales, and other
         paid transactions based on your plan. The rate shown is the full fee —
@@ -49,7 +61,7 @@ export function DashboardCreatorPolicy({
             </p>
           </div>
           <div className="foleio-dash-fee-rate">
-            <strong>{PLATFORM_FEE_PERCENT.pro}%</strong>
+            <strong>{formatProFeeLabel()}</strong>
             <span>platform &amp; service fees</span>
             <span className="foleio-dash-fee-note">Self-serve</span>
           </div>
@@ -139,6 +151,8 @@ export function DashboardCreatorPolicy({
           </div>
         ) : null}
       </div>
+
+      <FeeCalculatorDrawer open={calcOpen} onClose={() => setCalcOpen(false)} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   PLATFORM_FEE_PERCENT,
   PLATFORM_PLAN_AMOUNTS_KOBO,
   formatPlanPrice,
+  formatProFeeLabel,
   isLegacyZeroFeeSubscription,
   planCompareAtKobo,
   planDiscountPercent,
@@ -61,7 +62,7 @@ function parseActivePlan(sub: SubscriptionRecord | null): PlanKey {
 function feeLabelForPlan(plan: PlanKey, isLegacyZero: boolean): string {
   if (isLegacyZero) return `${PLATFORM_FEE_PERCENT.legacyPro}% platform & service fees (legacy)`;
   if (plan === 'growth') return `${PLATFORM_FEE_PERCENT.growth}% platform & service fees`;
-  if (plan === 'pro') return `${PLATFORM_FEE_PERCENT.pro}% platform & service fees`;
+  if (plan === 'pro') return `${formatProFeeLabel()} platform & service fees`;
   return `${PLATFORM_FEE_PERCENT.free}% platform & service fees (₦300 flat under ₦5,000)`;
 }
 
@@ -140,9 +141,9 @@ export function BillingPage({
               title: `Welcome to Foleio ${planName}`,
               description: `Your subscription is active. Platform fee is now ${
                 data?.plan === 'growth'
-                  ? PLATFORM_FEE_PERCENT.growth
-                  : PLATFORM_FEE_PERCENT.pro
-              }%.`,
+                  ? `${PLATFORM_FEE_PERCENT.growth}%`
+                  : formatProFeeLabel()
+              }.`,
             });
           }
         } catch {
@@ -253,10 +254,10 @@ export function BillingPage({
     {
       key: 'pro',
       title: 'Pro',
-      fee: `${PLATFORM_FEE_PERCENT.pro}%`,
+      fee: formatProFeeLabel(),
       features: [
         'Everything on Free',
-        `${PLATFORM_FEE_PERCENT.pro}% platform & service fees on transactions`,
+        `${formatProFeeLabel()} platform & service fees on transactions`,
         'Unlimited services & products',
         'Schedule templates',
         'Self-serve upgrade',
@@ -359,7 +360,7 @@ export function BillingPage({
             You are on the previous Pro plan ({formatPlanPrice(LEGACY_PRO_MONTHLY_KOBO)}
             /month) with <strong>0% platform &amp; service fees until {formatDate(periodEnd)}</strong>.
             After that you move to Free ({PLATFORM_FEE_PERCENT.free}%) unless you
-            renew on the new Pro ({PLATFORM_FEE_PERCENT.pro}%).
+            renew on the new Pro ({formatProFeeLabel()}).
           </p>
         </div>
       ) : null}
@@ -552,9 +553,9 @@ export function BillingPage({
               / {upgradeTarget.interval === 'annual' ? 'year' : '6 months'}. Platform
               &amp; service fees become{' '}
               {upgradeTarget.plan === 'growth'
-                ? PLATFORM_FEE_PERCENT.growth
-                : PLATFORM_FEE_PERCENT.pro}
-              %.
+                ? `${PLATFORM_FEE_PERCENT.growth}%`
+                : formatProFeeLabel()}
+              .
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button

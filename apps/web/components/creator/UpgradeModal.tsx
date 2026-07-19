@@ -15,6 +15,7 @@ import {
   PLAN_LIMIT_MESSAGES,
   type PlatformPlan,
 } from '@/lib/utils/plan-limits';
+import { formatProFeeLabel } from '@/lib/billing/platform-plans';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -37,7 +38,7 @@ function getUpgradeTarget(currentPlan: PlatformPlan): PlanCardInfo {
       price: 'from ₦12,000 / 6 months',
       slug: 'pro',
       features: [
-        '4% platform & service fees (vs 5% on Free)',
+        `${formatProFeeLabel()} platform & service fees (vs 5% on Free)`,
         'Full bookings, shop, and creator tools',
         'Cancel anytime — benefits last until period end',
       ],

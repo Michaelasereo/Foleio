@@ -138,8 +138,8 @@ export default function TermsPage() {
             under ₦5,000)
           </li>
           <li>
-            Pro (₦12,000 / 6 months or ₦24,000 / year): 4% platform &amp; service
-            fees while active
+            Pro (₦12,000 / 6 months or ₦24,000 / year): 3.5% + ₦100 platform
+            &amp; service fees while active
           </li>
           <li>
             Growth (₦35,000 / 6 months or ₦70,000 / year, invite-only): 3.5%

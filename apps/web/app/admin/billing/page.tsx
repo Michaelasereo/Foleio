@@ -82,7 +82,7 @@ export default function AdminBillingPage() {
       <div>
         <h2 className="foleio-admin-title">Billing (platform plans)</h2>
         <p className={`foleio-admin-meta ${adminMutedClass}`}>
-          Free 5% · Pro 4% · Growth 3.5% (invite) · legacy Pro 0% until period end
+          Free 5% · Pro 3.5% + ₦100 · Growth 3.5% (invite) · legacy Pro 0% until period end
         </p>
       </div>
 
