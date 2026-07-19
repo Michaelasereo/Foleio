@@ -10,6 +10,7 @@ import {
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
+import { productCardCss } from '@/components/shop/product-card-styles';
 
 type ProductVariant = {
   id: string;
@@ -599,7 +600,7 @@ export function PublicShopPanel({
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: shopDrawerCss }} />
+      <style dangerouslySetInnerHTML={{ __html: `${shopDrawerCss}\n${productCardCss}` }} />
       {cart.length > 0 ? (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: embedded ? 12 : 0 }}>
           <button
@@ -615,36 +616,26 @@ export function PublicShopPanel({
         </div>
       ) : null}
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-          gap: 12,
-          marginTop: cart.length > 0 ? 12 : embedded ? 12 : 0,
-        }}
+        className="foleio-product-card-list"
+        style={{ marginTop: cart.length > 0 ? 12 : embedded ? 12 : 0 }}
       >
         {products.map((product) => {
           const pricing = shopProductPricing(product);
           const pct = discountPercent(pricing.price, pricing.compareAtPrice);
+          const thumb = productImages(product)[0];
+          const stockCount = product.stock ?? 0;
+          const inStock = stockCount > 0;
           return (
             <button
               key={product.id}
               type="button"
+              className="foleio-product-card"
               onClick={() => openProduct(product)}
-              style={{
-                textAlign: 'left',
-                border: '1px solid rgba(255,255,255,0.08)',
-                background: '#2b2b2b',
-                borderRadius: 12,
-                overflow: 'hidden',
-                cursor: 'pointer',
-                padding: 0,
-                color: 'inherit',
-              }}
             >
-              <div style={{ position: 'relative', aspectRatio: '1', background: '#1f1f1f' }}>
-                {productImages(product)[0] ? (
+              <div className="foleio-product-card-media">
+                {thumb ? (
                   <Image
-                    src={productImages(product)[0]}
+                    src={thumb}
                     alt={product.name}
                     fill
                     className="object-cover"
@@ -652,71 +643,51 @@ export function PublicShopPanel({
                   />
                 ) : null}
                 {pct ? (
-                  <div className="foleio-shop-image-badges">
-                    <span className="foleio-shop-image-badge is-discount">{pct}% off</span>
+                  <div className="foleio-product-card-badges">
+                    <span className="foleio-product-card-discount">{pct}% off</span>
                   </div>
                 ) : null}
               </div>
-              <div style={{ padding: 10 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontWeight: 600,
-                    fontSize: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <span>{product.name}</span>
-                  {pricing.isPreorderActive ? (
-                    <span className="foleio-shop-chip is-preorder">Preorder</span>
-                  ) : null}
-                </p>
-                <p
-                  style={{
-                    margin: '6px 0 0',
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    gap: 6,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {pricing.compareAtPrice && pricing.compareAtPrice > pricing.price ? (
-                    <span
-                      style={{
-                        textDecoration: 'line-through',
-                        color: 'rgba(250,250,250,0.45)',
-                        fontSize: 12,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {formatNaira(pricing.compareAtPrice)}
-                    </span>
-                  ) : null}
+              <div className="foleio-product-card-body">
+                <div className="foleio-product-card-top">
+                  <p className="foleio-product-card-title">
+                    {product.name}
+                    {pricing.isPreorderActive ? (
+                      <span
+                        className="foleio-shop-chip is-preorder"
+                        style={{ marginLeft: 8 }}
+                      >
+                        Preorder
+                      </span>
+                    ) : null}
+                  </p>
                   <span
-                    style={{
-                      color: '#fafafa',
-                      fontSize: 16,
-                      fontWeight: 700,
-                      lineHeight: 1.2,
-                    }}
+                    className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
                   >
-                    {formatNaira(pricing.price)}
+                    {inStock ? `In Stock : ${stockCount}` : 'Out of stock'}
                   </span>
+                </div>
+                <p className="foleio-product-card-desc">
+                  {product.description?.trim() || 'View details and order.'}
                 </p>
-                <p
-                  style={{
-                    margin: '4px 0 0',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: 'rgba(250,250,250,0.55)',
-                    lineHeight: 1.3,
-                  }}
-                >
-                  From this price
-                </p>
+                <div className="foleio-product-card-footer">
+                  <p className="foleio-product-card-price">
+                    {pricing.compareAtPrice &&
+                    pricing.compareAtPrice > pricing.price ? (
+                      <>
+                        <span className="is-compare">
+                          {formatNaira(pricing.compareAtPrice)}
+                        </span>
+                        {formatNaira(pricing.price)}
+                      </>
+                    ) : (
+                      formatNaira(pricing.price)
+                    )}
+                  </p>
+                  <span className="foleio-product-card-shop-btn" aria-hidden="true">
+                    Shop
+                  </span>
+                </div>
               </div>
             </button>
           );

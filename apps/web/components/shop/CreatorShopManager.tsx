@@ -36,6 +36,7 @@ import {
   getCreatorPlanLimits,
   type PlatformPlan,
 } from '@/lib/utils/plan-limits';
+import { productCardCss } from '@/components/shop/product-card-styles';
 
 type Variant = { id?: string; name: string; options: string[] };
 type Addon = { id: string; name: string; price: number };
@@ -255,6 +256,8 @@ function emptyProductForm() {
     name: '',
     description: '',
     price: '',
+    /** Default sale price kept while a discount is active. */
+    regularPrice: '',
     compareAtPrice: '',
     weight: '',
     imageUrls: [] as string[],
@@ -459,18 +462,22 @@ export function CreatorShopManager({
     const compareAtPrice = product.compareAtPrice
       ? String(product.compareAtPrice / 100)
       : '';
+    const discountEnabled =
+      Boolean(compareAtPrice) && !Boolean(product.isPreorder);
     setProductForm({
       id: product.id,
       name: product.name,
       description: product.description || '',
       price,
+      // When a discount is live, restore target is the compare-at (old) price.
+      regularPrice: discountEnabled ? compareAtPrice : price,
       compareAtPrice,
       weight: product.weight != null ? String(product.weight) : '',
       imageUrls: productImages(product),
       stock: product.stock != null ? String(product.stock) : '',
       status: product.status,
       isPreorder: Boolean(product.isPreorder),
-      discountEnabled: Boolean(compareAtPrice) && !Boolean(product.isPreorder),
+      discountEnabled,
       preorder: settingsToPreorderForm(product.preorderSettings, price, compareAtPrice),
       variants: product.variants.map((variant) => ({
         id: variant.id,
@@ -527,7 +534,8 @@ export function CreatorShopManager({
         discountEnabled: false,
         compareAtPrice: '',
         preorder: seeded,
-        price: seeded.postPreorderPrice || prev.price,
+        price: seeded.postPreorderPrice || prev.regularPrice || prev.price,
+        regularPrice: prev.regularPrice || prev.price,
       };
     });
     setProductDrawerView('details');
@@ -537,19 +545,22 @@ export function CreatorShopManager({
     if (productForm.isPreorder) return;
     setProductForm((prev) => {
       if (enabled) {
-        // Current sale price becomes the old (compare-at) price; creator
-        // then enters the new discounted sale price.
+        // Keep the default sale price aside; old + new prices are entered
+        // independently and are not auto-filled from that default.
         return {
           ...prev,
           discountEnabled: true,
-          compareAtPrice: prev.compareAtPrice || prev.price,
+          regularPrice: prev.regularPrice || prev.price,
+          compareAtPrice: '',
+          price: '',
         };
       }
-      // Restore the pre-discount price and drop the strikethrough.
+      // Restore the default sale price and clear strikethrough pricing.
       return {
         ...prev,
         discountEnabled: false,
-        price: prev.compareAtPrice || prev.price,
+        price: prev.regularPrice || prev.price,
+        regularPrice: prev.regularPrice || prev.price,
         compareAtPrice: '',
       };
     });
@@ -560,6 +571,29 @@ export function CreatorShopManager({
   async function saveProduct(event: FormEvent) {
     event.preventDefault();
     setProductError('');
+
+    if (
+      productForm.discountEnabled &&
+      !productForm.isPreorder
+    ) {
+      const oldPrice = Number(productForm.compareAtPrice);
+      const newPrice = Number(productForm.price);
+      if (!productForm.compareAtPrice.trim() || !Number.isFinite(oldPrice) || oldPrice <= 0) {
+        setProductError('Set an old (compare-at) price for the discount');
+        setProductDrawerView('discount');
+        return;
+      }
+      if (!productForm.price.trim() || !Number.isFinite(newPrice) || newPrice < 0) {
+        setProductError('Set a new discounted price');
+        setProductDrawerView('discount');
+        return;
+      }
+      if (oldPrice <= newPrice) {
+        setProductError('Old price must be higher than the discounted price');
+        setProductDrawerView('discount');
+        return;
+      }
+    }
 
     let preorderSettingsPayload: Record<string, unknown> | null = null;
     if (productForm.isPreorder) {
@@ -618,7 +652,9 @@ export function CreatorShopManager({
       description: productForm.description,
       price: productForm.isPreorder
         ? productForm.preorder.postPreorderPrice
-        : productForm.price,
+        : productForm.discountEnabled
+          ? productForm.price
+          : productForm.regularPrice || productForm.price,
       compareAtPrice: productForm.isPreorder
         ? productForm.preorder.postPreorderCompareAtPrice || null
         : productForm.discountEnabled
@@ -1356,6 +1392,7 @@ export function CreatorShopManager({
             </div>
 
             <div className="foleio-dash-panel">
+              <style dangerouslySetInnerHTML={{ __html: productCardCss }} />
               <div style={{ marginBottom: filteredProducts.length > 0 || loading ? 4 : 0 }}>
                 <h2 className="foleio-dash-panel-title">Product list</h2>
                 <p className="foleio-dash-panel-meta">
@@ -1379,7 +1416,8 @@ export function CreatorShopManager({
                     : 'No products yet. Add one or import a CSV.'}
             </p>
           ) : (
-            filteredProducts.map((product) => {
+            <div className="foleio-product-card-list">
+            {filteredProducts.map((product) => {
               const index = products.findIndex((item) => item.id === product.id);
               const pricing = resolveProductPricing({
                 price: product.price,
@@ -1389,195 +1427,128 @@ export function CreatorShopManager({
               });
               const pct = discountPercent(pricing.price, pricing.compareAtPrice);
               const thumb = productImages(product)[0];
+              const stockCount = product.stock ?? 0;
+              const inStock = stockCount > 0;
               return (
-                <div key={product.id} className="foleio-dash-booking-row">
-                  <div className="foleio-dash-booking-main">
-                    <div
-                      className="foleio-dash-booking-top"
-                      style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        width: '100%',
-                      }}
-                    >
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            alignItems: 'center',
-                            gap: 8,
-                          }}
-                        >
-                          <p
-                            style={{
-                              margin: 0,
-                              color: '#f4f4f5',
-                              fontFamily: 'var(--font-body), sans-serif',
-                              fontSize: 18,
-                              fontWeight: 600,
-                              lineHeight: 1.25,
-                            }}
-                          >
-                            {product.name}
-                          </p>
-                          {pricing.isPreorderActive ? (
-                            <span className="foleio-dash-badge is-warning">Preorder</span>
-                          ) : product.isPreorder ? (
-                            <span className="foleio-dash-badge is-muted">Preorder ended</span>
-                          ) : null}
-                        </div>
-                        {product.description ? (
-                          <p
-                            className="foleio-dash-booking-notes"
-                            style={{ margin: '4px 0 0' }}
-                          >
-                            {product.description}
-                          </p>
-                        ) : null}
-                      </div>
-                      <Switch
-                        checked={product.status === 'active'}
-                        onCheckedChange={() => void toggleVisible(product)}
-                        className="data-[state=checked]:bg-white data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-[#1a1816] data-[state=unchecked]:[&>span]:bg-[#adadad]"
-                        aria-label={
-                          product.status === 'active'
-                            ? 'Hide product from profile'
-                            : 'Show product on profile'
-                        }
+                <div key={product.id} className="foleio-product-card">
+                  <div className="foleio-product-card-media">
+                    {thumb ? (
+                      <RemoteImage
+                        src={thumb}
+                        alt=""
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
                       />
-                    </div>
-                    <div
-                      style={{
-                        color: '#f4f4f5',
-                        fontFamily: 'var(--font-body), sans-serif',
-                        fontSize: 16,
-                        fontWeight: 600,
-                        lineHeight: 1.2,
-                        marginTop: 2,
-                      }}
-                    >
-                      {pricing.compareAtPrice && pricing.compareAtPrice > pricing.price ? (
-                        <>
-                          <span
-                            style={{
-                              textDecoration: 'line-through',
-                              marginRight: 6,
-                              color: '#adadad',
-                              fontSize: 13,
-                              fontWeight: 500,
-                            }}
-                          >
-                            {formatNaira(pricing.compareAtPrice)}
-                          </span>
-                          {formatNaira(pricing.price)}
-                        </>
-                      ) : (
-                        formatNaira(pricing.price)
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 12,
-                        paddingTop: 12,
-                        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                      }}
-                    >
-                      <div className="foleio-dash-booking-meta">
-                        <span className="foleio-dash-sub-date">
-                          {product.stock ?? 0} left
-                        </span>
+                    ) : null}
+                    {pct ? (
+                      <div className="foleio-product-card-badges">
+                        <span className="foleio-product-card-discount">{pct}% off</span>
                       </div>
-                      <div
-                        className="foleio-dash-booking-actions"
-                        style={{ marginTop: 14 }}
+                    ) : null}
+                  </div>
+                  <div className="foleio-product-card-body">
+                    <div className="foleio-product-card-top">
+                      <div style={{ minWidth: 0 }}>
+                        <p className="foleio-product-card-title">
+                          {product.name}
+                          {pricing.isPreorderActive ? (
+                            <span
+                              className="foleio-dash-badge is-warning"
+                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                            >
+                              Preorder
+                            </span>
+                          ) : product.isPreorder ? (
+                            <span
+                              className="foleio-dash-badge is-muted"
+                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                            >
+                              Preorder ended
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <span
+                        className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
                       >
+                        {inStock ? `In Stock : ${stockCount}` : 'Out of stock'}
+                      </span>
+                    </div>
+                    {product.description ? (
+                      <p className="foleio-product-card-desc">{product.description}</p>
+                    ) : (
+                      <p className="foleio-product-card-desc">No description yet.</p>
+                    )}
+                    <div className="foleio-product-card-footer">
+                      <p className="foleio-product-card-price">
+                        {pricing.compareAtPrice &&
+                        pricing.compareAtPrice > pricing.price ? (
+                          <>
+                            <span className="is-compare">
+                              {formatNaira(pricing.compareAtPrice)}
+                            </span>
+                            {formatNaira(pricing.price)}
+                          </>
+                        ) : (
+                          formatNaira(pricing.price)
+                        )}
+                      </p>
+                      <div className="foleio-product-card-actions">
+                        <Switch
+                          checked={product.status === 'active'}
+                          onCheckedChange={() => void toggleVisible(product)}
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                          aria-label={
+                            product.status === 'active'
+                              ? 'Hide product from profile'
+                              : 'Show product on profile'
+                          }
+                        />
                         <button
                           type="button"
-                          className="foleio-dash-btn-ghost"
+                          className="foleio-product-card-icon-btn is-ghost"
                           disabled={index === 0}
                           onClick={() => void moveProduct(product.id, -1)}
                           aria-label="Move up"
                         >
-                          <ArrowUp className="h-4 w-4" strokeWidth={1.5} />
+                          <ArrowUp strokeWidth={1.75} />
                         </button>
                         <button
                           type="button"
-                          className="foleio-dash-btn-ghost"
+                          className="foleio-product-card-icon-btn is-ghost"
                           disabled={index === products.length - 1}
                           onClick={() => void moveProduct(product.id, 1)}
                           aria-label="Move down"
                         >
-                          <ArrowDown className="h-4 w-4" strokeWidth={1.5} />
+                          <ArrowDown strokeWidth={1.75} />
                         </button>
                         <button
                           type="button"
-                          className="foleio-dash-btn-outline"
+                          className="foleio-product-card-icon-btn"
                           onClick={() => openEditProduct(product)}
                           aria-label={`Edit ${product.name}`}
                         >
-                          <Pencil className="h-4 w-4" strokeWidth={1.5} />
+                          <Pencil strokeWidth={1.75} />
                         </button>
                         <button
                           type="button"
-                          className="foleio-dash-btn-danger"
+                          className="foleio-product-card-icon-btn is-danger"
                           onClick={() => void deleteProduct(product.id)}
                           aria-label={`Delete ${product.name}`}
                         >
-                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                          <Trash2 strokeWidth={1.75} />
                         </button>
                       </div>
                     </div>
                   </div>
-                  <div className="foleio-dash-booking-amount">
-                    {thumb ? (
-                      <div style={{ position: 'relative', width: 72, height: 72 }}>
-                        <RemoteImage
-                          src={thumb}
-                          alt=""
-                          style={{
-                            width: 72,
-                            height: 72,
-                            objectFit: 'cover',
-                            borderRadius: 8,
-                            display: 'block',
-                          }}
-                        />
-                        {pct ? (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: 4,
-                              right: 4,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-end',
-                              gap: 3,
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: 9,
-                                fontWeight: 700,
-                                lineHeight: 1.2,
-                                padding: '3px 5px',
-                                borderRadius: 999,
-                                background: '#16a34a',
-                                color: '#ecfdf5',
-                              }}
-                            >
-                              {pct}% off
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      formatNaira(product.price)
-                    )}
-                  </div>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
             </div>
           </div>
@@ -2215,7 +2186,7 @@ export function CreatorShopManager({
                     {productDrawerView === 'preorder'
                       ? 'Release timing, pricing, and discount phases.'
                       : productDrawerView === 'discount'
-                        ? 'Set a compare-at / old price for strikethrough.'
+                        ? 'Set old and new prices independently (default sale price is kept until you turn discount off).'
                         : productForm.id
                           ? productForm.name.trim() || 'Untitled product'
                           : 'Physical products only — image uploads go to R2.'}
@@ -2244,7 +2215,7 @@ export function CreatorShopManager({
                           status: checked ? 'active' : 'draft',
                         }))
                       }
-                      className="data-[state=checked]:bg-white data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-[#1a1816] data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
                       aria-label="Active on profile"
                     />
                   </label>
@@ -2587,22 +2558,24 @@ export function CreatorShopManager({
                 ) : productDrawerView === 'discount' ? (
                   <>
                     <label className="foleio-dash-field">
-                      <span style={{ color: '#adadad' }}>Old price (₦)</span>
+                      <span>Old price (₦)</span>
                       <input
                         className="foleio-dash-input"
                         type="number"
+                        min="0"
+                        step="0.01"
                         value={productForm.compareAtPrice}
-                        disabled
-                        readOnly
-                        style={{
-                          color: '#adadad',
-                          opacity: 0.7,
-                          cursor: 'not-allowed',
-                        }}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            compareAtPrice: event.target.value,
+                          }))
+                        }
+                        autoFocus
                       />
                     </label>
                     <label className="foleio-dash-field">
-                      <span>Discounted price (₦)</span>
+                      <span>New price (₦)</span>
                       <input
                         className="foleio-dash-input"
                         type="number"
@@ -2615,9 +2588,15 @@ export function CreatorShopManager({
                             price: event.target.value,
                           }))
                         }
-                        autoFocus
                       />
                     </label>
+                    <p className="foleio-dash-panel-meta" style={{ margin: 0 }}>
+                      Default sale price (
+                      {productForm.regularPrice
+                        ? `₦${Number(productForm.regularPrice).toLocaleString('en-NG')}`
+                        : '—'}
+                      ) is kept until you turn discount off.
+                    </p>
                     <button
                       type="button"
                       className="foleio-dash-btn-outline"
@@ -2819,12 +2798,22 @@ export function CreatorShopManager({
                     value={
                       productForm.isPreorder
                         ? productForm.preorder.postPreorderPrice
-                        : productForm.price
+                        : productForm.discountEnabled
+                          ? productForm.regularPrice
+                          : productForm.price
                     }
                     onChange={(event) =>
-                      setProductForm((prev) => ({ ...prev, price: event.target.value }))
+                      setProductForm((prev) =>
+                        prev.discountEnabled
+                          ? { ...prev, regularPrice: event.target.value }
+                          : {
+                              ...prev,
+                              price: event.target.value,
+                              regularPrice: event.target.value,
+                            }
+                      )
                     }
-                    required={!productForm.isPreorder}
+                    required={!productForm.isPreorder && !productForm.discountEnabled}
                     disabled={productForm.isPreorder || productForm.discountEnabled}
                   />
                 </label>
@@ -3388,7 +3377,7 @@ export function CreatorShopManager({
                       <Switch
                         checked={productForm.isPreorder}
                         onCheckedChange={setPreorderEnabled}
-                        className="data-[state=checked]:bg-white data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-[#1a1816] data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
                         aria-label="Enable preorder"
                       />
                     </div>
@@ -3422,12 +3411,12 @@ export function CreatorShopManager({
                         title={
                           productForm.isPreorder
                             ? 'Disabled while preorder is on — set discounts in preorder settings.'
-                            : 'Set a compare-at / old price in setup for strikethrough pricing.'
+                            : 'Set old and new prices in discount setup for strikethrough pricing.'
                         }
                         aria-label={
                           productForm.isPreorder
                             ? 'Disabled while preorder is on — set discounts in preorder settings.'
-                            : 'Set a compare-at / old price in setup for strikethrough pricing.'
+                            : 'Set old and new prices in discount setup for strikethrough pricing.'
                         }
                         style={{
                           display: 'inline-flex',
@@ -3462,7 +3451,7 @@ export function CreatorShopManager({
                         }
                         onCheckedChange={setDiscountEnabled}
                         disabled={productForm.isPreorder}
-                        className="data-[state=checked]:bg-white data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-[#1a1816] data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
                         aria-label="Enable discount"
                       />
                     </div>
