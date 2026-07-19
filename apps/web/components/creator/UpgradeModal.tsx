@@ -39,6 +39,7 @@ function getUpgradeTarget(currentPlan: PlatformPlan): PlanCardInfo {
       slug: 'pro',
       features: [
         `${formatProFeeLabel()} platform & service fees (vs 5% on Free)`,
+        'Up to 3 portfolio categories',
         'Full bookings, shop, and creator tools',
         'Cancel anytime — benefits last until period end',
       ],

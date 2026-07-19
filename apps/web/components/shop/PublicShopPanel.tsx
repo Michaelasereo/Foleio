@@ -27,6 +27,7 @@ export type ShopProduct = {
   imageUrl: string | null;
   imageUrls?: string[];
   stock: number | null;
+  showLimitedStock?: boolean;
   isPreorder?: boolean;
   preorderSettings?: unknown;
   addons?: unknown;
@@ -625,6 +626,11 @@ export function PublicShopPanel({
           const thumb = productImages(product)[0];
           const stockCount = product.stock ?? 0;
           const inStock = stockCount > 0;
+          const stockLabel = !inStock
+            ? 'Out of stock'
+            : product.showLimitedStock
+              ? 'Limited stock'
+              : `In Stock : ${stockCount}`;
           return (
             <button
               key={product.id}
@@ -664,7 +670,7 @@ export function PublicShopPanel({
                   <span
                     className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
                   >
-                    {inStock ? `In Stock : ${stockCount}` : 'Out of stock'}
+                    {stockLabel}
                   </span>
                 </div>
                 <p className="foleio-product-card-desc">

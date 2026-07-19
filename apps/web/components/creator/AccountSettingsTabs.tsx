@@ -57,6 +57,8 @@ interface AccountSettingsTabsProps {
     twitterUrl?: string | null;
     portfolioUrl?: string | null;
     growthEligible?: boolean;
+    platformPlan?: string | null;
+    platformSubscriptionActive?: boolean;
   };
   billing?: {
     currentSubscription: SubscriptionRecord | null;
@@ -673,6 +675,8 @@ export function AccountSettingsTabs({
         <PortfolioGallerySettings
           initialSectionId={portfolio?.sectionId}
           initialItems={portfolio?.items || []}
+          platformPlan={creator.platformPlan}
+          platformSubscriptionActive={creator.platformSubscriptionActive}
         />
       ) : null}
 

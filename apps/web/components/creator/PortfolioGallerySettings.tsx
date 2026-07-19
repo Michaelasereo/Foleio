@@ -1,15 +1,30 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Loader2, Lock, Trash2, X } from 'lucide-react';
+import { ImagePlus, Loader2, Lock, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
   createPortfolioItem,
+  createPortfolioSection,
   deletePortfolioItem,
+  deletePortfolioSection,
   ensureGallerySection,
   getMyPortfolio,
+  updatePortfolioSection,
 } from '@/lib/actions/portfolio';
-import { MAX_GALLERY_ITEMS } from '@/lib/creator/portfolio-gallery';
+import {
+  MAX_CATEGORY_NAME_LENGTH,
+  MAX_GALLERY_ITEMS,
+  categorySections,
+  isHomeSection,
+} from '@/lib/creator/portfolio-gallery';
 import { RemoteImage } from '@/components/creator/RemoteImage';
+import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
+import {
+  getCreatorPlan,
+  getCreatorPlanLimits,
+  type PlatformPlan,
+} from '@/lib/utils/plan-limits';
 
 type GalleryItem = {
   id: string;
@@ -18,28 +33,17 @@ type GalleryItem = {
   orderIndex: number;
 };
 
+type PortfolioSectionRow = {
+  id: string;
+  name: string;
+  orderIndex: number;
+  items: GalleryItem[];
+};
+
 const SLOT_COUNT = MAX_GALLERY_ITEMS;
 
-function flattenItems(
-  sections: Array<{
-    id?: string;
-    items: Array<{
-      id: string;
-      imageUrl: string;
-      caption: string | null;
-      orderIndex: number;
-    }>;
-  }>
-): GalleryItem[] {
-  return sections
-    .flatMap((section) =>
-      section.items.map((item) => ({
-        id: item.id,
-        imageUrl: item.imageUrl,
-        caption: item.caption,
-        orderIndex: item.orderIndex,
-      }))
-    )
+function sortItems(items: GalleryItem[]): GalleryItem[] {
+  return [...items]
     .sort((a, b) => a.orderIndex - b.orderIndex)
     .slice(0, SLOT_COUNT);
 }
@@ -47,31 +51,89 @@ function flattenItems(
 type PortfolioGallerySettingsProps = {
   initialSectionId?: string | null;
   initialItems?: GalleryItem[];
+  platformPlan?: string | null;
+  platformSubscriptionActive?: boolean;
 };
 
 export function PortfolioGallerySettings({
   initialSectionId = null,
   initialItems = [],
+  platformPlan = null,
+  platformSubscriptionActive = false,
 }: PortfolioGallerySettingsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadGen = useRef(0);
-  const [sectionId, setSectionId] = useState(initialSectionId || '');
-  const [items, setItems] = useState<GalleryItem[]>(initialItems);
-  const [loading, setLoading] = useState(initialItems.length === 0 && !initialSectionId);
+  const [sections, setSections] = useState<PortfolioSectionRow[]>(() =>
+    initialSectionId
+      ? [
+          {
+            id: initialSectionId,
+            name: 'Home',
+            orderIndex: 0,
+            items: sortItems(initialItems),
+          },
+        ]
+      : []
+  );
+  const [activeSectionId, setActiveSectionId] = useState(initialSectionId || '');
+  const [loading, setLoading] = useState(
+    initialItems.length === 0 && !initialSectionId
+  );
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [slotPreview, setSlotPreview] = useState<Record<number, string>>({});
   const [error, setError] = useState('');
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<GalleryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
+  const plan: PlatformPlan = getCreatorPlan(platformPlan);
+  const limits = getCreatorPlanLimits({
+    platformPlan,
+    platformSubscriptionActive,
+  });
+  const canAddCategories = limits.maxPortfolioCategories > 0;
+  const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } =
+    useUpgradeModal();
+
+  const orderedSections = [...sections].sort(
+    (a, b) => a.orderIndex - b.orderIndex
+  );
+  const categories = categorySections(orderedSections);
+  const activeSection =
+    orderedSections.find((s) => s.id === activeSectionId) ||
+    orderedSections[0] ||
+    null;
+  const items = activeSection ? sortItems(activeSection.items) : [];
+  const sectionId = activeSection?.id || '';
   const filledCount = items.length;
   const row2Unlocked = filledCount >= 3;
   const galleryLive = filledCount >= 3;
+  const isActiveHome = activeSection
+    ? isHomeSection(orderedSections, activeSection)
+    : true;
+  const atCategoryCap = categories.length >= limits.maxPortfolioCategories;
 
-  async function loadGallery(opts?: { blank?: boolean }) {
+  function setActiveItems(
+    updater: (prev: GalleryItem[]) => GalleryItem[],
+    targetSectionId = sectionId
+  ) {
+    setSections((prev) =>
+      prev.map((section) =>
+        section.id === targetSectionId
+          ? { ...section, items: sortItems(updater(section.items)) }
+          : section
+      )
+    );
+  }
+
+  async function loadGallery(opts?: { blank?: boolean; selectId?: string }) {
     const gen = ++loadGen.current;
-    const blank = Boolean(opts?.blank) && items.length === 0;
+    const blank = Boolean(opts?.blank) && sections.length === 0;
     if (blank) setLoading(true);
     setError('');
     try {
@@ -81,7 +143,6 @@ export function PortfolioGallerySettings({
         setError(ensured.error || 'Could not load gallery');
         return;
       }
-      setSectionId(ensured.data.id);
 
       const result = await getMyPortfolio();
       if (gen !== loadGen.current) return;
@@ -90,7 +151,32 @@ export function PortfolioGallerySettings({
         return;
       }
 
-      setItems(flattenItems(result.data));
+      const nextSections: PortfolioSectionRow[] = result.data.map((section) => ({
+        id: section.id,
+        name: section.name,
+        orderIndex: section.orderIndex,
+        items: sortItems(
+          section.items.map((item) => ({
+            id: item.id,
+            imageUrl: item.imageUrl,
+            caption: item.caption,
+            orderIndex: item.orderIndex,
+          }))
+        ),
+      }));
+      setSections(nextSections);
+
+      const preferId = opts?.selectId;
+      const homeId = nextSections.sort((a, b) => a.orderIndex - b.orderIndex)[0]
+        ?.id;
+      const keepActive =
+        preferId ||
+        (activeSectionId &&
+          nextSections.some((s) => s.id === activeSectionId) &&
+          activeSectionId) ||
+        homeId ||
+        '';
+      setActiveSectionId(keepActive);
     } catch (err) {
       if (gen !== loadGen.current) return;
       setError(err instanceof Error ? err.message : 'Could not load gallery');
@@ -100,7 +186,6 @@ export function PortfolioGallerySettings({
   }
 
   useEffect(() => {
-    // Soft refresh in background; avoid blanking if we already have SSR data.
     void loadGallery({ blank: initialItems.length === 0 && !initialSectionId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -164,19 +249,15 @@ export function PortfolioGallerySettings({
       }
 
       const saved = result.data;
-      setItems((prev) =>
-        [
-          ...prev,
-          {
-            id: saved.id,
-            imageUrl: saved.imageUrl,
-            caption: saved.caption,
-            orderIndex: saved.orderIndex,
-          },
-        ]
-          .sort((a, b) => a.orderIndex - b.orderIndex)
-          .slice(0, SLOT_COUNT)
-      );
+      setActiveItems((prev) => [
+        ...prev,
+        {
+          id: saved.id,
+          imageUrl: saved.imageUrl,
+          caption: saved.caption,
+          orderIndex: saved.orderIndex,
+        },
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -185,7 +266,6 @@ export function PortfolioGallerySettings({
         delete next[slot];
         return next;
       });
-      // Defer revoke so React can unmount the blob img first.
       window.setTimeout(() => URL.revokeObjectURL(previewUrl), 0);
       setUploadingSlot(null);
     }
@@ -197,17 +277,116 @@ export function PortfolioGallerySettings({
     setError('');
     const previous = items;
     setLightbox(null);
-    setItems((prev) => prev.filter((row) => row.id !== item.id));
+    setActiveItems((prev) => prev.filter((row) => row.id !== item.id));
     try {
       const result = await deletePortfolioItem(item.id);
       if (result.error) {
         throw new Error(result.error);
       }
     } catch (err) {
-      setItems(previous);
+      setActiveItems(() => previous);
       setError(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setDeleting(false);
+    }
+  }
+
+  function startAddCategory() {
+    if (!canAddCategories) {
+      showUpgradeModal('maxPortfolioCategories');
+      return;
+    }
+    if (atCategoryCap) {
+      showUpgradeModal('maxPortfolioCategories');
+      return;
+    }
+    setAddingCategory(true);
+    setNewCategoryName('');
+    setError('');
+  }
+
+  async function submitAddCategory() {
+    const name = newCategoryName.trim();
+    if (!name) {
+      setError('Category name is required');
+      return;
+    }
+    if (name.length > MAX_CATEGORY_NAME_LENGTH) {
+      setError(`Max ${MAX_CATEGORY_NAME_LENGTH} characters`);
+      return;
+    }
+    setSavingCategory(true);
+    setError('');
+    try {
+      const result = await createPortfolioSection(name);
+      if ('limitType' in result && result.limitType) {
+        showUpgradeModal(result.limitType);
+        return;
+      }
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Could not create category');
+      }
+      setAddingCategory(false);
+      setNewCategoryName('');
+      await loadGallery({ selectId: result.data.id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create category');
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  async function submitRename(section: PortfolioSectionRow) {
+    const name = renameValue.trim();
+    if (!name) {
+      setError('Category name is required');
+      return;
+    }
+    if (name.length > MAX_CATEGORY_NAME_LENGTH) {
+      setError(`Max ${MAX_CATEGORY_NAME_LENGTH} characters`);
+      return;
+    }
+    setSavingCategory(true);
+    setError('');
+    try {
+      const result = await updatePortfolioSection(section.id, { name });
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Could not rename category');
+      }
+      setSections((prev) =>
+        prev.map((row) =>
+          row.id === section.id ? { ...row, name: result.data!.name } : row
+        )
+      );
+      setRenamingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not rename');
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  async function handleDeleteCategory(section: PortfolioSectionRow) {
+    if (
+      !confirm(
+        `Delete “${section.name}”? Photos in this category will be removed.`
+      )
+    ) {
+      return;
+    }
+    setSavingCategory(true);
+    setError('');
+    try {
+      const result = await deletePortfolioSection(section.id);
+      if (result.error) throw new Error(result.error);
+      const homeId = orderedSections.find((s) =>
+        isHomeSection(orderedSections, s)
+      )?.id;
+      await loadGallery({ selectId: homeId });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete category');
+    } finally {
+      setSavingCategory(false);
     }
   }
 
@@ -223,12 +402,193 @@ export function PortfolioGallerySettings({
     <div className="foleio-dash-panel">
       <h2 className="foleio-dash-panel-title">Portfolio gallery</h2>
       <p className="foleio-dash-panel-meta">
-        {galleryLive
-          ? filledCount === 6
-            ? 'Your full gallery (6 photos) is live on your public page.'
-            : `Gallery is live with ${filledCount} photo${filledCount === 1 ? '' : 's'}. Add all 6 for the second public row.`
-          : `Add at least 3 photos to show your gallery. ${filledCount}/3 so far.`}
+        {isActiveHome
+          ? galleryLive
+            ? filledCount === 6
+              ? 'Your Home gallery (6 photos) is live on your public page.'
+              : `Home is live with ${filledCount} photo${filledCount === 1 ? '' : 's'}. Add all 6 for the second public row.`
+            : `Add at least 3 photos to show Home. ${filledCount}/3 so far.`
+          : galleryLive
+            ? filledCount === 6
+              ? `“${activeSection?.name}” is live with 6 photos.`
+              : `“${activeSection?.name}” is live with ${filledCount} photos. Add all 6 for the second public row.`
+            : `Add at least 3 photos for “${activeSection?.name}” to appear publicly. ${filledCount}/3 so far.`}
       </p>
+
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          marginTop: 14,
+          alignItems: 'center',
+        }}
+        role="tablist"
+        aria-label="Portfolio sections"
+      >
+        {orderedSections.map((section) => {
+          const home = isHomeSection(orderedSections, section);
+          const selected = section.id === sectionId;
+          return (
+            <button
+              key={section.id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => {
+                setActiveSectionId(section.id);
+                setRenamingId(null);
+                setAddingCategory(false);
+              }}
+              style={{
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 12px',
+                cursor: 'pointer',
+                background: selected ? '#fafafa' : 'rgba(255,255,255,0.08)',
+                color: selected ? '#18181b' : '#fafafa',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {home ? 'Home' : section.name}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className="foleio-dash-btn-outline"
+          style={{ padding: '7px 10px', fontSize: 13 }}
+          onClick={startAddCategory}
+          disabled={savingCategory}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add category
+          {!canAddCategories ? <Lock className="h-3.5 w-3.5" /> : null}
+        </button>
+      </div>
+
+      {addingCategory ? (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginTop: 12,
+            alignItems: 'center',
+          }}
+        >
+          <input
+            type="text"
+            value={newCategoryName}
+            onChange={(e) =>
+              setNewCategoryName(e.target.value.slice(0, MAX_CATEGORY_NAME_LENGTH))
+            }
+            maxLength={MAX_CATEGORY_NAME_LENGTH}
+            placeholder="Category name"
+            className="foleio-dash-input"
+            style={{ maxWidth: 200 }}
+            autoFocus
+          />
+          <span className="foleio-dash-panel-meta" style={{ margin: 0 }}>
+            {newCategoryName.length}/{MAX_CATEGORY_NAME_LENGTH}
+          </span>
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            disabled={savingCategory}
+            onClick={() => void submitAddCategory()}
+          >
+            {savingCategory ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              'Create'
+            )}
+          </button>
+          <button
+            type="button"
+            className="foleio-dash-btn-ghost"
+            onClick={() => setAddingCategory(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
+
+      {!isActiveHome && activeSection ? (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginTop: 12,
+            alignItems: 'center',
+          }}
+        >
+          {renamingId === activeSection.id ? (
+            <>
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) =>
+                  setRenameValue(e.target.value.slice(0, MAX_CATEGORY_NAME_LENGTH))
+                }
+                maxLength={MAX_CATEGORY_NAME_LENGTH}
+                className="foleio-dash-input"
+                style={{ maxWidth: 200 }}
+                autoFocus
+              />
+              <button
+                type="button"
+                className="foleio-dash-btn-primary"
+                disabled={savingCategory}
+                onClick={() => void submitRename(activeSection)}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="foleio-dash-btn-ghost"
+                onClick={() => setRenamingId(null)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="foleio-dash-btn-outline"
+                style={{ padding: '7px 10px', fontSize: 13 }}
+                onClick={() => {
+                  setRenamingId(activeSection.id);
+                  setRenameValue(activeSection.name);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename
+              </button>
+              <button
+                type="button"
+                className="foleio-dash-btn-danger"
+                style={{ padding: '7px 10px', fontSize: 13 }}
+                disabled={savingCategory}
+                onClick={() => void handleDeleteCategory(activeSection)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete category
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {!canAddCategories && categories.length > 0 ? (
+        <p className="foleio-dash-panel-meta" style={{ marginTop: 10 }}>
+          Categories stay editable, but only Home shows on your public page until
+          you upgrade to Pro.
+        </p>
+      ) : null}
 
       <input
         ref={fileInputRef}
@@ -254,9 +614,9 @@ export function PortfolioGallerySettings({
 
           return (
             <button
-              key={index}
+              key={`${sectionId}-${index}`}
               type="button"
-              disabled={state === 'locked' || busy}
+              disabled={state === 'locked' || busy || !sectionId}
               onClick={() => {
                 if (item) setLightbox(item);
                 else if (state === 'empty') openFilePicker(index);
@@ -361,13 +721,16 @@ export function PortfolioGallerySettings({
       </div>
 
       {error ? (
-        <p className="foleio-dash-panel-meta" style={{ color: '#fca5a5', marginTop: 12 }}>
+        <p
+          className="foleio-dash-panel-meta"
+          style={{ color: '#fca5a5', marginTop: 12 }}
+        >
           {error}{' '}
           <button
             type="button"
             className="foleio-dash-btn-ghost"
             style={{ display: 'inline', padding: '0 6px' }}
-            onClick={() => void loadGallery({ blank: items.length === 0 })}
+            onClick={() => void loadGallery({ blank: sections.length === 0 })}
           >
             Retry
           </button>
@@ -457,6 +820,15 @@ export function PortfolioGallerySettings({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {limitType ? (
+        <UpgradeModal
+          isOpen={isOpen}
+          onClose={closeUpgradeModal}
+          limitType={limitType}
+          currentPlan={plan}
+        />
       ) : null}
     </div>
   );

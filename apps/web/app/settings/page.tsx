@@ -19,14 +19,14 @@ export default async function SettingsPage() {
 
   const creatorLinkSelect = {
     where: {
-      linkType: { in: ['twitter', 'portfolio'] },
+      linkType: { in: ['twitter', 'portfolio'] as string[] },
       isActive: true,
     },
     select: {
       linkType: true,
       url: true,
     },
-  } as const;
+  };
 
   const creatorBaseSelect = {
     id: true,
@@ -37,8 +37,10 @@ export default async function SettingsPage() {
     avatarUrl: true,
     instagramHandle: true,
     tiktokHandle: true,
+    platformPlan: true,
+    platformSubscriptionActive: true,
     creatorLinks: creatorLinkSelect,
-  } as const;
+  };
 
   let creator: {
     id: string;
@@ -50,6 +52,8 @@ export default async function SettingsPage() {
     instagramHandle: string | null;
     tiktokHandle: string | null;
     growthEligible: boolean;
+    platformPlan: string | null;
+    platformSubscriptionActive: boolean;
     creatorLinks: Array<{ linkType: string; url: string }>;
   } | null = null;
 
@@ -62,7 +66,12 @@ export default async function SettingsPage() {
       },
     });
     if (row) {
-      creator = { ...row, growthEligible: Boolean(row.growthEligible) };
+      creator = {
+        ...row,
+        growthEligible: Boolean(row.growthEligible),
+        platformPlan: row.platformPlan ?? null,
+        platformSubscriptionActive: Boolean(row.platformSubscriptionActive),
+      };
     }
   } catch (error) {
     // Schema may lag deploy (missing growth_eligible). Retry without it.
@@ -73,7 +82,12 @@ export default async function SettingsPage() {
         select: creatorBaseSelect,
       });
       if (row) {
-        creator = { ...row, growthEligible: false };
+        creator = {
+          ...row,
+          growthEligible: false,
+          platformPlan: row.platformPlan ?? null,
+          platformSubscriptionActive: Boolean(row.platformSubscriptionActive),
+        };
       }
     } catch (retryError) {
       console.warn('Settings page creator lookup failed (non-fatal).', retryError);
@@ -169,6 +183,8 @@ export default async function SettingsPage() {
           twitterUrl,
           portfolioUrl,
           growthEligible: creator.growthEligible,
+          platformPlan: creator.platformPlan,
+          platformSubscriptionActive: creator.platformSubscriptionActive,
         }}
         userEmail={session.user.email}
         billing={{

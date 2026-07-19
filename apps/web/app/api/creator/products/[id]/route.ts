@@ -245,8 +245,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
 
       await tx.$executeRawUnsafe(
-        `UPDATE products SET image_urls = $1::text[] WHERE id = $2`,
+        `UPDATE products SET image_urls = $1::text[], show_limited_stock = $2 WHERE id = $3`,
         imageUrls,
+        Boolean(body?.showLimitedStock),
         id
       );
 

@@ -1,14 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { RemoteImage } from '@/components/creator/RemoteImage';
-import { publicGalleryItems } from '@/lib/creator/portfolio-gallery';
+import {
+  applyGalleryVisibility,
+  isHomeSection,
+} from '@/lib/creator/portfolio-gallery';
 
 type PortfolioSectionPublic = {
   id: string;
   name: string;
   description: string | null;
+  orderIndex?: number;
   items: Array<{
     id: string;
     imageUrl: string;
@@ -26,6 +30,7 @@ export function PublicGalleryPanel({
   initialSections: PortfolioSectionPublic[];
 }) {
   const [liveSections, setLiveSections] = useState(initialSections);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [galleryLightbox, setGalleryLightbox] = useState<{
     id: string;
     imageUrl: string;
@@ -42,11 +47,16 @@ export function PublicGalleryPanel({
 
     void (async () => {
       try {
-        const res = await fetch(`/api/public/creators/${encodeURIComponent(username)}/gallery`, {
-          cache: 'no-store',
-        });
+        const res = await fetch(
+          `/api/public/creators/${encodeURIComponent(username)}/gallery`,
+          {
+            cache: 'no-store',
+          }
+        );
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { sections?: PortfolioSectionPublic[] };
+        const data = (await res.json()) as {
+          sections?: PortfolioSectionPublic[];
+        };
         if (!cancelled && Array.isArray(data.sections)) {
           setLiveSections(data.sections);
         }
@@ -69,7 +79,37 @@ export function PublicGalleryPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [galleryLightbox]);
 
-  const galleryItems = publicGalleryItems(liveSections);
+  const visibleSections = useMemo(() => {
+    const ordered = [...liveSections].sort(
+      (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+    );
+    return ordered
+      .map((section) => ({
+        ...section,
+        visibleItems: applyGalleryVisibility(section.items),
+      }))
+      .filter((section) => section.visibleItems.length > 0);
+  }, [liveSections]);
+
+  const showTabs = visibleSections.length > 1;
+
+  useEffect(() => {
+    if (visibleSections.length === 0) {
+      setActiveSectionId(null);
+      return;
+    }
+    setActiveSectionId((prev) => {
+      if (prev && visibleSections.some((s) => s.id === prev)) return prev;
+      return visibleSections[0]?.id ?? null;
+    });
+  }, [visibleSections]);
+
+  const activeSection =
+    visibleSections.find((s) => s.id === activeSectionId) ||
+    visibleSections[0] ||
+    null;
+  const galleryItems = activeSection?.visibleItems ?? [];
+
   if (galleryItems.length === 0) return null;
 
   return (
@@ -77,6 +117,51 @@ export function PublicGalleryPanel({
       <section className="foleio-public-panel">
         <h2 className="foleio-public-panel-title">Gallery</h2>
         <p className="foleio-public-panel-meta">Selected work</p>
+
+        {showTabs ? (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              marginTop: 12,
+              marginBottom: 4,
+              background: 'rgba(255,255,255,0.06)',
+              borderRadius: 10,
+              padding: 4,
+              width: 'fit-content',
+            }}
+            role="tablist"
+            aria-label="Gallery categories"
+          >
+            {visibleSections.map((section) => {
+              const home = isHomeSection(visibleSections, section);
+              const selected = section.id === activeSection?.id;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setActiveSectionId(section.id)}
+                  style={{
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    background: selected ? '#fafafa' : 'transparent',
+                    color: selected ? '#18181b' : '#fafafa',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {home ? 'Home' : section.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         <div
           style={{
             display: 'grid',

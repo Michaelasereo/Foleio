@@ -249,6 +249,7 @@ export function BillingPage({
         'Full access to bookings, shop, and tools',
         `${PLATFORM_FEE_PERCENT.free}% platform & service fees (₦300 flat under ₦5,000)`,
         'Up to 10 services and 10 products (5 preorders)',
+        'One Home portfolio gallery',
       ],
     },
     {
@@ -259,6 +260,7 @@ export function BillingPage({
         'Everything on Free',
         `${formatProFeeLabel()} platform & service fees on transactions`,
         'Unlimited services & products',
+        'Up to 3 portfolio categories',
         'Schedule templates',
         'Self-serve upgrade',
       ],

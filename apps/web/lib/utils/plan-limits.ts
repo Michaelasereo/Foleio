@@ -7,6 +7,7 @@ const FREE_LIMITS = {
   maxServices: 10,
   maxProducts: 10,
   maxPreorderProducts: 5,
+  maxPortfolioCategories: 0,
   canCreateCollections: true,
   canUseAvailabilityTemplates: false,
   hasAnalytics: true,
@@ -20,6 +21,7 @@ const PAID_LIMITS = {
   maxServices: Number.POSITIVE_INFINITY,
   maxProducts: Number.POSITIVE_INFINITY,
   maxPreorderProducts: Number.POSITIVE_INFINITY,
+  maxPortfolioCategories: 3,
   canCreateCollections: true,
   canUseAvailabilityTemplates: true,
   hasAnalytics: true,
@@ -126,5 +128,11 @@ export const PLAN_LIMIT_MESSAGES = {
     description:
       'Save and reuse availability templates on Pro. You can still set availability day by day on Free.',
     feature: 'Availability schedule templates',
+  },
+  maxPortfolioCategories: {
+    title: 'Portfolio categories are Pro',
+    description:
+      'Free includes one Home gallery. Upgrade to Pro for up to 3 named portfolio categories.',
+    feature: 'Up to 3 portfolio categories',
   },
 } as const;

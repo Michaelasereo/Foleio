@@ -76,6 +76,7 @@ type Product = {
   imageUrl: string | null;
   imageUrls?: string[];
   stock: number | null;
+  showLimitedStock?: boolean;
   status: 'draft' | 'active';
   orderIndex: number;
   isPreorder: boolean;
@@ -262,6 +263,7 @@ function emptyProductForm() {
     weight: '',
     imageUrls: [] as string[],
     stock: '',
+    showLimitedStock: false,
     status: 'draft' as 'draft' | 'active',
     isPreorder: false,
     discountEnabled: false,
@@ -475,6 +477,7 @@ export function CreatorShopManager({
       weight: product.weight != null ? String(product.weight) : '',
       imageUrls: productImages(product),
       stock: product.stock != null ? String(product.stock) : '',
+      showLimitedStock: Boolean(product.showLimitedStock),
       status: product.status,
       isPreorder: Boolean(product.isPreorder),
       discountEnabled,
@@ -664,6 +667,7 @@ export function CreatorShopManager({
       imageUrls: productForm.imageUrls,
       imageUrl: productForm.imageUrls[0] || null,
       stock: productForm.stock,
+      showLimitedStock: productForm.showLimitedStock,
       status: productForm.status,
       isPreorder: productForm.isPreorder,
       preorderSettings: preorderSettingsPayload,
@@ -1429,6 +1433,11 @@ export function CreatorShopManager({
               const thumb = productImages(product)[0];
               const stockCount = product.stock ?? 0;
               const inStock = stockCount > 0;
+              const stockLabel = !inStock
+                ? 'Out of stock'
+                : product.showLimitedStock
+                  ? 'Limited stock'
+                  : `In Stock : ${stockCount}`;
               return (
                 <div key={product.id} className="foleio-product-card">
                   <div className="foleio-product-card-media">
@@ -1475,7 +1484,7 @@ export function CreatorShopManager({
                       <span
                         className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
                       >
-                        {inStock ? `In Stock : ${stockCount}` : 'Out of stock'}
+                        {stockLabel}
                       </span>
                     </div>
                     {product.description ? (
@@ -2846,6 +2855,38 @@ export function CreatorShopManager({
                       }
                     />
                   </label>
+                </div>
+
+                <div className="foleio-dash-field">
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <span>
+                      Show as limited stock
+                      <span
+                        className="foleio-dash-panel-meta"
+                        style={{ display: 'block', margin: '4px 0 0' }}
+                      >
+                        Cards show “Limited stock” instead of the count. Real stock is still tracked.
+                      </span>
+                    </span>
+                    <Switch
+                      checked={productForm.showLimitedStock}
+                      onCheckedChange={(checked) =>
+                        setProductForm((prev) => ({
+                          ...prev,
+                          showLimitedStock: checked,
+                        }))
+                      }
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                      aria-label="Show as limited stock"
+                    />
+                  </div>
                 </div>
 
                 <div className="foleio-dash-field">

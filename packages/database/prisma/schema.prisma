@@ -656,6 +656,8 @@ model Product {
   imageUrls        String[] @default([]) @map("image_urls") // up to 2 product photos
   digitalFileUrl   String?  @map("digital_file_url")
   stock            Int?     // required for sellable products in v1
+  /** When true, public/manage cards show "Limited stock" instead of the count. */
+  showLimitedStock Boolean  @default(false) @map("show_limited_stock")
   status           String   @default("draft") // draft | active
   orderIndex       Int      @default(0) @map("order_index")
   waiveDeliveryFee Boolean  @default(false) @map("waive_delivery_fee")

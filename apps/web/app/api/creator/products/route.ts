@@ -230,9 +230,11 @@ export async function POST(request: Request) {
       select: { orderIndex: true },
     });
 
+    const productId = crypto.randomUUID();
+    const showLimitedStock = Boolean(body?.showLimitedStock);
     const product = await prisma.product.create({
       data: {
-        id: crypto.randomUUID(),
+        id: productId,
         creatorId,
         name,
         description,
@@ -262,6 +264,15 @@ export async function POST(request: Request) {
       },
       include: { variants: true },
     });
+
+    if (showLimitedStock) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE products SET show_limited_stock = $1 WHERE id = $2`,
+        true,
+        productId
+      );
+      product.showLimitedStock = true;
+    }
 
     revalidatePublicCreator(creator.username);
     return NextResponse.json({ product });

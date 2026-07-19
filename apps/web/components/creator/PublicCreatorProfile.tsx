@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, Calendar, Link2, ShoppingBag, X } from 'lucide-react';
+import { BadgeCheck, Calendar, Link2, ShoppingBag } from 'lucide-react';
 import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { authCss } from '@/components/auth/styles';
@@ -14,9 +14,9 @@ import {
   resolveTiktokHref,
 } from '@/lib/creator/social-urls';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
-import { publicGalleryItems } from '@/lib/creator/portfolio-gallery';
 import { RemoteImage } from '@/components/creator/RemoteImage';
 import { PublicShopPanel, prefetchPublicShop } from '@/components/shop/PublicShopPanel';
+import { PublicGalleryPanel } from '@/components/creator/public/PublicGalleryPanel';
 
 interface CreatorLink {
   id: string;
@@ -182,6 +182,34 @@ body:has(.foleio-public-root) footer { display: none !important; }
 @media (max-width: 899px) {
   .foleio-public-left {
     max-width: 333px;
+  }
+}
+
+/* Narrow phones: center cover + profile under full-width content */
+@media (max-width: 409px) {
+  .foleio-public-left {
+    max-width: 333px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Tablet / wide phone: center cover/profile and main content columns */
+@media (min-width: 410px) and (max-width: 899px) {
+  .foleio-public-columns {
+    justify-items: center;
+  }
+  .foleio-public-left {
+    max-width: 333px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .foleio-public-right {
+    width: 100%;
+    max-width: 542px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
@@ -471,54 +499,6 @@ export function PublicCreatorProfile({
   const setOfferingsPanelRef = (node: HTMLElement | null) => {
     offeringsPanelRef.current = node;
   };
-  const [galleryLightbox, setGalleryLightbox] = useState<{
-    id: string;
-    imageUrl: string;
-    caption: string | null;
-  } | null>(null);
-  const [liveSections, setLiveSections] = useState(portfolioSections);
-
-  useEffect(() => {
-    setLiveSections(portfolioSections);
-  }, [portfolioSections]);
-
-  // Soft-nav / Router Cache can serve a stale public payload after gallery uploads.
-  // Refresh from a no-store API so images appear without a hard reload.
-  useEffect(() => {
-    let cancelled = false;
-    const username = creator.username;
-    if (!username) return;
-
-    void (async () => {
-      try {
-        const res = await fetch(`/api/public/creators/${encodeURIComponent(username)}/gallery`, {
-          cache: 'no-store',
-        });
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { sections?: PortfolioSectionPublic[] };
-        if (!cancelled && Array.isArray(data.sections)) {
-          setLiveSections(data.sections);
-        }
-      } catch {
-        // Keep SSR sections.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [creator.username]);
-
-  useEffect(() => {
-    if (!galleryLightbox) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setGalleryLightbox(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [galleryLightbox]);
-
-  const galleryItems = publicGalleryItems(liveSections);
 
   const formatPrice = (priceInKobo: number) =>
     new Intl.NumberFormat('en-NG', {
@@ -534,7 +514,12 @@ export function PublicCreatorProfile({
   const showOfferingsPanel =
     Boolean(offeringsSlot) || hasRealServices || hasShop || !hasServicesHint;
   const showBothTabs = hasRealServices && hasShop && !offeringsSlot;
-  const panelTitle = !hasRealServices && hasShop ? 'Shop' : 'Services';
+  // Keep panel heading stable when both tabs exist — only shop-only profiles use "Shop".
+  const panelTitle = showBothTabs
+    ? 'Services'
+    : !hasRealServices && hasShop
+      ? 'Shop'
+      : 'Services';
   const activeOfferingsTab = showBothTabs
     ? offeringsTab
     : hasShop && !hasRealServices
@@ -1002,48 +987,11 @@ export function PublicCreatorProfile({
           <div className="foleio-public-right">
             {gallerySlot != null ? (
               gallerySlot
-            ) : galleryItems.length > 0 ? (
-              <section className="foleio-public-panel">
-                <h2 className="foleio-public-panel-title">Gallery</h2>
-                <p className="foleio-public-panel-meta">Selected work</p>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                    gap: 8,
-                    marginTop: 12,
-                  }}
-                >
-                  {galleryItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setGalleryLightbox(item)}
-                      style={{
-                        padding: 0,
-                        border: 'none',
-                        background: '#2b2b2b',
-                        cursor: 'pointer',
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        aspectRatio: '1',
-                      }}
-                      aria-label={item.caption || 'View gallery photo'}
-                    >
-                      <RemoteImage
-                        src={item.imageUrl}
-                        alt={item.caption || 'Gallery photo'}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          display: 'block',
-                        }}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </section>
+            ) : portfolioSections.length > 0 ? (
+              <PublicGalleryPanel
+                username={creator.username}
+                initialSections={portfolioSections}
+              />
             ) : null}
 
             {offeringsSlot != null ? (
@@ -1256,73 +1204,6 @@ export function PublicCreatorProfile({
           onBack={handleBackToServices}
           isPreview={false}
         />
-      ) : null}
-
-      {gallerySlot == null && galleryLightbox ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Gallery photo"
-          onClick={() => setGalleryLightbox(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 80,
-            background: 'rgba(0,0,0,0.82)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'relative',
-              maxWidth: 640,
-              width: '100%',
-              background: '#212121',
-              borderRadius: 14,
-              padding: 16,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setGalleryLightbox(null)}
-              aria-label="Close"
-              style={{
-                position: 'absolute',
-                top: 12,
-                right: 12,
-                zIndex: 1,
-                border: '1px solid rgba(255,255,255,0.14)',
-                background: 'rgba(0,0,0,0.35)',
-                color: '#fafafa',
-                borderRadius: 8,
-                padding: 8,
-                cursor: 'pointer',
-              }}
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <RemoteImage
-              src={galleryLightbox.imageUrl}
-              alt={galleryLightbox.caption || 'Gallery photo'}
-              style={{
-                width: '100%',
-                maxHeight: '75vh',
-                objectFit: 'contain',
-                borderRadius: 10,
-                background: '#111',
-              }}
-            />
-            {galleryLightbox.caption ? (
-              <p className="foleio-public-panel-meta" style={{ marginTop: 12 }}>
-                {galleryLightbox.caption}
-              </p>
-            ) : null}
-          </div>
-        </div>
       ) : null}
     </div>
   );

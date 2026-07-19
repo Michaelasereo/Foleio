@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -71,6 +72,108 @@ function isLikelyE2e(creator: CreatorHealthRow): boolean {
     email.includes('+e2e') ||
     email.startsWith('e2e') ||
     /e2e\d/.test(username)
+  );
+}
+
+function CreatorActionsMenu({
+  creator,
+  deleting,
+  deletingE2e,
+  onToggleGrowth,
+  onDelete,
+}: {
+  creator: CreatorHealthRow;
+  deleting: boolean;
+  deletingE2e: boolean;
+  onToggleGrowth: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const itemClass =
+    'block w-full rounded-md px-3 py-2 text-left text-sm text-[#f4f4f5] hover:bg-white/10 disabled:opacity-50';
+
+  return (
+    <div ref={rootRef} className="relative flex justify-end">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-8 w-8 p-0 text-[#a1a1aa] hover:bg-white/10 hover:text-[#f4f4f5]"
+        aria-label={`Actions for @${creator.username}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[10.5rem] rounded-lg border border-white/10 bg-[#18181b] p-1 shadow-xl"
+        >
+          <a
+            role="menuitem"
+            href={`mailto:${creator.email}`}
+            className={itemClass}
+            onClick={() => setOpen(false)}
+          >
+            Email
+          </a>
+          <Link
+            role="menuitem"
+            href={`/creator/${creator.username}`}
+            target="_blank"
+            className={itemClass}
+            onClick={() => setOpen(false)}
+          >
+            Profile
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              setOpen(false);
+              onToggleGrowth();
+            }}
+          >
+            {creator.growthEligible ? 'Revoke Growth' : 'Grant Growth'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${itemClass} text-red-300 hover:bg-red-500/10`}
+            disabled={deleting || deletingE2e}
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -351,6 +454,7 @@ export default function AdminCreatorsPage() {
                     <td className={adminTableCellClass}>
                       <p className="font-medium">{creator.displayName}</p>
                       <p className={`text-xs ${adminMutedClass}`}>@{creator.username}</p>
+                      <p className={`text-xs ${adminMutedClass}`}>{creator.email || '—'}</p>
                       <p className={`text-[10px] ${adminMutedClass}`}>
                         {relativeDate(creator.createdAt)}
                       </p>
@@ -404,42 +508,13 @@ export default function AdminCreatorsPage() {
                       </div>
                     </td>
                     <td className={adminTableCellClass}>
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="border-white/10 bg-transparent"
-                        >
-                          <a href={`mailto:${creator.email}`}>Email</a>
-                        </Button>
-                        <Button
-                          asChild
-                          size="sm"
-                          className="bg-white/10 text-[#f4f4f5] hover:bg-white/15"
-                        >
-                          <Link href={`/creator/${creator.username}`} target="_blank">
-                            Profile
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-white/10 bg-transparent"
-                          onClick={() => void handleToggleGrowth(creator)}
-                        >
-                          {creator.growthEligible ? 'Revoke Growth' : 'Grant Growth'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
-                          disabled={deletingId === creator.id || deletingE2e}
-                          onClick={() => void handleDeleteCreator(creator)}
-                        >
-                          {deletingId === creator.id ? 'Deleting…' : 'Delete'}
-                        </Button>
-                      </div>
+                      <CreatorActionsMenu
+                        creator={creator}
+                        deleting={deletingId === creator.id}
+                        deletingE2e={deletingE2e}
+                        onToggleGrowth={() => void handleToggleGrowth(creator)}
+                        onDelete={() => void handleDeleteCreator(creator)}
+                      />
                     </td>
                   </tr>
                 ))}

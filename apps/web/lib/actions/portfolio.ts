@@ -4,8 +4,18 @@ import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
+import {
+  MAX_CATEGORY_NAME_LENGTH,
+  MAX_GALLERY_ITEMS,
+  categorySections,
+  homeSectionId,
+  isHomeSection,
+} from '@/lib/creator/portfolio-gallery';
+import {
+  getCreatorPlanLimits,
+  isPaidPlanActive,
+} from '@/lib/utils/plan-limits';
 
-const MAX_GALLERY_ITEMS = 6;
 const GALLERY_SECTION_NAME = 'Gallery';
 
 async function requireCreator() {
@@ -17,7 +27,12 @@ async function requireCreator() {
 
   const creator = await prisma.creator.findUnique({
     where: { userId: session.user.id },
-    select: { id: true, username: true },
+    select: {
+      id: true,
+      username: true,
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
   });
   if (!creator) return { error: 'Creator not found' as const };
   return { creator };
@@ -30,7 +45,15 @@ function revalidatePortfolio(username?: string | null) {
   }
 }
 
-/** Ensure a single Gallery section exists and return it. */
+async function loadSectionsMeta(creatorId: string) {
+  return prisma.portfolioSection.findMany({
+    where: { creatorId },
+    orderBy: { orderIndex: 'asc' },
+    select: { id: true, orderIndex: true, name: true },
+  });
+}
+
+/** Ensure a single Gallery (Home) section exists and return it. */
 export async function ensureGallerySection() {
   const auth = await requireCreator();
   if ('error' in auth) return { error: auth.error };
@@ -80,21 +103,48 @@ export async function createPortfolioSection(name: string, description?: string)
   if ('error' in auth) return { error: auth.error };
   const { creator } = auth;
 
-  const trimmed = name.trim();
-  if (trimmed.length < 1) return { error: 'Section name is required' };
+  const limits = getCreatorPlanLimits(creator);
+  if (limits.maxPortfolioCategories <= 0) {
+    return {
+      error: 'Portfolio categories require Pro',
+      limitType: 'maxPortfolioCategories' as const,
+    };
+  }
 
-  const maxOrder = await prisma.portfolioSection.findFirst({
-    where: { creatorId: creator.id },
-    orderBy: { orderIndex: 'desc' },
-    select: { orderIndex: true },
-  });
+  const trimmed = name.trim();
+  if (trimmed.length < 1) return { error: 'Category name is required' };
+  if (trimmed.length > MAX_CATEGORY_NAME_LENGTH) {
+    return {
+      error: `Category name must be ${MAX_CATEGORY_NAME_LENGTH} characters or fewer`,
+    };
+  }
+
+  // Ensure Home exists so new sections are categories, not a second Home.
+  const ensured = await ensureGallerySection();
+  if ('error' in ensured && ensured.error) {
+    return { error: ensured.error };
+  }
+
+  const sections = await loadSectionsMeta(creator.id);
+  const categories = categorySections(sections);
+  if (categories.length >= limits.maxPortfolioCategories) {
+    return {
+      error: `You can add up to ${limits.maxPortfolioCategories} portfolio categories`,
+      limitType: 'maxPortfolioCategories' as const,
+    };
+  }
+
+  const maxOrder = sections.reduce(
+    (max, s) => Math.max(max, s.orderIndex ?? 0),
+    0
+  );
 
   const section = await prisma.portfolioSection.create({
     data: {
       creatorId: creator.id,
-      name: trimmed.slice(0, 80),
+      name: trimmed.slice(0, MAX_CATEGORY_NAME_LENGTH),
       description: description?.trim() || null,
-      orderIndex: (maxOrder?.orderIndex ?? 0) + 1,
+      orderIndex: maxOrder + 1,
     },
   });
 
@@ -110,15 +160,30 @@ export async function updatePortfolioSection(
   if ('error' in auth) return { error: auth.error };
   const { creator } = auth;
 
-  const existing = await prisma.portfolioSection.findFirst({
-    where: { id: sectionId, creatorId: creator.id },
-  });
+  const sections = await loadSectionsMeta(creator.id);
+  const existing = sections.find((s) => s.id === sectionId);
   if (!existing) return { error: 'Section not found' };
+
+  if (isHomeSection(sections, existing) && data.name !== undefined) {
+    return { error: 'Home gallery cannot be renamed' };
+  }
+
+  if (data.name !== undefined) {
+    const trimmed = data.name.trim();
+    if (trimmed.length < 1) return { error: 'Category name is required' };
+    if (trimmed.length > MAX_CATEGORY_NAME_LENGTH) {
+      return {
+        error: `Category name must be ${MAX_CATEGORY_NAME_LENGTH} characters or fewer`,
+      };
+    }
+  }
 
   const section = await prisma.portfolioSection.update({
     where: { id: sectionId },
     data: {
-      ...(data.name !== undefined && { name: data.name.trim().slice(0, 80) }),
+      ...(data.name !== undefined && {
+        name: data.name.trim().slice(0, MAX_CATEGORY_NAME_LENGTH),
+      }),
       ...(data.description !== undefined && {
         description: data.description?.trim() || null,
       }),
@@ -135,10 +200,13 @@ export async function deletePortfolioSection(sectionId: string) {
   if ('error' in auth) return { error: auth.error };
   const { creator } = auth;
 
-  const existing = await prisma.portfolioSection.findFirst({
-    where: { id: sectionId, creatorId: creator.id },
-  });
+  const sections = await loadSectionsMeta(creator.id);
+  const existing = sections.find((s) => s.id === sectionId);
   if (!existing) return { error: 'Section not found' };
+
+  if (isHomeSection(sections, existing)) {
+    return { error: 'Home gallery cannot be deleted' };
+  }
 
   await prisma.portfolioSection.delete({ where: { id: sectionId } });
   revalidatePortfolio(creator.username);
@@ -167,11 +235,11 @@ export async function createPortfolioItem(input: z.infer<typeof itemSchema>) {
   });
   if (!section) return { error: 'Section not found' };
 
-  const totalCount = await prisma.portfolioItem.count({
-    where: { creatorId: creator.id },
+  const sectionCount = await prisma.portfolioItem.count({
+    where: { sectionId: validation.data.sectionId, creatorId: creator.id },
   });
-  if (totalCount >= MAX_GALLERY_ITEMS) {
-    return { error: `Gallery is limited to ${MAX_GALLERY_ITEMS} images` };
+  if (sectionCount >= MAX_GALLERY_ITEMS) {
+    return { error: `Each gallery is limited to ${MAX_GALLERY_ITEMS} images` };
   }
 
   if (validation.data.priceListItemId) {
@@ -185,7 +253,7 @@ export async function createPortfolioItem(input: z.infer<typeof itemSchema>) {
   }
 
   const maxOrder = await prisma.portfolioItem.findFirst({
-    where: { creatorId: creator.id },
+    where: { sectionId: validation.data.sectionId },
     orderBy: { orderIndex: 'desc' },
     select: { orderIndex: true },
   });
@@ -221,6 +289,14 @@ export async function deletePortfolioItem(itemId: string) {
 }
 
 export async function getPublicPortfolio(creatorId: string) {
+  const creator = await prisma.creator.findUnique({
+    where: { id: creatorId },
+    select: {
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
+  });
+
   const sections = await prisma.portfolioSection.findMany({
     where: {
       creatorId,
@@ -235,5 +311,12 @@ export async function getPublicPortfolio(creatorId: string) {
       },
     },
   });
+
+  if (!creator || !isPaidPlanActive(creator)) {
+    const homeId = homeSectionId(sections);
+    if (!homeId) return [];
+    return sections.filter((s) => s.id === homeId);
+  }
+
   return sections;
 }
