@@ -30,7 +30,7 @@ function resolveInterval(
   interval: string | null | undefined,
   amountKobo: number
 ): BillingInterval {
-  if (interval === 'annual' || interval === 'biannual') return interval;
+  if (interval === 'monthly' || interval === 'quarterly') return interval;
   return intervalFromAmount(plan, amountKobo);
 }
 
@@ -49,7 +49,7 @@ export async function activatePlatformSubscription(
   const amount =
     input.amountKobo && input.amountKobo > 0
       ? input.amountKobo
-      : amountForPlan(paidPlan, 'biannual');
+      : amountForPlan(paidPlan, 'monthly');
   const billingInterval = resolveInterval(
     paidPlan,
     input.billingInterval,

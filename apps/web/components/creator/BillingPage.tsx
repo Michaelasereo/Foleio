@@ -8,6 +8,7 @@ import {
   LEGACY_PRO_MONTHLY_KOBO,
   PLATFORM_FEE_PERCENT,
   PLATFORM_PLAN_AMOUNTS_KOBO,
+  formatFreeFeeLabel,
   formatPlanPrice,
   formatProFeeLabel,
   isLegacyZeroFeeSubscription,
@@ -63,7 +64,7 @@ function feeLabelForPlan(plan: PlanKey, isLegacyZero: boolean): string {
   if (isLegacyZero) return `${PLATFORM_FEE_PERCENT.legacyPro}% platform & service fees (legacy)`;
   if (plan === 'growth') return `${PLATFORM_FEE_PERCENT.growth}% platform & service fees`;
   if (plan === 'pro') return `${formatProFeeLabel()} platform & service fees`;
-  return `${PLATFORM_FEE_PERCENT.free}% platform & service fees`;
+  return `${formatFreeFeeLabel()} platform & service fees`;
 }
 
 export function BillingPage({
@@ -80,12 +81,11 @@ export function BillingPage({
     plan: PaidPlatformPlan;
     interval: BillingInterval;
   } | null>(null);
-  const [billingInterval, setBillingInterval] = useState<BillingInterval>('biannual');
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const verifyAttemptRef = useRef<string | null>(null);
 
-  const growthEligible = Boolean(creator.growthEligible);
   const currentPlan = parseActivePlan(currentSubscription);
   const isPaidPlan = currentPlan === 'pro' || currentPlan === 'growth';
   const isLegacyZero = Boolean(
@@ -136,14 +136,9 @@ export function BillingPage({
               variant: 'destructive',
             });
           } else {
-            const planName = data?.plan === 'growth' ? 'Growth' : 'Pro';
             toast({
-              title: `Welcome to Foleio ${planName}`,
-              description: `Your subscription is active. Platform fee is now ${
-                data?.plan === 'growth'
-                  ? `${PLATFORM_FEE_PERCENT.growth}%`
-                  : formatProFeeLabel()
-              }.`,
+              title: 'Welcome to Foleio Pro',
+              description: `Your subscription is active. Platform fee is now ${formatProFeeLabel()}.`,
             });
           }
         } catch {
@@ -217,7 +212,7 @@ export function BillingPage({
 
       toast({
         title: 'Subscription cancelled',
-        description: `Your plan stays active until the end of this billing cycle, then Free (${PLATFORM_FEE_PERCENT.free}% fee) resumes.`,
+        description: `Your plan stays active until the end of this billing cycle, then Free (${formatFreeFeeLabel()}) resumes.`,
       });
       setCancelOpen(false);
       router.refresh();
@@ -233,8 +228,6 @@ export function BillingPage({
     }
   }
 
-  const showGrowth = growthEligible || currentPlan === 'growth';
-
   const plans: Array<{
     key: PlanKey;
     title: string;
@@ -244,10 +237,10 @@ export function BillingPage({
     {
       key: 'free',
       title: 'Free',
-      fee: `${PLATFORM_FEE_PERCENT.free}%`,
+      fee: formatFreeFeeLabel(),
       features: [
         'Full access to bookings, shop, and tools',
-        `${PLATFORM_FEE_PERCENT.free}% platform & service fees`,
+        `${formatFreeFeeLabel()} platform & service fees`,
         'Up to 10 services and 10 products (5 preorders)',
         'One Home portfolio gallery',
       ],
@@ -267,25 +260,11 @@ export function BillingPage({
     },
   ];
 
-  if (showGrowth) {
-    plans.push({
-      key: 'growth',
-      title: 'Growth',
-      fee: `${PLATFORM_FEE_PERCENT.growth}%`,
-      features: [
-        'Everything on Pro',
-        `${PLATFORM_FEE_PERCENT.growth}% platform & service fees on transactions`,
-        'Unlimited services & products',
-        'Invite unlocked',
-      ],
-    });
-  }
-
   const intervalLabel =
-    billingInterval === 'annual' ? 'Yearly' : 'Biannually';
+    billingInterval === 'quarterly' ? 'Quarterly' : 'Monthly';
 
-  function priceForPaidPlan(plan: PaidPlatformPlan): string {
-    return formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO[plan][billingInterval]);
+  function priceForPaidPlan(_plan: PaidPlatformPlan): string {
+    return formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro[billingInterval]);
   }
 
   function renderPaidPrice(plan: PaidPlatformPlan) {
@@ -361,7 +340,7 @@ export function BillingPage({
           <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
             You are on the previous Pro plan ({formatPlanPrice(LEGACY_PRO_MONTHLY_KOBO)}
             /month) with <strong>0% platform &amp; service fees until {formatDate(periodEnd)}</strong>.
-            After that you move to Free ({PLATFORM_FEE_PERCENT.free}%) unless you
+            After that you move to Free ({formatFreeFeeLabel()}) unless you
             renew on the new Pro ({formatProFeeLabel()}).
           </p>
         </div>
@@ -373,7 +352,7 @@ export function BillingPage({
           {currentPlan === 'free'
             ? `Free — ${feeLabelForPlan('free', false)}.`
             : cancelAtPeriodEnd
-              ? `${currentPlan === 'growth' ? 'Growth' : 'Pro'} — cancels on ${formatDate(periodEnd)}. After that, Free (${PLATFORM_FEE_PERCENT.free}% fee).`
+              ? `${currentPlan === 'growth' ? 'Growth' : 'Pro'} — cancels on ${formatDate(periodEnd)}. After that, Free (${formatFreeFeeLabel()}).`
               : `${currentPlan === 'growth' ? 'Growth' : 'Pro'} — ${feeLabelForPlan(currentPlan, isLegacyZero)}. Renews around ${formatDate(periodEnd)}.`}
         </p>
         <p className="foleio-dash-panel-meta" style={{ marginTop: 8, textTransform: 'capitalize' }}>
@@ -402,12 +381,9 @@ export function BillingPage({
       >
         {plans.map((plan) => {
           const isCurrent = currentPlan === plan.key;
-          const isPaidCard = plan.key === 'pro' || plan.key === 'growth';
-          const paidKey = plan.key as PaidPlatformPlan;
-          const canUpgradePaid =
-            plan.key === 'pro'
-              ? !(isCurrent && !isLegacyZero)
-              : !isCurrent;
+          const isPaidCard = plan.key === 'pro';
+          const paidKey: PaidPlatformPlan = 'pro';
+          const canUpgradePaid = !(isCurrent && !isLegacyZero);
 
           return (
             <div key={plan.key} className="foleio-dash-panel" style={{ margin: 0 }}>
@@ -433,8 +409,8 @@ export function BillingPage({
                   >
                     {(
                       [
-                        { id: 'biannual', label: 'Biannually' },
-                        { id: 'annual', label: 'Yearly' },
+                        { id: 'monthly', label: 'Monthly' },
+                        { id: 'quarterly', label: 'Quarterly' },
                       ] as const
                     ).map((tab) => {
                       const active = billingInterval === tab.id;
@@ -545,19 +521,13 @@ export function BillingPage({
             className="w-full max-w-md rounded-2xl p-6"
             style={{ background: '#212121', border: '1px solid rgba(255,255,255,0.08)' }}
           >
-            <h3 className="foleio-dash-panel-title">
-              Upgrade to {upgradeTarget.plan === 'growth' ? 'Growth' : 'Pro'}
-            </h3>
+            <h3 className="foleio-dash-panel-title">Upgrade to Pro</h3>
             <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
               {formatPlanPrice(
-                PLATFORM_PLAN_AMOUNTS_KOBO[upgradeTarget.plan][upgradeTarget.interval]
+                PLATFORM_PLAN_AMOUNTS_KOBO.pro[upgradeTarget.interval]
               )}{' '}
-              / {upgradeTarget.interval === 'annual' ? 'year' : '6 months'}. Platform
-              &amp; service fees stay{' '}
-              {upgradeTarget.plan === 'growth'
-                ? `${PLATFORM_FEE_PERCENT.growth}%`
-                : formatProFeeLabel()}{' '}
-              — Pro unlocks features, not a different fee rate.
+              / {upgradeTarget.interval === 'quarterly' ? 'quarter' : 'month'}.
+              Platform &amp; service fees become {formatProFeeLabel()}.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button
@@ -599,7 +569,7 @@ export function BillingPage({
             </h3>
             <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
               Your plan stays active until {formatDate(periodEnd)}. After that you move to
-              Free and the {PLATFORM_FEE_PERCENT.free}% fee returns.
+              Free and {formatFreeFeeLabel()} fees apply.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button

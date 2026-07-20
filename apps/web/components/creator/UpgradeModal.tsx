@@ -15,7 +15,12 @@ import {
   PLAN_LIMIT_MESSAGES,
   type PlatformPlan,
 } from '@/lib/utils/plan-limits';
-import { formatProFeeLabel } from '@/lib/billing/platform-plans';
+import {
+  formatFreeFeeLabel,
+  formatPlanPrice,
+  formatProFeeLabel,
+  PLATFORM_PLAN_AMOUNTS_KOBO,
+} from '@/lib/billing/platform-plans';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -27,34 +32,21 @@ interface UpgradeModalProps {
 type PlanCardInfo = {
   name: PlatformPlan;
   price: string;
-  slug: 'pro' | 'growth';
+  slug: 'pro';
   features: string[];
 };
 
-function getUpgradeTarget(currentPlan: PlatformPlan): PlanCardInfo {
-  if (currentPlan === 'STARTER' || currentPlan === 'PRO') {
-    return {
-      name: 'PRO',
-      price: 'from ₦12,000 / 6 months',
-      slug: 'pro',
-      features: [
-        'Unlimited services & products',
-        'Up to 3 portfolio categories',
-        'Availability schedule templates',
-        `${formatProFeeLabel()} platform & service fees (same as Free)`,
-        'Cancel anytime — benefits last until period end',
-      ],
-    };
-  }
-
+function getUpgradeTarget(): PlanCardInfo {
   return {
-    name: 'GROWTH',
-    price: 'from ₦35,000 / 6 months',
-    slug: 'growth',
+    name: 'PRO',
+    price: `from ${formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.monthly)} / month`,
+    slug: 'pro',
     features: [
-      'Everything on Pro',
-      `${formatProFeeLabel()} platform & service fees`,
-      'Invite-only — request access via support',
+      `${formatProFeeLabel()} platform & service fees (vs ${formatFreeFeeLabel()} on Free)`,
+      'Unlimited services & products',
+      'Up to 3 portfolio categories',
+      'Availability schedule templates',
+      'Cancel anytime — benefits last until period end',
     ],
   };
 }
@@ -66,7 +58,7 @@ export function UpgradeModal({
   currentPlan,
 }: UpgradeModalProps) {
   const message = PLAN_LIMIT_MESSAGES[limitType];
-  const targetPlan = getUpgradeTarget(currentPlan);
+  const targetPlan = getUpgradeTarget();
   const description =
     typeof message.description === 'function'
       ? message.description(currentPlan)
@@ -101,41 +93,39 @@ export function UpgradeModal({
                 <span>Limit hit: {message.feature}</span>
               </div>
             </div>
-
-            <div className="rounded-xl border-2 border-orange-300 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-display text-lg">{targetPlan.name}</p>
-                <p className="text-xs font-medium text-muted-foreground">{targetPlan.price}</p>
-              </div>
-              <div className="mt-3 space-y-1.5 text-sm">
-                <div className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 text-green-600" />
-                  <span>{message.feature}</span>
-                </div>
+            <div className="rounded-xl border border-orange-300 bg-white p-4 shadow-sm">
+              <p className="font-display text-lg text-orange-700">{targetPlan.name}</p>
+              <p className="mt-1 font-body text-sm text-muted-foreground">
+                {targetPlan.price}
+              </p>
+              <ul className="mt-3 space-y-2">
                 {targetPlan.features.map((feature) => (
-                  <div key={feature} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-4 w-4 text-green-600" />
+                  <li
+                    key={feature}
+                    className="flex items-start gap-2 font-body text-sm text-foreground"
+                  >
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
                     <span>{feature}</span>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </div>
 
-          <div className="mt-6 space-y-2">
-            <Button asChild className="w-full bg-orange-600 text-white hover:bg-orange-700">
-              <Link href={`/settings?tab=billing&upgrade=${targetPlan.slug}`}>
-                View {targetPlan.name} plans
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              className="flex-1 font-body"
+              onClick={onClose}
+            >
+              Not now
+            </Button>
+            <Button asChild className="flex-1 bg-orange-600 font-body hover:bg-orange-700">
+              <Link href="/settings?tab=billing" onClick={onClose}>
+                Upgrade to Pro
               </Link>
             </Button>
-            <Button variant="ghost" className="w-full" onClick={onClose}>
-              Maybe later
-            </Button>
           </div>
-
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            Cancel anytime. No hidden fees.
-          </p>
         </div>
       </DialogContent>
     </Dialog>

@@ -56,18 +56,13 @@ export function CreatorAgreementContent() {
       </p>
       <ul>
         <li>
-          <strong>Free plan:</strong> 3.5% platform &amp; service fees on each
-          transaction.
+          <strong>Free plan:</strong> 3.5% + ₦100 platform &amp; service fees on
+          each transaction.
         </li>
         <li>
-          <strong>Pro plan (₦12,000 / 6 months or ₦24,000 / year):</strong> 3.5%
-          platform &amp; service fees while your Pro subscription is active. Pro
-          unlocks additional features; the fee rate matches Free.
-        </li>
-        <li>
-          <strong>Growth plan (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
-          3.5% platform &amp; service fees while your Growth subscription is
-          active. Growth is invite-only.
+          <strong>Pro plan (₦3,000 / month or ₦7,500 / quarter):</strong> 1.8% +
+          ₦100 platform &amp; service fees while your Pro subscription is
+          active, plus Pro feature unlocks.
         </li>
       </ul>
       <p>
@@ -139,34 +134,29 @@ export function CreatorAgreementContent() {
       </ul>
 
       <h2>6. Platform Plans &amp; Subscription</h2>
-      <p>Foleio offers three creator platform plans:</p>
+      <p>Foleio offers two creator platform plans:</p>
       <ul>
         <li>
           <strong>Free (₦0):</strong> Full access to bookings, shop, services,
-          and creator tools, with <strong>3.5%</strong> platform &amp; service
-          fees.
+          and creator tools, with <strong>3.5% + ₦100</strong> platform &amp;
+          service fees.
         </li>
         <li>
-          <strong>Pro (₦12,000 / 6 months or ₦24,000 / year):</strong> Everything
-          on Free plus Pro features, with <strong>3.5%</strong> platform &amp;
-          service fees while the subscription is active. Self-serve via Billing.
-        </li>
-        <li>
-          <strong>Growth (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
-          Everything on Pro, with <strong>3.5%</strong> platform &amp; service
-          fees. Growth is invite-only; Foleio must unlock eligibility before you
-          can subscribe.
+          <strong>Pro (₦3,000 / month or ₦7,500 / quarter):</strong> Everything
+          on Free plus Pro features, with <strong>1.8% + ₦100</strong> platform
+          &amp; service fees while the subscription is active. Self-serve via
+          Billing.
         </li>
       </ul>
       <p>
-        Paid plans are billed for six months or yearly in advance through
-        Paystack. You may cancel at any time; benefits remain active until the
-        end of the current paid period, after which your account returns to Free
-        at the same <strong>3.5%</strong> fee rate (without Pro features).
-        Creators on the previous monthly Pro plan (₦10,000/month at 0% platform
-        &amp; service fees) keep that rate until their current period ends.
-        Foleio reserves the right to change platform subscription pricing with
-        30 days&apos; advance notice to existing subscribers.
+        Paid Pro is billed monthly or quarterly in advance through Paystack. You
+        may cancel at any time; benefits remain active until the end of the
+        current paid period, after which your account returns to Free at{' '}
+        <strong>3.5% + ₦100</strong> (without Pro features). Creators on a
+        previous monthly Pro plan (₦10,000/month at 0% platform &amp; service
+        fees) keep that rate until their current period ends. Foleio reserves
+        the right to change platform subscription pricing with 30 days&apos;
+        advance notice to existing subscribers.
       </p>
 
       <h2>7. Cancellations &amp; Refunds</h2>

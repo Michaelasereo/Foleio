@@ -15,7 +15,11 @@ import {
   formatMoneyFromKobo,
   statusBadgeClass,
 } from '@/lib/admin/format';
-import { LEGACY_PRO_MONTHLY_KOBO } from '@/lib/billing/platform-plans';
+import {
+  LEGACY_PRO_MONTHLY_KOBO,
+  formatFreeFeeLabel,
+  formatProFeeLabel,
+} from '@/lib/billing/platform-plans';
 
 type PlatformSubscription = {
   id: string;
@@ -82,7 +86,7 @@ export default function AdminBillingPage() {
       <div>
         <h2 className="foleio-admin-title">Billing (platform plans)</h2>
         <p className={`foleio-admin-meta ${adminMutedClass}`}>
-          Free / Pro / Growth 3.5% · legacy Pro 0% until period end · Pro unlocks features
+          Free {formatFreeFeeLabel()} · Pro {formatProFeeLabel()} · ₦3k/mo or ₦7.5k/quarter · legacy Pro 0% until period end
         </p>
       </div>
 

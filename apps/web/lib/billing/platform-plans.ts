@@ -1,6 +1,7 @@
-/** Central Foleio platform subscription plans (Free / Pro / Growth). */
+/** Central Foleio platform subscription plans (Free / Pro). Growth hidden from checkout. */
 
-export type BillingInterval = 'biannual' | 'annual';
+export type BillingInterval = 'monthly' | 'quarterly';
+/** `growth` kept for DB / legacy rows; new checkouts are Pro only. */
 export type PaidPlatformPlan = 'pro' | 'growth';
 export type PlatformPlanSlug = 'starter' | 'free' | PaidPlatformPlan | 'premium';
 
@@ -9,39 +10,46 @@ export const LEGACY_PRO_MONTHLY_KOBO = 1_000_000;
 
 export const PLATFORM_PLAN_AMOUNTS_KOBO = {
   pro: {
-    biannual: 1_200_000, // ₦12,000 / 6 months (charged)
-    annual: 2_400_000, // ₦24,000 / year (charged)
-  },
-  growth: {
-    biannual: 3_500_000, // ₦35,000 / 6 months
-    annual: 7_000_000, // ₦70,000 / year
+    monthly: 300_000, // ₦3,000 / month
+    quarterly: 750_000, // ₦7,500 / quarter (₦2,500/mo)
   },
 } as const;
 
 /** Display-only “was” prices for Pro discount copy (not charged). */
 export const PLATFORM_PLAN_COMPARE_AT_KOBO = {
   pro: {
-    biannual: 1_400_000, // ₦14,000
-    annual: 2_800_000, // ₦28,000
+    quarterly: 900_000, // ₦9,000 = ₦3,000 × 3
   },
 } as const;
 
 export const PLATFORM_FEE_PERCENT = {
   free: 3.5,
-  pro: 3.5,
+  pro: 1.8,
+  /** Existing Growth subscribers only — not offered for new checkout. */
   growth: 3.5,
   /** Legacy monthly Pro until currentPeriodEnd */
   legacyPro: 0,
 } as const;
 
-/** Display platform & service fee label (Free / Pro / Growth share 3.5%). */
-export function formatPlatformFeeLabel(): string {
-  return `${PLATFORM_FEE_PERCENT.pro}%`;
+/** Flat ₦100 stacked on Free and Pro % fees (kobo). */
+export const PLATFORM_FEE_FLAT_KOBO = {
+  free: 10_000,
+  pro: 10_000,
+} as const;
+
+export function formatFreeFeeLabel(): string {
+  const flatNaira = PLATFORM_FEE_FLAT_KOBO.free / 100;
+  return `${PLATFORM_FEE_PERCENT.free}% + ₦${flatNaira.toLocaleString('en-NG')}`;
 }
 
-/** @deprecated Use formatPlatformFeeLabel — Pro no longer has a flat add-on. */
 export function formatProFeeLabel(): string {
-  return formatPlatformFeeLabel();
+  const flatNaira = PLATFORM_FEE_FLAT_KOBO.pro / 100;
+  return `${PLATFORM_FEE_PERCENT.pro}% + ₦${flatNaira.toLocaleString('en-NG')}`;
+}
+
+/** Alias for Pro fee label (shared display helpers). */
+export function formatPlatformFeeLabel(): string {
+  return formatProFeeLabel();
 }
 
 export function normalizePlatformPlan(
@@ -62,7 +70,9 @@ export function amountForPlan(
   plan: PaidPlatformPlan,
   interval: BillingInterval
 ): number {
-  return PLATFORM_PLAN_AMOUNTS_KOBO[plan][interval];
+  // New checkouts are Pro-only; Growth amounts removed.
+  void plan;
+  return PLATFORM_PLAN_AMOUNTS_KOBO.pro[interval];
 }
 
 export function periodEndFromInterval(
@@ -70,32 +80,32 @@ export function periodEndFromInterval(
   from: Date = new Date()
 ): Date {
   const end = new Date(from);
-  if (interval === 'annual') {
-    end.setFullYear(end.getFullYear() + 1);
+  if (interval === 'quarterly') {
+    end.setMonth(end.getMonth() + 3);
   } else {
-    end.setMonth(end.getMonth() + 6);
+    end.setMonth(end.getMonth() + 1);
   }
   return end;
 }
 
 export function intervalFromAmount(
-  plan: PaidPlatformPlan,
+  _plan: PaidPlatformPlan,
   amountKobo: number
 ): BillingInterval {
-  if (amountKobo === PLATFORM_PLAN_AMOUNTS_KOBO[plan].annual) return 'annual';
-  return 'biannual';
+  if (amountKobo === PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly) return 'quarterly';
+  return 'monthly';
 }
 
 export function paystackPlanCodeEnvKey(
   plan: PaidPlatformPlan,
   interval: BillingInterval
 ): string {
-  if (plan === 'pro' && interval === 'biannual') return 'PAYSTACK_PRO_6MO_PLAN_CODE';
-  if (plan === 'pro' && interval === 'annual') return 'PAYSTACK_PRO_YR_PLAN_CODE';
-  if (plan === 'growth' && interval === 'biannual') {
-    return 'PAYSTACK_GROWTH_6MO_PLAN_CODE';
+  if (plan === 'pro' && interval === 'monthly') return 'PAYSTACK_PRO_MONTHLY_PLAN_CODE';
+  if (plan === 'pro' && interval === 'quarterly') {
+    return 'PAYSTACK_PRO_QUARTERLY_PLAN_CODE';
   }
-  return 'PAYSTACK_GROWTH_YR_PLAN_CODE';
+  if (interval === 'monthly') return 'PAYSTACK_GROWTH_MONTHLY_PLAN_CODE';
+  return 'PAYSTACK_GROWTH_QUARTERLY_PLAN_CODE';
 }
 
 export function resolvePaystackPlanCode(
@@ -105,7 +115,6 @@ export function resolvePaystackPlanCode(
   const key = paystackPlanCodeEnvKey(plan, interval);
   const value = process.env[key]?.trim();
   if (value) return value;
-  // Cutover alias: old monthly Pro plan code only for Pro biannual if new env missing
   if (plan === 'pro') {
     return process.env.PAYSTACK_PRO_PLAN_CODE?.trim() || null;
   }
@@ -121,16 +130,15 @@ export function formatPlanPrice(amountKobo: number): string {
 }
 
 /**
- * Marketing discount % vs compare-at price, rounded to a whole number.
- * Pro: charged ₦12k/₦24k vs “was” ₦14k/₦28k → ~14% off.
+ * Marketing discount % vs compare-at price (Pro quarterly only).
  */
 export function planDiscountPercent(
   plan: PaidPlatformPlan,
   interval: BillingInterval
 ): number {
-  if (plan !== 'pro') return 0;
-  const compareAt = PLATFORM_PLAN_COMPARE_AT_KOBO.pro[interval];
-  const charged = PLATFORM_PLAN_AMOUNTS_KOBO.pro[interval];
+  if (plan !== 'pro' || interval !== 'quarterly') return 0;
+  const compareAt = PLATFORM_PLAN_COMPARE_AT_KOBO.pro.quarterly;
+  const charged = PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly;
   if (compareAt <= 0 || charged >= compareAt) return 0;
   return Math.round(((compareAt - charged) / compareAt) * 100);
 }
@@ -139,8 +147,8 @@ export function planCompareAtKobo(
   plan: PaidPlatformPlan,
   interval: BillingInterval
 ): number | null {
-  if (plan !== 'pro') return null;
-  return PLATFORM_PLAN_COMPARE_AT_KOBO.pro[interval];
+  if (plan !== 'pro' || interval !== 'quarterly') return null;
+  return PLATFORM_PLAN_COMPARE_AT_KOBO.pro.quarterly;
 }
 
 export function isLegacyZeroFeeSubscription(sub: {

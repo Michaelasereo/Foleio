@@ -31,8 +31,11 @@ Your Paystack API keys:
 PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
-# Platform fee kept on booking/subaccount split charges (Paystack percentage_charge). Default: 5
-FOLEIO_PLATFORM_FEE_PERCENT=5
+# Fallback platform fee % when plan sync is unavailable (default 3.5). App uses Free 3.5%+₦100 / Pro 1.8%+₦100.
+FOLEIO_PLATFORM_FEE_PERCENT=3.5
+# Pro subscription plans (Paystack Dashboard → Plans):
+PAYSTACK_PRO_MONTHLY_PLAN_CODE=PLN_xxxxxxxx
+PAYSTACK_PRO_QUARTERLY_PLAN_CODE=PLN_xxxxxxxx
 ```
 
 **Webhook:** subscribe to `charge.success` at `https://your-domain.com/api/webhooks/paystack`.

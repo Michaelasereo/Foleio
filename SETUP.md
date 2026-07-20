@@ -43,8 +43,8 @@ DATABASE_URL=postgresql://postgres:Adenike2026#@db.xdwocaugiyjtbbzwpbid.supabase
 PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
-# Platform fee on subaccount split (default 5). Settlement: auto (T+1) via Paystack.
-FOLEIO_PLATFORM_FEE_PERCENT=5
+# Fallback platform fee % (default 3.5). Prefer plan-based fees in app.
+FOLEIO_PLATFORM_FEE_PERCENT=3.5
 
 # Resend
 RESEND_API_KEY=re_66rgwPZ1_93xPfReWa1KdYMGD5ckW7QVY
@@ -63,25 +63,23 @@ Configure your Paystack API keys:
 PAYSTACK_SECRET_KEY=your_paystack_secret_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=your_paystack_public_key
 PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
-FOLEIO_PLATFORM_FEE_PERCENT=5
+# Fallback % only when plan fee sync is unavailable (prefer plan-based fees in app)
+FOLEIO_PLATFORM_FEE_PERCENT=3.5
 # Platform plans (create in Paystack Dashboard → Plans, NGN):
-PAYSTACK_PRO_6MO_PLAN_CODE=PLN_xxxxxxxx   # ₦12,000 / 6 months
-PAYSTACK_PRO_YR_PLAN_CODE=PLN_xxxxxxxx    # ₦24,000 / year
-PAYSTACK_GROWTH_6MO_PLAN_CODE=PLN_xxxxxxxx # ₦35,000 / 6 months (invite-only)
-PAYSTACK_GROWTH_YR_PLAN_CODE=PLN_xxxxxxxx  # ₦70,000 / year
+PAYSTACK_PRO_MONTHLY_PLAN_CODE=PLN_xxxxxxxx    # ₦3,000 / month
+PAYSTACK_PRO_QUARTERLY_PLAN_CODE=PLN_xxxxxxxx  # ₦7,500 / quarter
 # Optional legacy monthly Pro alias during cutover:
 # PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxx
-```
+```****
 
 **Foleio platform plans (Paystack Dashboard):**
 1. Payments → Plans → Create plan (currency NGN) for each row below
-2. Pro 6mo: amount `1200000` (₦12,000), interval biannually (or every 6 months)
-3. Pro yearly: amount `2400000` (₦24,000), interval annually
-4. Growth 6mo: amount `3500000` (₦35,000); Growth yearly: `7000000` (₦70,000)
-5. Copy each plan code into the matching env var (Growth is invite-only in-app)
-6. Subaccount `percentage_charge`: Free **5%**, Pro **4%**, Growth **3.5%** (legacy monthly Pro at ₦10,000 stays **0%** until period end). This is the combined platform & service fee rate.
-7. Cancel stores/uses each subscription’s Paystack `email_token` in the database (no shared disable token required)
-
+2. Pro monthly: amount `300000` (₦3,000), interval monthly
+3. Pro quarterly: amount `750000` (₦7,500), interval quarterly (every 3 months)
+4. Copy each plan code into the matching env var
+5. App fees: Free **3.5% + ₦100**, Pro **1.8% + ₦100** (legacy monthly Pro at ₦10,000 stays **0%** until period end). Paystack subaccount `percentage_charge` syncs the % portion; the flat ₦100 is applied in Foleio fee math on charged transactions.
+6. Cancel stores/uses each subscription’s Paystack `email_token` in the database (no shared disable token required)
+****
 **Webhook Setup (for production):**
 1. Go to https://dashboard.paystack.com/#/settings/developer
 2. Set up a webhook URL: `https://your-domain.com/api/webhooks/paystack` (events: `charge.success`, subscription create/disable/enable)

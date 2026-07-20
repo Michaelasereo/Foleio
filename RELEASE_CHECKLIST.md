@@ -21,7 +21,8 @@ Run through this before every staging → main merge.
 - [ ] Existing transactions intact
 
 ## Payment changes (Paystack subaccount)
-- [ ] `FOLEIO_PLATFORM_FEE_PERCENT` set in prod (default 5)
+- [ ] `PAYSTACK_PRO_MONTHLY_PLAN_CODE` and `PAYSTACK_PRO_QUARTERLY_PLAN_CODE` set in prod
+- [ ] `FOLEIO_PLATFORM_FEE_PERCENT` fallback set in prod (default 3.5; app uses plan-based Free/Pro fees)
 - [ ] Paystack business activated for live subaccount settlements
 - [ ] Webhook URL: `https://your-domain.com/api/webhooks/paystack` (`charge.success`)
 - [ ] Test charge creates `Transaction` with `paymentType: DIRECT_SUBACCOUNT`

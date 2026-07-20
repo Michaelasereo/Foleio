@@ -9,13 +9,13 @@ import {
 } from '@/lib/billing/platform-plans';
 
 /**
- * Paystack setup (create 4 plans in dashboard, set env):
- * - PAYSTACK_PRO_6MO_PLAN_CODE / PAYSTACK_PRO_YR_PLAN_CODE
- * - PAYSTACK_GROWTH_6MO_PLAN_CODE / PAYSTACK_GROWTH_YR_PLAN_CODE
+ * Paystack setup (create plans in dashboard, set env):
+ * - PAYSTACK_PRO_MONTHLY_PLAN_CODE
+ * - PAYSTACK_PRO_QUARTERLY_PLAN_CODE
  */
 const upgradeSchema = z.object({
-  plan: z.enum(['pro', 'growth']),
-  interval: z.enum(['biannual', 'annual']),
+  plan: z.literal('pro'),
+  interval: z.enum(['monthly', 'quarterly']),
 });
 
 export async function POST(request: Request) {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const parsed = upgradeSchema.safeParse(payload);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid plan or interval. Use pro|growth and biannual|annual.' },
+        { error: 'Invalid plan or interval. Use pro with monthly|quarterly.' },
         { status: 400 }
       );
     }
@@ -53,18 +53,11 @@ export async function POST(request: Request) {
 
     const creator = await prisma.creator.findUnique({
       where: { userId: user.id },
-      select: { id: true, growthEligible: true },
+      select: { id: true },
     });
 
     if (!creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
-    }
-
-    if (plan === 'growth' && !creator.growthEligible) {
-      return NextResponse.json(
-        { error: 'Growth is invite-only. Ask Foleio to unlock it for your account.' },
-        { status: 403 }
-      );
     }
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com').replace(

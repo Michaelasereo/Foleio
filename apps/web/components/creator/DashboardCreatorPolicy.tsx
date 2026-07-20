@@ -6,14 +6,14 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { CreatorAgreementContent } from '@/components/legal/CreatorAgreementContent';
 import { FeeCalculatorDrawer } from '@/components/creator/FeeCalculatorDrawer';
 import {
-  PLATFORM_FEE_PERCENT,
   PLATFORM_PLAN_AMOUNTS_KOBO,
+  formatFreeFeeLabel,
   formatPlanPrice,
   formatProFeeLabel,
 } from '@/lib/billing/platform-plans';
 
 export function DashboardCreatorPolicy({
-  growthEligible = false,
+  growthEligible: _growthEligible = false,
 }: {
   growthEligible?: boolean;
 }) {
@@ -45,49 +45,29 @@ export function DashboardCreatorPolicy({
             <p className="foleio-dash-fee-price">₦0</p>
           </div>
           <div className="foleio-dash-fee-rate">
-            <strong>{PLATFORM_FEE_PERCENT.free}%</strong>
+            <strong>{formatFreeFeeLabel()}</strong>
             <span>platform &amp; service fees</span>
-            <span className="foleio-dash-fee-note">
-              Same rate as Pro
-            </span>
           </div>
         </div>
         <div className="foleio-dash-fee-row is-pro">
           <div>
             <p className="foleio-dash-fee-plan">Pro</p>
             <p className="foleio-dash-fee-price">
-              {formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.biannual)} / 6mo ·{' '}
-              {formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.annual)} / yr
+              {formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.monthly)} / mo ·{' '}
+              {formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly)} / quarter
             </p>
           </div>
           <div className="foleio-dash-fee-rate">
             <strong>{formatProFeeLabel()}</strong>
             <span>platform &amp; service fees</span>
-            <span className="foleio-dash-fee-note">Features unlock</span>
+            <span className="foleio-dash-fee-note">Lower fee + features</span>
           </div>
         </div>
-        {growthEligible ? (
-          <div className="foleio-dash-fee-row is-pro">
-            <div>
-              <p className="foleio-dash-fee-plan">Growth</p>
-              <p className="foleio-dash-fee-price">
-                {formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.growth.biannual)} / 6mo ·{' '}
-                {formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.growth.annual)} / yr
-              </p>
-            </div>
-            <div className="foleio-dash-fee-rate">
-              <strong>{PLATFORM_FEE_PERCENT.growth}%</strong>
-              <span>platform &amp; service fees</span>
-              <span className="foleio-dash-fee-note">Invite unlocked</span>
-            </div>
-          </div>
-        ) : null}
       </div>
 
       <p>
-        After platform &amp; service fees, you keep the rest. Free and Pro both
-        use the same {PLATFORM_FEE_PERCENT.free}% fee — Pro unlocks features.
-        You can upgrade in{' '}
+        After platform &amp; service fees, you keep the rest. Upgrade to Pro for
+        a lower fee rate and extra tools in{' '}
         <Link href="/settings?tab=billing">Settings → Billing</Link>.
       </p>
 

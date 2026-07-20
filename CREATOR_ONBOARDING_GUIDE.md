@@ -73,9 +73,9 @@ Everyone does shared setup first. Then follow **Shop**, **Bookings**, or both (f
 ## Fees (know before you charge)
 
 - **Where:** Creator policy (`/dashboard/policy`) — Fee calculator beside Platform & service fees
-- **Free and Pro:** 3.5% platform & service fees on every charge (same rate)
-- **Pro difference:** features (unlimited services/products, portfolio categories, schedule templates) — not a lower fee
-- Calculator shows the 3.5% split for an amount; upgrade goes to Billing (`/settings?tab=billing`)
+- **Free:** 3.5% + ₦100 platform & service fees on every charge
+- **Pro (₦3,000/mo or ₦7,500/quarter):** 1.8% + ₦100, plus Pro features (unlimited services/products, portfolio categories, schedule templates)
+- Calculator compares Free vs Pro for an amount; upgrade goes to Billing (`/settings?tab=billing`)
 
 Not a required onboarding step, but creators should open this once before going live.
 

@@ -4,6 +4,7 @@
  */
 import {
   LEGACY_PRO_MONTHLY_KOBO,
+  PLATFORM_FEE_FLAT_KOBO,
   PLATFORM_FEE_PERCENT,
   normalizePlatformPlan,
 } from '@/lib/billing/platform-plans';
@@ -58,7 +59,7 @@ export type PlatformFeeSplit = {
   platformFee: number;
   creatorEarnings: number;
   feePct: number;
-  feeType: 'none' | 'percent';
+  feeType: 'none' | 'percent' | 'percent_plus_flat';
 };
 
 function isLegacyZeroFee(creator: FeePlanInput): boolean {
@@ -79,9 +80,10 @@ function isLegacyZeroFee(creator: FeePlanInput): boolean {
 }
 
 /**
- * Free / Pro / Growth → 3.5% (pure percent).
+ * Free → 3.5% (+ ₦100 flat via platformFeeFromGross).
+ * Active Pro → 1.8% (+ ₦100 flat).
+ * Active Growth (legacy) → 3.5% percent-only.
  * Legacy monthly Pro → 0% until period end.
- * Inactive paid → Free default (3.5%).
  */
 export function feePercentForCreator(creator: FeePlanInput): number {
   if (!creator.platformSubscriptionActive) {
@@ -98,10 +100,42 @@ export function feePercentForCreator(creator: FeePlanInput): number {
   return defaultPlatformFeePercent();
 }
 
+/** Free and Pro stack ₦100; Growth does not. */
+function appliesPercentPlusFlat(creatorOrFeePct: FeePlanInput | number): boolean {
+  if (typeof creatorOrFeePct === 'number') {
+    return (
+      creatorOrFeePct === PLATFORM_FEE_PERCENT.free ||
+      creatorOrFeePct === PLATFORM_FEE_PERCENT.pro
+    );
+  }
+  if (isLegacyZeroFee(creatorOrFeePct)) return false;
+  if (!creatorOrFeePct.platformSubscriptionActive) return true; // Free
+  const plan = normalizePlatformPlan(creatorOrFeePct.platformPlan);
+  return plan === 'PRO' || plan === 'STARTER';
+}
+
+function flatKoboFor(creatorOrFeePct: FeePlanInput | number): number {
+  if (typeof creatorOrFeePct === 'number') {
+    if (creatorOrFeePct === PLATFORM_FEE_PERCENT.pro) {
+      return PLATFORM_FEE_FLAT_KOBO.pro;
+    }
+    return PLATFORM_FEE_FLAT_KOBO.free;
+  }
+  if (
+    creatorOrFeePct.platformSubscriptionActive &&
+    normalizePlatformPlan(creatorOrFeePct.platformPlan) === 'PRO'
+  ) {
+    return PLATFORM_FEE_FLAT_KOBO.pro;
+  }
+  return PLATFORM_FEE_FLAT_KOBO.free;
+}
+
 /**
  * Foleio platform cut from a gross charge (kobo).
  * - 0% (legacy) → no fee
- * - Otherwise → feePct of gross (Free / Pro / Growth are all 3.5%)
+ * - Free → 3.5% + ₦100
+ * - Pro → 1.8% + ₦100
+ * - Growth → 3.5% only
  */
 export function platformFeeFromGross(
   grossKobo: number,
@@ -122,6 +156,19 @@ export function platformFeeFromGross(
     };
   }
 
+  if (appliesPercentPlusFlat(creatorOrFeePct)) {
+    const platformFee = Math.min(
+      amount,
+      Math.round(amount * (feePct / 100)) + flatKoboFor(creatorOrFeePct)
+    );
+    return {
+      platformFee,
+      creatorEarnings: Math.max(0, amount - platformFee),
+      feePct,
+      feeType: 'percent_plus_flat',
+    };
+  }
+
   const platformFee = Math.round(amount * (feePct / 100));
   return {
     platformFee,
@@ -133,12 +180,15 @@ export function platformFeeFromGross(
 
 /**
  * Paystack split overrides for initialize.
- * `transaction_charge` overrides subaccount percentage_charge for that charge.
- * Standard Free/Pro/Growth use subaccount % only — no override.
+ * Used for Free/Pro stacked fee (percent + ₦100).
  */
 export function paystackTransactionChargeKobo(
-  _grossKobo: number,
-  _creator: FeePlanInput
+  grossKobo: number,
+  creator: FeePlanInput
 ): number | undefined {
+  const split = platformFeeFromGross(grossKobo, creator);
+  if (split.feeType === 'percent_plus_flat' && split.platformFee > 0) {
+    return split.platformFee;
+  }
   return undefined;
 }

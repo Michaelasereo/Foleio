@@ -134,15 +134,11 @@ export default function TermsPage() {
         </p>
         <ul>
           <li>
-            Free (₦0): 3.5% platform &amp; service fees
+            Free (₦0): 3.5% + ₦100 platform &amp; service fees
           </li>
           <li>
-            Pro (₦12,000 / 6 months or ₦24,000 / year): 3.5% platform &amp;
-            service fees while active (Pro unlocks features; same fee as Free)
-          </li>
-          <li>
-            Growth (₦35,000 / 6 months or ₦70,000 / year, invite-only): 3.5%
-            platform &amp; service fees while active
+            Pro (₦3,000 / month or ₦7,500 / quarter): 1.8% + ₦100 platform &amp;
+            service fees while active (Pro unlocks features and a lower fee)
           </li>
         </ul>
         <p>
@@ -161,9 +157,8 @@ export default function TermsPage() {
           day). Where manual payouts apply, the minimum amount is ₦1,000.
         </p>
         <p>
-          <strong>Platform Subscription Plans:</strong> Paid creator plans are
-          billed for six months or yearly in advance. Growth requires Foleio to
-          unlock eligibility before you can subscribe. You may cancel at any
+          <strong>Platform Subscription Plans:</strong> Pro is billed monthly or
+          quarterly in advance. You may cancel at any
           time; cancellation takes effect at the end of the current billing
           period, after which Free fees apply.
         </p>
