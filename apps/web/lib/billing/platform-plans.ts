@@ -27,22 +27,21 @@ export const PLATFORM_PLAN_COMPARE_AT_KOBO = {
 } as const;
 
 export const PLATFORM_FEE_PERCENT = {
-  free: 5,
+  free: 3.5,
   pro: 3.5,
   growth: 3.5,
   /** Legacy monthly Pro until currentPeriodEnd */
   legacyPro: 0,
 } as const;
 
-/** Flat component stacked on top of % — Pro only (₦100). */
-export const PLATFORM_FEE_FLAT_KOBO = {
-  pro: 10_000,
-} as const;
+/** Display platform & service fee label (Free / Pro / Growth share 3.5%). */
+export function formatPlatformFeeLabel(): string {
+  return `${PLATFORM_FEE_PERCENT.pro}%`;
+}
 
-/** Display e.g. "3.5% + ₦100" for Pro platform & service fees. */
+/** @deprecated Use formatPlatformFeeLabel — Pro no longer has a flat add-on. */
 export function formatProFeeLabel(): string {
-  const flatNaira = PLATFORM_FEE_FLAT_KOBO.pro / 100;
-  return `${PLATFORM_FEE_PERCENT.pro}% + ₦${flatNaira.toLocaleString('en-NG')}`;
+  return formatPlatformFeeLabel();
 }
 
 export function normalizePlatformPlan(

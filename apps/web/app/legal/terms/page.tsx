@@ -134,12 +134,11 @@ export default function TermsPage() {
         </p>
         <ul>
           <li>
-            Free (₦0): 5% platform &amp; service fees (or ₦300 flat on charges
-            under ₦5,000)
+            Free (₦0): 3.5% platform &amp; service fees
           </li>
           <li>
-            Pro (₦12,000 / 6 months or ₦24,000 / year): 3.5% + ₦100 platform
-            &amp; service fees while active
+            Pro (₦12,000 / 6 months or ₦24,000 / year): 3.5% platform &amp;
+            service fees while active (Pro unlocks features; same fee as Free)
           </li>
           <li>
             Growth (₦35,000 / 6 months or ₦70,000 / year, invite-only): 3.5%

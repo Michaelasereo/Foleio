@@ -7,7 +7,7 @@ import { formatNaira, koboToNaira } from '@foleio/utils';
 import { platformFeeFromGross } from '@/lib/billing/platform-fee-calc';
 import {
   PLATFORM_FEE_PERCENT,
-  formatProFeeLabel,
+  formatPlatformFeeLabel,
 } from '@/lib/billing/platform-plans';
 
 type FeeCalculatorDrawerProps = {
@@ -163,9 +163,6 @@ const drawerCss = `
 .foleio-fee-calc-table td:not(:first-child) {
   text-align: right;
 }
-.foleio-fee-calc-table th.is-pro {
-  color: #fb923c;
-}
 .foleio-fee-calc-table tbody tr:last-child th,
 .foleio-fee-calc-table tbody tr:last-child td {
   border-bottom: none;
@@ -182,9 +179,6 @@ const drawerCss = `
   color: #fafafa;
   font-weight: 600;
 }
-.foleio-fee-calc-table td.is-pro {
-  color: #fdba74;
-}
 .foleio-fee-calc-table .foleio-fee-calc-rate {
   display: block;
   margin-top: 4px;
@@ -193,13 +187,11 @@ const drawerCss = `
   font-weight: 500;
   line-height: 1.35;
 }
-.foleio-fee-calc-table .foleio-fee-calc-note {
-  display: block;
-  margin-top: 4px;
+.foleio-fee-calc-note {
+  margin: 14px 0 0;
   color: #828282;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.5;
 }
 .foleio-fee-calc-placeholder {
   margin: 18px 0 0;
@@ -235,18 +227,6 @@ const drawerCss = `
   color: #151515 !important;
   opacity: 1;
 }
-.foleio-fee-calc-save-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: #166534;
-  color: #dcfce7;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.3;
-  white-space: nowrap;
-}
 `;
 
 function formatKobo(kobo: number) {
@@ -269,15 +249,12 @@ export function FeeCalculatorDrawer({ open, onClose }: FeeCalculatorDrawerProps)
     if (!open) setAmountNaira('');
   }, [open]);
 
-  const splits = useMemo(() => {
+  const split = useMemo(() => {
     const naira = Number(String(amountNaira).replace(/,/g, ''));
     if (!Number.isFinite(naira) || naira <= 0) return null;
     const grossKobo = Math.round(naira * 100);
     if (grossKobo <= 0) return null;
-    const free = platformFeeFromGross(grossKobo, PLATFORM_FEE_PERCENT.free);
-    const pro = platformFeeFromGross(grossKobo, PLATFORM_FEE_PERCENT.pro);
-    const saveKobo = Math.max(0, free.platformFee - pro.platformFee);
-    return { free, pro, saveKobo, grossKobo };
+    return platformFeeFromGross(grossKobo, PLATFORM_FEE_PERCENT.free);
   }, [amountNaira]);
 
   if (!open) return null;
@@ -302,7 +279,8 @@ export function FeeCalculatorDrawer({ open, onClose }: FeeCalculatorDrawerProps)
               Fee calculator
             </h2>
             <p className="foleio-fee-calc-meta">
-              See platform &amp; service fees on Free vs Pro for a charge amount.
+              Platform &amp; service fees are {formatPlatformFeeLabel()} on Free
+              and Pro.
             </p>
           </div>
           <button
@@ -333,62 +311,45 @@ export function FeeCalculatorDrawer({ open, onClose }: FeeCalculatorDrawerProps)
             />
           </div>
 
-          {splits ? (
-            <div className="foleio-fee-calc-table-wrap">
-              <table className="foleio-fee-calc-table">
-                <caption className="foleio-fee-calc-sr-only">
-                  Free vs Pro platform and service fees
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col" />
-                    <th scope="col">
-                      Free
-                      <span className="foleio-fee-calc-rate">
-                        {PLATFORM_FEE_PERCENT.free}% · or ₦300 under ₦5,000
-                      </span>
-                    </th>
-                    <th scope="col" className="is-pro">
-                      Pro
-                      <span className="foleio-fee-calc-rate">
-                        {formatProFeeLabel()}
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">Fee</th>
-                    <td>
-                      {formatKobo(splits.free.platformFee)}
-                      {splits.free.feeType === 'flat' ? (
-                        <span className="foleio-fee-calc-note">
-                          ₦300 flat (under ₦5,000)
+          {split ? (
+            <>
+              <div className="foleio-fee-calc-table-wrap">
+                <table className="foleio-fee-calc-table">
+                  <caption className="foleio-fee-calc-sr-only">
+                    Platform and service fee split at {formatPlatformFeeLabel()}
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" />
+                      <th scope="col">
+                        Free &amp; Pro
+                        <span className="foleio-fee-calc-rate">
+                          {formatPlatformFeeLabel()} on every charge
                         </span>
-                      ) : null}
-                    </td>
-                    <td className="is-pro">
-                      {formatKobo(splits.pro.platformFee)}
-                      {splits.pro.feeType === 'percent_plus_flat' ? (
-                        <span className="foleio-fee-calc-note">
-                          {formatProFeeLabel()} on every charge
-                        </span>
-                      ) : null}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">You keep</th>
-                    <td>{formatKobo(splits.free.creatorEarnings)}</td>
-                    <td className="is-pro">
-                      {formatKobo(splits.pro.creatorEarnings)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Fee</th>
+                      <td>{formatKobo(split.platformFee)}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">You keep</th>
+                      <td>{formatKobo(split.creatorEarnings)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="foleio-fee-calc-note">
+                Same fee on Free and Pro. Upgrade to Pro for unlimited
+                services/products, portfolio categories, and schedule templates.
+              </p>
+            </>
           ) : (
             <p className="foleio-fee-calc-placeholder">
-              Enter a booking or shop amount to compare fees on Free and Pro.
+              Enter a booking or shop amount to see the {formatPlatformFeeLabel()}{' '}
+              split.
             </p>
           )}
         </div>
@@ -399,12 +360,7 @@ export function FeeCalculatorDrawer({ open, onClose }: FeeCalculatorDrawerProps)
             className="foleio-fee-calc-upgrade"
             onClick={onClose}
           >
-            Upgrade to Pro
-            {splits && splits.saveKobo > 0 ? (
-              <span className="foleio-fee-calc-save-badge">
-                Save {formatKobo(splits.saveKobo)}
-              </span>
-            ) : null}
+            See Pro features
           </Link>
         </div>
       </aside>

@@ -8,8 +8,6 @@ import {
 
 export {
   defaultPlatformFeePercent,
-  SMALL_ORDER_THRESHOLD_KOBO,
-  SMALL_ORDER_FLAT_FEE_KOBO,
   PLATFORM_SUB_FEE_SELECT,
   toFeePlanInput,
   feePercentForCreator,

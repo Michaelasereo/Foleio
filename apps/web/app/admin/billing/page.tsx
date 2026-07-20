@@ -82,7 +82,7 @@ export default function AdminBillingPage() {
       <div>
         <h2 className="foleio-admin-title">Billing (platform plans)</h2>
         <p className={`foleio-admin-meta ${adminMutedClass}`}>
-          Free 5% · Pro 3.5% + ₦100 · Growth 3.5% (invite) · legacy Pro 0% until period end
+          Free / Pro / Growth 3.5% · legacy Pro 0% until period end · Pro unlocks features
         </p>
       </div>
 
@@ -139,7 +139,7 @@ export default function AdminBillingPage() {
                       <Badge className={`border ${statusBadgeClass(sub.status)}`}>{sub.status}</Badge>
                     </td>
                     <td className={adminTableCellClass}>{formatMoneyFromKobo(sub.amount)}</td>
-                    <td className={adminTableCellClass}>{Number(sub.feePercent ?? 5)}%</td>
+                    <td className={adminTableCellClass}>{Number(sub.feePercent ?? 3.5)}%</td>
                     <td className={adminTableCellClass}>
                       {sub.creator?.growthEligible ? 'Eligible' : '—'}
                     </td>

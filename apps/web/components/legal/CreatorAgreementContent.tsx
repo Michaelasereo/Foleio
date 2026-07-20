@@ -56,15 +56,13 @@ export function CreatorAgreementContent() {
       </p>
       <ul>
         <li>
-          <strong>Free plan:</strong> 5% of each transaction at or above ₦5,000.
-          For charges under ₦5,000, a flat ₦300 platform &amp; service fee
-          applies (capped at the charge amount) instead of 5%. The flat fee
-          applies on Free only.
+          <strong>Free plan:</strong> 3.5% platform &amp; service fees on each
+          transaction.
         </li>
         <li>
           <strong>Pro plan (₦12,000 / 6 months or ₦24,000 / year):</strong> 3.5%
-          + ₦100 platform &amp; service fees while your Pro subscription is
-          active.
+          platform &amp; service fees while your Pro subscription is active. Pro
+          unlocks additional features; the fee rate matches Free.
         </li>
         <li>
           <strong>Growth plan (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
@@ -145,14 +143,13 @@ export function CreatorAgreementContent() {
       <ul>
         <li>
           <strong>Free (₦0):</strong> Full access to bookings, shop, services,
-          and creator tools, with <strong>5%</strong> platform &amp; service fees
-          on qualifying transactions (or <strong>₦300 flat</strong> on charges
-          under ₦5,000).
+          and creator tools, with <strong>3.5%</strong> platform &amp; service
+          fees.
         </li>
         <li>
           <strong>Pro (₦12,000 / 6 months or ₦24,000 / year):</strong> Everything
-          on Free, with <strong>3.5% + ₦100</strong> platform &amp; service fees
-          while the subscription is active. Self-serve via Billing.
+          on Free plus Pro features, with <strong>3.5%</strong> platform &amp;
+          service fees while the subscription is active. Self-serve via Billing.
         </li>
         <li>
           <strong>Growth (₦35,000 / 6 months or ₦70,000 / year):</strong>{' '}
@@ -165,11 +162,11 @@ export function CreatorAgreementContent() {
         Paid plans are billed for six months or yearly in advance through
         Paystack. You may cancel at any time; benefits remain active until the
         end of the current paid period, after which your account returns to Free
-        and the 5% / ₦300 fee schedule resumes. Creators on the previous monthly
-        Pro plan (₦10,000/month at 0% platform &amp; service fees) keep that rate
-        until their current period ends. Foleio reserves the right to change
-        platform subscription pricing with 30 days&apos; advance notice to
-        existing subscribers.
+        at the same <strong>3.5%</strong> fee rate (without Pro features).
+        Creators on the previous monthly Pro plan (₦10,000/month at 0% platform
+        &amp; service fees) keep that rate until their current period ends.
+        Foleio reserves the right to change platform subscription pricing with
+        30 days&apos; advance notice to existing subscribers.
       </p>
 
       <h2>7. Cancellations &amp; Refunds</h2>

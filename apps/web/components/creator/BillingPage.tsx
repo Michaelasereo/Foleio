@@ -63,7 +63,7 @@ function feeLabelForPlan(plan: PlanKey, isLegacyZero: boolean): string {
   if (isLegacyZero) return `${PLATFORM_FEE_PERCENT.legacyPro}% platform & service fees (legacy)`;
   if (plan === 'growth') return `${PLATFORM_FEE_PERCENT.growth}% platform & service fees`;
   if (plan === 'pro') return `${formatProFeeLabel()} platform & service fees`;
-  return `${PLATFORM_FEE_PERCENT.free}% platform & service fees (₦300 flat under ₦5,000)`;
+  return `${PLATFORM_FEE_PERCENT.free}% platform & service fees`;
 }
 
 export function BillingPage({
@@ -247,7 +247,7 @@ export function BillingPage({
       fee: `${PLATFORM_FEE_PERCENT.free}%`,
       features: [
         'Full access to bookings, shop, and tools',
-        `${PLATFORM_FEE_PERCENT.free}% platform & service fees (₦300 flat under ₦5,000)`,
+        `${PLATFORM_FEE_PERCENT.free}% platform & service fees`,
         'Up to 10 services and 10 products (5 preorders)',
         'One Home portfolio gallery',
       ],
@@ -553,11 +553,11 @@ export function BillingPage({
                 PLATFORM_PLAN_AMOUNTS_KOBO[upgradeTarget.plan][upgradeTarget.interval]
               )}{' '}
               / {upgradeTarget.interval === 'annual' ? 'year' : '6 months'}. Platform
-              &amp; service fees become{' '}
+              &amp; service fees stay{' '}
               {upgradeTarget.plan === 'growth'
                 ? `${PLATFORM_FEE_PERCENT.growth}%`
-                : formatProFeeLabel()}
-              .
+                : formatProFeeLabel()}{' '}
+              — Pro unlocks features, not a different fee rate.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button

@@ -38,9 +38,10 @@ function getUpgradeTarget(currentPlan: PlatformPlan): PlanCardInfo {
       price: 'from ₦12,000 / 6 months',
       slug: 'pro',
       features: [
-        `${formatProFeeLabel()} platform & service fees (vs 5% on Free)`,
+        'Unlimited services & products',
         'Up to 3 portfolio categories',
-        'Full bookings, shop, and creator tools',
+        'Availability schedule templates',
+        `${formatProFeeLabel()} platform & service fees (same as Free)`,
         'Cancel anytime — benefits last until period end',
       ],
     };
@@ -51,9 +52,9 @@ function getUpgradeTarget(currentPlan: PlatformPlan): PlanCardInfo {
     price: 'from ₦35,000 / 6 months',
     slug: 'growth',
     features: [
-      '3.5% platform & service fees',
+      'Everything on Pro',
+      `${formatProFeeLabel()} platform & service fees`,
       'Invite-only — request access via support',
-      'Same tools as Pro at a lower fee',
     ],
   };
 }

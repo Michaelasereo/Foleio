@@ -48,7 +48,7 @@ export function DashboardCreatorPolicy({
             <strong>{PLATFORM_FEE_PERCENT.free}%</strong>
             <span>platform &amp; service fees</span>
             <span className="foleio-dash-fee-note">
-              ₦300 flat under ₦5,000
+              Same rate as Pro
             </span>
           </div>
         </div>
@@ -63,7 +63,7 @@ export function DashboardCreatorPolicy({
           <div className="foleio-dash-fee-rate">
             <strong>{formatProFeeLabel()}</strong>
             <span>platform &amp; service fees</span>
-            <span className="foleio-dash-fee-note">Self-serve</span>
+            <span className="foleio-dash-fee-note">Features unlock</span>
           </div>
         </div>
         {growthEligible ? (
@@ -85,8 +85,9 @@ export function DashboardCreatorPolicy({
       </div>
 
       <p>
-        After platform &amp; service fees, you keep the rest. The ₦300 flat under
-        ₦5,000 applies on Free only. You can upgrade in{' '}
+        After platform &amp; service fees, you keep the rest. Free and Pro both
+        use the same {PLATFORM_FEE_PERCENT.free}% fee — Pro unlocks features.
+        You can upgrade in{' '}
         <Link href="/settings?tab=billing">Settings → Billing</Link>.
       </p>
 
