@@ -108,15 +108,28 @@ export function paystackPlanCodeEnvKey(
   return 'PAYSTACK_GROWTH_QUARTERLY_PLAN_CODE';
 }
 
+/** Strip inline `#` comments / quotes so Netlify/.env values like `PLN_x # note` still work. */
+export function sanitizePaystackPlanCode(
+  raw: string | null | undefined
+): string | null {
+  if (!raw) return null;
+  const cleaned = raw
+    .split('#')[0]
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  return cleaned || null;
+}
+
 export function resolvePaystackPlanCode(
   plan: PaidPlatformPlan,
   interval: BillingInterval
 ): string | null {
   const key = paystackPlanCodeEnvKey(plan, interval);
-  const value = process.env[key]?.trim();
+  const value = sanitizePaystackPlanCode(process.env[key]);
   if (value) return value;
   if (plan === 'pro') {
-    return process.env.PAYSTACK_PRO_PLAN_CODE?.trim() || null;
+    return sanitizePaystackPlanCode(process.env.PAYSTACK_PRO_PLAN_CODE);
   }
   return null;
 }
