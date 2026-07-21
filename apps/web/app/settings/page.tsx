@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { AccountSettingsTabs } from '@/components/creator/AccountSettingsTabs';
 import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
+import { getCreatorPaidActiveForId } from '@/lib/billing/effective-plan-limits';
 import { serializeForClient } from '@/lib/utils';
 import SettingsLoading from './loading';
 
@@ -119,6 +120,12 @@ export default async function SettingsPage() {
       </div>
     );
   }
+
+  const platformSubscriptionActive = await getCreatorPaidActiveForId(
+    creator.id,
+    creator.platformSubscriptionActive
+  );
+  creator = { ...creator, platformSubscriptionActive };
 
   const twitterUrl =
     creator.creatorLinks.find((link) => link.linkType === 'twitter')?.url || null;

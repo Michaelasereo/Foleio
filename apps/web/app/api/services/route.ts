@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
-import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const limits = getCreatorPlanLimits(creator);
+    const limits = await getEffectiveCreatorPlanLimits(creator);
     const serviceCount = await prisma.priceListItem.count({
       where: { creatorId: creator.id },
     });

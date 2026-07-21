@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { prisma } from '@foleio/database';
 import { UnifiedBookingsManager } from '@/components/booking/UnifiedBookingsManager';
+import { getCreatorPaidActiveForId } from '@/lib/billing/effective-plan-limits';
 import { serializeForClient } from '@/lib/utils';
 import {
   formatBalanceDueDate,
@@ -160,10 +161,18 @@ export default async function BookingsPage({
   const disputedBookings = withDue(disputedBookingsRaw);
   const completedBookings = withDue(completedBookingsRaw);
 
+  const platformSubscriptionActive = await getCreatorPaidActiveForId(
+    creator.id,
+    creator.platformSubscriptionActive
+  );
+
   return (
     <Suspense fallback={<BookingsLoading />}>
       <UnifiedBookingsManager
-        creator={serializeForClient(creator)}
+        creator={serializeForClient({
+          ...creator,
+          platformSubscriptionActive,
+        })}
         upcomingBookings={serializeForClient(upcomingBookings) as any}
         disputedBookings={serializeForClient(disputedBookings) as any}
         completedBookings={serializeForClient(completedBookings) as any}

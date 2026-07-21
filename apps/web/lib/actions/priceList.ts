@@ -4,7 +4,7 @@ import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
-import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 const addonSchema = z.object({
   id: z.string().min(1),
@@ -64,7 +64,7 @@ export async function createPriceListItem(data: PriceListItemInput) {
     return { error: validation.error.errors[0].message };
   }
 
-  const limits = getCreatorPlanLimits(creator);
+  const limits = await getEffectiveCreatorPlanLimits(creator);
   const serviceCount = await prisma.priceListItem.count({
     where: { creatorId: creator.id },
   });

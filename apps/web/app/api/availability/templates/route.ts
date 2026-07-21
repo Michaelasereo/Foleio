@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { isValidHHmm, timeToMinutes, type TimeRange } from '@/lib/booking/slots';
-import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const limits = getCreatorPlanLimits(auth.creator);
+    const limits = await getEffectiveCreatorPlanLimits(auth.creator);
     if (!limits.canUseAvailabilityTemplates) {
       return NextResponse.json(
         { error: 'Plan limit reached', limitType: 'availabilityTemplates' },

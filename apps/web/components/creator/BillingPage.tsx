@@ -212,7 +212,7 @@ export function BillingPage({
 
       toast({
         title: 'Subscription cancelled',
-        description: `Your plan stays active until the end of this billing cycle, then Free (${formatFreeFeeLabel()}) resumes.`,
+        description: `You’re on Free now (${formatFreeFeeLabel()} platform fee). Pro features are locked.`,
       });
       setCancelOpen(false);
       router.refresh();
@@ -570,8 +570,8 @@ export function BillingPage({
               Cancel {currentPlan === 'growth' ? 'Growth' : 'Pro'}?
             </h3>
             <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
-              Your plan stays active until {formatDate(periodEnd)}. After that you move to
-              Free and {formatFreeFeeLabel()} fees apply.
+              You’ll move to Free immediately. Pro features lock and{' '}
+              {formatFreeFeeLabel()} fees apply on new payments.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button

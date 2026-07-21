@@ -86,6 +86,11 @@ function isLegacyZeroFee(creator: FeePlanInput): boolean {
  * Legacy monthly Pro → 0% until period end.
  */
 export function feePercentForCreator(creator: FeePlanInput): number {
+  const subStatus = (creator.platformSubscription?.status || '').toLowerCase();
+  if (subStatus && subStatus !== 'active' && subStatus !== 'trialing') {
+    return defaultPlatformFeePercent();
+  }
+
   if (!creator.platformSubscriptionActive) {
     return defaultPlatformFeePercent();
   }

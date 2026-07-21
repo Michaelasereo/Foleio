@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
-import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const limits = getCreatorPlanLimits(creator);
+    const limits = await getEffectiveCreatorPlanLimits(creator);
     const productCount = await prisma.product.count({
       where: { creatorId: creator.id },
     });

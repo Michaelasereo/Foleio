@@ -12,9 +12,9 @@ import {
   isHomeSection,
 } from '@/lib/creator/portfolio-gallery';
 import {
-  getCreatorPlanLimits,
-  isPaidPlanActive,
-} from '@/lib/utils/plan-limits';
+  getCreatorPaidActiveForId,
+  getEffectiveCreatorPlanLimits,
+} from '@/lib/billing/effective-plan-limits';
 
 const GALLERY_SECTION_NAME = 'Gallery';
 
@@ -103,7 +103,7 @@ export async function createPortfolioSection(name: string, description?: string)
   if ('error' in auth) return { error: auth.error };
   const { creator } = auth;
 
-  const limits = getCreatorPlanLimits(creator);
+  const limits = await getEffectiveCreatorPlanLimits(creator);
   if (limits.maxPortfolioCategories <= 0) {
     return {
       error: 'Portfolio categories require Pro',
@@ -312,7 +312,13 @@ export async function getPublicPortfolio(creatorId: string) {
     },
   });
 
-  if (!creator || !isPaidPlanActive(creator)) {
+  if (
+    !creator ||
+    !(await getCreatorPaidActiveForId(
+      creator.id,
+      creator.platformSubscriptionActive
+    ))
+  ) {
     const homeId = homeSectionId(sections);
     if (!homeId) return [];
     return sections.filter((s) => s.id === homeId);

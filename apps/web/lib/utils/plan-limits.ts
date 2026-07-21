@@ -60,23 +60,21 @@ export function isPaidPlanActive(creator: {
 }
 
 /**
- * Effective limits for gating. When `platformSubscriptionActive` is provided,
- * inactive paid plans use Free (STARTER) caps.
+ * Effective limits for gating.
+ * Pro/Growth ONLY when `platformSubscriptionActive === true` and plan is paid.
+ * Missing/undefined active must not unlock Pro from a stale `platformPlan` string
+ * (e.g. Billing shows Free after cancel but creator.platformPlan was left as pro).
  */
 export function getPlanLimits(
   platformPlan: string | null,
   platformSubscriptionActive?: boolean | null
 ) {
-  if (platformSubscriptionActive === false) {
+  if (platformSubscriptionActive !== true) {
     return PLAN_LIMITS.STARTER;
   }
 
-  if (platformSubscriptionActive === true) {
-    const plan = getCreatorPlan(platformPlan);
-    return plan === 'STARTER' ? PLAN_LIMITS.STARTER : PLAN_LIMITS[plan];
-  }
-
-  return PLAN_LIMITS[getCreatorPlan(platformPlan)];
+  const plan = getCreatorPlan(platformPlan);
+  return plan === 'STARTER' ? PLAN_LIMITS.STARTER : PLAN_LIMITS[plan];
 }
 
 /** Convenience: limits from a creator row with plan + subscription fields. */
