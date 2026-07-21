@@ -35,6 +35,10 @@ const creatorShellSelect = {
   hasCompletedTour: true,
   contentCount: true,
   balanceDueDaysBefore: true,
+  bookingPolicyType: true,
+  bookingPolicyFileUrl: true,
+  bookingPolicyFileName: true,
+  bookingPolicyLinkUrl: true,
 } as const;
 
 export type CreatorForUser = {
@@ -52,6 +56,10 @@ export type CreatorForUser = {
   hasCompletedTour: boolean;
   contentCount: number;
   balanceDueDaysBefore: number;
+  bookingPolicyType: string | null;
+  bookingPolicyFileUrl: string | null;
+  bookingPolicyFileName: string | null;
+  bookingPolicyLinkUrl: string | null;
 };
 
 /**
@@ -85,6 +93,10 @@ const publicCreatorLeanSelect = {
   paystackSubaccountCode: true,
   subaccountStatus: true,
   bvnVerified: true,
+  bookingPolicyType: true,
+  bookingPolicyFileUrl: true,
+  bookingPolicyFileName: true,
+  bookingPolicyLinkUrl: true,
   introVideo: {
     select: {
       id: true,

@@ -160,6 +160,12 @@ model Creator {
   cancellationPolicy   Json @default("[{\"minDaysBefore\":60,\"maxDaysBefore\":null,\"refundPercent\":100},{\"minDaysBefore\":30,\"maxDaysBefore\":59,\"refundPercent\":50},{\"minDaysBefore\":0,\"maxDaysBefore\":29,\"refundPercent\":0}]") @map("cancellation_policy")
   balanceDueDaysBefore Int  @default(7) @map("balance_due_days_before")
 
+  // Public booking policy document (PDF/DOC) or Google Doc link — one at a time
+  bookingPolicyType     String? @map("booking_policy_type") // 'file' | 'link'
+  bookingPolicyFileUrl  String? @map("booking_policy_file_url")
+  bookingPolicyFileName String? @map("booking_policy_file_name")
+  bookingPolicyLinkUrl  String? @map("booking_policy_link_url")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

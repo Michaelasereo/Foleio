@@ -7,8 +7,10 @@ import { bookingCreatorNotificationEmail } from './templates/booking-creator-not
 import { bookingStatusUpdateEmail } from './templates/booking-status-update';
 import { balanceReminderEmail } from './templates/balance-reminder';
 import { balanceOverdueCreatorEmail } from './templates/balance-overdue-creator';
+import { creatorSessionReminderEmail } from './templates/creator-session-reminder';
 import { payoutConfirmationEmail } from './templates/payout-confirmation';
 import { foundingCreatorResetEmailTemplate } from './templates/founding-creator-reset';
+import { understandYourFeesEmail } from './templates/understand-your-fees';
 import { baseEmailTemplate } from './base-template';
 import { getFoleioLogoAttachment } from './foleio-dark-email';
 import type { BalanceReminderKind } from '@/lib/booking/deposit';
@@ -248,6 +250,29 @@ export async function sendBalanceOverdueCreatorEmail(data: {
   }
 }
 
+export async function sendCreatorSessionReminderEmail(data: {
+  creatorEmail: string;
+  creatorName: string;
+  customerName: string;
+  customerEmail: string;
+  serviceName: string;
+  bookingDate: string;
+  bookingUrl: string;
+}) {
+  try {
+    const { subject, html } = creatorSessionReminderEmail(data);
+    return await sendEmail({
+      to: data.creatorEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendCreatorSessionReminderEmail failed:', error);
+    return { success: false };
+  }
+}
+
 export async function sendPayoutConfirmation(data: {
   creatorEmail: string;
   creatorName: string;
@@ -455,6 +480,34 @@ export async function notifySubscribersNewEntry({
         }),
       }))
     );
+  }
+}
+
+export async function sendUnderstandYourFeesEmail(data: {
+  email: string;
+  displayName: string;
+  billingUrl?: string;
+  siteUrl?: string;
+}) {
+  try {
+    const siteUrl =
+      data.siteUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
+    const billingUrl =
+      data.billingUrl || `${siteUrl.replace(/\/$/, '')}/settings?tab=billing`;
+    const { subject, html } = understandYourFeesEmail({
+      displayName: data.displayName,
+      billingUrl,
+      siteUrl,
+    });
+    return await sendEmail({
+      to: data.email,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendUnderstandYourFeesEmail failed:', error);
+    return { success: false };
   }
 }
 

@@ -276,7 +276,8 @@ export async function unsubscribeFromCreator(unsubscribeToken: string) {
   }
 }
 
-// Send service day reminder (to be called by cron job)
+// Send service day reminder to the *customer*.
+// Prefer creator 1-day reminders via processCreatorSessionReminders cron.
 export async function sendServiceDayReminder(bookingId: string) {
   try {
     const booking = await prisma.booking.findUnique({

@@ -10,6 +10,25 @@ export interface R2Config {
   region?: string;
 }
 
+/** R2/S3 user metadata must be ASCII — non-ASCII filenames break request signatures. */
+function sanitizeS3Metadata(
+  meta?: Record<string, string>
+): Record<string, string> | undefined {
+  if (!meta) return undefined;
+  const out: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(meta)) {
+    const key = rawKey.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const value = String(rawValue)
+      .normalize('NFKD')
+      .replace(/[^\x20-\x7E]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 180);
+    if (key && value) out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export class R2StorageClient {
   private client: S3Client;
   private config: R2Config;
@@ -24,6 +43,9 @@ export class R2StorageClient {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       },
+      // AWS SDK v3 default flexible checksums break Cloudflare R2 signatures.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 
@@ -39,12 +61,15 @@ export class R2StorageClient {
       isPublic?: boolean;
     } = {}
   ): Promise<{ url: string; key: string; size: number }> {
+    const body =
+      file instanceof Buffer ? new Uint8Array(file.buffer, file.byteOffset, file.byteLength) : file;
+
     const command = new PutObjectCommand({
       Bucket: this.config.bucketName,
       Key: key,
-      Body: file,
+      Body: body,
       ContentType: options.contentType || 'application/octet-stream',
-      Metadata: options.metadata,
+      Metadata: sanitizeS3Metadata(options.metadata),
       // R2 does not use S3 ACLs; public access is via r2.dev / custom domain.
     });
 
@@ -57,7 +82,7 @@ export class R2StorageClient {
     return {
       url,
       key,
-      size: file.byteLength,
+      size: body.byteLength,
     };
   }
 
@@ -152,13 +177,18 @@ export function getR2Client(): R2StorageClient {
     }
 
     r2Client = new R2StorageClient({
-      accountId,
-      accessKeyId,
-      secretAccessKey,
-      bucketName,
+      accountId: accountId.trim(),
+      accessKeyId: accessKeyId.trim(),
+      secretAccessKey: secretAccessKey.trim(),
+      bucketName: bucketName.trim(),
       publicUrl: resolvePublicUrl(accountId),
     });
   }
 
   return r2Client;
+}
+
+/** Test helper / hot-reload: drop cached client after config changes. */
+export function resetR2Client() {
+  r2Client = null;
 }

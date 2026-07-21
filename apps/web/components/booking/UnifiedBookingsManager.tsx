@@ -14,6 +14,8 @@ import { processRefund, rejectRefund } from '@/lib/actions/booking';
 import { AvailabilitySetupForm } from '@/components/booking/AvailabilitySetupForm';
 import { BookingsServicesManager } from '@/components/booking/BookingsServicesManager';
 import type { ServiceItem } from '@/components/booking/BookingsServicesManager';
+import { BookingPolicyDocumentSettings } from '@/components/booking/BookingPolicyDocumentSettings';
+import type { BookingPolicyDocument } from '@/lib/actions/booking-policy-document';
 import {
   BOOKING_STATUS_LABELS,
   STATUS_FILTER_META,
@@ -29,6 +31,10 @@ interface Creator {
   username: string;
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
+  bookingPolicyType?: string | null;
+  bookingPolicyFileUrl?: string | null;
+  bookingPolicyFileName?: string | null;
+  bookingPolicyLinkUrl?: string | null;
 }
 
 interface Booking {
@@ -349,12 +355,28 @@ export function UnifiedBookingsManager({
           availability={availability as any}
         />
       ) : primaryView === 'services' ? (
-        <BookingsServicesManager
-          creatorId={creator.id}
-          platformPlan={creator.platformPlan}
-          platformSubscriptionActive={creator.platformSubscriptionActive}
-          initialPriceList={priceList}
-        />
+        <>
+          <BookingsServicesManager
+            creatorId={creator.id}
+            platformPlan={creator.platformPlan}
+            platformSubscriptionActive={creator.platformSubscriptionActive}
+            initialPriceList={priceList}
+          />
+          <BookingPolicyDocumentSettings
+            initial={
+              {
+                bookingPolicyType:
+                  creator.bookingPolicyType === 'file' ||
+                  creator.bookingPolicyType === 'link'
+                    ? creator.bookingPolicyType
+                    : null,
+                bookingPolicyFileUrl: creator.bookingPolicyFileUrl ?? null,
+                bookingPolicyFileName: creator.bookingPolicyFileName ?? null,
+                bookingPolicyLinkUrl: creator.bookingPolicyLinkUrl ?? null,
+              } satisfies BookingPolicyDocument
+            }
+          />
+        </>
       ) : (
         <>
           <div className="foleio-dash-stats">

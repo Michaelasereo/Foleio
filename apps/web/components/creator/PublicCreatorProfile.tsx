@@ -17,6 +17,7 @@ import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { RemoteImage } from '@/components/creator/RemoteImage';
 import { PublicShopPanel, prefetchPublicShop } from '@/components/shop/PublicShopPanel';
 import { PublicGalleryPanel } from '@/components/creator/public/PublicGalleryPanel';
+import { resolveBookingPolicyHref } from '@/lib/booking/booking-policy-document';
 
 interface CreatorLink {
   id: string;
@@ -96,6 +97,10 @@ interface Creator {
   paystackSubaccountCode?: string | null;
   subaccountStatus?: string | null;
   bvnVerified?: boolean | null;
+  bookingPolicyType?: string | null;
+  bookingPolicyFileUrl?: string | null;
+  bookingPolicyFileName?: string | null;
+  bookingPolicyLinkUrl?: string | null;
 }
 
 interface PublicCreatorProfileProps {
@@ -297,6 +302,20 @@ body:has(.foleio-public-root) footer { display: none !important; }
   gap: 8px;
   margin-top: 14px;
   width: 100%;
+}
+.foleio-public-policy-link {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  color: #adadad;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.foleio-public-policy-link:hover {
+  color: #f4f4f5;
 }
 .foleio-public-cta-row .foleio-public-cta {
   margin-top: 0;
@@ -619,6 +638,13 @@ export function PublicCreatorProfile({
   const shopOnly = hasShop && !canBook;
   const showBookAndShop = canBook && hasShop;
   const showPrimaryCta = shopOnly || canBook;
+  const bookingPolicyHref = canBook
+    ? resolveBookingPolicyHref({
+        bookingPolicyType: creator.bookingPolicyType,
+        bookingPolicyFileUrl: creator.bookingPolicyFileUrl,
+        bookingPolicyLinkUrl: creator.bookingPolicyLinkUrl,
+      })
+    : null;
 
   const plan = (creator.platformPlan || '').toUpperCase();
   const isProBadge =
@@ -927,42 +953,66 @@ export function PublicCreatorProfile({
 
             {showPrimaryCta ? (
               showBookAndShop ? (
-                <div className="foleio-public-cta-row">
+                <div>
+                  <div className="foleio-public-cta-row">
+                    <button
+                      type="button"
+                      className="foleio-public-cta"
+                      onClick={() => openServiceDrawer()}
+                    >
+                      <Calendar strokeWidth={1.75} />
+                      Book a service
+                    </button>
+                    <button
+                      type="button"
+                      className="foleio-public-cta-secondary"
+                      onClick={() => openShopPanel()}
+                    >
+                      <ShoppingBag strokeWidth={1.75} />
+                      Shop
+                    </button>
+                  </div>
+                  {bookingPolicyHref ? (
+                    <a
+                      href={bookingPolicyHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="foleio-public-policy-link"
+                    >
+                      Read my booking policy
+                    </a>
+                  ) : null}
+                </div>
+              ) : (
+                <div>
                   <button
                     type="button"
                     className="foleio-public-cta"
-                    onClick={() => openServiceDrawer()}
+                    onClick={() => (shopOnly ? openShopPanel() : openServiceDrawer())}
                   >
-                    <Calendar strokeWidth={1.75} />
-                    Book a service
+                    {shopOnly ? (
+                      <>
+                        <ShoppingBag strokeWidth={1.75} />
+                        Shop
+                      </>
+                    ) : (
+                      <>
+                        <Calendar strokeWidth={1.75} />
+                        Book a service
+                      </>
+                    )}
                   </button>
-                  <button
-                    type="button"
-                    className="foleio-public-cta-secondary"
-                    onClick={() => openShopPanel()}
-                  >
-                    <ShoppingBag strokeWidth={1.75} />
-                    Shop
-                  </button>
+                  {bookingPolicyHref && !shopOnly ? (
+                    <a
+                      href={bookingPolicyHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="foleio-public-policy-link"
+                    >
+                      Read my booking policy
+                    </a>
+                  ) : null}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  className="foleio-public-cta"
-                  onClick={() => (shopOnly ? openShopPanel() : openServiceDrawer())}
-                >
-                  {shopOnly ? (
-                    <>
-                      <ShoppingBag strokeWidth={1.75} />
-                      Shop
-                    </>
-                  ) : (
-                    <>
-                      <Calendar strokeWidth={1.75} />
-                      Book a service
-                    </>
-                  )}
-                </button>
               )
             ) : null}
 
