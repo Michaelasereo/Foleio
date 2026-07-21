@@ -1006,35 +1006,98 @@ export default function TrackingPage() {
                       );
                     }
 
-                    // @ts-ignore
+                    const reference = initData.reference as string;
+                    const accessCode = initData.access_code as string | undefined;
+                    const authorizationUrl = initData.authorization_url as
+                      | string
+                      | undefined;
+                    const publicKey = initData.publicKey as string | undefined;
+                    const amount = Number(initData.amount);
+                    const email =
+                      (initData.email as string) || booking.customerEmail;
+                    const subaccount = initData.subaccount as string | undefined;
+
+                    const verifyBalance = (paymentRef: string) => {
+                      void fetch('/api/bookings/verify-payment', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          reference: paymentRef,
+                          bookingId: booking.id,
+                          paymentKind: 'balance',
+                        }),
+                      }).finally(() => {
+                        window.location.reload();
+                      });
+                    };
+
+                    const onPaymentClose = () => setIsPayingBalance(false);
+
+                    // Wait briefly for Paystack script (loaded async in layout)
+                    // @ts-expect-error Paystack global
                     if (typeof window.PaystackPop === 'undefined') {
-                      if (initData.authorization_url) {
-                        window.location.href = initData.authorization_url;
+                      await new Promise((r) => setTimeout(r, 400));
+                    }
+
+                    // @ts-expect-error Paystack global
+                    const paystackReady = typeof window.PaystackPop !== 'undefined';
+
+                    // Prefer resumeTransaction(access_code) — same path as booking checkout
+                    if (paystackReady && accessCode) {
+                      try {
+                        // @ts-expect-error Paystack global
+                        const popup = new window.PaystackPop();
+                        if (typeof popup.resumeTransaction === 'function') {
+                          popup.resumeTransaction(accessCode, {
+                            onSuccess: (transaction: { reference?: string }) => {
+                              verifyBalance(transaction?.reference || reference);
+                            },
+                            onCancel: onPaymentClose,
+                            // Sync functions only — Paystack rejects async callbacks
+                            callback: (response: { reference: string }) => {
+                              verifyBalance(response.reference || reference);
+                            },
+                            onClose: onPaymentClose,
+                          });
+                          return;
+                        }
+                      } catch (e) {
+                        console.warn(
+                          'resumeTransaction unavailable, falling back',
+                          e
+                        );
+                      }
+                    }
+
+                    if (!paystackReady) {
+                      if (authorizationUrl) {
+                        window.location.href = authorizationUrl;
                         return;
                       }
                       throw new Error('Paystack is not available');
                     }
 
-                    // @ts-ignore
+                    if (!publicKey) {
+                      if (authorizationUrl) {
+                        window.location.href = authorizationUrl;
+                        return;
+                      }
+                      throw new Error('Payment configuration is missing');
+                    }
+
+                    // Fallback: Inline setup (sync callback — async triggers Paystack error)
+                    // @ts-expect-error Paystack global
                     const handler = window.PaystackPop.setup({
-                      key: initData.publicKey,
-                      email: booking.customerEmail,
-                      amount: initData.amount,
-                      ref: initData.reference,
-                      subaccount: initData.subaccount,
-                      callback: async (response: { reference: string }) => {
-                        await fetch('/api/bookings/verify-payment', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            reference: response.reference,
-                            bookingId: booking.id,
-                            paymentKind: 'balance',
-                          }),
-                        });
-                        window.location.reload();
+                      key: publicKey,
+                      email,
+                      amount,
+                      currency: 'NGN',
+                      ref: reference,
+                      ...(subaccount ? { subaccount } : {}),
+                      callback: (response: { reference: string }) => {
+                        verifyBalance(response.reference || reference);
                       },
-                      onClose: () => setIsPayingBalance(false),
+                      onClose: onPaymentClose,
                     });
                     handler.openIframe();
                   } catch (err) {
