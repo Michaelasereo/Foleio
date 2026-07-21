@@ -5,7 +5,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { normalizeAddonCategoriesInput } from '@/lib/shop/product-addons';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { validatePreorderSettingsInput } from '@/lib/shop/preorder';
-import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -118,7 +118,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params;
     const existing = await prisma.product.findFirst({
       where: { id, creatorId },
-      select: { id: true, isPreorder: true },
+      select: {
+        id: true,
+        isPreorder: true,
+        type: true,
+        digitalFileUrl: true,
+        stock: true,
+      },
     });
 
     if (!existing) {
@@ -126,13 +132,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const body = await request.json();
+    const limits = await getEffectiveCreatorPlanLimits(creator);
 
     if (body?.statusOnly === true && (body.status === 'active' || body.status === 'draft')) {
       const stockCheck = await prisma.product.findFirst({
         where: { id, creatorId },
-        select: { stock: true },
+        select: { stock: true, type: true, digitalFileUrl: true },
       });
-      if (body.status === 'active' && (stockCheck?.stock ?? 0) <= 0) {
+      const isDigitalStatus = stockCheck?.type === 'digital';
+      if (
+        body.status === 'active' &&
+        isDigitalStatus &&
+        !String(stockCheck?.digitalFileUrl || '').trim()
+      ) {
+        return NextResponse.json(
+          { error: 'Upload a PDF before publishing a digital product' },
+          { status: 400 }
+        );
+      }
+      if (
+        body.status === 'active' &&
+        !isDigitalStatus &&
+        (stockCheck?.stock ?? 0) <= 0
+      ) {
         return NextResponse.json(
           { error: 'Cannot publish a product with zero stock' },
           { status: 400 }
@@ -146,17 +168,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ product });
     }
 
+    const productType =
+      String(body?.type || existing.type || '')
+        .trim()
+        .toLowerCase() === 'digital'
+        ? 'digital'
+        : 'physical';
+    const isDigital = productType === 'digital';
+
+    if (isDigital && !limits.canSellDigitalProducts) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'digitalProducts' },
+        { status: 403 }
+      );
+    }
+
     const name = String(body?.name || '').trim();
     const description = body?.description ? String(body.description) : null;
     const { imageUrl, imageUrls } = parseImageUrls(body);
     const status = body?.status === 'active' ? 'active' : 'draft';
+    const digitalFileUrl = isDigital
+      ? String(body?.digitalFileUrl || existing.digitalFileUrl || '').trim() || null
+      : null;
     const stockRaw = body?.stock;
-    const stock =
-      stockRaw === '' || stockRaw === null || stockRaw === undefined
+    const stock = isDigital
+      ? null
+      : stockRaw === '' || stockRaw === null || stockRaw === undefined
         ? null
         : Math.max(0, Math.floor(Number(stockRaw)));
-    const weight =
-      body?.weight === '' || body?.weight === null || body?.weight === undefined
+    const weight = isDigital
+      ? null
+      : body?.weight === '' || body?.weight === null || body?.weight === undefined
         ? null
         : Math.max(0, Number(body.weight));
     let price = toKobo(body?.price);
@@ -166,15 +208,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       body?.compareAtPrice === undefined
         ? null
         : toKobo(body.compareAtPrice);
-    const isPreorder = Boolean(body?.isPreorder);
-    const addons = parseAddons(body?.addons);
-    const variants = parseVariants(body?.variants);
+    const isPreorder = isDigital ? false : Boolean(body?.isPreorder);
+    const addons = isDigital ? [] : parseAddons(body?.addons);
+    const variants = isDigital ? [] : parseVariants(body?.variants);
     let preorderSettings: ReturnType<
       typeof validatePreorderSettingsInput
     >['settings'] = null;
 
     if (isPreorder && !existing.isPreorder) {
-      const limits = getCreatorPlanLimits(creator);
       const preorderCount = await prisma.product.count({
         where: { creatorId, isPreorder: true },
       });
@@ -207,8 +248,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (price <= 0) {
       return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 });
     }
-    if (stock === null || !Number.isFinite(stock)) {
+    if (!isDigital && (stock === null || !Number.isFinite(stock))) {
       return NextResponse.json({ error: 'Stock is required' }, { status: 400 });
+    }
+    if (isDigital && status === 'active' && !digitalFileUrl) {
+      return NextResponse.json(
+        { error: 'Upload a PDF before publishing a digital product' },
+        { status: 400 }
+      );
     }
     if (compareAtPrice !== null && compareAtPrice <= price) {
       return NextResponse.json(
@@ -217,7 +264,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       );
     }
 
-    const nextStatus = stock <= 0 ? 'draft' : status;
+    const nextStatus =
+      !isDigital && stock !== null && stock <= 0 ? 'draft' : status;
 
     const product = await prisma.$transaction(async (tx) => {
       await tx.productVariant.deleteMany({ where: { productId: id } });
@@ -230,9 +278,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           price,
           compareAtPrice,
           weight,
-          type: 'physical',
+          type: productType,
           imageUrl,
-          digitalFileUrl: null,
+          digitalFileUrl,
           stock,
           status: nextStatus,
           waiveDeliveryFee: false,
@@ -247,7 +295,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await tx.$executeRawUnsafe(
         `UPDATE products SET image_urls = $1::text[], show_limited_stock = $2 WHERE id = $3`,
         imageUrls,
-        Boolean(body?.showLimitedStock),
+        isDigital ? false : Boolean(body?.showLimitedStock),
         id
       );
 

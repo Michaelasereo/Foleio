@@ -1,21 +1,35 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import {
+  formatFreeFeeLabel,
+  formatPlanPrice,
+  formatProFeeLabel,
+  PLATFORM_PLAN_AMOUNTS_KOBO,
+} from '@/lib/billing/platform-plans';
+import {
+  MarketingCta,
+  MarketingHero,
+  MarketingShell,
+} from '@/components/marketing/MarketingShell';
+import { BRAND_CLAIM } from '@/components/marketing/marketingCss';
+
+const aboutDescription =
+  'Foleio is Africa’s number one creator monetization platform — shareable link, bookings, shop, and Paystack payouts to Nigerian banks.';
 
 export const metadata: Metadata = {
-  title: 'About Foleio — The Creator Platform for Nigerians',
-  description:
-    'Foleio is the monetisation platform built for Nigerian creators and diaspora Nigerians in the US, UK, and Canada. Sell content, offer services, and build a business from your creativity.',
+  title: 'About Foleio — Bookings, Shop & Payouts for Creators',
+  description: aboutDescription,
   keywords: [
     'Foleio',
+    'creator monetization Africa',
     'Nigerian creator platform',
-    'monetise content Nigeria',
-    'Nigerian diaspora creators',
-    'creator economy Nigeria',
-    'sell content online Nigeria',
-    'Nigerian influencer platform',
+    'book services Nigeria',
+    'creator shop Nigeria',
+    'Paystack creator payouts',
   ],
   openGraph: {
-    title: 'About Foleio — Built for Nigerian Creators',
-    description: 'The monetisation platform for Nigerian creators everywhere.',
+    title: 'About Foleio — Built for African Creators',
+    description: aboutDescription,
     url: 'https://foleio.com/about',
     siteName: 'Foleio',
     type: 'website',
@@ -23,7 +37,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'About Foleio',
-    description: 'The monetisation platform for Nigerian creators everywhere.',
+    description: aboutDescription,
   },
   alternates: {
     canonical: 'https://foleio.com/about',
@@ -33,14 +47,13 @@ export const metadata: Metadata = {
 export const dynamic = 'force-static';
 
 export default function AboutPage() {
+  const freeFee = formatFreeFeeLabel();
+  const proFee = formatProFeeLabel();
+  const proMonthly = formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.monthly);
+  const proQuarterly = formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly);
+
   return (
-    <main className="foleio-about-root min-h-screen bg-white">
-      <style
-        dangerouslySetInnerHTML={{
-          __html:
-            'body:has(.foleio-about-root) .foleio-site-footer { display: none !important; }',
-        }}
-      />
+    <MarketingShell activePath="/about">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -50,8 +63,7 @@ export default function AboutPage() {
             name: 'Foleio',
             url: 'https://foleio.com',
             logo: 'https://foleio.com/logo.png',
-            description:
-              'Foleio is the monetisation platform built for Nigerian creators and diaspora Nigerians in the US, UK, and Canada.',
+            description: aboutDescription,
             foundingDate: '2026',
             foundingLocation: 'Lagos, Nigeria',
             sameAs: [
@@ -68,434 +80,264 @@ export default function AboutPage() {
         }}
       />
 
-      <nav className="border-b border-stone-100 px-6 py-4">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <a
-            href="/"
-            className="text-2xl font-bold text-[#F97316]"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            foleio.
-          </a>
-          <a
-            href="/signup"
-            className="rounded-full bg-[#F97316] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
-          >
-            Start for free
-          </a>
-        </div>
-      </nav>
+      <MarketingHero
+        eyebrow={BRAND_CLAIM}
+        title="Your work. Your world. Your Foleio."
+        subtitle="A public business page where clients book your services, buy from your shop, and pay online — with payouts to your Nigerian bank via Paystack."
+      />
 
-      <section className="bg-[#F5F0E8] px-6 py-24 text-center">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-6 inline-block rounded-full bg-orange-100 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#F97316]">
-            Built in Lagos. Built for the world.
-          </div>
-          <h1
-            className="mb-6 text-5xl font-bold leading-tight text-[#1C1008] md:text-6xl"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            The home Nigerian creators
-            <span className="text-[#F97316]"> deserve.</span>
-          </h1>
-          <p className="mx-auto max-w-2xl text-lg leading-relaxed text-stone-600">
-            Foleio is the monetisation platform built specifically for Nigerian creators
-            — whether you&apos;re in Lagos, London, Houston, or Toronto. Sell your
-            content, offer your services, and build a real business from your
-            creativity.
-          </p>
-        </div>
-      </section>
-
-      <section className="px-6 py-20">
-        <div className="mx-auto grid max-w-4xl items-center gap-12 md:grid-cols-2">
+      <section className="foleio-mkt-section">
+        <div className="foleio-mkt-section-inner foleio-mkt-grid-2">
           <div>
-            <p className="mb-4 text-sm font-bold uppercase tracking-widest text-[#F97316]">
-              Our Mission
+            <p className="foleio-mkt-eyebrow">Our mission</p>
+            <h2>Every creator should run their business from one link.</h2>
+            <p className="foleio-mkt-body mb-4">
+              Spreadsheets, DMs, and scattered payment links make it hard to look
+              professional and get paid on time. Foleio puts your profile, bookings,
+              shop, and payouts in one place.
             </p>
-            <h2
-              className="mb-6 text-4xl font-bold leading-tight text-[#1C1008]"
-              style={{ fontFamily: 'Georgia, serif' }}
-            >
-              Every Nigerian creator should be able to earn from what they love.
-            </h2>
-            <p className="mb-4 leading-relaxed text-stone-600">
-              The creator economy is worth hundreds of billions of dollars globally
-              — but Nigerian creators have been largely locked out. Payment barriers,
-              platform restrictions, and tools not built for our reality have made it
-              harder than it should be.
-            </p>
-            <p className="leading-relaxed text-stone-600">
-              Foleio changes that. One platform where you can monetise your content,
-              run your bookings, set up your shop, and connect with fans — built from
-              the ground up for how Nigerian creators actually work.
+            <p className="foleio-mkt-body">
+              You share your Foleio link. Clients book or buy. Money settles to your
+              bank. You stay in control of prices, availability, and policy.
             </p>
           </div>
-          <div className="space-y-6 rounded-3xl bg-[#F5F0E8] p-8">
+          <div className="foleio-mkt-grid-2" style={{ gridTemplateColumns: '1fr' }}>
             {[
+              ['Built for Nigeria', 'Naira payments, Nigerian banks, Paystack payouts.'],
               [
-                '🇳🇬',
-                'Built for Nigeria',
-                'Naira payments, Nigerian banks, Nigerian creators first.',
+                'One public page',
+                'Bookings, shop, and portfolio on a link you control.',
               ],
               [
-                '🌍',
-                'Diaspora Ready',
-                'Nigerian creators in the US, UK, and Canada are fully supported.',
-              ],
-              [
-                '⚡',
                 'Everything in one place',
-                'Content, services, shop, bookings — no juggling multiple tools.',
+                'Services, products, deposits, and earnings — no tool juggling.',
               ],
-            ].map(([emoji, title, desc]) => (
-              <div key={title} className="flex gap-4">
-                <span className="shrink-0 text-2xl">{emoji}</span>
-                <div>
-                  <p className="mb-1 font-bold text-[#1C1008]">{title}</p>
-                  <p className="text-sm leading-relaxed text-stone-600">{desc}</p>
-                </div>
+            ].map(([title, desc]) => (
+              <div key={title} className="foleio-mkt-card">
+                <h3>{title}</h3>
+                <p>{desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-[#1C1008] px-6 py-20">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-14 text-center">
-            <p className="mb-3 text-sm font-bold uppercase tracking-widest text-[#F97316]">
-              For Creators
-            </p>
-            <h2
-              className="text-4xl font-bold text-white"
-              style={{ fontFamily: 'Georgia, serif' }}
-            >
-              Everything you need to monetise your audience
-            </h2>
+      <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
+        <div className="foleio-mkt-section-inner">
+          <div className="mb-10 text-center">
+            <p className="foleio-mkt-eyebrow">What you get</p>
+            <h2>Shipped today for creator businesses</h2>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="foleio-mkt-grid-3 mb-4">
             {[
               [
                 '01',
-                'Upload your content',
-                'Videos, PDFs, images. Set your price. Choose who sees it — free, subscribers, or one-time buyers.',
+                'Public profile',
+                'A branded Foleio link clients open to book or buy — share it on Instagram, WhatsApp, or TikTok.',
               ],
               [
                 '02',
-                'Offer your services',
-                'Take bookings, coaching sessions, and consultations. Set your availability, get paid upfront.',
+                'Bookings',
+                'Services, availability, deposits and balances, tracking, and booking policy — get paid upfront.',
               ],
               [
                 '03',
-                'Open your shop',
-                'Sell physical products or digital downloads directly to your fans. No middlemen.',
+                'Shop',
+                'Sell physical products with delivery and preorders. Pro unlocks digital PDF downloads.',
               ],
             ].map(([num, title, desc]) => (
-              <div key={num} className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <p
-                  className="mb-4 text-3xl font-bold text-[#F97316]"
-                  style={{ fontFamily: 'Georgia, serif' }}
-                >
+              <div key={num} className="foleio-mkt-card">
+                <p className="foleio-mkt-muted mb-3 text-sm font-medium tracking-wide">
                   {num}
                 </p>
-                <h3 className="mb-3 text-lg font-bold text-white">{title}</h3>
-                <p className="text-sm leading-relaxed text-stone-400">{desc}</p>
+                <h3>{title}</h3>
+                <p>{desc}</p>
               </div>
             ))}
           </div>
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
+          <div className="foleio-mkt-grid-3">
             {[
-              ['📓', 'Journal', 'Write and publish long-form posts for your community.'],
-              ['📊', 'Analytics', 'See who your fans are, what they buy, and how your earnings grow.'],
-              ['💳', 'Get paid in Naira', 'Direct payouts to your Nigerian bank account. No complications.'],
-            ].map(([emoji, title, desc]) => (
-              <div key={title} className="flex gap-4 rounded-2xl border border-white/10 bg-white/5 p-6">
-                <span className="shrink-0 text-2xl">{emoji}</span>
-                <div>
-                  <h3 className="mb-1 font-bold text-white">{title}</h3>
-                  <p className="text-sm leading-relaxed text-stone-400">{desc}</p>
-                </div>
+              [
+                'Portfolio',
+                'Show your work. Free includes a Home gallery; Pro unlocks named categories.',
+              ],
+              [
+                'Get paid in Naira',
+                'Paystack settles your share to your linked Nigerian bank — typically next business day.',
+              ],
+              [
+                'Pro discoverability',
+                'Pro creators can appear on Top Creators and get listed for Google search.',
+              ],
+            ].map(([title, desc]) => (
+              <div key={title} className="foleio-mkt-card">
+                <h3>{title}</h3>
+                <p>{desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-[#F5F0E8] px-6 py-20">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-14 text-center">
-            <p className="mb-3 text-sm font-bold uppercase tracking-widest text-[#F97316]">
-              For Fans
-            </p>
-            <h2
-              className="text-4xl font-bold text-[#1C1008]"
-              style={{ fontFamily: 'Georgia, serif' }}
-            >
-              Support the creators you love
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-stone-600">
-              Foleio makes it easy to directly support Nigerian creators — wherever
-              you are in the world.
+      <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
+        <div className="foleio-mkt-section-inner">
+          <div className="mb-10 text-center">
+            <p className="foleio-mkt-eyebrow">For clients</p>
+            <h2>Book and buy from creators you trust</h2>
+            <p className="foleio-mkt-muted mx-auto mt-3 max-w-xl text-sm leading-relaxed">
+              Open a creator&apos;s Foleio page to book their time or shop their
+              products — pay securely with Paystack.
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="foleio-mkt-grid-2">
             {[
               [
-                '🔓',
-                'Access exclusive content',
-                "Subscribe to your favourite creators and unlock videos, PDFs, and more that aren't available anywhere else.",
-              ],
-              [
-                '🛍️',
-                'Shop their products',
-                'Buy physical products and digital downloads directly from creators. No algorithms, no middlemen.',
-              ],
-              [
-                '📅',
                 'Book their time',
-                'Book coaching sessions, consultations, or 1-on-1s directly through Foleio.',
+                'Pick a service, choose a slot, and pay a deposit or full amount online.',
               ],
               [
-                '🌍',
-                'Pay from anywhere',
-                'Fans in Nigeria, the US, UK, and Canada can all pay seamlessly through Paystack.',
+                'Shop their products',
+                'Order physical goods with delivery, or download digital PDFs from Pro sellers.',
               ],
-            ].map(([emoji, title, desc]) => (
-              <div key={title} className="flex gap-4 rounded-2xl bg-white p-6 shadow-sm">
-                <span className="shrink-0 text-2xl">{emoji}</span>
-                <div>
-                  <h3 className="mb-2 font-bold text-[#1C1008]">{title}</h3>
-                  <p className="text-sm leading-relaxed text-stone-600">{desc}</p>
-                </div>
+              [
+                'Clear policies',
+                'Read booking policy before you pay so expectations are clear.',
+              ],
+              [
+                'Pay with Paystack',
+                'Card, bank, and other Paystack channels — built for Nigerian commerce.',
+              ],
+            ].map(([title, desc]) => (
+              <div key={title} className="foleio-mkt-card">
+                <h3>{title}</h3>
+                <p>{desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="mb-4 text-sm font-bold uppercase tracking-widest text-[#F97316]">
-            Pricing
+      <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
+        <div className="foleio-mkt-section-narrow text-center">
+          <p className="foleio-mkt-eyebrow">Pricing</p>
+          <h2>Free to start. Pro when you scale.</h2>
+          <p className="foleio-mkt-body mb-10">
+            Foleio takes a platform &amp; service fee on each payment. Upgrade to Pro
+            for a lower fee and more tools — including digital downloads and Top
+            Creators listing.
           </p>
-          <h2
-            className="mb-6 text-4xl font-bold text-[#1C1008]"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            We only win when you win.
-          </h2>
-          <p className="mx-auto mb-12 max-w-xl leading-relaxed text-stone-600">
-            Foleio takes just 3% of every transaction. That&apos;s it. No monthly
-            fees to start, no hidden charges, no platform tax on your hard work.
-            You keep 97% of everything you earn.
+          <div className="foleio-mkt-grid-2 text-left">
+            <div className="foleio-mkt-card">
+              <p className="foleio-mkt-eyebrow" style={{ marginBottom: 8 }}>
+                Free
+              </p>
+              <p className="foleio-mkt-price">₦0 / month</p>
+              <p className="mb-4 text-sm font-medium text-[#fafafa]">
+                {freeFee} per transaction
+              </p>
+              <ul>
+                <li>Public page, bookings, and shop</li>
+                <li>Up to 10 services and 10 products</li>
+                <li>One Home portfolio gallery</li>
+              </ul>
+            </div>
+            <div className="foleio-mkt-card foleio-mkt-card-accent">
+              <p className="foleio-mkt-eyebrow" style={{ marginBottom: 8 }}>
+                Pro
+              </p>
+              <p className="foleio-mkt-price">
+                {proMonthly}
+                <span className="text-base font-normal text-[#8b8f9a]"> / month</span>
+              </p>
+              <p className="mb-1 text-sm text-[#8b8f9a]">or {proQuarterly} / quarter</p>
+              <p className="mb-4 text-sm font-medium text-[#fafafa]">
+                {proFee} per transaction
+              </p>
+              <ul>
+                <li>Unlimited services &amp; products</li>
+                <li>Digital PDF downloads</li>
+                <li>
+                  <Link href="/creators" className="underline underline-offset-2">
+                    Appear on Top Creators &amp; Google
+                  </Link>
+                </li>
+                <li>Portfolio categories &amp; schedule templates</li>
+              </ul>
+            </div>
+          </div>
+          <p className="mt-8">
+            <Link href="/pricing" className="foleio-mkt-btn-ghost" style={{ marginLeft: 0 }}>
+              See full pricing
+            </Link>
           </p>
-          <div className="grid gap-6 text-left md:grid-cols-3">
-            {[
-              ['97%', 'Goes to you', 'Every naira your fans spend, you keep 97 kobo of every 100.'],
-              ['3%', 'Foleio fee', "Our only revenue. We grow when you grow — that's the whole model."],
-              ['0', 'Hidden fees', 'No setup fees, no monthly platform charge, no surprise deductions.'],
-            ].map(([stat, label, desc]) => (
-              <div key={label} className="rounded-2xl bg-[#F5F0E8] p-6">
-                <p
-                  className="mb-1 text-4xl font-bold text-[#F97316]"
-                  style={{ fontFamily: 'Georgia, serif' }}
-                >
-                  {stat}
-                </p>
-                <p className="mb-2 font-bold text-[#1C1008]">{label}</p>
-                <p className="text-sm leading-relaxed text-stone-600">{desc}</p>
-              </div>
-            ))}
+        </div>
+      </section>
+
+      <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
+        <div className="foleio-mkt-section-narrow">
+          <p className="foleio-mkt-eyebrow">Our story</p>
+          <h2>Built for how creators actually get paid.</h2>
+          <div className="foleio-mkt-body space-y-5 mt-6">
+            <p>
+              African creators build audiences every day — on Instagram, TikTok,
+              WhatsApp, and beyond. Turning that attention into bookings and sales
+              should not require five apps and unclear payouts.
+            </p>
+            <p>
+              Foleio started from a simple question: what if your business page,
+              bookings, shop, and bank payouts lived in one place built for how you
+              actually work?
+            </p>
+            <p>
+              We launched in 2026 from Lagos and we&apos;re shipping the tools
+              creators use every day — then growing discoverability for Pro so more
+              clients can find you.
+            </p>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#F5F0E8] px-6 py-20">
-        <div className="mx-auto max-w-3xl">
-          <p className="mb-4 text-sm font-bold uppercase tracking-widest text-[#F97316]">
-            Our Story
+      <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
+        <div className="foleio-mkt-section-narrow">
+          <p className="foleio-mkt-eyebrow">The team</p>
+          <h2>Two people. One mission.</h2>
+          <p className="foleio-mkt-body mb-8 mt-4">
+            Foleio is intentionally small right now. We ship fast, listen to creators,
+            and grow the team when the product earns it.
           </p>
-          <h2
-            className="mb-8 text-4xl font-bold leading-tight text-[#1C1008]"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            Built by two people who saw the gap.
-          </h2>
-          <div className="space-y-5 text-lg leading-relaxed text-stone-700">
-            <p>
-              Nigerian creators are some of the most talented, prolific, and
-              entrepreneurial in the world. From Lagos to London to Atlanta,
-              they&apos;re building audiences of millions — on Instagram, YouTube,
-              TikTok, and beyond.
-            </p>
-            <p>
-              But when it came to actually monetising those audiences? The tools
-              weren&apos;t built for them. Payment processors that didn&apos;t support
-              Nigerian banks. Platforms that held payouts for weeks. Subscription
-              tools that charged in dollars. No single place to bring it all
-              together.
-            </p>
-            <p>
-              Foleio started as a simple question:
-              <em className="font-semibold text-[#1C1008]">
-                {' '}
-                what would a creator platform look like if it was built from
-                Nigeria, for Nigerians?
-              </em>
-            </p>
-            <p>
-              The answer is what you&apos;re looking at. Built in Lagos. Designed
-              for the realities of Nigerian creators — whether you&apos;re based at
-              home or in the diaspora. We launched in 2026 and we&apos;re just getting
-              started.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-3xl">
-          <p className="mb-4 text-sm font-bold uppercase tracking-widest text-[#F97316]">
-            The Team
-          </p>
-          <h2
-            className="mb-4 text-4xl font-bold text-[#1C1008]"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            Two people. One mission.
-          </h2>
-          <p className="mb-12 leading-relaxed text-stone-600">
-            Foleio is intentionally small right now. We believe in building with
-            focus — shipping fast, listening to creators, and not growing the team
-            until the product earns it.
-          </p>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="foleio-mkt-grid-2">
             {[
               {
                 initial: 'F',
                 role: 'Co-founder',
                 focus: 'Product & Vision',
                 description:
-                  'Obsessed with building tools that actually work for African creators. Based in Lagos.',
+                  'Obsessed with tools that actually work for African creators. Based in Lagos.',
               },
               {
                 initial: 'E',
                 role: 'Co-founder',
                 focus: 'Engineering',
                 description:
-                  'Building the infrastructure that powers every creator on the platform. Fast and reliable.',
+                  'Building the infrastructure behind every booking, order, and payout.',
               },
             ].map((member) => (
-              <div key={member.focus} className="rounded-2xl bg-[#F5F0E8] p-6">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F97316]/20">
-                  <span className="text-lg font-bold text-[#F97316]">{member.initial}</span>
+              <div key={member.focus} className="foleio-mkt-card">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#2b2b2b] text-sm font-medium text-[#fafafa]">
+                  {member.initial}
                 </div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-widest text-[#F97316]">
+                <p className="foleio-mkt-eyebrow" style={{ marginBottom: 4 }}>
                   {member.role}
                 </p>
-                <p className="mb-2 text-lg font-bold text-[#1C1008]">{member.focus}</p>
-                <p className="text-sm leading-relaxed text-stone-600">{member.description}</p>
+                <h3>{member.focus}</h3>
+                <p>{member.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-[#1C1008] px-6 py-20 text-center">
-        <div className="mx-auto max-w-2xl">
-          <h2
-            className="mb-4 text-4xl font-bold text-white"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            Ready to build your creator business?
-          </h2>
-          <p className="mb-8 text-stone-400">
-            Join Nigerian creators already using Foleio to monetise their audience
-            — in Nigeria and across the diaspora.
-          </p>
-          <a
-            href="/signup"
-            className="mb-12 inline-block rounded-full bg-[#F97316] px-8 py-4 text-base font-bold text-white transition-colors hover:bg-orange-600"
-          >
-            Start for free — it takes 2 minutes
-          </a>
-
-          <div className="flex items-center justify-center gap-6 border-t border-white/10 pt-8">
-            {[
-              ['Instagram', 'https://instagram.com/foleiohq'],
-              ['X / Twitter', 'https://x.com/foleiohq'],
-              ['TikTok', 'https://tiktok.com/@foleiohq'],
-            ].map(([label, href]) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-stone-400 transition-colors hover:text-white"
-              >
-                {label}
-              </a>
-            ))}
-            <a
-              href="mailto:hello@foleio.com"
-              className="text-sm font-medium text-stone-400 transition-colors hover:text-white"
-            >
-              hello@foleio.com
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t border-white/10 bg-[#1a1816] px-6 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 md:flex-row">
-          <a
-            href="/"
-            className="text-xl font-medium tracking-tight text-[#fafafa]"
-            style={{ fontFamily: 'var(--font-body), system-ui, sans-serif' }}
-          >
-            Foleio
-          </a>
-          <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 text-xs">
-            <a
-              href="/about"
-              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
-            >
-              About
-            </a>
-            <span aria-hidden="true" className="select-none px-1 text-white/25">
-              ·
-            </span>
-            <a
-              href="/legal/privacy"
-              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
-            >
-              Privacy
-            </a>
-            <span aria-hidden="true" className="select-none px-1 text-white/25">
-              ·
-            </span>
-            <a
-              href="/legal/terms"
-              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
-            >
-              Terms
-            </a>
-            <span aria-hidden="true" className="select-none px-1 text-white/25">
-              ·
-            </span>
-            <a
-              href="mailto:hello@foleio.com"
-              className="text-white/45 no-underline transition-colors hover:text-white/85 hover:underline hover:underline-offset-[3px]"
-            >
-              Contact
-            </a>
-          </div>
-          <p className="text-xs text-white/30">
-            © {new Date().getFullYear()} Foleio. Lagos, Nigeria.
-          </p>
-        </div>
-      </footer>
-    </main>
+      <MarketingCta />
+    </MarketingShell>
   );
 }

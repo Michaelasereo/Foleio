@@ -10,6 +10,8 @@ const FREE_LIMITS = {
   maxPortfolioCategories: 0,
   canCreateCollections: true,
   canUseAvailabilityTemplates: false,
+  canSellDigitalProducts: false,
+  canAppearInDiscover: false,
   hasAnalytics: true,
   hasBranding: false,
 } as const;
@@ -24,6 +26,8 @@ const PAID_LIMITS = {
   maxPortfolioCategories: 3,
   canCreateCollections: true,
   canUseAvailabilityTemplates: true,
+  canSellDigitalProducts: true,
+  canAppearInDiscover: true,
   hasAnalytics: true,
   hasBranding: false,
 } as const;
@@ -134,5 +138,17 @@ export const PLAN_LIMIT_MESSAGES = {
     description:
       'Free includes one Home gallery. Upgrade to Pro for up to 3 named portfolio categories.',
     feature: 'Up to 3 portfolio categories',
+  },
+  digitalProducts: {
+    title: 'Digital products are Pro',
+    description:
+      'Sell PDF downloads from your shop on Pro. Physical products stay available on Free.',
+    feature: 'Digital product downloads',
+  },
+  appearInDiscover: {
+    title: 'Top Creators is Pro',
+    description:
+      'Appear on Top Creators and get listed for Google search on Pro. Your public link still works on Free.',
+    feature: 'Appear on Top Creators & Google',
   },
 } as const;

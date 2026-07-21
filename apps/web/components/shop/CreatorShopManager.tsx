@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowDown,
   ArrowLeft,
@@ -10,6 +11,7 @@ import {
   ImagePlus,
   Info,
   Loader2,
+  Lock,
   Package,
   PackageCheck,
   Pencil,
@@ -75,6 +77,7 @@ type Product = {
   type: string;
   imageUrl: string | null;
   imageUrls?: string[];
+  digitalFileUrl?: string | null;
   stock: number | null;
   showLimitedStock?: boolean;
   status: 'draft' | 'active';
@@ -262,6 +265,9 @@ function emptyProductForm() {
     compareAtPrice: '',
     weight: '',
     imageUrls: [] as string[],
+    type: 'physical' as 'physical' | 'digital',
+    digitalFileUrl: '',
+    digitalFileName: '',
     stock: '',
     showLimitedStock: false,
     status: 'draft' as 'draft' | 'active',
@@ -290,6 +296,7 @@ export function CreatorShopManager({
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
 } = {}) {
+  const router = useRouter();
   const { toast } = useToast();
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
   const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
@@ -297,6 +304,10 @@ export function CreatorShopManager({
     platformPlan,
     platformSubscriptionActive,
   });
+
+  function goToBillingUpgrade() {
+    router.push('/settings?tab=billing');
+  }
   const [tab, setTab] = useState<'products' | 'orders' | 'delivery'>('products');
   const [productFilter, setProductFilter] = useState<'all' | 'active' | 'draft'>(
     'all'
@@ -321,14 +332,17 @@ export function CreatorShopManager({
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [slotPreview, setSlotPreview] = useState<Record<number, string>>({});
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [csvRows, setCsvRows] = useState<ParsedProductCsvRow[]>([]);
   const [csvParseError, setCsvParseError] = useState('');
   const [csvFileName, setCsvFileName] = useState('');
   const [isImportingCsv, setIsImportingCsv] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const isUploadingImage = uploadingSlot !== null;
+  const isDigitalProduct = productForm.type === 'digital';
 
   async function fetchProducts() {
     const response = await fetch('/api/creator/products', { cache: 'no-store' });
@@ -466,6 +480,9 @@ export function CreatorShopManager({
       : '';
     const discountEnabled =
       Boolean(compareAtPrice) && !Boolean(product.isPreorder);
+    const productType =
+      product.type === 'digital' ? ('digital' as const) : ('physical' as const);
+    const digitalKey = String(product.digitalFileUrl || '').trim();
     setProductForm({
       id: product.id,
       name: product.name,
@@ -476,18 +493,26 @@ export function CreatorShopManager({
       compareAtPrice,
       weight: product.weight != null ? String(product.weight) : '',
       imageUrls: productImages(product),
+      type: productType,
+      digitalFileUrl: digitalKey,
+      digitalFileName: digitalKey
+        ? digitalKey.split('/').pop() || 'download.pdf'
+        : '',
       stock: product.stock != null ? String(product.stock) : '',
       showLimitedStock: Boolean(product.showLimitedStock),
       status: product.status,
-      isPreorder: Boolean(product.isPreorder),
-      discountEnabled,
+      isPreorder: productType === 'digital' ? false : Boolean(product.isPreorder),
+      discountEnabled: productType === 'digital' ? discountEnabled : discountEnabled,
       preorder: settingsToPreorderForm(product.preorderSettings, price, compareAtPrice),
-      variants: product.variants.map((variant) => ({
-        id: variant.id,
-        name: variant.name,
-        options: variant.options.length > 0 ? [...variant.options] : [''],
-      })),
-      addons,
+      variants:
+        productType === 'digital'
+          ? []
+          : product.variants.map((variant) => ({
+              id: variant.id,
+              name: variant.name,
+              options: variant.options.length > 0 ? [...variant.options] : [''],
+            })),
+      addons: productType === 'digital' ? [] : addons,
     });
     setSlotPreview({});
     setProductError('');
@@ -496,10 +521,38 @@ export function CreatorShopManager({
   }
 
   function closeProductDrawer() {
-    if (isSavingProduct || isUploadingImage) return;
+    if (isSavingProduct || isUploadingImage || isUploadingPdf) return;
     setIsProductDialogOpen(false);
     setProductDrawerView('details');
     setProductError('');
+  }
+
+  function setProductType(nextType: 'physical' | 'digital') {
+    if (nextType === 'digital' && !limits.canSellDigitalProducts) {
+      goToBillingUpgrade();
+      return;
+    }
+    setProductForm((prev) => {
+      if (prev.type === nextType) return prev;
+      if (nextType === 'digital') {
+        return {
+          ...prev,
+          type: 'digital',
+          stock: '',
+          weight: '',
+          showLimitedStock: false,
+          isPreorder: false,
+          variants: [],
+          addons: [],
+        };
+      }
+      return {
+        ...prev,
+        type: 'physical',
+        digitalFileUrl: '',
+        digitalFileName: '',
+      };
+    });
   }
 
   function setPreorderEnabled(enabled: boolean) {
@@ -575,6 +628,14 @@ export function CreatorShopManager({
     event.preventDefault();
     setProductError('');
 
+    if (productForm.type === 'digital') {
+      if (productForm.status === 'active' && !productForm.digitalFileUrl.trim()) {
+        setProductError('Upload a PDF before publishing a digital product');
+        setProductDrawerView('details');
+        return;
+      }
+    }
+
     if (
       productForm.discountEnabled &&
       !productForm.isPreorder
@@ -599,7 +660,7 @@ export function CreatorShopManager({
     }
 
     let preorderSettingsPayload: Record<string, unknown> | null = null;
-    if (productForm.isPreorder) {
+    if (productForm.type !== 'digital' && productForm.isPreorder) {
       const releaseAt = combineLocalDateTime(
         productForm.preorder.releaseDate,
         productForm.preorder.releaseTime
@@ -653,6 +714,9 @@ export function CreatorShopManager({
     const payload = {
       name: productForm.name,
       description: productForm.description,
+      type: productForm.type,
+      digitalFileUrl:
+        productForm.type === 'digital' ? productForm.digitalFileUrl || null : null,
       price: productForm.isPreorder
         ? productForm.preorder.postPreorderPrice
         : productForm.discountEnabled
@@ -663,41 +727,49 @@ export function CreatorShopManager({
         : productForm.discountEnabled
           ? productForm.compareAtPrice || null
           : null,
-      weight: productForm.weight,
+      weight: productForm.type === 'digital' ? null : productForm.weight,
       imageUrls: productForm.imageUrls,
       imageUrl: productForm.imageUrls[0] || null,
-      stock: productForm.stock,
-      showLimitedStock: productForm.showLimitedStock,
+      stock: productForm.type === 'digital' ? null : productForm.stock,
+      showLimitedStock:
+        productForm.type === 'digital' ? false : productForm.showLimitedStock,
       status: productForm.status,
-      isPreorder: productForm.isPreorder,
-      preorderSettings: preorderSettingsPayload,
-      variants: productForm.variants
-        .map((variant) => {
-          const name = variant.name.trim();
-          const options = variant.options
-            .map((option) => option.trim())
-            .filter(Boolean)
-            .map((option) =>
-              isColorVariantName(name) && !option.startsWith('#')
-                ? `#${option}`
-                : option
-            )
-            .filter((option) =>
-              isColorVariantName(name) ? isHexColor(option) : Boolean(option)
-            );
-          return { ...variant, name, options };
-        })
-        .filter((variant) => variant.name && variant.options.length > 0),
-      addons: productForm.addons.map((category) => ({
-        id: category.id,
-        name: category.name,
-        required: category.required,
-        options: category.options.map((option) => ({
-          id: option.id,
-          name: option.name,
-          price: option.price,
-        })),
-      })),
+      isPreorder: productForm.type === 'digital' ? false : productForm.isPreorder,
+      preorderSettings:
+        productForm.type === 'digital' ? null : preorderSettingsPayload,
+      variants:
+        productForm.type === 'digital'
+          ? []
+          : productForm.variants
+              .map((variant) => {
+                const name = variant.name.trim();
+                const options = variant.options
+                  .map((option) => option.trim())
+                  .filter(Boolean)
+                  .map((option) =>
+                    isColorVariantName(name) && !option.startsWith('#')
+                      ? `#${option}`
+                      : option
+                  )
+                  .filter((option) =>
+                    isColorVariantName(name) ? isHexColor(option) : Boolean(option)
+                  );
+                return { ...variant, name, options };
+              })
+              .filter((variant) => variant.name && variant.options.length > 0),
+      addons:
+        productForm.type === 'digital'
+          ? []
+          : productForm.addons.map((category) => ({
+              id: category.id,
+              name: category.name,
+              required: category.required,
+              options: category.options.map((option) => ({
+                id: option.id,
+                name: option.name,
+                price: option.price,
+              })),
+            })),
     };
 
     const isEdit = Boolean(productForm.id);
@@ -718,6 +790,10 @@ export function CreatorShopManager({
         data.limitType === 'maxPreorderProducts'
       ) {
         showUpgradeModal(data.limitType);
+        return;
+      }
+      if (data.limitType === 'digitalProducts') {
+        goToBillingUpgrade();
         return;
       }
       setProductError(
@@ -804,6 +880,36 @@ export function CreatorShopManager({
     });
   }
 
+  async function uploadDigitalPdf(file: File) {
+    if (!limits.canSellDigitalProducts) {
+      goToBillingUpgrade();
+      return;
+    }
+    setIsUploadingPdf(true);
+    setProductError('');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'digital-product');
+    const response = await fetch('/api/creator/upload', { method: 'POST', body: formData });
+    const data = await response.json();
+    setIsUploadingPdf(false);
+
+    if (!response.ok) {
+      if (data.limitType === 'digitalProducts') {
+        goToBillingUpgrade();
+        return;
+      }
+      setProductError(data.error || 'Could not upload PDF');
+      return;
+    }
+
+    setProductForm((prev) => ({
+      ...prev,
+      digitalFileUrl: String(data.key || ''),
+      digitalFileName: String(data.fileName || file.name),
+    }));
+  }
+
   function openImagePicker(slotIndex: number) {
     setPendingSlot(slotIndex);
     imageInputRef.current?.click();
@@ -815,6 +921,12 @@ export function CreatorShopManager({
     event.target.value = '';
     setPendingSlot(null);
     if (file && slot != null) void uploadProductImage(file, slot);
+  }
+
+  function onPdfChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) void uploadDigitalPdf(file);
   }
 
   function removeImage(slotIndex: number) {
@@ -1432,12 +1544,15 @@ export function CreatorShopManager({
               const pct = discountPercent(pricing.price, pricing.compareAtPrice);
               const thumb = productImages(product)[0];
               const stockCount = product.stock ?? 0;
-              const inStock = stockCount > 0;
-              const stockLabel = !inStock
-                ? 'Out of stock'
-                : product.showLimitedStock
-                  ? 'Limited stock'
-                  : `In Stock : ${stockCount}`;
+              const isDigital = product.type === 'digital';
+              const inStock = isDigital || stockCount > 0;
+              const stockLabel = isDigital
+                ? 'Digital'
+                : !inStock
+                  ? 'Out of stock'
+                  : product.showLimitedStock
+                    ? 'Limited stock'
+                    : `In Stock : ${stockCount}`;
               return (
                 <div key={product.id} className="foleio-product-card">
                   <div className="foleio-product-card-media">
@@ -1464,7 +1579,14 @@ export function CreatorShopManager({
                       <div style={{ minWidth: 0 }}>
                         <p className="foleio-product-card-title">
                           {product.name}
-                          {pricing.isPreorderActive ? (
+                          {isDigital ? (
+                            <span
+                              className="foleio-dash-badge is-muted"
+                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                            >
+                              Digital
+                            </span>
+                          ) : pricing.isPreorderActive ? (
                             <span
                               className="foleio-dash-badge is-warning"
                               style={{ marginLeft: 8, verticalAlign: 'middle' }}
@@ -2233,7 +2355,7 @@ export function CreatorShopManager({
                   type="button"
                   className="foleio-dash-drawer-close"
                   onClick={closeProductDrawer}
-                  disabled={isSavingProduct || isUploadingImage}
+                  disabled={isSavingProduct || isUploadingImage || isUploadingPdf}
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" strokeWidth={1.5} />
@@ -2617,6 +2739,79 @@ export function CreatorShopManager({
                 ) : (
                   <>
                 <div className="foleio-dash-field">
+                  <span>Product type</span>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 8,
+                      marginTop: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={
+                        productForm.type === 'physical'
+                          ? 'foleio-dash-btn-outline'
+                          : 'foleio-dash-btn-ghost'
+                      }
+                      style={{
+                        borderColor:
+                          productForm.type === 'physical' ? '#fafafa' : undefined,
+                      }}
+                      onClick={() => setProductType('physical')}
+                    >
+                      Physical
+                    </button>
+                    {!limits.canSellDigitalProducts ? (
+                      <button
+                        type="button"
+                        className="foleio-dash-btn-ghost"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          opacity: 0.55,
+                          cursor: 'not-allowed',
+                        }}
+                        aria-disabled="true"
+                        onClick={goToBillingUpgrade}
+                      >
+                        <Lock className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        Digital
+                        <span
+                          className="foleio-dash-badge is-warning"
+                          style={{ marginLeft: 2, verticalAlign: 'middle' }}
+                        >
+                          Pro
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={
+                          productForm.type === 'digital'
+                            ? 'foleio-dash-btn-outline'
+                            : 'foleio-dash-btn-ghost'
+                        }
+                        style={{
+                          borderColor:
+                            productForm.type === 'digital' ? '#fafafa' : undefined,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                        }}
+                        onClick={() => setProductType('digital')}
+                      >
+                        Digital
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="foleio-dash-field">
                   <span>Photos</span>
                   <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
                     Add up to 2 photos. First photo is the main image.
@@ -2627,6 +2822,13 @@ export function CreatorShopManager({
                     accept="image/jpeg,image/png,image/webp"
                     style={{ display: 'none' }}
                     onChange={onImageChange}
+                  />
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={onPdfChange}
                   />
                   <div
                     style={{
@@ -2827,6 +3029,45 @@ export function CreatorShopManager({
                   />
                 </label>
 
+                {isDigitalProduct ? (
+                  <div className="foleio-dash-field">
+                    <span>Digital file (PDF)</span>
+                    <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
+                      Buyers get a download link by email after payment. Max 50MB.
+                    </p>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        alignItems: 'center',
+                        marginTop: 8,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="foleio-dash-btn-outline"
+                        disabled={isUploadingPdf || isSavingProduct}
+                        onClick={() => pdfInputRef.current?.click()}
+                      >
+                        {isUploadingPdf
+                          ? 'Uploading…'
+                          : productForm.digitalFileUrl
+                            ? 'Replace PDF'
+                            : 'Upload PDF'}
+                      </button>
+                      {productForm.digitalFileName || productForm.digitalFileUrl ? (
+                        <span className="foleio-dash-panel-meta" style={{ margin: 0 }}>
+                          {productForm.digitalFileName || 'PDF uploaded'}
+                        </span>
+                      ) : (
+                        <span className="foleio-dash-panel-meta" style={{ margin: 0 }}>
+                          Required to publish
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <label className="foleio-dash-field">
                     <span>Stock</span>
@@ -2856,7 +3097,9 @@ export function CreatorShopManager({
                     />
                   </label>
                 </div>
+                )}
 
+                {!isDigitalProduct ? (
                 <div className="foleio-dash-field">
                   <div
                     style={{
@@ -2888,7 +3131,10 @@ export function CreatorShopManager({
                     />
                   </div>
                 </div>
+                ) : null}
 
+                {!isDigitalProduct ? (
+                <>
                 <div className="foleio-dash-field">
                   <div
                     style={{
@@ -3424,6 +3670,8 @@ export function CreatorShopManager({
                     </div>
                   </div>
                 </div>
+                </>
+                ) : null}
 
                 <div
                   className="foleio-dash-field"
@@ -3523,14 +3771,14 @@ export function CreatorShopManager({
                     type="button"
                     className="foleio-dash-btn-ghost"
                     onClick={closeProductDrawer}
-                    disabled={isSavingProduct || isUploadingImage}
+                    disabled={isSavingProduct || isUploadingImage || isUploadingPdf}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     className="foleio-dash-btn-primary"
-                    disabled={isSavingProduct || isUploadingImage}
+                    disabled={isSavingProduct || isUploadingImage || isUploadingPdf}
                   >
                     {isSavingProduct ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />

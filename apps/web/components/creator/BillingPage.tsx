@@ -253,6 +253,8 @@ export function BillingPage({
         'Everything on Free',
         `${formatProFeeLabel()} platform & service fees on transactions`,
         'Unlimited services & products',
+        'Digital product downloads',
+        'Appear on Top Creators & Google',
         'Up to 3 portfolio categories',
         'Schedule templates',
         'Self-serve upgrade',

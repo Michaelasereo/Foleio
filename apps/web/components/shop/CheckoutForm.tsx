@@ -69,6 +69,16 @@ export function CheckoutForm({
   const deliveryFee = hasPhysicalProduct ? selectedTier?.flatRate || 0 : 0;
   const total = subtotal + deliveryFee;
 
+  const canContinueFromAddress = Boolean(
+    address.firstName &&
+      address.lastName &&
+      address.email &&
+      address.phone &&
+      (hasPhysicalProduct
+        ? address.address && address.city && address.state
+        : true)
+  );
+
   async function pay() {
     setIsSubmitting(true);
     const response = await fetch('/api/shop/orders', {
@@ -131,23 +141,37 @@ export function CheckoutForm({
               value={address.phone}
               onChange={(event) => setAddress((prev) => ({ ...prev, phone: event.target.value }))}
             />
-            <Input
-              placeholder="Address"
-              value={address.address}
-              onChange={(event) => setAddress((prev) => ({ ...prev, address: event.target.value }))}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                placeholder="City"
-                value={address.city}
-                onChange={(event) => setAddress((prev) => ({ ...prev, city: event.target.value }))}
-              />
-              <Input
-                placeholder="State"
-                value={address.state}
-                onChange={(event) => setAddress((prev) => ({ ...prev, state: event.target.value }))}
-              />
-            </div>
+            {hasPhysicalProduct ? (
+              <>
+                <Input
+                  placeholder="Address"
+                  value={address.address}
+                  onChange={(event) =>
+                    setAddress((prev) => ({ ...prev, address: event.target.value }))
+                  }
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="City"
+                    value={address.city}
+                    onChange={(event) =>
+                      setAddress((prev) => ({ ...prev, city: event.target.value }))
+                    }
+                  />
+                  <Input
+                    placeholder="State"
+                    value={address.state}
+                    onChange={(event) =>
+                      setAddress((prev) => ({ ...prev, state: event.target.value }))
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Digital downloads will be sent to your email after payment.
+              </p>
+            )}
             <Input
               placeholder="Order notes (optional)"
               value={address.notes}
@@ -156,15 +180,7 @@ export function CheckoutForm({
             <Button
               className="w-full"
               onClick={() => setStep(hasPhysicalProduct ? 'delivery' : 'summary')}
-              disabled={
-                !address.firstName ||
-                !address.lastName ||
-                !address.email ||
-                !address.phone ||
-                !address.address ||
-                !address.city ||
-                !address.state
-              }
+              disabled={!canContinueFromAddress}
             >
               Continue
             </Button>
@@ -202,6 +218,7 @@ export function CheckoutForm({
             {cart.map((item) => (
               <div key={`${item.product.id}-${JSON.stringify(item.selectedVariants)}`} className="text-sm">
                 {item.quantity}x {item.product.name}
+                {item.product.type === 'digital' ? ' · Digital' : ''}
               </div>
             ))}
             <div className="space-y-1 rounded-xl border p-3 text-sm">
@@ -209,10 +226,12 @@ export function CheckoutForm({
                 <span>Subtotal</span>
                 <span>₦{(subtotal / 100).toLocaleString('en-NG')}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Delivery</span>
-                <span>₦{(deliveryFee / 100).toLocaleString('en-NG')}</span>
-              </div>
+              {hasPhysicalProduct ? (
+                <div className="flex justify-between">
+                  <span>Delivery</span>
+                  <span>₦{(deliveryFee / 100).toLocaleString('en-NG')}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
                 <span>₦{(total / 100).toLocaleString('en-NG')}</span>

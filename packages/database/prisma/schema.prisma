@@ -657,11 +657,11 @@ model Product {
   price            Int      // in kobo (charge / sale price)
   compareAtPrice   Int?     @map("compare_at_price") // original price in kobo; when > price shows discount
   weight           Float?   // kg, for physical only
-  type             String   @default("physical") // physical only for v1
+  type             String   @default("physical") // physical | digital
   imageUrl         String?  @map("image_url") // primary / first image (compat)
   imageUrls        String[] @default([]) @map("image_urls") // up to 2 product photos
-  digitalFileUrl   String?  @map("digital_file_url")
-  stock            Int?     // required for sellable products in v1
+  digitalFileUrl   String?  @map("digital_file_url") // R2 object key for digital PDFs
+  stock            Int?     // required for physical; null = unlimited for digital
   /** When true, public/manage cards show "Limited stock" instead of the count. */
   showLimitedStock Boolean  @default(false) @map("show_limited_stock")
   status           String   @default("draft") // draft | active

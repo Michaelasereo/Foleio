@@ -111,8 +111,15 @@ const publicCreatorLeanSelect = {
     where: { isActive: true },
     orderBy: { orderIndex: 'asc' as const },
   },
+  platformSubscriptions: {
+    select: { status: true },
+    take: 1,
+  },
   products: {
-    where: { status: 'active', stock: { gt: 0 } },
+    where: {
+      status: 'active',
+      OR: [{ type: 'digital' }, { stock: { gt: 0 } }],
+    },
     select: { id: true },
     take: 1,
   },

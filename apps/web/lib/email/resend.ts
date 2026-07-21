@@ -270,7 +270,7 @@ export async function sendOrderConfirmationEmail({
               )
               .join('')}
             <p style="font-size:11px;color:#6B7280;margin:12px 0 0;">
-              Save this email to access your downloads later.
+              Download links expire in 7 days. Save your files after downloading.
             </p>
           </div>
           `

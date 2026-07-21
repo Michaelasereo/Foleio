@@ -24,7 +24,7 @@ export async function GET(
         where: {
           creatorId: creator.id,
           status: 'active',
-          stock: { gt: 0 },
+          OR: [{ type: 'digital' }, { stock: { gt: 0 } }],
         },
         include: { variants: true },
         orderBy: [{ orderIndex: 'asc' }, { createdAt: 'desc' }],
@@ -35,9 +35,14 @@ export async function GET(
       }),
     ]);
 
+    const publicProducts = products.map((product) => {
+      const { digitalFileUrl: _digitalFileUrl, ...rest } = product;
+      return rest;
+    });
+
     return NextResponse.json({
       creator,
-      products,
+      products: publicProducts,
       deliveryTiers,
     });
   } catch (error) {

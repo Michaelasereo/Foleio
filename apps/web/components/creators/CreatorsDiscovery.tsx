@@ -164,7 +164,7 @@ export function CreatorsDiscovery() {
           {loading ? 'Loading creators...' : `Found ${creators.length} creators`}
         </p>
         {!loading && creators.length === 0 && (
-          <p className="text-gray-500">No creators found. Try adjusting your search.</p>
+          <p className="text-gray-500">No Pro creators yet. Check back soon.</p>
         )}
       </div>
 

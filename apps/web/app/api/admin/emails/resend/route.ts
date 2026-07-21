@@ -2,6 +2,7 @@ import { prisma } from '@foleio/database';
 import { getAdminIdFromRequest, isAdminAuthed } from '@/lib/admin/auth';
 import { sendBookingConfirmationEmail } from '@/lib/actions/email';
 import { sendOrderConfirmationEmail } from '@/lib/email/resend';
+import { resolveDigitalDownloadUrl } from '@/lib/shop/digital-downloads';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -122,13 +123,24 @@ export async function POST(request: Request) {
       email: recipientEmail,
       fanName: deliveryAddress.name,
       orderId: order.id,
-      items: order.items.map((item) => ({
-        name: item.product?.name || 'Product',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        type: (item.product?.type as 'physical' | 'digital' | null) || null,
-        digitalFileUrl: item.product?.digitalFileUrl || null,
-      })),
+      items: await Promise.all(
+        order.items.map(async (item) => {
+          const productType =
+            (item.product?.type as 'physical' | 'digital' | null) || null;
+          const rawDigitalUrl = item.product?.digitalFileUrl || null;
+          const digitalFileUrl =
+            productType === 'digital'
+              ? await resolveDigitalDownloadUrl(rawDigitalUrl)
+              : null;
+          return {
+            name: item.product?.name || 'Product',
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            type: productType,
+            digitalFileUrl,
+          };
+        })
+      ),
       deliveryAddress: {
         address: deliveryAddress.address,
         city: deliveryAddress.city,

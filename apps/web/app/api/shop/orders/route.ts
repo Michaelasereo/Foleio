@@ -135,12 +135,16 @@ export async function POST(request: Request) {
       }
 
       const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
-      const stock = product.stock ?? 0;
-      if (stock < quantity) {
-        return NextResponse.json(
-          { error: `${product.name} does not have enough stock` },
-          { status: 400 }
-        );
+      const isDigital = product.type === 'digital';
+      const stock = product.stock;
+      if (!isDigital || stock != null) {
+        const available = stock ?? 0;
+        if (available < quantity) {
+          return NextResponse.json(
+            { error: `${product.name} does not have enough stock` },
+            { status: 400 }
+          );
+        }
       }
 
       const selectedVariants = (item.variantSelected || {}) as Record<string, string>;
@@ -192,7 +196,9 @@ export async function POST(request: Request) {
     let deliveryFee = 0;
     let deliveryType: string | null = null;
 
-    {
+    const hasPhysicalProduct = products.some((product) => product.type !== 'digital');
+
+    if (hasPhysicalProduct) {
       const requestedDeliveryTierId = String(body?.deliveryTierId || '').trim();
       if (!requestedDeliveryTierId) {
         return NextResponse.json(
@@ -224,6 +230,9 @@ export async function POST(request: Request) {
           );
         }
       }
+    } else {
+      deliveryType = 'digital';
+      deliveryFee = 0;
     }
 
     const subtotal = mappedItems.reduce(

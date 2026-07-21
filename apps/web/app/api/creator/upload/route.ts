@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { getR2Client } from '@/lib/storage/r2-client';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,11 @@ export async function POST(request: Request) {
 
     const creator = await prisma.creator.findUnique({
       where: { userId: user.id },
-      select: { id: true },
+      select: {
+        id: true,
+        platformPlan: true,
+        platformSubscriptionActive: true,
+      },
     });
     if (!creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
@@ -38,6 +43,8 @@ export async function POST(request: Request) {
     }
 
     let key = '';
+    let isPublic = true;
+
     if (
       uploadType === 'product-image' ||
       uploadType === 'portfolio' ||
@@ -62,6 +69,13 @@ export async function POST(request: Request) {
             ? `services/${creator.id}/${Date.now()}.${extension}`
             : `products/images/${creator.id}-${Date.now()}.${extension}`;
     } else if (uploadType === 'digital-product') {
+      const limits = await getEffectiveCreatorPlanLimits(creator);
+      if (!limits.canSellDigitalProducts) {
+        return NextResponse.json(
+          { error: 'Plan limit reached', limitType: 'digitalProducts' },
+          { status: 403 }
+        );
+      }
       if (file.type !== 'application/pdf') {
         return NextResponse.json({ error: 'Only PDF files are supported.' }, { status: 400 });
       }
@@ -69,6 +83,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'PDF must be under 50MB.' }, { status: 400 });
       }
       key = `products/digital/${creator.id}-${Date.now()}.pdf`;
+      isPublic = false;
     } else {
       return NextResponse.json({ error: 'Unsupported upload type.' }, { status: 400 });
     }
@@ -82,7 +97,7 @@ export async function POST(request: Request) {
         uploadType,
         userId: user.id,
       },
-      isPublic: true,
+      isPublic,
     });
 
     return NextResponse.json({

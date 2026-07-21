@@ -5,7 +5,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { normalizeAddonCategoriesInput } from '@/lib/shop/product-addons';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { validatePreorderSettingsInput } from '@/lib/shop/preorder';
-import { getCreatorPlanLimits } from '@/lib/utils/plan-limits';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     const creatorId = creator.id;
-    const limits = getCreatorPlanLimits(creator);
+    const limits = await getEffectiveCreatorPlanLimits(creator);
 
     const productCount = await prisma.product.count({ where: { creatorId } });
     if (productCount >= limits.maxProducts) {
@@ -147,22 +147,38 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    const productType =
+      String(body?.type || '').trim().toLowerCase() === 'digital' ? 'digital' : 'physical';
+    const isDigital = productType === 'digital';
+
+    if (isDigital && !limits.canSellDigitalProducts) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'digitalProducts' },
+        { status: 403 }
+      );
+    }
+
     const name = String(body?.name || '').trim();
     const description = body?.description ? String(body.description) : null;
     const { imageUrl, imageUrls } = parseImageUrls(body);
     const status = body?.status === 'active' ? 'active' : 'draft';
+    const digitalFileUrl = isDigital
+      ? String(body?.digitalFileUrl || '').trim() || null
+      : null;
     const stockRaw = body?.stock;
-    const stock =
-      stockRaw === '' || stockRaw === null || stockRaw === undefined
+    const stock = isDigital
+      ? null
+      : stockRaw === '' || stockRaw === null || stockRaw === undefined
         ? null
         : Math.max(0, Math.floor(Number(stockRaw)));
-    const weight =
-      body?.weight === '' || body?.weight === null || body?.weight === undefined
+    const weight = isDigital
+      ? null
+      : body?.weight === '' || body?.weight === null || body?.weight === undefined
         ? null
         : Math.max(0, Number(body.weight));
-    const isPreorder = Boolean(body?.isPreorder);
-    const addons = parseAddons(body?.addons);
-    const variants = parseVariants(body?.variants);
+    const isPreorder = isDigital ? false : Boolean(body?.isPreorder);
+    const addons = isDigital ? [] : parseAddons(body?.addons);
+    const variants = isDigital ? [] : parseVariants(body?.variants);
 
     if (isPreorder) {
       const preorderCount = await prisma.product.count({
@@ -208,8 +224,14 @@ export async function POST(request: Request) {
     if (price <= 0) {
       return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 });
     }
-    if (stock === null || !Number.isFinite(stock)) {
+    if (!isDigital && (stock === null || !Number.isFinite(stock))) {
       return NextResponse.json({ error: 'Stock is required' }, { status: 400 });
+    }
+    if (isDigital && status === 'active' && !digitalFileUrl) {
+      return NextResponse.json(
+        { error: 'Upload a PDF before publishing a digital product' },
+        { status: 400 }
+      );
     }
     if (compareAtPrice !== null && compareAtPrice <= price) {
       return NextResponse.json(
@@ -217,7 +239,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (status === 'active' && stock <= 0) {
+    if (!isDigital && status === 'active' && (stock ?? 0) <= 0) {
       return NextResponse.json(
         { error: 'Cannot publish a product with zero stock' },
         { status: 400 }
@@ -231,7 +253,9 @@ export async function POST(request: Request) {
     });
 
     const productId = crypto.randomUUID();
-    const showLimitedStock = Boolean(body?.showLimitedStock);
+    const showLimitedStock = isDigital ? false : Boolean(body?.showLimitedStock);
+    const nextStatus =
+      !isDigital && stock !== null && stock <= 0 ? 'draft' : status;
     const product = await prisma.product.create({
       data: {
         id: productId,
@@ -241,12 +265,12 @@ export async function POST(request: Request) {
         price,
         compareAtPrice,
         weight,
-        type: 'physical',
+        type: productType,
         imageUrl,
         imageUrls,
-        digitalFileUrl: null,
+        digitalFileUrl,
         stock,
-        status: stock <= 0 ? 'draft' : status,
+        status: nextStatus,
         orderIndex: (maxOrder?.orderIndex ?? -1) + 1,
         waiveDeliveryFee: false,
         isPreorder,

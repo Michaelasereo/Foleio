@@ -6,6 +6,7 @@ import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
 import { serializeForClient } from '@/lib/utils';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
 import { getPublicCreatorByUsername } from '@/lib/creator/cached-lookups';
+import { isCreatorDiscoverable } from '@/lib/creator/discoverability';
 import {
   GallerySectionSkeleton,
   PublicPortfolioSection,
@@ -36,13 +37,26 @@ export async function generateMetadata({
 
   const title = `${creator.displayName} on Foleio`;
   const description =
-    creator.bio || `Watch ${creator.displayName}'s videos, courses and more on Foleio.`;
+    creator.bio ||
+    `Book ${creator.displayName} or shop their products on Foleio — pay securely with Paystack.`;
   const image = creator.avatarUrl || `${appUrl}/og-default.png`;
   const url = `${appUrl}/creator/${creator.username}`;
+
+  const discoverable = isCreatorDiscoverable({
+    isPublic: true,
+    platformPlan: creator.platformPlan,
+    platformSubscriptionActive: creator.platformSubscriptionActive,
+    subscriptionStatus: creator.platformSubscriptions?.[0]?.status ?? null,
+    displayName: creator.displayName,
+    avatarUrl: creator.avatarUrl,
+  });
 
   return {
     title,
     description,
+    ...(discoverable
+      ? {}
+      : { robots: { index: false, follow: true } }),
     openGraph: {
       title,
       description,

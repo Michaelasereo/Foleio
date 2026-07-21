@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
+import { discoverableCreatorsWhere } from '@/lib/creator/discoverability';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,78 +14,70 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
 
-    // Build where clause
-    const where: any = {
-      isPublic: true
-    };
-
-    if (category && category !== 'all') {
-      where.category = category;
-    }
-
-    if (search) {
-      where.OR = [
-        { displayName: { contains: search, mode: 'insensitive' } },
-        { username: { contains: search, mode: 'insensitive' } },
-        { bio: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-
-    // Fetch creators with stats
-    const creators = await prisma.creator.findMany({
-      where,
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        category: true,
-        avatarUrl: true,
-        bannerUrl: true,
-        instagramHandle: true,
-        tiktokHandle: true,
-        subscriberCount: true,
-        contentCount: true,
-        createdAt: true,
-        // Include pricing plans for discovery
-        creatorPlans: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            features: true
-          },
-          orderBy: { price: 'asc' },
-          take: 1 // Just the cheapest plan for display
-        },
-        // Get sample content for preview
-        content: {
-          where: {
-            isPublished: true,
-            type: 'video'
-          },
-          select: {
-            id: true,
-            title: true,
-            thumbnailUrl: true,
-            type: true,
-            viewCount: true
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 3 // Show up to 3 recent videos
-        }
-      },
-      orderBy: { subscriberCount: 'desc' }, // Most popular first
-      skip: offset,
-      take: limit
+    const where = discoverableCreatorsWhere({
+      ...(category && category !== 'all' ? { category } : {}),
+      ...(search
+        ? {
+            OR: [
+              { displayName: { contains: search, mode: 'insensitive' } },
+              { username: { contains: search, mode: 'insensitive' } },
+              { bio: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
     });
 
-    // Get total count for pagination
-    const totalCount = await prisma.creator.count({ where });
+    const [creators, totalCount] = await Promise.all([
+      prisma.creator.findMany({
+        where,
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          bio: true,
+          category: true,
+          avatarUrl: true,
+          bannerUrl: true,
+          instagramHandle: true,
+          tiktokHandle: true,
+          subscriberCount: true,
+          contentCount: true,
+          createdAt: true,
+          creatorPlans: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              features: true,
+            },
+            orderBy: { price: 'asc' },
+            take: 1,
+          },
+          content: {
+            where: {
+              isPublished: true,
+              type: 'video',
+            },
+            select: {
+              id: true,
+              title: true,
+              thumbnailUrl: true,
+              type: true,
+              viewCount: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+          },
+        },
+        orderBy: { subscriberCount: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.creator.count({ where }),
+    ]);
 
-    // Serialize the data
-    const serializedCreators = creators.map(creator => ({
+    const serializedCreators = creators.map((creator) => ({
       id: creator.id,
       username: creator.username,
       displayName: creator.displayName,
@@ -97,18 +90,21 @@ export async function GET(request: Request) {
       subscriberCount: creator.subscriberCount,
       contentCount: creator.contentCount,
       createdAt: creator.createdAt.toISOString(),
-      pricing: creator.creatorPlans.length > 0 ? {
-        planName: creator.creatorPlans[0].name,
-        price: creator.creatorPlans[0].price,
-        features: creator.creatorPlans[0].features
-      } : null,
-      recentContent: creator.content.map(content => ({
+      pricing:
+        creator.creatorPlans.length > 0
+          ? {
+              planName: creator.creatorPlans[0].name,
+              price: creator.creatorPlans[0].price,
+              features: creator.creatorPlans[0].features,
+            }
+          : null,
+      recentContent: creator.content.map((content) => ({
         id: content.id,
         title: content.title,
         thumbnailUrl: content.thumbnailUrl,
         type: content.type,
-        viewCount: content.viewCount
-      }))
+        viewCount: content.viewCount,
+      })),
     }));
 
     return NextResponse.json({
@@ -117,10 +113,9 @@ export async function GET(request: Request) {
         page,
         limit,
         total: totalCount,
-        pages: Math.ceil(totalCount / limit)
-      }
+        pages: Math.ceil(totalCount / limit),
+      },
     });
-
   } catch (error: any) {
     console.error('Creators fetch error:', error);
     return NextResponse.json(

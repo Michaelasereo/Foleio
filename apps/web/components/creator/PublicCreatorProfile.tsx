@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, Calendar, Link2, ShoppingBag } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Calendar, Link2, ShoppingBag } from 'lucide-react';
 import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { authCss } from '@/components/auth/styles';
@@ -304,18 +304,21 @@ body:has(.foleio-public-root) footer { display: none !important; }
   width: 100%;
 }
 .foleio-public-policy-link {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   width: 100%;
   margin-top: 10px;
   color: #adadad;
   font-size: 13px;
   font-weight: 500;
   text-align: center;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 .foleio-public-policy-link:hover {
   color: #f4f4f5;
+  text-decoration: none;
 }
 .foleio-public-cta-row .foleio-public-cta {
   margin-top: 0;
@@ -980,6 +983,7 @@ export function PublicCreatorProfile({
                       className="foleio-public-policy-link"
                     >
                       Read my booking policy
+                      <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </a>
                   ) : null}
                 </div>
@@ -1010,6 +1014,7 @@ export function PublicCreatorProfile({
                       className="foleio-public-policy-link"
                     >
                       Read my booking policy
+                      <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </a>
                   ) : null}
                 </div>

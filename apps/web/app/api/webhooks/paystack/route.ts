@@ -9,6 +9,7 @@ import { sendEmail, sendOrderConfirmationEmail } from '@/lib/email/resend';
 import { paymentFailedTemplate, payoutConfirmationTemplate } from '@/lib/email/templates/nudges';
 import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
 import { formatNaira } from '@foleio/utils';
+import { resolveDigitalDownloadUrl } from '@/lib/shop/digital-downloads';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
@@ -421,9 +422,11 @@ async function handleChargeSuccess(eventData: any) {
             for (const item of pendingOrder.items) {
               const product = await tx.product.findUnique({
                 where: { id: item.productId },
-                select: { id: true, stock: true, status: true },
+                select: { id: true, stock: true, status: true, type: true },
               });
               if (!product) continue;
+              // Digital products with null stock are unlimited — skip decrement.
+              if (product.type === 'digital' && product.stock == null) continue;
               const nextStock = Math.max(0, (product.stock ?? 0) - item.quantity);
               await tx.product.update({
                 where: { id: product.id },
@@ -460,17 +463,30 @@ async function handleChargeSuccess(eventData: any) {
         const deliveryAddress = (updatedOrder.deliveryAddress || {}) as Record<string, string>;
         const recipientEmail = String(deliveryAddress.email || '').trim();
         if (recipientEmail) {
+          const emailItems = await Promise.all(
+            updatedOrder.items.map(async (item) => {
+              const productType =
+                (item.product?.type as 'physical' | 'digital' | null) || null;
+              const rawDigitalUrl = item.product?.digitalFileUrl || null;
+              const digitalFileUrl =
+                productType === 'digital'
+                  ? await resolveDigitalDownloadUrl(rawDigitalUrl)
+                  : null;
+              return {
+                name: item.product?.name || 'Product',
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                type: productType,
+                digitalFileUrl,
+              };
+            })
+          );
+
           void sendOrderConfirmationEmail({
             email: recipientEmail,
             fanName: deliveryAddress.name,
             orderId: updatedOrder.id,
-            items: updatedOrder.items.map((item) => ({
-              name: item.product?.name || 'Product',
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              type: (item.product?.type as 'physical' | 'digital' | null) || null,
-              digitalFileUrl: item.product?.digitalFileUrl || null,
-            })),
+            items: emailItems,
             deliveryAddress: {
               address: deliveryAddress.address,
               city: deliveryAddress.city,

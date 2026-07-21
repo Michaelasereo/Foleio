@@ -56,6 +56,13 @@ export async function POST() {
     });
 
     if (!subscription) {
+      await prisma.creator.update({
+        where: { id: creator.id },
+        data: {
+          platformSubscriptionActive: false,
+          platformPlan: 'starter',
+        },
+      });
       return NextResponse.json({ success: true });
     }
 
@@ -81,13 +88,29 @@ export async function POST() {
       });
     }
 
-    await prisma.platformSubscription.update({
-      where: { creatorId: creator.id },
-      data: {
-        status: 'cancelled',
-        cancelAtPeriodEnd: true,
-      },
-    });
+    await prisma.$transaction([
+      prisma.platformSubscription.update({
+        where: { creatorId: creator.id },
+        data: {
+          status: 'cancelled',
+          cancelAtPeriodEnd: false,
+        },
+      }),
+      prisma.creator.update({
+        where: { id: creator.id },
+        data: {
+          platformSubscriptionActive: false,
+          platformPlan: 'starter',
+        },
+      }),
+    ]);
+
+    try {
+      const { syncCreatorSubaccountFee } = await import('@/lib/billing/platform-fee');
+      await syncCreatorSubaccountFee(creator.id);
+    } catch (feeError) {
+      console.error('[billing/cancel] fee sync failed', feeError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
