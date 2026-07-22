@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@foleio/database';
+import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
@@ -9,6 +10,7 @@ import {
   computeDepositSplit,
   computePackageTotal,
   resolveSelectedAddons,
+  resolveSelectedLocation,
 } from '@/lib/booking/deposit';
 import { computePolicyRefundKobo } from '@/lib/booking/cancellation-policy';
 import { feePercentForCreator, platformFeeFromGross, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
@@ -26,6 +28,7 @@ const createBookingSchema = z.object({
   notes: z.string().optional(),
   paymentPlan: z.enum(['full', 'deposit']).optional(),
   selectedAddonIds: z.array(z.string()).optional(),
+  selectedLocationId: z.string().optional().nullable(),
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
   endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
 });
@@ -169,7 +172,19 @@ export async function createBookingRequest(data: CreateBookingInput) {
       priceListItem.addons,
       data.selectedAddonIds
     );
-    const totalAmount = computePackageTotal(priceListItem.price, selectedAddons);
+    const locationResult = resolveSelectedLocation(
+      priceListItem.locationOptions,
+      data.selectedLocationId
+    );
+    if (locationResult.error) {
+      return { error: locationResult.error };
+    }
+    const selectedLocation = locationResult.location;
+    const totalAmount = computePackageTotal(
+      priceListItem.price,
+      selectedAddons,
+      selectedLocation
+    );
 
     const wantsDeposit = data.paymentPlan === 'deposit';
     const depositEnabled = Boolean(priceListItem.depositType);
@@ -226,6 +241,9 @@ export async function createBookingRequest(data: CreateBookingInput) {
         balanceAmount: split.balanceAmount,
         amountPaid: 0,
         selectedAddons,
+        selectedLocation: selectedLocation
+          ? selectedLocation
+          : Prisma.DbNull,
         trackingToken,
         status: 'pending',
       },

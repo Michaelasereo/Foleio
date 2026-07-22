@@ -1,0 +1,53 @@
+'use client';
+
+import { useState } from 'react';
+import { Info } from 'lucide-react';
+
+export function FieldInfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <span
+      tabIndex={0}
+      aria-label={text}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        color: '#828282',
+        cursor: 'default',
+        outline: 'none',
+      }}
+    >
+      <Info className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+      {open ? (
+        <span
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            left: 0,
+            bottom: 'calc(100% + 8px)',
+            zIndex: 40,
+            width: 220,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: '#2a2a2a',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: '#e4e4e7',
+            fontSize: 12,
+            fontWeight: 500,
+            lineHeight: 1.4,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            pointerEvents: 'none',
+          }}
+        >
+          {text}
+        </span>
+      ) : null}
+    </span>
+  );
+}

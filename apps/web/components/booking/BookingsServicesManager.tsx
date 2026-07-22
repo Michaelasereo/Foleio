@@ -12,6 +12,7 @@ import {
 } from '@/lib/actions/priceList';
 import { RemoteImage } from '@/components/creator/RemoteImage';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
+import { FieldInfoTip } from '@/components/ui/FieldInfoTip';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import {
   getCreatorPlan,
@@ -25,6 +26,8 @@ export type ServiceAddon = {
   price: number; // kobo
 };
 
+export type ServiceLocationOption = ServiceAddon;
+
 export type ServiceItem = {
   id: string;
   serviceType: string | null;
@@ -37,6 +40,7 @@ export type ServiceItem = {
   price: number;
   durationMinutes: number | null;
   addons?: ServiceAddon[] | null;
+  locationOptions?: ServiceLocationOption[] | null;
   inclusions?: string[] | null;
   coverImageUrl?: string | null;
   depositType?: string | null;
@@ -54,6 +58,7 @@ type FormState = {
   priceNaira: string;
   durationMinutes: string;
   addons: AddonDraft[];
+  locationOptions: AddonDraft[];
   inclusionsText: string;
   coverImageUrl: string;
   depositEnabled: boolean;
@@ -69,6 +74,7 @@ const EMPTY_FORM: FormState = {
   priceNaira: '',
   durationMinutes: '',
   addons: [],
+  locationOptions: [],
   inclusionsText: '',
   coverImageUrl: '',
   depositEnabled: false,
@@ -76,6 +82,8 @@ const EMPTY_FORM: FormState = {
   depositValue: '40',
   allowPayInFull: true,
 };
+
+const LOCATION_PRESETS = ['Studio', 'Lekki', 'Surulere'] as const;
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -88,6 +96,10 @@ type AddonDraft = {
 
 function newAddonId() {
   return `addon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function newLocationId() {
+  return `loc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function parseAddons(raw: unknown): ServiceAddon[] {
@@ -194,6 +206,11 @@ export function BookingsServicesManager({
         name: addon.name,
         priceNaira: String(Math.round(addon.price / 100)),
       })),
+      locationOptions: parseAddons(item.locationOptions).map((opt) => ({
+        id: opt.id,
+        name: opt.name,
+        priceNaira: String(Math.round(opt.price / 100)),
+      })),
       inclusionsText: inclusions.join('\n'),
       coverImageUrl: item.coverImageUrl || '',
       depositEnabled: Boolean(item.depositType),
@@ -235,6 +252,44 @@ export function BookingsServicesManager({
     setForm((f) => ({
       ...f,
       addons: f.addons.filter((row) => row.id !== id),
+    }));
+  }
+
+  function addLocationRow(presetName?: string) {
+    setForm((f) => {
+      if (presetName) {
+        const exists = f.locationOptions.some(
+          (row) => row.name.trim().toLowerCase() === presetName.toLowerCase()
+        );
+        if (exists) return f;
+      }
+      return {
+        ...f,
+        locationOptions: [
+          ...f.locationOptions,
+          {
+            id: newLocationId(),
+            name: presetName || '',
+            priceNaira: '',
+          },
+        ],
+      };
+    });
+  }
+
+  function updateLocationOption(id: string, patch: Partial<AddonDraft>) {
+    setForm((f) => ({
+      ...f,
+      locationOptions: f.locationOptions.map((row) =>
+        row.id === id ? { ...row, ...patch } : row
+      ),
+    }));
+  }
+
+  function removeLocationOption(id: string) {
+    setForm((f) => ({
+      ...f,
+      locationOptions: f.locationOptions.filter((row) => row.id !== id),
     }));
   }
 
@@ -340,6 +395,26 @@ export function BookingsServicesManager({
       });
     }
 
+    const locationOptions: ServiceLocationOption[] = [];
+    for (const row of form.locationOptions) {
+      const locName = row.name.trim();
+      const locPrice = Number(row.priceNaira);
+      if (!locName && !row.priceNaira.trim()) continue;
+      if (!locName) {
+        setError('Each location needs a name.');
+        return;
+      }
+      if (!Number.isFinite(locPrice) || locPrice < 0) {
+        setError(`Enter a valid fee for location “${locName}”.`);
+        return;
+      }
+      locationOptions.push({
+        id: row.id,
+        name: locName,
+        price: Math.round(locPrice * 100),
+      });
+    }
+
     const inclusions = form.inclusionsText
       .split('\n')
       .map((line) => line.trim())
@@ -376,6 +451,7 @@ export function BookingsServicesManager({
       price: Math.round(priceNaira * 100),
       durationMinutes: duration,
       addons,
+      locationOptions,
       inclusions,
       coverImageUrl: form.coverImageUrl.trim() || null,
       depositType,
@@ -482,6 +558,7 @@ export function BookingsServicesManager({
         ) : (
           items.map((item) => {
             const addons = parseAddons(item.addons);
+            const locationOptions = parseAddons(item.locationOptions);
             return (
               <div key={item.id} className="foleio-dash-booking-row">
                 <div className="foleio-dash-booking-main">
@@ -502,6 +579,12 @@ export function BookingsServicesManager({
                     {addons.length > 0 ? (
                       <span className="foleio-dash-sub-date">
                         {addons.length} add-on{addons.length === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
+                    {locationOptions.length > 0 ? (
+                      <span className="foleio-dash-sub-date">
+                        {locationOptions.length} location
+                        {locationOptions.length === 1 ? '' : 's'}
                       </span>
                     ) : null}
                   </div>
@@ -866,7 +949,16 @@ export function BookingsServicesManager({
                       gap: 8,
                     }}
                   >
-                    <span>Add-ons</span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      Add-ons
+                      <FieldInfoTip text="Optional extras clients can add to this service." />
+                    </span>
                     <button
                       type="button"
                       className="foleio-dash-btn-ghost"
@@ -876,15 +968,8 @@ export function BookingsServicesManager({
                       Add add-on
                     </button>
                   </div>
-                  <p className="foleio-dash-panel-meta" style={{ margin: 0 }}>
-                    Optional extras clients can add to this service.
-                  </p>
 
-                  {form.addons.length === 0 ? (
-                    <p className="foleio-dash-panel-meta" style={{ margin: 0 }}>
-                      No add-ons yet.
-                    </p>
-                  ) : (
+                  {form.addons.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {form.addons.map((addon) => (
                         <div
@@ -926,7 +1011,112 @@ export function BookingsServicesManager({
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
+                </div>
+
+                <div className="foleio-dash-field">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      Locations / studio fees
+                      <FieldInfoTip text="Clients pick one location. Fee is added to the service price." />
+                    </span>
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-ghost"
+                      onClick={() => addLocationRow()}
+                    >
+                      <Plus className="h-4 w-4" strokeWidth={1.5} />
+                      Add location
+                    </button>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 6,
+                      marginTop: 4,
+                    }}
+                  >
+                    {LOCATION_PRESETS.map((preset) => {
+                      const alreadyAdded = form.locationOptions.some(
+                        (row) =>
+                          row.name.trim().toLowerCase() === preset.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          className="foleio-dash-btn-ghost"
+                          disabled={alreadyAdded}
+                          onClick={() => addLocationRow(preset)}
+                        >
+                          + {preset}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {form.locationOptions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {form.locationOptions.map((opt) => (
+                        <div
+                          key={opt.id}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 110px auto',
+                            gap: 8,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <input
+                            className="foleio-dash-input"
+                            value={opt.name}
+                            onChange={(e) =>
+                              updateLocationOption(opt.id, {
+                                name: e.target.value,
+                              })
+                            }
+                            placeholder="Location name"
+                          />
+                          <input
+                            className="foleio-dash-input"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={opt.priceNaira}
+                            onChange={(e) =>
+                              updateLocationOption(opt.id, {
+                                priceNaira: e.target.value,
+                              })
+                            }
+                            placeholder="Fee ₦"
+                          />
+                          <button
+                            type="button"
+                            className="foleio-dash-btn-danger"
+                            onClick={() => removeLocationOption(opt.id)}
+                            aria-label="Remove location"
+                          >
+                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
 
                 {error ? (

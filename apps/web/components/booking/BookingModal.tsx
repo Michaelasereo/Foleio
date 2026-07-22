@@ -38,6 +38,7 @@ interface PriceListItem {
   price: number;
   durationMinutes: number | null;
   addons?: Array<{ id: string; name: string; price: number }> | null;
+  locationOptions?: Array<{ id: string; name: string; price: number }> | null;
   inclusions?: string[] | null;
   coverImageUrl?: string | null;
   depositType?: string | null;
@@ -554,6 +555,7 @@ export function BookingModal({
   const [bookingLimitReached, setBookingLimitReached] = useState(false);
   const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false);
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'deposit'>('full');
   const paymentSucceededRef = useRef(false);
   const receiptCaptureRef = useRef<HTMLDivElement | null>(null);
@@ -600,6 +602,7 @@ export function BookingModal({
     setBookingLimitReached(false);
     setBookingResult(null);
     setSelectedAddonIds([]);
+    setSelectedLocationId(null);
     setOpenDates(availableDates);
     const keys = availableDates.map((d) => availDateKey(d.date)).sort();
     if (keys.length > 0) {
@@ -635,10 +638,19 @@ export function BookingModal({
   const serviceAddons = Array.isArray(selectedService.addons)
     ? selectedService.addons
     : [];
+  const serviceLocations = Array.isArray(selectedService.locationOptions)
+    ? selectedService.locationOptions
+    : [];
   const addonsTotal = serviceAddons
     .filter((addon) => selectedAddonIds.includes(addon.id))
     .reduce((sum, addon) => sum + Number(addon.price || 0), 0);
-  const packageTotal = Number(selectedService.price) + addonsTotal;
+  const selectedLocation = serviceLocations.find(
+    (loc) => loc.id === selectedLocationId
+  );
+  const locationFee = selectedLocation
+    ? Number(selectedLocation.price || 0)
+    : 0;
+  const packageTotal = Number(selectedService.price) + addonsTotal + locationFee;
   const depositEnabled = Boolean(selectedService.depositType);
   const allowPayInFull = selectedService.allowPayInFull !== false;
 
@@ -809,6 +821,10 @@ export function BookingModal({
       // For now, create booking for the first date only (can be extended to support multiple)
       const firstDate = dateStrings[0];
 
+      if (serviceLocations.length > 0 && !selectedLocationId) {
+        throw new Error('Please select a location');
+      }
+
       // Create booking
       const response = await fetch('/api/bookings/create', {
         method: 'POST',
@@ -824,6 +840,7 @@ export function BookingModal({
           notes: data.notes,
           paymentPlan: depositEnabled ? paymentPlan : 'full',
           selectedAddonIds,
+          selectedLocationId,
           startTime: selectedSlot?.startTime,
           endTime: selectedSlot?.endTime,
         }),
@@ -1482,6 +1499,63 @@ export function BookingModal({
                         <span>{formatPrice(addon.price)}</span>
                       </label>
                     ))}
+                  </div>
+                ) : null}
+
+                {serviceLocations.length > 0 ? (
+                  <div className="foleio-book-panel" style={{ marginBottom: 12 }}>
+                    <p className="foleio-book-option-name" style={{ marginBottom: 8 }}>
+                      Location
+                    </p>
+                    <p
+                      className="foleio-book-hint"
+                      style={{ marginBottom: 10, fontSize: 13, opacity: 0.75 }}
+                    >
+                      Choose where the service happens. Fee is added to your total.
+                    </p>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {serviceLocations.map((loc) => {
+                        const selected = selectedLocationId === loc.id;
+                        return (
+                          <button
+                            key={loc.id}
+                            type="button"
+                            onClick={() => setSelectedLocationId(loc.id)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              minHeight: 40,
+                              padding: '0 14px',
+                              borderRadius: 999,
+                              border: selected
+                                ? '1px solid #fff'
+                                : '1px solid rgba(255,255,255,0.22)',
+                              background: selected
+                                ? 'rgba(255,255,255,0.12)'
+                                : 'transparent',
+                              color: '#f4f4f5',
+                              fontFamily: 'inherit',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {loc.name}
+                            <span style={{ fontWeight: 500, opacity: 0.8 }}>
+                              {loc.price > 0 ? `+${formatPrice(loc.price)}` : 'Included'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : null}
 

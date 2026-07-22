@@ -12,6 +12,12 @@ const addonSchema = z.object({
   price: z.number().min(0),
 });
 
+const locationOptionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  price: z.number().min(0),
+});
+
 const priceListItemSchema = z.object({
   serviceType: z.enum(['general', 'coaching', 'consultation']).default('general'),
   category: z.string().optional().nullable(),
@@ -23,6 +29,7 @@ const priceListItemSchema = z.object({
   price: z.number().min(0, 'Price must be positive'),
   durationMinutes: z.number().optional().nullable(),
   addons: z.array(addonSchema).optional(),
+  locationOptions: z.array(locationOptionSchema).optional(),
   inclusions: z.array(z.string().min(1)).optional(),
   coverImageUrl: z.string().url().optional().nullable().or(z.literal('')),
   depositType: z.enum(['percent', 'fixed']).optional().nullable(),
@@ -122,6 +129,7 @@ export async function createPriceListItem(data: PriceListItemInput) {
         price: data.price,
         durationMinutes: data.durationMinutes || null,
         addons: data.addons ?? [],
+        locationOptions: data.locationOptions ?? [],
         inclusions: data.inclusions ?? [],
         coverImageUrl: data.coverImageUrl || null,
         depositType: data.depositType ?? null,
@@ -184,6 +192,9 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
           durationMinutes: data.durationMinutes || null,
         }),
         ...(data.addons !== undefined && { addons: data.addons }),
+        ...(data.locationOptions !== undefined && {
+          locationOptions: data.locationOptions,
+        }),
         ...(data.inclusions !== undefined && { inclusions: data.inclusions }),
         ...(data.coverImageUrl !== undefined && {
           coverImageUrl: data.coverImageUrl || null,

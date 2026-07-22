@@ -292,6 +292,7 @@ export async function getPublicPortfolio(creatorId: string) {
   const creator = await prisma.creator.findUnique({
     where: { id: creatorId },
     select: {
+      id: true,
       platformPlan: true,
       platformSubscriptionActive: true,
     },
@@ -315,7 +316,7 @@ export async function getPublicPortfolio(creatorId: string) {
   if (
     !creator ||
     !(await getCreatorPaidActiveForId(
-      creator.id,
+      creatorId,
       creator.platformSubscriptionActive
     ))
   ) {

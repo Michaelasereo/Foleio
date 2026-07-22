@@ -110,6 +110,8 @@ export type CreatorBookingRow = {
   amountPaid?: number;
   firstPayoutAmount?: number;
   secondPayoutAmount?: number;
+  selectedAddons?: Array<{ id: string; name: string; price: number }> | null;
+  selectedLocation?: { id: string; name: string; price: number } | null;
   status: string;
   notes: string | null;
   disputeReason: string | null;

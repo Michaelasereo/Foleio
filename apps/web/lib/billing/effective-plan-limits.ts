@@ -3,6 +3,10 @@ import { getCreatorPlanLimits, type PLAN_LIMITS } from '@/lib/utils/plan-limits'
 
 type Limits = (typeof PLAN_LIMITS)[keyof typeof PLAN_LIMITS];
 
+function hasCreatorId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
 export function isPaidSubscriptionStatus(status?: string | null): boolean {
   const normalized = (status || '').toLowerCase();
   return normalized === 'active' || normalized === 'trialing';
@@ -26,20 +30,39 @@ export function resolveCreatorPaidActive(input: {
  * Pro feature access for API routes.
  * Requires an active/trialing platform subscription — cancelled rows cannot
  * keep Pro unlocked when Billing already shows Free.
+ *
+ * Never throws on a missing creator id — returns Free limits instead of
+ * crashing public/dashboard SSR (Prisma unique-where requires a real id).
  */
 export async function getEffectiveCreatorPlanLimits(creator: {
-  id: string;
+  id?: string | null;
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
 }): Promise<Limits> {
-  const subscription = await prisma.platformSubscription.findUnique({
-    where: { creatorId: creator.id },
-    select: { status: true },
-  });
+  let subscriptionStatus: string | null = null;
+
+  if (hasCreatorId(creator.id)) {
+    try {
+      const subscription = await prisma.platformSubscription.findUnique({
+        where: { creatorId: creator.id },
+        select: { status: true },
+      });
+      subscriptionStatus = subscription?.status ?? null;
+    } catch (error) {
+      console.error('[getEffectiveCreatorPlanLimits] subscription lookup failed', {
+        creatorId: creator.id,
+        error,
+      });
+    }
+  } else {
+    console.warn(
+      '[getEffectiveCreatorPlanLimits] missing creator.id — treating as Free'
+    );
+  }
 
   const platformSubscriptionActive = resolveCreatorPaidActive({
     platformSubscriptionActive: creator.platformSubscriptionActive,
-    subscriptionStatus: subscription?.status,
+    subscriptionStatus,
   });
 
   return getCreatorPlanLimits({
@@ -48,17 +71,35 @@ export async function getEffectiveCreatorPlanLimits(creator: {
   });
 }
 
-/** Load cancel-safe paid-active for server pages that pass props into client gates. */
+/**
+ * Load cancel-safe paid-active for server pages that pass props into client gates.
+ * Missing / empty creatorId → false (Free), never a Prisma throw.
+ */
 export async function getCreatorPaidActiveForId(
-  creatorId: string,
+  creatorId: string | null | undefined,
   platformSubscriptionActive?: boolean | null
 ): Promise<boolean> {
-  const subscription = await prisma.platformSubscription.findUnique({
-    where: { creatorId },
-    select: { status: true },
-  });
-  return resolveCreatorPaidActive({
-    platformSubscriptionActive,
-    subscriptionStatus: subscription?.status,
-  });
+  if (!hasCreatorId(creatorId)) {
+    console.warn(
+      '[getCreatorPaidActiveForId] missing creatorId — treating as Free'
+    );
+    return false;
+  }
+
+  try {
+    const subscription = await prisma.platformSubscription.findUnique({
+      where: { creatorId },
+      select: { status: true },
+    });
+    return resolveCreatorPaidActive({
+      platformSubscriptionActive,
+      subscriptionStatus: subscription?.status,
+    });
+  } catch (error) {
+    console.error('[getCreatorPaidActiveForId] subscription lookup failed', {
+      creatorId,
+      error,
+    });
+    return false;
+  }
 }

@@ -38,6 +38,8 @@ interface BookingData {
   notes: string | null;
   disputeReason: string | null;
   disputeStatus: string | null;
+  selectedLocation?: { id: string; name: string; price: number } | null;
+  selectedAddons?: Array<{ id: string; name: string; price: number }> | null;
   priceListItem: {
     name: string;
     category: string | null;
@@ -995,6 +997,32 @@ export default function TrackingPage() {
                   )}
                 </span>
               </div>
+              {booking.selectedLocation?.name ? (
+                <div className="foleio-track-receipt-row">
+                  <span className="foleio-track-receipt-label">Location</span>
+                  <span className="foleio-track-receipt-value">
+                    {booking.selectedLocation.name}
+                    {booking.selectedLocation.price > 0
+                      ? ` (+${formatPrice(booking.selectedLocation.price)})`
+                      : ''}
+                  </span>
+                </div>
+              ) : null}
+              {Array.isArray(booking.selectedAddons) &&
+              booking.selectedAddons.length > 0 ? (
+                <div className="foleio-track-receipt-row">
+                  <span className="foleio-track-receipt-label">Add-ons</span>
+                  <span className="foleio-track-receipt-value">
+                    {booking.selectedAddons
+                      .map((addon) =>
+                        addon.price > 0
+                          ? `${addon.name} (+${formatPrice(addon.price)})`
+                          : addon.name
+                      )
+                      .join(', ')}
+                  </span>
+                </div>
+              ) : null}
               <div className="foleio-track-receipt-divider" />
               <div className="foleio-track-receipt-row">
                 <span className="foleio-track-receipt-label">

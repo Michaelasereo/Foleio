@@ -15,6 +15,7 @@ interface PriceListItem {
   price: number;
   durationMinutes: number | null;
   addons?: Array<{ id: string; name: string; price: number }> | null;
+  locationOptions?: Array<{ id: string; name: string; price: number }> | null;
   inclusions?: string[] | null;
   coverImageUrl?: string | null;
   depositType?: string | null;

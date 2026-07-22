@@ -9,7 +9,6 @@ import {
   Download,
   FileEdit,
   ImagePlus,
-  Info,
   Loader2,
   Lock,
   Package,
@@ -24,6 +23,7 @@ import {
 import { RemoteImage } from '@/components/creator/RemoteImage';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from '@/components/ui/switch';
+import { FieldInfoTip } from '@/components/ui/FieldInfoTip';
 import { parseAddonCategories } from '@/lib/shop/product-addons';
 import { parsePreorderSettings, resolveProductPricing } from '@/lib/shop/preorder';
 import {
@@ -3109,14 +3109,15 @@ export function CreatorShopManager({
                       gap: 8,
                     }}
                   >
-                    <span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
                       Show as limited stock
-                      <span
-                        className="foleio-dash-panel-meta"
-                        style={{ display: 'block', margin: '4px 0 0' }}
-                      >
-                        Cards show “Limited stock” instead of the count. Real stock is still tracked.
-                      </span>
+                      <FieldInfoTip text='Cards show “Limited stock” instead of the count. Real stock is still tracked.' />
                     </span>
                     <Switch
                       checked={productForm.showLimitedStock}
@@ -3639,17 +3640,7 @@ export function CreatorShopManager({
                       }}
                     >
                       Preorder
-                      <span
-                        title="Set release timing and preorder pricing in setup."
-                        aria-label="Set release timing and preorder pricing in setup."
-                        style={{
-                          display: 'inline-flex',
-                          color: '#adadad',
-                          cursor: 'help',
-                        }}
-                      >
-                        <Info className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </span>
+                      <FieldInfoTip text="Set release timing and preorder pricing in setup." />
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {productForm.isPreorder ? (
@@ -3696,26 +3687,13 @@ export function CreatorShopManager({
                       }}
                     >
                       Discount
-                      <span
-                        title={
+                      <FieldInfoTip
+                        text={
                           productForm.isPreorder
                             ? 'Disabled while preorder is on — set discounts in preorder settings.'
                             : 'Set old and new prices in discount setup for strikethrough pricing.'
                         }
-                        aria-label={
-                          productForm.isPreorder
-                            ? 'Disabled while preorder is on — set discounts in preorder settings.'
-                            : 'Set old and new prices in discount setup for strikethrough pricing.'
-                        }
-                        style={{
-                          display: 'inline-flex',
-                          color: '#adadad',
-                          cursor: 'help',
-                          pointerEvents: 'auto',
-                        }}
-                      >
-                        <Info className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </span>
+                      />
                     </span>
                     <div
                       style={{

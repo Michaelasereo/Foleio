@@ -623,6 +623,7 @@ model PriceListItem {
   price            Int      // in kobo
   durationMinutes  Int?     @map("duration_minutes") // Estimated service duration
   addons           Json     @default("[]") // [{ id, name, price }] price in kobo
+  locationOptions  Json     @default("[]") @map("location_options") // [{ id, name, price }] studio/area fees in kobo
   inclusions       Json     @default("[]") // string[] what's included in the package
   coverImageUrl    String?  @map("cover_image_url")
   // Client deposit (null depositType = full pay only, current behavior)
@@ -856,6 +857,7 @@ model Booking {
   balanceAmount     Int      @default(0) @map("balance_amount")
   amountPaid        Int      @default(0) @map("amount_paid")
   selectedAddons    Json     @default("[]") @map("selected_addons") // [{ id, name, price }]
+  selectedLocation  Json?    @map("selected_location") // { id, name, price } snapshot; null if service has no location options
   depositReference  String?  @map("deposit_reference")
   balanceReference  String?  @map("balance_reference")
 

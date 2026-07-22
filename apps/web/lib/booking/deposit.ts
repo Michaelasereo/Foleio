@@ -6,30 +6,77 @@ export type SelectedAddon = {
   price: number; // kobo
 };
 
+export type SelectedLocation = {
+  id: string;
+  name: string;
+  price: number; // kobo
+};
+
+function parsePricedOptions(catalog: unknown): SelectedAddon[] {
+  const list = Array.isArray(catalog) ? catalog : [];
+  return list
+    .filter((raw): raw is Record<string, unknown> => Boolean(raw) && typeof raw === 'object')
+    .map((row) => ({
+      id: String(row.id || ''),
+      name: String(row.name || ''),
+      price: Math.max(0, Math.floor(Number(row.price) || 0)),
+    }))
+    .filter((row) => row.id && row.name);
+}
+
 export function resolveSelectedAddons(
   catalogAddons: unknown,
   selectedAddonIds: string[] | undefined
 ): SelectedAddon[] {
-  const list = Array.isArray(catalogAddons) ? catalogAddons : [];
+  const list = parsePricedOptions(catalogAddons);
   const ids = new Set((selectedAddonIds || []).filter(Boolean));
   if (ids.size === 0) return [];
 
   return list
-    .filter((raw): raw is Record<string, unknown> => Boolean(raw) && typeof raw === 'object')
-    .filter((addon) => typeof addon.id === 'string' && ids.has(addon.id))
+    .filter((addon) => ids.has(addon.id))
     .map((addon) => ({
-      id: String(addon.id),
-      name: String(addon.name || 'Add-on'),
-      price: Math.max(0, Math.floor(Number(addon.price) || 0)),
+      id: addon.id,
+      name: addon.name || 'Add-on',
+      price: addon.price,
     }));
+}
+
+/**
+ * Resolve a single location option. Returns null when catalog is empty.
+ * Throws via return shape: callers should validate required selection.
+ */
+export function resolveSelectedLocation(
+  catalogLocations: unknown,
+  selectedLocationId: string | undefined | null
+): { location: SelectedLocation | null; error?: string } {
+  const list = parsePricedOptions(catalogLocations);
+  if (list.length === 0) {
+    return { location: null };
+  }
+  if (!selectedLocationId) {
+    return { location: null, error: 'Please select a location' };
+  }
+  const match = list.find((row) => row.id === selectedLocationId);
+  if (!match) {
+    return { location: null, error: 'Invalid location selected' };
+  }
+  return {
+    location: {
+      id: match.id,
+      name: match.name || 'Location',
+      price: match.price,
+    },
+  };
 }
 
 export function computePackageTotal(
   basePriceKobo: number,
-  addons: SelectedAddon[]
+  addons: SelectedAddon[],
+  location?: SelectedLocation | null
 ): number {
   const addonsTotal = addons.reduce((sum, addon) => sum + addon.price, 0);
-  return Math.max(0, Math.floor(basePriceKobo) + addonsTotal);
+  const locationFee = location ? location.price : 0;
+  return Math.max(0, Math.floor(basePriceKobo) + addonsTotal + locationFee);
 }
 
 /**

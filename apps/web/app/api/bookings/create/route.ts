@@ -18,6 +18,7 @@ const createBookingSchema = z.object({
   notes: z.string().optional(),
   paymentPlan: z.enum(['full', 'deposit']).optional(),
   selectedAddonIds: z.array(z.string()).optional(),
+  selectedLocationId: z.string().optional().nullable(),
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
   endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
 });

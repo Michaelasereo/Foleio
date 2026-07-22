@@ -178,6 +178,32 @@ export function BookingDetailClient({
     });
   }
 
+  if (booking.selectedLocation?.name) {
+    rows.push({
+      label: 'Location',
+      value:
+        booking.selectedLocation.price > 0
+          ? `${booking.selectedLocation.name} (+${formatBookingPrice(booking.selectedLocation.price)})`
+          : booking.selectedLocation.name,
+    });
+  }
+
+  const selectedAddons = Array.isArray(booking.selectedAddons)
+    ? booking.selectedAddons
+    : [];
+  if (selectedAddons.length > 0) {
+    rows.push({
+      label: 'Add-ons',
+      value: selectedAddons
+        .map((addon) =>
+          addon.price > 0
+            ? `${addon.name} (+${formatBookingPrice(addon.price)})`
+            : addon.name
+        )
+        .join(', '),
+    });
+  }
+
   rows.push(
     { label: 'Customer', value: booking.customerName },
     { label: 'Email', value: booking.customerEmail || '—' },
