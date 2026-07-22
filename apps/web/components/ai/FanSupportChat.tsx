@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { MessageCircle, X } from 'lucide-react';
+import { MessageCircle, Send, X } from 'lucide-react';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -12,9 +12,205 @@ const INITIAL_MESSAGES: Message[] = [
   {
     role: 'assistant',
     content:
-      "Hi there! 👋 I'm Fola. Need help with a booking, purchase, or subscription? Ask me anything!",
+      "Hi — I'm Fola. Need help with a booking, purchase, or subscription? Ask me anything.",
   },
 ];
+
+const chatCss = `
+.foleio-chat-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #001035;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.foleio-chat-fab:hover { transform: scale(1.06); opacity: 0.95; }
+.foleio-chat-hint {
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #2a2a2a;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #e4e4e7;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.foleio-chat-fab-wrap:hover .foleio-chat-hint { opacity: 1; }
+.foleio-chat-panel {
+  position: fixed;
+  bottom: 92px;
+  right: 24px;
+  z-index: 50;
+  width: 380px;
+  height: 480px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 120px);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: #212121;
+  color: #f4f4f5;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-body), system-ui, sans-serif;
+  animation: foleioChatUp 0.22s ease-out;
+}
+@keyframes foleioChatUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.foleio-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.foleio-chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #001035;
+  font-size: 13px;
+  font-weight: 700;
+}
+.foleio-chat-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fafafa;
+}
+.foleio-chat-close {
+  border: 0;
+  background: transparent;
+  color: #828282;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.foleio-chat-close:hover { color: #fafafa; background: rgba(255,255,255,0.06); }
+.foleio-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.foleio-chat-bubble {
+  max-width: 85%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.foleio-chat-bubble.is-user {
+  align-self: flex-end;
+  background: #fff;
+  color: #001035;
+}
+.foleio-chat-bubble.is-assistant {
+  align-self: flex-start;
+  background: #2b2b2b;
+  color: #e4e4e7;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.foleio-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.foleio-chat-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #828282;
+  animation: foleioChatDot 1s ease-in-out infinite;
+}
+.foleio-chat-typing span:nth-child(2) { animation-delay: 0.12s; }
+.foleio-chat-typing span:nth-child(3) { animation-delay: 0.24s; }
+@keyframes foleioChatDot {
+  0%, 80%, 100% { opacity: 0.35; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}
+.foleio-chat-form {
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.foleio-chat-input {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
+  color: #fafafa;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.foleio-chat-input::placeholder { color: #828282; }
+.foleio-chat-input:focus {
+  border-color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.06);
+}
+.foleio-chat-send {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #001035;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.foleio-chat-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.foleio-chat-send:not(:disabled):hover { opacity: 0.92; }
+@media (max-width: 480px) {
+  .foleio-chat-panel {
+    right: 12px;
+    left: 12px;
+    width: auto;
+    bottom: 84px;
+  }
+  .foleio-chat-fab { right: 16px; bottom: 16px; }
+}
+`;
 
 export function FanSupportChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -53,7 +249,7 @@ export function FanSupportChat() {
           role: 'assistant',
           content:
             data.message?.trim() ||
-            "Sorry, I'm having a moment 😅 Try again or email support@foleio.com",
+            'Sorry, something went wrong. Try again or email support@foleio.com',
         },
       ]);
     } catch (error) {
@@ -62,7 +258,7 @@ export function FanSupportChat() {
         ...prev,
         {
           role: 'assistant',
-          content: "Sorry, I'm having a moment 😅 Try again or email support@foleio.com",
+          content: 'Sorry, something went wrong. Try again or email support@foleio.com',
         },
       ]);
     } finally {
@@ -72,102 +268,86 @@ export function FanSupportChat() {
 
   return (
     <>
-      {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 group">
-          <div className="pointer-events-none absolute -top-10 right-0 rounded-md bg-card px-2 py-1 text-xs text-muted-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-            Need help?
-          </div>
+      <style dangerouslySetInnerHTML={{ __html: chatCss }} />
+
+      {!isOpen ? (
+        <div className="foleio-chat-fab-wrap" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 50 }}>
+          <div className="foleio-chat-hint">Need help?</div>
           <button
             type="button"
             onClick={() => setIsOpen(true)}
             aria-label="Open fan support chat"
-            className="chat-bubble-btn bg-accent text-accent-foreground"
+            className="foleio-chat-fab"
+            style={{ position: 'relative', bottom: 'auto', right: 'auto' }}
           >
-            <MessageCircle className="h-5 w-5" />
+            <MessageCircle className="h-5 w-5" strokeWidth={1.75} />
           </button>
         </div>
-      )}
+      ) : null}
 
-      {isOpen && (
-        <div className="chat-panel animate-fola-sheet border border-border bg-background">
-          <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
-                  F
-                </div>
-                <p className="text-sm font-semibold">Fola · Support</p>
+      {isOpen ? (
+        <div className="foleio-chat-panel" role="dialog" aria-label="Fola support chat">
+          <div className="foleio-chat-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="foleio-chat-avatar" aria-hidden>
+                F
               </div>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Close fan support chat"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <p className="foleio-chat-title">Fola · Support</p>
             </div>
-
-            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-              {messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                      message.role === 'user'
-                        ? 'bg-accent text-accent-foreground'
-                        : 'bg-card text-foreground'
-                    }`}
-                  >
-                    {message.content}
-                  </div>
-                </div>
-              ))}
-
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="rounded-2xl bg-card px-3 py-2">
-                    <div className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/80" />
-                      <span
-                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/80"
-                        style={{ animationDelay: '120ms' }}
-                      />
-                      <span
-                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/80"
-                        style={{ animationDelay: '240ms' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div ref={endRef} />
-            </div>
-
-            <form onSubmit={sendMessage} className="border-t border-border p-3">
-              <div className="flex items-center gap-2">
-                <input
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="Ask about booking, purchase, or subscriptions..."
-                  className="h-10 flex-1 rounded-xl border border-border bg-background px-3 text-sm outline-none ring-0 placeholder:text-muted-foreground focus:border-accent"
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="inline-flex h-10 items-center gap-1 rounded-xl bg-accent px-3 text-sm font-medium text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Send
-                </button>
-              </div>
-            </form>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="foleio-chat-close"
+              aria-label="Close fan support chat"
+            >
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </button>
           </div>
+
+          <div className="foleio-chat-messages">
+            {messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={`foleio-chat-bubble ${
+                  message.role === 'user' ? 'is-user' : 'is-assistant'
+                }`}
+              >
+                {message.content}
+              </div>
+            ))}
+
+            {isLoading ? (
+              <div className="foleio-chat-bubble is-assistant">
+                <div className="foleio-chat-typing" aria-label="Fola is typing">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+            ) : null}
+
+            <div ref={endRef} />
+          </div>
+
+          <form onSubmit={(e) => void sendMessage(e)} className="foleio-chat-form">
+            <input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Ask about booking or purchases…"
+              className="foleio-chat-input"
+              aria-label="Message Fola"
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="foleio-chat-send"
+            >
+              <Send className="h-4 w-4" strokeWidth={1.75} />
+              Send
+            </button>
+          </form>
         </div>
-      )}
+      ) : null}
     </>
   );
 }

@@ -87,7 +87,6 @@ export async function middleware(request: NextRequest) {
       '/dashboard/content',
       '/dashboard/collections',
       '/fan',
-      '/creators',
       '/subscriptions',
     ];
     const isSprintHiddenRoute = sprintHiddenPrefixes.some((prefix) =>
@@ -111,7 +110,6 @@ export async function middleware(request: NextRequest) {
       // Public/marketplace/fan routes → home; creator-tool routes → dashboard when authed.
       const isPublicHide =
         matchesPrefix(pathname, '/fan') ||
-        matchesPrefix(pathname, '/creators') ||
         matchesPrefix(pathname, '/subscriptions');
 
       if (matchesPrefix(pathname, '/billing')) {

@@ -1,376 +1,405 @@
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Search,
-  Users,
-  Play,
-  Instagram,
-  Music,
-  Heart,
-  Crown
-} from 'lucide-react';
-import { DefaultThumbnail } from '@/components/ui/DefaultThumbnail';
-import { getThumbnailUrl } from '@/lib/utils/generate-thumbnail';
+import { useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import { BadgeCheck, Search } from 'lucide-react';
+import { RemoteImage } from '@/components/creator/RemoteImage';
 
-interface Creator {
+type CreatorCard = {
   id: string;
   username: string;
   displayName: string;
-  bio: string;
-  category: string;
-  avatarUrl: string;
-  bannerUrl: string;
-  instagramHandle?: string;
-  tiktokHandle?: string;
-  subscriberCount: number;
-  contentCount: number;
-  createdAt: string;
-  pricing: {
-    planName: string;
-    price: number;
-    features: string[];
-  } | null;
-  recentContent: Array<{
-    id: string;
-    title: string;
-    thumbnailUrl: string;
-    type: string;
-    viewCount: number;
-  }>;
-}
+  bio: string | null;
+  category: string | null;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  isSample?: boolean;
+};
 
-const categories = [
-  { value: 'all', label: 'All Categories', icon: Crown },
-  { value: 'makeup', label: 'Makeup', icon: Users },
-  { value: 'hair', label: 'Hair', icon: Users },
-  { value: 'fashion', label: 'Fashion', icon: Users },
-  { value: 'fitness', label: 'Fitness', icon: Users },
-  { value: 'cooking', label: 'Cooking', icon: Users },
-  { value: 'music', label: 'Music', icon: Music },
-  { value: 'art', label: 'Art', icon: Users },
-  { value: 'photography', label: 'Photography', icon: Users },
+const SAMPLE_CREATOR: CreatorCard = {
+  id: 'sample',
+  username: 'shosglam',
+  displayName: 'Sho’s Glam',
+  bio: 'Bridal & soft glam in Lagos — book a session or shop products from one page.',
+  category: 'Makeup',
+  avatarUrl: null,
+  bannerUrl: null,
+  isSample: true,
+};
+
+const CATEGORIES = [
+  { value: 'all', label: 'All' },
+  { value: 'makeup', label: 'Makeup' },
+  { value: 'hair', label: 'Hair' },
+  { value: 'fashion', label: 'Fashion' },
+  { value: 'fitness', label: 'Fitness' },
+  { value: 'photography', label: 'Photography' },
 ];
 
 export function CreatorsDiscovery() {
-  const [creators, setCreators] = useState<Creator[]>([]);
+  const [creators, setCreators] = useState<CreatorCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   const fetchCreators = async (page = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        page: page.toString(),
+        page: String(page),
         limit: '20',
         category: selectedCategory,
-        ...(searchQuery && { search: searchQuery })
+        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
       });
 
       const response = await fetch(`/api/creators?${params}`);
       const data = await response.json();
+      const list = Array.isArray(data.creators) ? data.creators : [];
 
-      setCreators(data.creators);
-      setTotalPages(data.pagination.pages);
-      setCurrentPage(data.pagination.page);
+      setCreators(
+        list.map((creator: CreatorCard) => ({
+          id: creator.id,
+          username: creator.username,
+          displayName: creator.displayName,
+          bio: creator.bio,
+          category: creator.category,
+          avatarUrl: creator.avatarUrl,
+          bannerUrl: creator.bannerUrl,
+        }))
+      );
+      setTotalPages(Number(data.pagination?.pages) || 1);
+      setCurrentPage(Number(data.pagination?.page) || page);
+      setTotalCount(Number(data.pagination?.total) || list.length);
     } catch (error) {
       console.error('Failed to fetch creators:', error);
+      setCreators([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCreators();
-  }, [selectedCategory, searchQuery]);
+    void fetchCreators(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory]);
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
-    fetchCreators(1);
+    void fetchCreators(1);
   };
 
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
-    setCurrentPage(1);
-  };
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    fetchCreators(page);
-  };
-
-  const getCategoryIcon = (category: string) => {
-    const cat = categories.find(c => c.value === category);
-    return cat ? cat.icon : Users;
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0
-    }).format(price / 100); // Convert from kobo to naira
-  };
+  const showSample = !loading && creators.length === 0;
+  const displayList = showSample ? [SAMPLE_CREATOR] : creators;
 
   return (
-    <div className="space-y-8">
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <form onSubmit={handleSearch} className="flex gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              type="text"
-              placeholder="Search creators..."
+    <div className="foleio-mkt-discover">
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+.foleio-mkt-discover { display: grid; gap: 24px; }
+.foleio-mkt-discover-tools {
+  display: grid; gap: 14px;
+}
+.foleio-mkt-discover-search {
+  display: flex; gap: 8px; align-items: center;
+}
+.foleio-mkt-discover-search input {
+  flex: 1; min-height: 44px; padding: 0 14px 0 40px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04); color: #fafafa;
+  font: inherit; font-size: 14px;
+}
+.foleio-mkt-discover-search input::placeholder { color: #828282; }
+.foleio-mkt-discover-search-wrap { position: relative; flex: 1; }
+.foleio-mkt-discover-search-wrap svg {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: #828282; pointer-events: none;
+}
+.foleio-mkt-discover-search button {
+  min-height: 44px; padding: 0 16px; border-radius: 10px;
+  border: 1px solid #fff; background: #fff; color: #001035;
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.foleio-mkt-discover-cats {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.foleio-mkt-discover-cat {
+  min-height: 34px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: transparent; color: #adadad;
+  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.foleio-mkt-discover-cat[data-active="true"] {
+  border-color: #fff; background: rgba(255,255,255,0.1); color: #fafafa;
+}
+.foleio-mkt-discover-meta {
+  margin: 0; color: #828282; font-size: 13px;
+}
+.foleio-mkt-discover-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 720px) {
+  .foleio-mkt-discover-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .foleio-mkt-discover-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.foleio-mkt-creator-card {
+  display: flex; flex-direction: column;
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: #212121; text-decoration: none; color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.foleio-mkt-creator-card:hover {
+  border-color: rgba(255,255,255,0.22);
+  transform: translateY(-1px);
+}
+.foleio-mkt-creator-banner {
+  position: relative; height: 120px;
+  background: linear-gradient(135deg, #2b2b2b, #3a3530);
+}
+.foleio-mkt-creator-banner img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.foleio-mkt-creator-sample {
+  position: absolute; top: 10px; right: 10px;
+  padding: 4px 8px; border-radius: 999px;
+  background: rgba(0,0,0,0.55); color: #fafafa;
+  font-size: 11px; font-weight: 600;
+}
+.foleio-mkt-creator-body {
+  padding: 0 16px 16px;
+  display: grid;
+  gap: 10px;
+}
+.foleio-mkt-creator-avatar-row {
+  margin-top: -28px;
+  position: relative;
+  z-index: 1;
+}
+.foleio-mkt-creator-avatar {
+  width: 56px; height: 56px; border-radius: 999px; overflow: hidden;
+  border: 2px solid #212121; background: #2b2b2b;
+}
+.foleio-mkt-creator-avatar img,
+.foleio-mkt-creator-avatar span {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  object-fit: cover; font-size: 18px; font-weight: 600; color: #fafafa;
+}
+.foleio-mkt-creator-identity {
+  min-width: 0;
+  padding-top: 2px;
+}
+.foleio-mkt-creator-name {
+  margin: 0; font-size: 16px; font-weight: 600; color: #fafafa; line-height: 1.3;
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%;
+}
+.foleio-mkt-creator-name span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.foleio-mkt-creator-name svg {
+  width: 16px; height: 16px; flex-shrink: 0; color: #60a5fa;
+}
+.foleio-mkt-creator-handle {
+  margin: 4px 0 0; font-size: 13px; color: #828282;
+}
+.foleio-mkt-creator-bio {
+  margin: 0; font-size: 13px; line-height: 1.45; color: #adadad;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.foleio-mkt-creator-cat {
+  justify-self: start; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12); color: #adadad;
+  font-size: 12px; font-weight: 500;
+}
+.foleio-mkt-creator-cta {
+  margin-top: 2px; min-height: 40px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.2); background: transparent;
+  color: #fafafa; font: inherit; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.foleio-mkt-creator-card:hover .foleio-mkt-creator-cta {
+  border-color: #fff; background: #fff; color: #001035;
+}
+.foleio-mkt-discover-pager {
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+}
+.foleio-mkt-discover-pager button {
+  min-height: 36px; min-width: 36px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.14); background: transparent;
+  color: #adadad; font: inherit; font-size: 13px; cursor: pointer;
+}
+.foleio-mkt-discover-pager button[data-active="true"] {
+  border-color: #fff; color: #fafafa; background: rgba(255,255,255,0.08);
+}
+.foleio-mkt-discover-pager button:disabled { opacity: 0.4; cursor: not-allowed; }
+`,
+        }}
+      />
+
+      <div className="foleio-mkt-discover-tools">
+        <form className="foleio-mkt-discover-search" onSubmit={handleSearch}>
+          <div className="foleio-mkt-discover-search-wrap">
+            <Search strokeWidth={1.75} />
+            <input
+              type="search"
+              placeholder="Search Pro creators…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              aria-label="Search creators"
             />
           </div>
-          <Button type="submit">Search</Button>
+          <button type="submit">Search</button>
         </form>
 
-        {/* Category Filters */}
-        <div className="flex flex-wrap gap-2">
-          {categories.map((category) => {
-            const Icon = category.icon;
-            return (
-              <Button
-                key={category.value}
-                variant={selectedCategory === category.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleCategoryChange(category.value)}
-                className="flex items-center gap-2"
-              >
-                <Icon className="w-4 h-4" />
-                {category.label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Results Count */}
-      <div className="flex justify-between items-center">
-        <p className="text-gray-600">
-          {loading ? 'Loading creators...' : `Found ${creators.length} creators`}
-        </p>
-        {!loading && creators.length === 0 && (
-          <p className="text-gray-500">No Pro creators yet. Check back soon.</p>
-        )}
-      </div>
-
-      {/* Creators Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {creators.map((creator) => (
-          <Card key={creator.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-            {/* Banner */}
-            <div className="relative h-32 bg-gradient-to-r from-purple-400 to-pink-400">
-              {creator.bannerUrl && (
-                <img
-                  src={creator.bannerUrl}
-                  alt={`${creator.displayName} banner`}
-                  className="w-full h-full object-cover"
-                />
-              )}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-12 h-12 border-2 border-white">
-                    <AvatarImage src={creator.avatarUrl} alt={creator.displayName} />
-                    <AvatarFallback>
-                      {creator.displayName.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-white text-sm">
-                      {creator.displayName}
-                    </h3>
-                    <p className="text-white/80 text-xs">@{creator.username}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <CardContent className="p-4">
-              {/* Category and Social */}
-              <div className="flex items-center justify-between mb-3">
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  {(() => {
-                    const CategoryIcon = getCategoryIcon(creator.category);
-                    return <CategoryIcon className="w-3 h-3" />;
-                  })()}
-                  {creator.category}
-                </Badge>
-                <div className="flex space-x-2">
-                  {creator.instagramHandle && (
-                    <a
-                      href={`https://instagram.com/${creator.instagramHandle}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-pink-500 hover:text-pink-600"
-                    >
-                      <Instagram className="w-4 h-4" />
-                    </a>
-                  )}
-                  {creator.tiktokHandle && (
-                    <a
-                      href={`https://tiktok.com/@${creator.tiktokHandle}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-black hover:text-gray-600"
-                    >
-                      <Music className="w-4 h-4" />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* Bio */}
-              <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                {creator.bio || 'No bio available'}
-              </p>
-
-              {/* Stats */}
-              <div className="flex justify-between text-sm text-gray-500 mb-3">
-                <span>{creator.subscriberCount.toLocaleString()} subscribers</span>
-                <span>{creator.contentCount} videos</span>
-              </div>
-
-              {/* Pricing */}
-              {creator.pricing && (
-                <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium text-sm">{creator.pricing.planName}</span>
-                    <span className="font-bold text-green-600">
-                      {formatPrice(creator.pricing.price)}/month
-                    </span>
-                  </div>
-                  <ul className="text-xs text-gray-600 space-y-1">
-                    {creator.pricing.features.slice(0, 2).map((feature, index) => (
-                      <li key={index}>• {feature}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Recent Content Preview */}
-              {creator.recentContent.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Recent Content</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {creator.recentContent.slice(0, 3).map((content) => (
-                      <div key={content.id} className="relative aspect-square bg-gray-100 rounded overflow-hidden">
-                        {getThumbnailUrl(content) ? (
-                          <img
-                            src={getThumbnailUrl(content) || ''}
-                            alt={content.title}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <DefaultThumbnail title={content.title} aspectRatio="1/1" size="sm" />
-                        )}
-                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <Play className="w-8 h-8 text-white" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => window.open(`/${creator.username}`, '_blank')}
-                >
-                  View Profile
-                </Button>
-                {creator.pricing && (
-                  <Button size="sm" className="flex-1">
-                    <Heart className="w-4 h-4 mr-1" />
-                    Subscribe
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Loading State */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <div className="h-32 bg-gray-200 animate-pulse"></div>
-              <CardContent className="p-4">
-                <div className="animate-pulse space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-                    <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-24"></div>
-                      <div className="h-3 bg-gray-200 rounded w-16"></div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-full"></div>
-                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                  </div>
-                  <div className="flex justify-between">
-                    <div className="h-3 bg-gray-200 rounded w-16"></div>
-                    <div className="h-3 bg-gray-200 rounded w-12"></div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="foleio-mkt-discover-cats" role="tablist" aria-label="Categories">
+          {CATEGORIES.map((category) => (
+            <button
+              key={category.value}
+              type="button"
+              role="tab"
+              className="foleio-mkt-discover-cat"
+              data-active={selectedCategory === category.value ? 'true' : undefined}
+              onClick={() => {
+                setSelectedCategory(category.value);
+                setCurrentPage(1);
+              }}
+            >
+              {category.label}
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Pagination */}
-      {!loading && totalPages > 1 && (
-        <div className="flex justify-center space-x-2 mt-8">
-          <Button
-            variant="outline"
-            disabled={currentPage === 1}
-            onClick={() => handlePageChange(currentPage - 1)}
+      <p className="foleio-mkt-discover-meta">
+        {loading
+          ? 'Loading creators…'
+          : showSample
+            ? 'No live Pro creators yet — sample card below shows how listings appear.'
+            : `${totalCount} Pro creator${totalCount === 1 ? '' : 's'}`}
+      </p>
+
+      <div className="foleio-mkt-discover-grid">
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="foleio-mkt-creator-card"
+                aria-hidden
+                style={{ pointerEvents: 'none', opacity: 0.55 }}
+              >
+                <div className="foleio-mkt-creator-banner" />
+                <div className="foleio-mkt-creator-body">
+                  <div className="foleio-mkt-creator-avatar-row">
+                    <div className="foleio-mkt-creator-avatar" />
+                  </div>
+                  <div
+                    style={{
+                      height: 14,
+                      width: '50%',
+                      borderRadius: 6,
+                      background: '#2b2b2b',
+                    }}
+                  />
+                </div>
+              </div>
+            ))
+          : displayList.map((creator) => {
+              const href = creator.isSample
+                ? '/creator/shosglam'
+                : `/creator/${creator.username}`;
+              const initial = (creator.displayName || creator.username || '?')
+                .charAt(0)
+                .toUpperCase();
+
+              return (
+                <Link
+                  key={creator.id}
+                  href={href}
+                  className="foleio-mkt-creator-card"
+                >
+                  <div className="foleio-mkt-creator-banner">
+                    {creator.bannerUrl ? (
+                      <RemoteImage
+                        src={creator.bannerUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : null}
+                    {creator.isSample ? (
+                      <span className="foleio-mkt-creator-sample">Sample</span>
+                    ) : null}
+                  </div>
+                  <div className="foleio-mkt-creator-body">
+                    <div className="foleio-mkt-creator-avatar-row">
+                      <div className="foleio-mkt-creator-avatar">
+                        {creator.avatarUrl ? (
+                          <RemoteImage
+                            src={creator.avatarUrl}
+                            alt=""
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <span>{initial}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="foleio-mkt-creator-identity">
+                      <h3 className="foleio-mkt-creator-name">
+                        <span>{creator.displayName}</span>
+                        <BadgeCheck strokeWidth={1.75} aria-label="Verified" />
+                      </h3>
+                      <p className="foleio-mkt-creator-handle">
+                        @{creator.username}
+                      </p>
+                    </div>
+                    {creator.category ? (
+                      <span className="foleio-mkt-creator-cat">
+                        {creator.category}
+                      </span>
+                    ) : null}
+                    <p className="foleio-mkt-creator-bio">
+                      {creator.bio || 'Book services or shop products on Foleio.'}
+                    </p>
+                    <span className="foleio-mkt-creator-cta">View profile</span>
+                  </div>
+                </Link>
+              );
+            })}
+      </div>
+
+      {!loading && !showSample && totalPages > 1 ? (
+        <div className="foleio-mkt-discover-pager">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => void fetchCreators(currentPage - 1)}
           >
             Previous
-          </Button>
-
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-            const page = i + 1;
-            return (
-              <Button
-                key={page}
-                variant={currentPage === page ? "default" : "outline"}
-                onClick={() => handlePageChange(page)}
-              >
-                {page}
-              </Button>
-            );
-          })}
-
-          <Button
-            variant="outline"
-            disabled={currentPage === totalPages}
-            onClick={() => handlePageChange(currentPage + 1)}
+          </button>
+          <button type="button" data-active="true">
+            {currentPage}
+          </button>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => void fetchCreators(currentPage + 1)}
           >
             Next
-          </Button>
+          </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
