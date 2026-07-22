@@ -13,18 +13,6 @@ type CreatorCard = {
   category: string | null;
   avatarUrl: string | null;
   bannerUrl: string | null;
-  isSample?: boolean;
-};
-
-const SAMPLE_CREATOR: CreatorCard = {
-  id: 'sample',
-  username: 'shosglam',
-  displayName: 'Sho’s Glam',
-  bio: 'Bridal & soft glam in Lagos — book a session or shop products from one page.',
-  category: 'Makeup',
-  avatarUrl: null,
-  bannerUrl: null,
-  isSample: true,
 };
 
 const CATEGORIES = [
@@ -91,9 +79,6 @@ export function CreatorsDiscovery() {
     e.preventDefault();
     void fetchCreators(1);
   };
-
-  const showSample = !loading && creators.length === 0;
-  const displayList = showSample ? [SAMPLE_CREATOR] : creators;
 
   return (
     <div className="foleio-mkt-discover">
@@ -167,11 +152,9 @@ export function CreatorsDiscovery() {
 .foleio-mkt-creator-banner img {
   width: 100%; height: 100%; object-fit: cover; display: block;
 }
-.foleio-mkt-creator-sample {
-  position: absolute; top: 10px; right: 10px;
-  padding: 4px 8px; border-radius: 999px;
-  background: rgba(0,0,0,0.55); color: #fafafa;
-  font-size: 11px; font-weight: 600;
+.foleio-mkt-discover-empty {
+  margin: 0; padding: 48px 16px; text-align: center;
+  color: #828282; font-size: 14px; line-height: 1.5;
 }
 .foleio-mkt-creator-body {
   padding: 0 16px 16px;
@@ -281,105 +264,103 @@ export function CreatorsDiscovery() {
       <p className="foleio-mkt-discover-meta">
         {loading
           ? 'Loading creators…'
-          : showSample
-            ? 'No live Pro creators yet — sample card below shows how listings appear.'
-            : `${totalCount} Pro creator${totalCount === 1 ? '' : 's'}`}
+          : `${totalCount} Pro creator${totalCount === 1 ? '' : 's'}`}
       </p>
 
-      <div className="foleio-mkt-discover-grid">
-        {loading
-          ? Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
+      {loading ? (
+        <div className="foleio-mkt-discover-grid">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="foleio-mkt-creator-card"
+              aria-hidden
+              style={{ pointerEvents: 'none', opacity: 0.55 }}
+            >
+              <div className="foleio-mkt-creator-banner" />
+              <div className="foleio-mkt-creator-body">
+                <div className="foleio-mkt-creator-avatar-row">
+                  <div className="foleio-mkt-creator-avatar" />
+                </div>
+                <div
+                  style={{
+                    height: 14,
+                    width: '50%',
+                    borderRadius: 6,
+                    background: '#2b2b2b',
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : creators.length === 0 ? (
+        <p className="foleio-mkt-discover-empty">No Pro creators found.</p>
+      ) : (
+        <div className="foleio-mkt-discover-grid">
+          {creators.map((creator) => {
+            const initial = (creator.displayName || creator.username || '?')
+              .charAt(0)
+              .toUpperCase();
+
+            return (
+              <Link
+                key={creator.id}
+                href={`/creator/${creator.username}`}
                 className="foleio-mkt-creator-card"
-                aria-hidden
-                style={{ pointerEvents: 'none', opacity: 0.55 }}
               >
-                <div className="foleio-mkt-creator-banner" />
+                <div className="foleio-mkt-creator-banner">
+                  {creator.bannerUrl ? (
+                    <RemoteImage
+                      src={creator.bannerUrl}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : null}
+                </div>
                 <div className="foleio-mkt-creator-body">
                   <div className="foleio-mkt-creator-avatar-row">
-                    <div className="foleio-mkt-creator-avatar" />
-                  </div>
-                  <div
-                    style={{
-                      height: 14,
-                      width: '50%',
-                      borderRadius: 6,
-                      background: '#2b2b2b',
-                    }}
-                  />
-                </div>
-              </div>
-            ))
-          : displayList.map((creator) => {
-              const href = creator.isSample
-                ? '/creator/shosglam'
-                : `/creator/${creator.username}`;
-              const initial = (creator.displayName || creator.username || '?')
-                .charAt(0)
-                .toUpperCase();
-
-              return (
-                <Link
-                  key={creator.id}
-                  href={href}
-                  className="foleio-mkt-creator-card"
-                >
-                  <div className="foleio-mkt-creator-banner">
-                    {creator.bannerUrl ? (
-                      <RemoteImage
-                        src={creator.bannerUrl}
-                        alt=""
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    ) : null}
-                    {creator.isSample ? (
-                      <span className="foleio-mkt-creator-sample">Sample</span>
-                    ) : null}
-                  </div>
-                  <div className="foleio-mkt-creator-body">
-                    <div className="foleio-mkt-creator-avatar-row">
-                      <div className="foleio-mkt-creator-avatar">
-                        {creator.avatarUrl ? (
-                          <RemoteImage
-                            src={creator.avatarUrl}
-                            alt=""
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                            }}
-                          />
-                        ) : (
-                          <span>{initial}</span>
-                        )}
-                      </div>
+                    <div className="foleio-mkt-creator-avatar">
+                      {creator.avatarUrl ? (
+                        <RemoteImage
+                          src={creator.avatarUrl}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                      ) : (
+                        <span>{initial}</span>
+                      )}
                     </div>
-                    <div className="foleio-mkt-creator-identity">
-                      <h3 className="foleio-mkt-creator-name">
-                        <span>{creator.displayName}</span>
-                        <BadgeCheck strokeWidth={1.75} aria-label="Verified" />
-                      </h3>
-                      <p className="foleio-mkt-creator-handle">
-                        @{creator.username}
-                      </p>
-                    </div>
-                    {creator.category ? (
-                      <span className="foleio-mkt-creator-cat">
-                        {creator.category}
-                      </span>
-                    ) : null}
-                    <p className="foleio-mkt-creator-bio">
-                      {creator.bio || 'Book services or shop products on Foleio.'}
+                  </div>
+                  <div className="foleio-mkt-creator-identity">
+                    <h3 className="foleio-mkt-creator-name">
+                      <span>{creator.displayName}</span>
+                      <BadgeCheck strokeWidth={1.75} aria-label="Verified" />
+                    </h3>
+                    <p className="foleio-mkt-creator-handle">
+                      @{creator.username}
                     </p>
-                    <span className="foleio-mkt-creator-cta">View profile</span>
                   </div>
-                </Link>
-              );
-            })}
-      </div>
+                  {creator.category ? (
+                    <span className="foleio-mkt-creator-cat">
+                      {creator.category}
+                    </span>
+                  ) : null}
+                  <p className="foleio-mkt-creator-bio">
+                    {creator.bio || 'Book services or shop products on Foleio.'}
+                  </p>
+                  <span className="foleio-mkt-creator-cta">View profile</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
-      {!loading && !showSample && totalPages > 1 ? (
+      {!loading && creators.length > 0 && totalPages > 1 ? (
         <div className="foleio-mkt-discover-pager">
           <button
             type="button"
