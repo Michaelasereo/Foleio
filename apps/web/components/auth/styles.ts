@@ -405,9 +405,9 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
 .foleio-auth-preview {
   position: relative;
   width: 100%;
-  aspect-ratio: 333 / 277;
+  aspect-ratio: 16 / 9;
   height: auto;
-  min-height: 200px;
+  min-height: 240px;
   border-radius: 12px;
   background: #212121;
   margin-bottom: 16px;

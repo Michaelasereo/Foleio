@@ -7,10 +7,15 @@ const FREE_LIMITS = {
   maxServices: 10,
   maxProducts: 10,
   maxPreorderProducts: 5,
+  maxProductImages: 3,
+  maxReviews: 0,
   maxPortfolioCategories: 0,
   canCreateCollections: true,
   canUseAvailabilityTemplates: false,
   canSellDigitalProducts: false,
+  canSellGiftCards: false,
+  canUseCoupons: false,
+  canUseConditionalDelivery: false,
   canAppearInDiscover: false,
   hasAnalytics: true,
   hasBranding: false,
@@ -23,10 +28,15 @@ const PAID_LIMITS = {
   maxServices: Number.POSITIVE_INFINITY,
   maxProducts: Number.POSITIVE_INFINITY,
   maxPreorderProducts: Number.POSITIVE_INFINITY,
+  maxProductImages: 5,
+  maxReviews: 10,
   maxPortfolioCategories: 3,
   canCreateCollections: true,
   canUseAvailabilityTemplates: true,
   canSellDigitalProducts: true,
+  canSellGiftCards: true,
+  canUseCoupons: true,
+  canUseConditionalDelivery: true,
   canAppearInDiscover: true,
   hasAnalytics: true,
   hasBranding: false,
@@ -124,6 +134,36 @@ export const PLAN_LIMIT_MESSAGES = {
     description:
       'Free includes up to 5 preorder products. Upgrade to Pro for unlimited preorders.',
     feature: 'Unlimited preorder products',
+  },
+  maxProductImages: {
+    title: 'Product photo limit reached',
+    description:
+      'Free includes up to 3 product photos. Upgrade to Pro for up to 5 photos per product.',
+    feature: 'Up to 5 product photos',
+  },
+  maxReviews: {
+    title: 'Customer reviews are Pro',
+    description:
+      'Add up to 10 customer testimonials on your public page with Pro.',
+    feature: 'Up to 10 customer reviews',
+  },
+  conditionalDelivery: {
+    title: 'Conditional delivery is Pro',
+    description:
+      'Offer free delivery when customers spend a minimum or buy enough items — on Pro.',
+    feature: 'Conditional free delivery',
+  },
+  giftCards: {
+    title: 'Gift cards are Pro',
+    description:
+      'Sell creator gift cards with reusable balances on Pro.',
+    feature: 'Shop gift cards',
+  },
+  coupons: {
+    title: 'Coupons are Pro',
+    description:
+      'Create percent or fixed-amount coupon codes for your shop on Pro.',
+    feature: 'Shop coupon codes',
   },
   availabilityTemplates: {
     title: 'Schedule templates are Pro',

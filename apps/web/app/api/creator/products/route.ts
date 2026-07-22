@@ -21,6 +21,16 @@ function toKobo(value: unknown) {
   return Math.round(parsed * 100);
 }
 
+function parseOptionalIsoDate(value: unknown): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const iso = String(value).trim();
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
 function parseAddons(raw: unknown) {
   return normalizeAddonCategoriesInput(raw, false);
 }
@@ -38,12 +48,13 @@ function parseVariants(raw: unknown) {
     .slice(0, 3);
 }
 
-function parseImageUrls(body: Record<string, unknown>) {
+function parseImageUrls(body: Record<string, unknown>, maxImages = 3) {
+  const cap = Math.max(1, Math.min(10, Math.floor(Number(maxImages) || 3)));
   const fromArray = Array.isArray(body?.imageUrls)
     ? body.imageUrls.map((url) => String(url || '').trim()).filter(Boolean)
     : [];
   const legacy = body?.imageUrl ? String(body.imageUrl).trim() : '';
-  const urls = (fromArray.length > 0 ? fromArray : legacy ? [legacy] : []).slice(0, 2);
+  const urls = (fromArray.length > 0 ? fromArray : legacy ? [legacy] : []).slice(0, cap);
   return {
     imageUrls: urls,
     imageUrl: urls[0] || null,
@@ -147,9 +158,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    const rawType = String(body?.type || '').trim().toLowerCase();
     const productType =
-      String(body?.type || '').trim().toLowerCase() === 'digital' ? 'digital' : 'physical';
+      rawType === 'digital'
+        ? 'digital'
+        : rawType === 'gift_card'
+          ? 'gift_card'
+          : 'physical';
     const isDigital = productType === 'digital';
+    const isGiftCard = productType === 'gift_card';
+    const isNonPhysical = isDigital || isGiftCard;
 
     if (isDigital && !limits.canSellDigitalProducts) {
       return NextResponse.json(
@@ -157,28 +175,45 @@ export async function POST(request: Request) {
         { status: 403 }
       );
     }
+    if (isGiftCard && !limits.canSellGiftCards) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'giftCards' },
+        { status: 403 }
+      );
+    }
 
     const name = String(body?.name || '').trim();
     const description = body?.description ? String(body.description) : null;
-    const { imageUrl, imageUrls } = parseImageUrls(body);
+    const { imageUrl, imageUrls } = parseImageUrls(body, limits.maxProductImages);
     const status = body?.status === 'active' ? 'active' : 'draft';
     const digitalFileUrl = isDigital
       ? String(body?.digitalFileUrl || '').trim() || null
       : null;
     const stockRaw = body?.stock;
-    const stock = isDigital
+    const stock = isNonPhysical
       ? null
       : stockRaw === '' || stockRaw === null || stockRaw === undefined
         ? null
         : Math.max(0, Math.floor(Number(stockRaw)));
-    const weight = isDigital
+    const weight = isNonPhysical
       ? null
       : body?.weight === '' || body?.weight === null || body?.weight === undefined
         ? null
         : Math.max(0, Number(body.weight));
-    const isPreorder = isDigital ? false : Boolean(body?.isPreorder);
-    const addons = isDigital ? [] : parseAddons(body?.addons);
-    const variants = isDigital ? [] : parseVariants(body?.variants);
+    const isPreorder = isNonPhysical ? false : Boolean(body?.isPreorder);
+    const addons = isNonPhysical ? [] : parseAddons(body?.addons);
+    const variants = isNonPhysical ? [] : parseVariants(body?.variants);
+
+    if (
+      Array.isArray(body?.imageUrls) &&
+      body.imageUrls.filter((url: unknown) => String(url || '').trim()).length >
+        limits.maxProductImages
+    ) {
+      return NextResponse.json(
+        { error: 'Plan limit reached', limitType: 'maxProductImages' },
+        { status: 403 }
+      );
+    }
 
     if (isPreorder) {
       const preorderCount = await prisma.product.count({
@@ -224,7 +259,7 @@ export async function POST(request: Request) {
     if (price <= 0) {
       return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 });
     }
-    if (!isDigital && (stock === null || !Number.isFinite(stock))) {
+    if (!isNonPhysical && (stock === null || !Number.isFinite(stock))) {
       return NextResponse.json({ error: 'Stock is required' }, { status: 400 });
     }
     if (isDigital && status === 'active' && !digitalFileUrl) {
@@ -239,7 +274,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (!isDigital && status === 'active' && (stock ?? 0) <= 0) {
+    if (!isNonPhysical && status === 'active' && (stock ?? 0) <= 0) {
       return NextResponse.json(
         { error: 'Cannot publish a product with zero stock' },
         { status: 400 }
@@ -253,9 +288,9 @@ export async function POST(request: Request) {
     });
 
     const productId = crypto.randomUUID();
-    const showLimitedStock = isDigital ? false : Boolean(body?.showLimitedStock);
+    const showLimitedStock = isNonPhysical ? false : Boolean(body?.showLimitedStock);
     const nextStatus =
-      !isDigital && stock !== null && stock <= 0 ? 'draft' : status;
+      !isNonPhysical && stock !== null && stock <= 0 ? 'draft' : status;
     const product = await prisma.product.create({
       data: {
         id: productId,
@@ -264,6 +299,12 @@ export async function POST(request: Request) {
         description,
         price,
         compareAtPrice,
+        discountStartsAt: isPreorder
+          ? null
+          : parseOptionalIsoDate(body?.discountStartsAt),
+        discountEndsAt: isPreorder
+          ? null
+          : parseOptionalIsoDate(body?.discountEndsAt),
         weight,
         type: productType,
         imageUrl,

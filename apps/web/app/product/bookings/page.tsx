@@ -8,7 +8,7 @@ import {
 import { BRAND_CLAIM } from '@/components/marketing/marketingCss';
 
 const description =
-  'Offer services with availability, deposits, balances, tracking, and booking policy on Foleio — get paid upfront via Paystack.';
+  'Offer services with availability, deposits, balances, tracking, and booking policy on Foleio — Pro adds reusable schedule templates. Get paid upfront via Paystack.';
 
 export const metadata: Metadata = {
   title: 'Get booked and paid | Foleio',
@@ -45,7 +45,7 @@ export default function ProductBookingsPage() {
       <MarketingHero
         eyebrow={BRAND_CLAIM}
         title="Get booked and paid"
-        subtitle="Publish services, set availability, collect deposits or full payment, and share clear booking policy — all on your Foleio link."
+        subtitle="Publish services, set availability, collect deposits or full payment, and share clear booking policy — all on your Foleio link. Pro adds reusable schedule templates."
       />
 
       <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
@@ -61,8 +61,8 @@ export default function ProductBookingsPage() {
                 'Take a deposit or full amount online, then track remaining balances when needed.',
               ],
               [
-                'Tracking & policy',
-                'Clients follow booking status; your policy sets expectations before they pay.',
+                'Schedule templates (Pro)',
+                'Save and reuse availability patterns instead of setting every day from scratch.',
               ],
             ].map(([title, desc]) => (
               <div key={title} className="foleio-mkt-card">

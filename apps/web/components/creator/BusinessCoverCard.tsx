@@ -35,10 +35,10 @@ export function BusinessCoverCard({
       });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 20 * 1024 * 1024) {
       toast({
         title: 'File too large',
-        description: 'Banner images must be under 10MB.',
+        description: 'Banner images must be under 20MB.',
         variant: 'destructive',
       });
       return;

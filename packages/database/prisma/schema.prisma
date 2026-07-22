@@ -151,6 +151,7 @@ model Creator {
   hasCompletedOnboarding Boolean @default(false) @map("has_completed_onboarding")
   hasCompletedTour Boolean @default(false) @map("has_completed_tour")
   subscriptionEnabled Boolean @default(false) @map("subscription_enabled")
+  reviewsEnabled Boolean @default(true) @map("reviews_enabled")
   monthlyPrice Int @default(0) @map("monthly_price")
   subscriptionPerks String[] @default([]) @map("subscription_perks")
   verified  Boolean @default(false)
@@ -196,6 +197,9 @@ model Creator {
   journalEntries    JournalEntry[]
   portfolioSections PortfolioSection[]
   portfolioItems    PortfolioItem[]
+  reviews           CreatorReview[]
+  giftCards         GiftCard[]
+  coupons           Coupon[]
 
   @@map("creators")
   @@index([userId])
@@ -657,10 +661,12 @@ model Product {
   description      String?
   price            Int      // in kobo (charge / sale price)
   compareAtPrice   Int?     @map("compare_at_price") // original price in kobo; when > price shows discount
+  discountStartsAt DateTime? @map("discount_starts_at")
+  discountEndsAt   DateTime? @map("discount_ends_at")
   weight           Float?   // kg, for physical only
-  type             String   @default("physical") // physical | digital
+  type             String   @default("physical") // physical | digital | gift_card
   imageUrl         String?  @map("image_url") // primary / first image (compat)
-  imageUrls        String[] @default([]) @map("image_urls") // up to 2 product photos
+  imageUrls        String[] @default([]) @map("image_urls") // Free up to 3, Pro up to 5
   digitalFileUrl   String?  @map("digital_file_url") // R2 object key for digital PDFs
   stock            Int?     // required for physical; null = unlimited for digital
   /** When true, public/manage cards show "Limited stock" instead of the count. */
@@ -669,7 +675,7 @@ model Product {
   orderIndex       Int      @default(0) @map("order_index")
   waiveDeliveryFee Boolean  @default(false) @map("waive_delivery_fee")
   isPreorder       Boolean  @default(false) @map("is_preorder")
-  preorderSettings Json?    @map("preorder_settings") // { releaseAt, preorderPrice, preorderCompareAtPrice, postPreorderPrice, postPreorderCompareAtPrice, phases[] }
+  preorderSettings Json?    @map("preorder_settings") // { startsAt, releaseAt, preorderPrice, ... phases[] }
   addons           Json     @default("[]") // [{ id, name, required, options:[{ id, name, price }] }] price in kobo; legacy flat [{id,name,price}] still parsed
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -698,14 +704,18 @@ model ProductVariant {
 }
 
 model DeliveryTier {
-  id            String   @id @default(uuid())
-  creatorId     String   @map("creator_id")
-  name          String
-  description   String?
-  type          String   @default("paid") // paid | free | pickup
-  flatRate      Int      @map("flat_rate") // in kobo; 0 for free/pickup
-  estimatedDays String?  @map("estimated_days") // unused in v1 UI
-  createdAt     DateTime @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  creatorId        String   @map("creator_id")
+  name             String
+  description      String?
+  type             String   @default("paid") // paid | free | pickup
+  flatRate         Int      @map("flat_rate") // in kobo; 0 for free/pickup
+  /** Free delivery when cart subtotal (kobo) reaches this (Pro). */
+  minSubtotalKobo  Int?     @map("min_subtotal_kobo")
+  /** Free delivery when physical item quantity reaches this (Pro). */
+  minItemQuantity  Int?     @map("min_item_quantity")
+  estimatedDays    String?  @map("estimated_days") // unused in v1 UI
+  createdAt        DateTime @default(now()) @map("created_at")
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   orders  Order[]
@@ -719,10 +729,14 @@ model Order {
   fanId             String   @map("fan_id")
   creatorId         String   @map("creator_id")
   deliveryTierId    String?  @map("delivery_tier_id")
-  deliveryAddress   Json     @map("delivery_address") // {firstName,lastName,name,email,phone,notes?,address?,city?,state?}
+  deliveryAddress   Json     @map("delivery_address") // buyer + optional gift fields
   subtotal          Int      // in kobo
   deliveryFee       Int      @map("delivery_fee") // in kobo
-  total             Int      // in kobo
+  couponId          String?  @map("coupon_id")
+  couponDiscountKobo Int     @default(0) @map("coupon_discount_kobo")
+  giftCardId        String?  @map("gift_card_id")
+  giftCardAppliedKobo Int    @default(0) @map("gift_card_applied_kobo")
+  total             Int      // in kobo (after coupon + gift card credit)
   status            String   @default("pending")
   paystackReference String?  @map("paystack_reference")
   notes             String?
@@ -731,12 +745,16 @@ model Order {
 
   creator      Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   deliveryTier DeliveryTier? @relation(fields: [deliveryTierId], references: [id], onDelete: SetNull)
+  coupon       Coupon?       @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  giftCard     GiftCard?     @relation(fields: [giftCardId], references: [id], onDelete: SetNull)
   items        OrderItem[]
 
   @@map("orders")
   @@index([fanId])
   @@index([creatorId])
   @@index([deliveryTierId])
+  @@index([couponId])
+  @@index([giftCardId])
   @@index([status])
 }
 
@@ -948,6 +966,75 @@ model PortfolioItem {
   @@index([sectionId])
   @@index([priceListItemId])
   @@index([orderIndex])
+}
+
+/** Creator-managed customer testimonials (not fan-submitted). */
+model CreatorReview {
+  id           String   @id @default(uuid())
+  creatorId    String   @map("creator_id")
+  customerName String   @map("customer_name")
+  location     String?
+  quote        String
+  orderIndex   Int      @default(0) @map("order_index")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("creator_reviews")
+  @@index([creatorId])
+  @@index([creatorId, orderIndex])
+}
+
+/** Creator-scoped shop gift cards with reusable balance (Pro). */
+model GiftCard {
+  id               String    @id @default(uuid())
+  creatorId        String    @map("creator_id")
+  code             String
+  faceValueKobo    Int       @map("face_value_kobo")
+  balanceKobo      Int       @map("balance_kobo")
+  status           String    @default("active") // active | depleted | void
+  purchasedOrderId String?   @map("purchased_order_id")
+  recipientEmail   String?   @map("recipient_email")
+  expiresAt        DateTime? @map("expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@unique([creatorId, code])
+  @@map("gift_cards")
+  @@index([creatorId])
+  @@index([code])
+  @@index([status])
+}
+
+/** Creator-scoped shop coupon codes (Pro). Discount applies to product subtotal. */
+model Coupon {
+  id              String    @id @default(uuid())
+  creatorId       String    @map("creator_id")
+  code            String
+  type            String // percent | fixed
+  value           Int // percent points (1-100) OR fixed amount in kobo
+  minSubtotalKobo Int?      @map("min_subtotal_kobo")
+  maxUses         Int?      @map("max_uses")
+  usedCount       Int       @default(0) @map("used_count")
+  startsAt        DateTime? @map("starts_at")
+  endsAt          DateTime? @map("ends_at")
+  status          String    @default("active") // active | disabled
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@unique([creatorId, code])
+  @@map("coupons")
+  @@index([creatorId])
+  @@index([code])
+  @@index([status])
 }
 
 // Email Subscriptions (fans subscribing to creator updates)

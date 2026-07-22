@@ -11,9 +11,11 @@ import {
   formatFreeFeeLabel,
   formatPlanPrice,
   formatProFeeLabel,
+  freePlanFeatureBullets,
   isLegacyZeroFeeSubscription,
   planCompareAtKobo,
   planDiscountPercent,
+  proPlanFeatureBullets,
   type BillingInterval,
   type PaidPlatformPlan,
 } from '@/lib/billing/platform-plans';
@@ -239,10 +241,8 @@ export function BillingPage({
       title: 'Free',
       fee: formatFreeFeeLabel(),
       features: [
-        'Full access to bookings, shop, and tools',
         `${formatFreeFeeLabel()} platform & service fees`,
-        'Up to 10 services and 10 products (5 preorders)',
-        'One Home portfolio gallery',
+        ...freePlanFeatureBullets(),
       ],
     },
     {
@@ -252,12 +252,7 @@ export function BillingPage({
       features: [
         'Everything on Free',
         `${formatProFeeLabel()} platform & service fees on transactions`,
-        'Unlimited services & products',
-        'Digital product downloads',
-        'Appear on Top Creators & Google',
-        'Up to 3 portfolio categories',
-        'Schedule templates',
-        'Self-serve upgrade',
+        ...proPlanFeatureBullets().filter((f) => f !== 'Everything on Free'),
       ],
     },
   ];

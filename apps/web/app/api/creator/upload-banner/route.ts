@@ -44,9 +44,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 20 * 1024 * 1024) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 10MB.' },
+        { error: 'File too large. Maximum size is 20MB.' },
         { status: 400 }
       );
     }
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         uploadType: 'banner',
       },
       optimizeImages: true,
-      maxSizeMB: 10,
+      maxSizeMB: 20,
     });
 
     await prisma.creator.update({

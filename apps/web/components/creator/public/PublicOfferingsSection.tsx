@@ -34,11 +34,13 @@ export async function PublicOfferingsSection({
   creator,
   hasActiveProducts,
   requireDojahKyc,
+  reviews = [],
 }: {
   creatorId: string;
   creator: Record<string, unknown>;
   hasActiveProducts: boolean;
   requireDojahKyc: boolean;
+  reviews?: Array<{ id: string; customerName: string; location?: string | null; quote: string }>;
 }) {
   const priceListItems = await prisma.priceListItem.findMany({
     where: { creatorId, isActive: true },
@@ -70,6 +72,7 @@ export async function PublicOfferingsSection({
       hasActiveProducts={hasActiveProducts}
       requireDojahKyc={requireDojahKyc}
       portfolioSections={[]}
+      reviews={reviews}
     />
   );
 }

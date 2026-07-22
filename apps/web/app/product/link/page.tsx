@@ -8,7 +8,7 @@ import {
 import { BRAND_CLAIM } from '@/components/marketing/marketingCss';
 
 const description =
-  'Share one Foleio link for bookings, shop, and portfolio — Africa’s number one creator monetization platform.';
+  'Share one Foleio link for bookings, shop, portfolio, and Pro customer reviews — Africa’s number one creator monetization platform.';
 
 export const metadata: Metadata = {
   title: 'Share your link. Get booked. | Foleio',
@@ -45,7 +45,7 @@ export default function ProductLinkPage() {
       <MarketingHero
         eyebrow={BRAND_CLAIM}
         title="Share your link. Get booked."
-        subtitle="One public Foleio URL for your profile, bookings, shop, and portfolio. Share it on Instagram, WhatsApp, or TikTok — clients open it and pay with Paystack."
+        subtitle="One public Foleio URL for your profile, bookings, shop, and portfolio. Pro adds customer reviews on your page. Share it on Instagram, WhatsApp, or TikTok — clients open it and pay with Paystack."
       />
 
       <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
@@ -61,8 +61,8 @@ export default function ProductLinkPage() {
                 'Clients book services or buy products without leaving your page.',
               ],
               [
-                'Paid to your bank',
-                'Paystack settles your share to your linked Nigerian bank account.',
+                'Reviews (Pro)',
+                'Show up to 10 customer testimonials next to your services and shop.',
               ],
             ].map(([title, desc]) => (
               <div key={title} className="foleio-mkt-card">

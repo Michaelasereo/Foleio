@@ -57,8 +57,12 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      if (file.size > 5 * 1024 * 1024) {
-        return NextResponse.json({ error: 'Image must be under 5MB.' }, { status: 400 });
+      const maxImageMb = uploadType === 'portfolio' ? 10 : 5;
+      if (file.size > maxImageMb * 1024 * 1024) {
+        return NextResponse.json(
+          { error: `Image must be under ${maxImageMb}MB.` },
+          { status: 400 }
+        );
       }
       const extension =
         file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';

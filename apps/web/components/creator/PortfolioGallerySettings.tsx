@@ -458,13 +458,26 @@ export function PortfolioGallerySettings({
         <button
           type="button"
           className="foleio-dash-btn-outline"
-          style={{ padding: '7px 10px', fontSize: 13 }}
+          style={{
+            padding: '7px 10px',
+            fontSize: 13,
+            ...(!canAddCategories
+              ? { opacity: 0.55, cursor: 'not-allowed' as const }
+              : {}),
+          }}
           onClick={startAddCategory}
           disabled={savingCategory}
+          aria-disabled={!canAddCategories}
         >
-          <Plus className="h-3.5 w-3.5" />
+          {!canAddCategories ? (
+            <Lock className="h-3.5 w-3.5" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
           Add category
-          {!canAddCategories ? <Lock className="h-3.5 w-3.5" /> : null}
+          {!canAddCategories ? (
+            <span className="foleio-dash-badge is-warning">Pro</span>
+          ) : null}
         </button>
       </div>
 

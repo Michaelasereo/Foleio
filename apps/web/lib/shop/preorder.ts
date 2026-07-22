@@ -6,6 +6,8 @@ export type PreorderPhase = {
 };
 
 export type PreorderSettings = {
+  /** When preorder purchasing opens (ISO). If omitted, open immediately until release. */
+  startsAt: string | null;
   releaseAt: string;
   preorderPrice: number;
   preorderCompareAtPrice: number | null;
@@ -34,10 +36,14 @@ export function parsePreorderSettings(raw: unknown): PreorderSettings | null {
   const data = raw as Record<string, unknown>;
 
   const releaseAt = toIsoOrNull(data.releaseAt);
+  const startsAt = toIsoOrNull(data.startsAt);
   const preorderPrice = toFiniteNumber(data.preorderPrice);
   const postPreorderPrice = toFiniteNumber(data.postPreorderPrice);
   if (!releaseAt || preorderPrice === null || postPreorderPrice === null) return null;
   if (preorderPrice < 0 || postPreorderPrice <= 0) return null;
+  if (startsAt && new Date(startsAt).getTime() >= new Date(releaseAt).getTime()) {
+    return null;
+  }
 
   const preorderCompareAtRaw = toFiniteNumber(data.preorderCompareAtPrice);
   const postCompareAtRaw = toFiniteNumber(data.postPreorderCompareAtPrice);
@@ -65,6 +71,7 @@ export function parsePreorderSettings(raw: unknown): PreorderSettings | null {
   );
 
   return {
+    startsAt,
     releaseAt,
     preorderPrice: Math.round(preorderPrice),
     preorderCompareAtPrice:
@@ -92,6 +99,16 @@ export function validatePreorderSettingsInput(raw: unknown): {
   const releaseAt = toIsoOrNull(data.releaseAt);
   if (!releaseAt) {
     return { settings: null, error: 'Preorder release date and time are required' };
+  }
+  const preorderStartsAt = toIsoOrNull(data.startsAt);
+  if (!preorderStartsAt) {
+    return { settings: null, error: 'Preorder start date and time are required' };
+  }
+  if (new Date(preorderStartsAt).getTime() >= new Date(releaseAt).getTime()) {
+    return {
+      settings: null,
+      error: 'Preorder start must be before the release date',
+    };
   }
 
   const preorderPrice = toFiniteNumber(data.preorderPrice);
@@ -133,14 +150,20 @@ export function validatePreorderSettingsInput(raw: unknown): {
       return { settings: null, error: `Discount phase ${i + 1} is invalid` };
     }
     const row = phase as Record<string, unknown>;
-    const startsAt = toIsoOrNull(row.startsAt);
-    if (!startsAt) {
+    const phaseStartsAt = toIsoOrNull(row.startsAt);
+    if (!phaseStartsAt) {
       return {
         settings: null,
         error: `Discount phase ${i + 1} needs a start date and time`,
       };
     }
-    if (new Date(startsAt).getTime() >= new Date(releaseAt).getTime()) {
+    if (new Date(phaseStartsAt).getTime() < new Date(preorderStartsAt).getTime()) {
+      return {
+        settings: null,
+        error: `Discount phase ${i + 1} must start on or after the preorder start`,
+      };
+    }
+    if (new Date(phaseStartsAt).getTime() >= new Date(releaseAt).getTime()) {
       return {
         settings: null,
         error: `Discount phase ${i + 1} must start before the release date`,
@@ -162,7 +185,7 @@ export function validatePreorderSettingsInput(raw: unknown): {
     }
     phases.push({
       id: String(row.id || crypto.randomUUID()),
-      startsAt,
+      startsAt: phaseStartsAt,
       type,
       value: type === 'amount' ? Math.round(value) : value,
     });
@@ -174,6 +197,7 @@ export function validatePreorderSettingsInput(raw: unknown): {
 
   return {
     settings: {
+      startsAt: preorderStartsAt,
       releaseAt,
       preorderPrice: Math.round(preorderPrice),
       preorderCompareAtPrice:
@@ -224,7 +248,33 @@ export function isPreorderWindowOpen(
   if (!settings) return false;
   const releaseMs = new Date(settings.releaseAt).getTime();
   if (Number.isNaN(releaseMs)) return false;
-  return now.getTime() < releaseMs;
+  const nowMs = now.getTime();
+  if (nowMs >= releaseMs) return false;
+  if (settings.startsAt) {
+    const startMs = new Date(settings.startsAt).getTime();
+    if (!Number.isNaN(startMs) && nowMs < startMs) return false;
+  }
+  return true;
+}
+
+/** Whether a product discount window is currently active. */
+export function isDiscountWindowActive(
+  product: {
+    discountStartsAt?: Date | string | null;
+    discountEndsAt?: Date | string | null;
+  },
+  now: Date = new Date()
+): boolean {
+  const nowMs = now.getTime();
+  if (product.discountStartsAt) {
+    const startMs = new Date(product.discountStartsAt).getTime();
+    if (!Number.isNaN(startMs) && nowMs < startMs) return false;
+  }
+  if (product.discountEndsAt) {
+    const endMs = new Date(product.discountEndsAt).getTime();
+    if (!Number.isNaN(endMs) && nowMs >= endMs) return false;
+  }
+  return true;
 }
 
 /** Effective charge price in kobo for a product with preorder settings. */
@@ -270,15 +320,24 @@ export function resolveProductPricing(
     compareAtPrice?: number | null;
     isPreorder?: boolean;
     preorderSettings?: unknown;
+    discountStartsAt?: Date | string | null;
+    discountEndsAt?: Date | string | null;
   },
   now: Date = new Date()
 ): { price: number; compareAtPrice: number | null; isPreorderActive: boolean } {
   if (!product.isPreorder) {
-    return {
-      price: product.price,
-      compareAtPrice: product.compareAtPrice ?? null,
-      isPreorderActive: false,
-    };
+    const sale = Math.max(0, Math.round(Number(product.price) || 0));
+    const compare =
+      product.compareAtPrice != null && Number(product.compareAtPrice) > sale
+        ? Math.round(Number(product.compareAtPrice))
+        : null;
+    if (!compare) {
+      return { price: sale, compareAtPrice: null, isPreorderActive: false };
+    }
+    if (!isDiscountWindowActive(product, now)) {
+      return { price: compare, compareAtPrice: null, isPreorderActive: false };
+    }
+    return { price: sale, compareAtPrice: compare, isPreorderActive: false };
   }
   const settings = parsePreorderSettings(product.preorderSettings);
   if (!settings) {

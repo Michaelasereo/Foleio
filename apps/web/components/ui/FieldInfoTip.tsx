@@ -27,22 +27,21 @@ export function FieldInfoTip({ text }: { text: string }) {
       {open ? (
         <span
           role="tooltip"
+          className="foleio-dash-panel-meta"
           style={{
             position: 'absolute',
             left: 0,
             bottom: 'calc(100% + 8px)',
             zIndex: 40,
             width: 220,
+            margin: 0,
             padding: '8px 10px',
             borderRadius: 8,
             background: '#2a2a2a',
             border: '1px solid rgba(255,255,255,0.12)',
-            color: '#e4e4e7',
-            fontSize: 12,
-            fontWeight: 500,
-            lineHeight: 1.4,
             boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
             pointerEvents: 'none',
+            whiteSpace: 'normal',
           }}
         >
           {text}

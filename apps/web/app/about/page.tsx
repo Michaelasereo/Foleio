@@ -4,7 +4,9 @@ import {
   formatFreeFeeLabel,
   formatPlanPrice,
   formatProFeeLabel,
+  freePlanFeatureBullets,
   PLATFORM_PLAN_AMOUNTS_KOBO,
+  proPlanFeatureBullets,
 } from '@/lib/billing/platform-plans';
 import {
   MarketingCta,
@@ -51,6 +53,8 @@ export default function AboutPage() {
   const proFee = formatProFeeLabel();
   const proMonthly = formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.monthly);
   const proQuarterly = formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly);
+  const freeFeatures = freePlanFeatureBullets();
+  const proFeatures = proPlanFeatureBullets().filter((f) => f !== 'Everything on Free');
 
   return (
     <MarketingShell activePath="/about">
@@ -143,7 +147,7 @@ export default function AboutPage() {
               [
                 '03',
                 'Shop',
-                'Sell physical products with delivery and preorders. Pro unlocks digital PDF downloads.',
+                'Sell physical products with delivery and preorders. Pro unlocks digital downloads, gift cards, coupons, and conditional free delivery.',
               ],
             ].map(([num, title, desc]) => (
               <div key={num} className="foleio-mkt-card">
@@ -158,8 +162,8 @@ export default function AboutPage() {
           <div className="foleio-mkt-grid-3">
             {[
               [
-                'Portfolio',
-                'Show your work. Free includes a Home gallery; Pro unlocks named categories.',
+                'Portfolio & reviews',
+                'Show your work on Free. Pro adds named portfolio categories and up to 10 customer reviews on your page.',
               ],
               [
                 'Get paid in Naira',
@@ -223,8 +227,8 @@ export default function AboutPage() {
           <h2>Free to start. Pro when you scale.</h2>
           <p className="foleio-mkt-body mb-10">
             Foleio takes a platform &amp; service fee on each payment. Upgrade to Pro
-            for a lower fee and more tools — including digital downloads and Top
-            Creators listing.
+            for a lower fee and more tools — including reviews, gift cards, digital
+            downloads, and Top Creators listing.
           </p>
           <div className="foleio-mkt-grid-2 text-left">
             <div className="foleio-mkt-card">
@@ -236,9 +240,9 @@ export default function AboutPage() {
                 {freeFee} per transaction
               </p>
               <ul>
-                <li>Public page, bookings, and shop</li>
-                <li>Up to 10 services and 10 products</li>
-                <li>One Home portfolio gallery</li>
+                {freeFeatures.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
               </ul>
             </div>
             <div className="foleio-mkt-card foleio-mkt-card-accent">
@@ -254,14 +258,18 @@ export default function AboutPage() {
                 {proFee} per transaction
               </p>
               <ul>
-                <li>Unlimited services &amp; products</li>
-                <li>Digital PDF downloads</li>
-                <li>
-                  <Link href="/creators" className="underline underline-offset-2">
-                    Appear on Top Creators &amp; Google
-                  </Link>
-                </li>
-                <li>Portfolio categories &amp; schedule templates</li>
+                <li>Everything on Free</li>
+                {proFeatures.map((feature) =>
+                  feature.includes('Top Creators') ? (
+                    <li key={feature}>
+                      <Link href="/creators" className="underline underline-offset-2">
+                        Appear on Top Creators &amp; Google
+                      </Link>
+                    </li>
+                  ) : (
+                    <li key={feature}>{feature}</li>
+                  )
+                )}
               </ul>
             </div>
           </div>

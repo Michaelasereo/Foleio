@@ -5,11 +5,14 @@ import { webhookQueue, queues } from '@/lib/queue/queue-manager';
 import { withRateLimit, rateLimiters } from '@/lib/rate-limit/rate-limiter';
 import { prisma } from '@foleio/database';
 import { sendSubscriptionConfirmation } from '@/lib/email/send';
-import { sendEmail, sendOrderConfirmationEmail } from '@/lib/email/resend';
+import { sendEmail } from '@/lib/email/resend';
 import { paymentFailedTemplate, payoutConfirmationTemplate } from '@/lib/email/templates/nudges';
 import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
 import { formatNaira } from '@foleio/utils';
-import { resolveDigitalDownloadUrl } from '@/lib/shop/digital-downloads';
+import {
+  applyConfirmedShopOrderSideEffects,
+  sendConfirmedShopOrderEmails,
+} from '@/lib/shop/fulfill-order';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
@@ -404,7 +407,7 @@ async function handleChargeSuccess(eventData: any) {
       try {
         const pendingOrder = await prisma.order.findUnique({
           where: { id: metadata.orderId },
-          include: { items: true },
+          select: { id: true, status: true },
         });
 
         if (!pendingOrder) {
@@ -413,96 +416,12 @@ async function handleChargeSuccess(eventData: any) {
         }
 
         if (pendingOrder.status === 'pending') {
-          await prisma.$transaction(async (tx) => {
-            await tx.order.update({
-              where: { id: pendingOrder.id },
-              data: { status: 'confirmed' },
-            });
-
-            for (const item of pendingOrder.items) {
-              const product = await tx.product.findUnique({
-                where: { id: item.productId },
-                select: { id: true, stock: true, status: true, type: true },
-              });
-              if (!product) continue;
-              // Digital products with null stock are unlimited — skip decrement.
-              if (product.type === 'digital' && product.stock == null) continue;
-              const nextStock = Math.max(0, (product.stock ?? 0) - item.quantity);
-              await tx.product.update({
-                where: { id: product.id },
-                data: {
-                  stock: nextStock,
-                  ...(nextStock <= 0 ? { status: 'draft' } : {}),
-                },
-              });
-            }
+          await prisma.order.update({
+            where: { id: pendingOrder.id },
+            data: { status: 'confirmed' },
           });
-        }
-
-        const updatedOrder = await prisma.order.findUnique({
-          where: { id: metadata.orderId },
-          include: {
-            creator: { select: { displayName: true } },
-            items: {
-              include: {
-                product: {
-                  select: {
-                    name: true,
-                    type: true,
-                    digitalFileUrl: true,
-                  },
-                },
-              },
-            },
-            deliveryTier: true,
-          },
-        });
-
-        if (!updatedOrder) return;
-
-        const deliveryAddress = (updatedOrder.deliveryAddress || {}) as Record<string, string>;
-        const recipientEmail = String(deliveryAddress.email || '').trim();
-        if (recipientEmail) {
-          const emailItems = await Promise.all(
-            updatedOrder.items.map(async (item) => {
-              const productType =
-                (item.product?.type as 'physical' | 'digital' | null) || null;
-              const rawDigitalUrl = item.product?.digitalFileUrl || null;
-              const digitalFileUrl =
-                productType === 'digital'
-                  ? await resolveDigitalDownloadUrl(rawDigitalUrl)
-                  : null;
-              return {
-                name: item.product?.name || 'Product',
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                type: productType,
-                digitalFileUrl,
-              };
-            })
-          );
-
-          void sendOrderConfirmationEmail({
-            email: recipientEmail,
-            fanName: deliveryAddress.name,
-            orderId: updatedOrder.id,
-            items: emailItems,
-            deliveryAddress: {
-              address: deliveryAddress.address,
-              city: deliveryAddress.city,
-              state: deliveryAddress.state,
-            },
-            deliveryTier: updatedOrder.deliveryTier
-              ? {
-                  name: updatedOrder.deliveryTier.name,
-                  estimatedDays: updatedOrder.deliveryTier.estimatedDays || undefined,
-                }
-              : null,
-            subtotal: updatedOrder.subtotal,
-            deliveryFee: updatedOrder.deliveryFee,
-            total: updatedOrder.total,
-            creatorName: updatedOrder.creator.displayName,
-          });
+          await applyConfirmedShopOrderSideEffects(pendingOrder.id);
+          void sendConfirmedShopOrderEmails(pendingOrder.id);
         }
 
         console.log('[webhook] shop order confirmed:', metadata.orderId);

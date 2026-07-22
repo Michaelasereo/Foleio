@@ -8,6 +8,7 @@ import {
   ArrowUp,
   Download,
   FileEdit,
+  Gift,
   ImagePlus,
   Loader2,
   Lock,
@@ -16,6 +17,7 @@ import {
   Pencil,
   Plus,
   ShoppingBag,
+  Tag,
   Trash2,
   Upload,
   X,
@@ -58,6 +60,8 @@ type PreorderPhaseForm = {
 };
 
 type PreorderForm = {
+  startDate: string;
+  startTime: string;
   releaseDate: string;
   releaseTime: string;
   preorderPrice: string;
@@ -73,6 +77,8 @@ type Product = {
   description: string | null;
   price: number;
   compareAtPrice: number | null;
+  discountStartsAt?: string | null;
+  discountEndsAt?: string | null;
   weight: number | null;
   type: string;
   imageUrl: string | null;
@@ -88,7 +94,45 @@ type Product = {
   variants: Variant[];
 };
 
-const PRODUCT_IMAGE_SLOTS = 2;
+type ShopCoupon = {
+  id: string;
+  code: string;
+  type: 'percent' | 'fixed' | string;
+  value: number;
+  minSubtotalKobo: number | null;
+  maxUses: number | null;
+  usedCount: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  status: string;
+  createdAt: string;
+};
+
+function emptyCouponForm() {
+  return {
+    id: '',
+    code: '',
+    type: 'percent' as 'percent' | 'fixed',
+    value: '',
+    minSubtotalNaira: '',
+    maxUses: '',
+    startDate: '',
+    endDate: '',
+    status: 'active' as 'active' | 'disabled',
+  };
+}
+
+function toDateInputValue(iso: string | null | undefined) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const PRODUCT_IMAGE_SLOTS_FALLBACK = 3;
 
 function isColorVariantName(name: string) {
   const normalized = name.trim().toLowerCase();
@@ -119,11 +163,14 @@ function normalizeHexInput(value: string) {
   return withHash.slice(0, 7);
 }
 
-function productImages(product: Pick<Product, 'imageUrl' | 'imageUrls'>): string[] {
+function productImages(
+  product: Pick<Product, 'imageUrl' | 'imageUrls'>,
+  maxSlots = PRODUCT_IMAGE_SLOTS_FALLBACK
+): string[] {
   const fromArray = Array.isArray(product.imageUrls)
     ? product.imageUrls.map(String).filter(Boolean)
     : [];
-  if (fromArray.length > 0) return fromArray.slice(0, PRODUCT_IMAGE_SLOTS);
+  if (fromArray.length > 0) return fromArray.slice(0, maxSlots);
   return product.imageUrl ? [product.imageUrl] : [];
 }
 
@@ -133,6 +180,8 @@ type DeliveryTier = {
   description: string | null;
   type: 'paid' | 'free' | 'pickup' | string;
   flatRate: number;
+  minSubtotalKobo?: number | null;
+  minItemQuantity?: number | null;
 };
 
 type Order = {
@@ -191,6 +240,8 @@ function emptyPreorderForm(seed?: {
   compareAtPrice?: string;
 }): PreorderForm {
   return {
+    startDate: '',
+    startTime: '09:00',
     releaseDate: '',
     releaseTime: '12:00',
     preorderPrice: seed?.price || '',
@@ -227,7 +278,10 @@ function settingsToPreorderForm(raw: unknown, fallbackPrice: string, fallbackCom
     return emptyPreorderForm({ price: fallbackPrice, compareAtPrice: fallbackCompare });
   }
   const release = splitIsoLocal(settings.releaseAt);
+  const start = splitIsoLocal(settings.startsAt);
   return {
+    startDate: start.date,
+    startTime: start.time,
     releaseDate: release.date,
     releaseTime: release.time,
     preorderPrice: String(settings.preorderPrice / 100),
@@ -241,11 +295,11 @@ function settingsToPreorderForm(raw: unknown, fallbackPrice: string, fallbackCom
         ? String(settings.postPreorderCompareAtPrice / 100)
         : '',
     phases: settings.phases.map((phase) => {
-      const start = splitIsoLocal(phase.startsAt);
+      const phaseStart = splitIsoLocal(phase.startsAt);
       return {
         id: phase.id,
-        startDate: start.date,
-        startTime: start.time,
+        startDate: phaseStart.date,
+        startTime: phaseStart.time,
         type: phase.type,
         value:
           phase.type === 'amount' ? String(phase.value / 100) : String(phase.value),
@@ -263,9 +317,13 @@ function emptyProductForm() {
     /** Default sale price kept while a discount is active. */
     regularPrice: '',
     compareAtPrice: '',
+    discountStartDate: '',
+    discountStartTime: '00:00',
+    discountEndDate: '',
+    discountEndTime: '23:59',
     weight: '',
     imageUrls: [] as string[],
-    type: 'physical' as 'physical' | 'digital',
+    type: 'physical' as 'physical' | 'digital' | 'gift_card',
     digitalFileUrl: '',
     digitalFileName: '',
     stock: '',
@@ -286,15 +344,20 @@ function emptyTierForm() {
     description: '',
     type: 'paid' as 'paid' | 'free' | 'pickup',
     flatRate: '',
+    minSubtotal: '',
+    minItemQuantity: '',
   };
 }
 
 export function CreatorShopManager({
   platformPlan = null,
   platformSubscriptionActive = false,
+  view = 'shop',
 }: {
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
+  /** Full shop, or a dedicated gift-cards / coupons management page. */
+  view?: 'shop' | 'gift-cards' | 'coupons';
 } = {}) {
   const router = useRouter();
   const { toast } = useToast();
@@ -304,19 +367,30 @@ export function CreatorShopManager({
     platformPlan,
     platformSubscriptionActive,
   });
+  const productImageSlots = limits.maxProductImages;
+  const isGiftCardsPage = view === 'gift-cards';
+  const isCouponsPage = view === 'coupons';
+  const isPromosSubpage = isGiftCardsPage || isCouponsPage;
 
   function goToBillingUpgrade() {
     router.push('/settings?tab=billing');
   }
-  const [tab, setTab] = useState<'products' | 'orders' | 'delivery'>('products');
+  const [tab, setTab] = useState<'products' | 'gift-cards' | 'orders' | 'delivery'>(
+    isGiftCardsPage || isCouponsPage ? 'gift-cards' : 'products'
+  );
   const [productFilter, setProductFilter] = useState<'all' | 'active' | 'draft'>(
     'all'
   );
   const [products, setProducts] = useState<Product[]>([]);
+  const [coupons, setCoupons] = useState<ShopCoupon[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveryTiers, setDeliveryTiers] = useState<DeliveryTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [isCouponDialogOpen, setIsCouponDialogOpen] = useState(false);
+  const [isSavingCoupon, setIsSavingCoupon] = useState(false);
+  const [couponForm, setCouponForm] = useState(emptyCouponForm());
+  const [couponError, setCouponError] = useState('');
   const [productDrawerView, setProductDrawerView] = useState<
     'details' | 'preorder' | 'discount'
   >('details');
@@ -343,11 +417,19 @@ export function CreatorShopManager({
   const csvInputRef = useRef<HTMLInputElement>(null);
   const isUploadingImage = uploadingSlot !== null;
   const isDigitalProduct = productForm.type === 'digital';
+  const isGiftCardProduct = productForm.type === 'gift_card';
+  const isNonPhysicalProduct = isDigitalProduct || isGiftCardProduct;
 
   async function fetchProducts() {
     const response = await fetch('/api/creator/products', { cache: 'no-store' });
     const data = await response.json();
     if (response.ok) setProducts(data.products || []);
+  }
+
+  async function fetchCoupons() {
+    const response = await fetch('/api/creator/coupons', { cache: 'no-store' });
+    const data = await response.json();
+    if (response.ok) setCoupons(data.coupons || []);
   }
 
   async function fetchOrders() {
@@ -365,7 +447,12 @@ export function CreatorShopManager({
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      await Promise.all([fetchProducts(), fetchOrders(), fetchDeliveryTiers()]);
+      await Promise.all([
+        fetchProducts(),
+        fetchCoupons(),
+        fetchOrders(),
+        fetchDeliveryTiers(),
+      ]);
       setLoading(false);
     })();
   }, []);
@@ -380,6 +467,163 @@ export function CreatorShopManager({
     setProductError('');
     setProductDrawerView('details');
     setIsProductDialogOpen(true);
+  }
+
+  function openCreateGiftCard() {
+    if (!limits.canSellGiftCards) {
+      showUpgradeModal('giftCards');
+      return;
+    }
+    if (products.length >= limits.maxProducts) {
+      showUpgradeModal('maxProducts');
+      return;
+    }
+    setProductForm({
+      ...emptyProductForm(),
+      type: 'gift_card',
+      stock: '',
+      weight: '',
+      showLimitedStock: false,
+      isPreorder: false,
+      discountEnabled: false,
+      digitalFileUrl: '',
+      digitalFileName: '',
+      variants: [],
+      addons: [],
+    });
+    setSlotPreview({});
+    setProductError('');
+    setProductDrawerView('details');
+    setIsProductDialogOpen(true);
+  }
+
+  function openCreateCoupon() {
+    if (!limits.canUseCoupons) {
+      showUpgradeModal('coupons');
+      return;
+    }
+    setCouponForm(emptyCouponForm());
+    setCouponError('');
+    setIsCouponDialogOpen(true);
+  }
+
+  function openEditCoupon(coupon: ShopCoupon) {
+    if (!limits.canUseCoupons) {
+      showUpgradeModal('coupons');
+      return;
+    }
+    setCouponForm({
+      id: coupon.id,
+      code: coupon.code,
+      type: coupon.type === 'fixed' ? 'fixed' : 'percent',
+      value:
+        coupon.type === 'fixed'
+          ? String(coupon.value / 100)
+          : String(coupon.value),
+      minSubtotalNaira:
+        coupon.minSubtotalKobo != null && coupon.minSubtotalKobo > 0
+          ? String(coupon.minSubtotalKobo / 100)
+          : '',
+      maxUses: coupon.maxUses != null ? String(coupon.maxUses) : '',
+      startDate: toDateInputValue(coupon.startsAt),
+      endDate: toDateInputValue(coupon.endsAt),
+      status: coupon.status === 'disabled' ? 'disabled' : 'active',
+    });
+    setCouponError('');
+    setIsCouponDialogOpen(true);
+  }
+
+  function closeCouponDrawer() {
+    if (isSavingCoupon) return;
+    setIsCouponDialogOpen(false);
+    setCouponError('');
+  }
+
+  async function saveCoupon(event: FormEvent) {
+    event.preventDefault();
+    if (isSavingCoupon) return;
+    if (!limits.canUseCoupons) {
+      showUpgradeModal('coupons');
+      return;
+    }
+
+    const code = couponForm.code.trim().toUpperCase();
+    if (code.length < 3) {
+      setCouponError('Code must be at least 3 characters');
+      return;
+    }
+    const valueNum = Number(couponForm.value);
+    if (!Number.isFinite(valueNum) || valueNum <= 0) {
+      setCouponError('Enter a valid discount value');
+      return;
+    }
+
+    setIsSavingCoupon(true);
+    setCouponError('');
+
+    const payload = {
+      code,
+      type: couponForm.type,
+      value: valueNum,
+      valueIsNaira: couponForm.type === 'fixed',
+      minSubtotalNaira: couponForm.minSubtotalNaira.trim() || null,
+      maxUses: couponForm.maxUses.trim() || null,
+      startsAt: couponForm.startDate ? `${couponForm.startDate}T00:00:00.000Z` : null,
+      endsAt: couponForm.endDate ? `${couponForm.endDate}T23:59:59.999Z` : null,
+      status: couponForm.status,
+    };
+
+    const response = await fetch(
+      couponForm.id
+        ? `/api/creator/coupons/${couponForm.id}`
+        : '/api/creator/coupons',
+      {
+        method: couponForm.id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await response.json();
+    setIsSavingCoupon(false);
+
+    if (!response.ok) {
+      if (data.limitType === 'coupons') {
+        showUpgradeModal('coupons');
+        return;
+      }
+      setCouponError(data.error || 'Could not save coupon');
+      return;
+    }
+
+    await fetchCoupons();
+    setIsCouponDialogOpen(false);
+    toast({
+      title: couponForm.id ? 'Coupon updated' : 'Coupon created',
+    });
+  }
+
+  async function toggleCouponActive(coupon: ShopCoupon) {
+    if (!limits.canUseCoupons) {
+      showUpgradeModal('coupons');
+      return;
+    }
+    const nextStatus = coupon.status === 'active' ? 'disabled' : 'active';
+    const response = await fetch(`/api/creator/coupons/${coupon.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    if (response.ok) await fetchCoupons();
+  }
+
+  async function deleteCoupon(couponId: string) {
+    const response = await fetch(`/api/creator/coupons/${couponId}`, {
+      method: 'DELETE',
+    });
+    if (response.ok) {
+      await fetchCoupons();
+      toast({ title: 'Coupon deleted' });
+    }
   }
 
   function closeCsvImport(force = false) {
@@ -481,7 +725,11 @@ export function CreatorShopManager({
     const discountEnabled =
       Boolean(compareAtPrice) && !Boolean(product.isPreorder);
     const productType =
-      product.type === 'digital' ? ('digital' as const) : ('physical' as const);
+      product.type === 'digital'
+        ? ('digital' as const)
+        : product.type === 'gift_card'
+          ? ('gift_card' as const)
+          : ('physical' as const);
     const digitalKey = String(product.digitalFileUrl || '').trim();
     setProductForm({
       id: product.id,
@@ -491,8 +739,12 @@ export function CreatorShopManager({
       // When a discount is live, restore target is the compare-at (old) price.
       regularPrice: discountEnabled ? compareAtPrice : price,
       compareAtPrice,
+      discountStartDate: splitIsoLocal(product.discountStartsAt).date,
+      discountStartTime: splitIsoLocal(product.discountStartsAt).time || '00:00',
+      discountEndDate: splitIsoLocal(product.discountEndsAt).date,
+      discountEndTime: splitIsoLocal(product.discountEndsAt).time || '23:59',
       weight: product.weight != null ? String(product.weight) : '',
-      imageUrls: productImages(product),
+      imageUrls: productImages(product, productImageSlots),
       type: productType,
       digitalFileUrl: digitalKey,
       digitalFileName: digitalKey
@@ -501,18 +753,18 @@ export function CreatorShopManager({
       stock: product.stock != null ? String(product.stock) : '',
       showLimitedStock: Boolean(product.showLimitedStock),
       status: product.status,
-      isPreorder: productType === 'digital' ? false : Boolean(product.isPreorder),
-      discountEnabled: productType === 'digital' ? discountEnabled : discountEnabled,
+      isPreorder: productType === 'physical' ? Boolean(product.isPreorder) : false,
+      discountEnabled: productType === 'physical' ? discountEnabled : false,
       preorder: settingsToPreorderForm(product.preorderSettings, price, compareAtPrice),
       variants:
-        productType === 'digital'
-          ? []
-          : product.variants.map((variant) => ({
+        productType === 'physical'
+          ? product.variants.map((variant) => ({
               id: variant.id,
               name: variant.name,
               options: variant.options.length > 0 ? [...variant.options] : [''],
-            })),
-      addons: productType === 'digital' ? [] : addons,
+            }))
+          : [],
+      addons: productType === 'physical' ? addons : [],
     });
     setSlotPreview({});
     setProductError('');
@@ -527,9 +779,13 @@ export function CreatorShopManager({
     setProductError('');
   }
 
-  function setProductType(nextType: 'physical' | 'digital') {
+  function setProductType(nextType: 'physical' | 'digital' | 'gift_card') {
     if (nextType === 'digital' && !limits.canSellDigitalProducts) {
       goToBillingUpgrade();
+      return;
+    }
+    if (nextType === 'gift_card' && !limits.canSellGiftCards) {
+      showUpgradeModal('giftCards');
       return;
     }
     setProductForm((prev) => {
@@ -542,6 +798,22 @@ export function CreatorShopManager({
           weight: '',
           showLimitedStock: false,
           isPreorder: false,
+          discountEnabled: false,
+          variants: [],
+          addons: [],
+        };
+      }
+      if (nextType === 'gift_card') {
+        return {
+          ...prev,
+          type: 'gift_card',
+          stock: '',
+          weight: '',
+          showLimitedStock: false,
+          isPreorder: false,
+          discountEnabled: false,
+          digitalFileUrl: '',
+          digitalFileName: '',
           variants: [],
           addons: [],
         };
@@ -638,7 +910,8 @@ export function CreatorShopManager({
 
     if (
       productForm.discountEnabled &&
-      !productForm.isPreorder
+      !productForm.isPreorder &&
+      productForm.type === 'physical'
     ) {
       const oldPrice = Number(productForm.compareAtPrice);
       const newPrice = Number(productForm.price);
@@ -660,11 +933,20 @@ export function CreatorShopManager({
     }
 
     let preorderSettingsPayload: Record<string, unknown> | null = null;
-    if (productForm.type !== 'digital' && productForm.isPreorder) {
+    if (productForm.type === 'physical' && productForm.isPreorder) {
+      const startsAt = combineLocalDateTime(
+        productForm.preorder.startDate,
+        productForm.preorder.startTime
+      );
       const releaseAt = combineLocalDateTime(
         productForm.preorder.releaseDate,
         productForm.preorder.releaseTime
       );
+      if (!startsAt) {
+        setProductError('Set a start date and time in preorder settings');
+        setProductDrawerView('preorder');
+        return;
+      }
       if (!releaseAt) {
         setProductError('Set a release date and time in preorder settings');
         setProductDrawerView('preorder');
@@ -695,6 +977,7 @@ export function CreatorShopManager({
         }
       }
       preorderSettingsPayload = {
+        startsAt,
         releaseAt,
         preorderPrice: productForm.preorder.preorderPrice,
         preorderCompareAtPrice: productForm.preorder.preorderCompareAtPrice || null,
@@ -708,6 +991,42 @@ export function CreatorShopManager({
           value: phase.value,
         })),
       };
+    }
+
+    let discountStartsAt: string | null = null;
+    let discountEndsAt: string | null = null;
+    if (
+      productForm.type === 'physical' &&
+      !productForm.isPreorder &&
+      productForm.discountEnabled
+    ) {
+      discountStartsAt = combineLocalDateTime(
+        productForm.discountStartDate,
+        productForm.discountStartTime
+      );
+      discountEndsAt = combineLocalDateTime(
+        productForm.discountEndDate,
+        productForm.discountEndTime
+      );
+      if (productForm.discountStartDate && !discountStartsAt) {
+        setProductError('Invalid discount start date/time');
+        setProductDrawerView('discount');
+        return;
+      }
+      if (productForm.discountEndDate && !discountEndsAt) {
+        setProductError('Invalid discount end date/time');
+        setProductDrawerView('discount');
+        return;
+      }
+      if (
+        discountStartsAt &&
+        discountEndsAt &&
+        new Date(discountStartsAt).getTime() >= new Date(discountEndsAt).getTime()
+      ) {
+        setProductError('Discount end must be after the start');
+        setProductDrawerView('discount');
+        return;
+      }
     }
 
     setIsSavingProduct(true);
@@ -727,18 +1046,18 @@ export function CreatorShopManager({
         : productForm.discountEnabled
           ? productForm.compareAtPrice || null
           : null,
-      weight: productForm.type === 'digital' ? null : productForm.weight,
+      discountStartsAt: productForm.discountEnabled ? discountStartsAt : null,
+      discountEndsAt: productForm.discountEnabled ? discountEndsAt : null,
+      weight: isNonPhysicalProduct ? null : productForm.weight,
       imageUrls: productForm.imageUrls,
       imageUrl: productForm.imageUrls[0] || null,
-      stock: productForm.type === 'digital' ? null : productForm.stock,
-      showLimitedStock:
-        productForm.type === 'digital' ? false : productForm.showLimitedStock,
+      stock: isNonPhysicalProduct ? null : productForm.stock,
+      showLimitedStock: isNonPhysicalProduct ? false : productForm.showLimitedStock,
       status: productForm.status,
-      isPreorder: productForm.type === 'digital' ? false : productForm.isPreorder,
-      preorderSettings:
-        productForm.type === 'digital' ? null : preorderSettingsPayload,
+      isPreorder: isNonPhysicalProduct ? false : productForm.isPreorder,
+      preorderSettings: isNonPhysicalProduct ? null : preorderSettingsPayload,
       variants:
-        productForm.type === 'digital'
+        isNonPhysicalProduct
           ? []
           : productForm.variants
               .map((variant) => {
@@ -758,7 +1077,7 @@ export function CreatorShopManager({
               })
               .filter((variant) => variant.name && variant.options.length > 0),
       addons:
-        productForm.type === 'digital'
+        isNonPhysicalProduct
           ? []
           : productForm.addons.map((category) => ({
               id: category.id,
@@ -794,6 +1113,10 @@ export function CreatorShopManager({
       }
       if (data.limitType === 'digitalProducts') {
         goToBillingUpgrade();
+        return;
+      }
+      if (data.limitType === 'giftCards') {
+        showUpgradeModal('giftCards');
         return;
       }
       setProductError(
@@ -876,7 +1199,7 @@ export function CreatorShopManager({
       const urls = [...prev.imageUrls];
       if (slotIndex < urls.length) urls[slotIndex] = data.url;
       else urls.push(data.url);
-      return { ...prev, imageUrls: urls.slice(0, PRODUCT_IMAGE_SLOTS) };
+      return { ...prev, imageUrls: urls.slice(0, productImageSlots) };
     });
   }
 
@@ -945,6 +1268,14 @@ export function CreatorShopManager({
       description: tierForm.description,
       type: tierForm.type === 'free' ? 'free' : 'paid',
       flatRate: tierForm.type === 'paid' ? tierForm.flatRate : 0,
+      minSubtotal:
+        tierForm.type === 'paid' && tierForm.minSubtotal.trim()
+          ? tierForm.minSubtotal
+          : null,
+      minItemQuantity:
+        tierForm.type === 'paid' && tierForm.minItemQuantity.trim()
+          ? Number(tierForm.minItemQuantity)
+          : null,
     };
     const isEdit = Boolean(tierForm.id);
     setDeliveryAction('saving');
@@ -1107,6 +1438,10 @@ export function CreatorShopManager({
       description: tier.description || '',
       type: 'paid',
       flatRate: String(tier.flatRate / 100),
+      minSubtotal:
+        tier.minSubtotalKobo != null ? String(tier.minSubtotalKobo / 100) : '',
+      minItemQuantity:
+        tier.minItemQuantity != null ? String(tier.minItemQuantity) : '',
     });
     setDeliveryComposer('flat');
   }
@@ -1150,19 +1485,33 @@ export function CreatorShopManager({
     if (response.ok) await fetchOrders();
   }
 
-  const activeProducts = products.filter((product) => product.status === 'active');
-  const draftProducts = products.filter((product) => product.status === 'draft');
+  const catalogProducts = products.filter((product) => product.type !== 'gift_card');
+  const giftCardProducts = products.filter((product) => product.type === 'gift_card');
+  const PREVIEW_LIMIT = 2;
+  const giftCardPreview = isGiftCardsPage
+    ? giftCardProducts
+    : giftCardProducts.slice(0, PREVIEW_LIMIT);
+  const couponPreview = isCouponsPage ? coupons : coupons.slice(0, PREVIEW_LIMIT);
+  const showGiftCardsViewAll =
+    !isPromosSubpage && giftCardProducts.length > PREVIEW_LIMIT;
+  const showCouponsViewAll = !isPromosSubpage && coupons.length > PREVIEW_LIMIT;
+  const activeProducts = catalogProducts.filter(
+    (product) => product.status === 'active'
+  );
+  const draftProducts = catalogProducts.filter(
+    (product) => product.status === 'draft'
+  );
   const filteredProducts =
     productFilter === 'active'
       ? activeProducts
       : productFilter === 'draft'
         ? draftProducts
-        : products;
+        : catalogProducts;
 
   const productStats = [
     {
       title: 'Total products',
-      value: products.length.toLocaleString(),
+      value: catalogProducts.length.toLocaleString(),
       hint: 'In your shop',
       icon: Package,
       onSelect: 'all' as const,
@@ -1194,16 +1543,45 @@ export function CreatorShopManager({
     <div>
       <div className="foleio-dash-header">
         <div>
-          <h1 className="foleio-auth-title">Shop</h1>
+          {isPromosSubpage ? (
+            <button
+              type="button"
+              className="foleio-dash-btn-ghost"
+              onClick={() => router.push('/shop')}
+              style={{
+                marginBottom: 10,
+                padding: '4px 8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
+              Back to Shop
+            </button>
+          ) : null}
+          <h1 className="foleio-auth-title">
+            {isGiftCardsPage
+              ? 'Gift cards'
+              : isCouponsPage
+                ? 'Coupons'
+                : 'Shop'}
+          </h1>
           <p
             className="foleio-dash-panel-meta"
             style={{ marginBottom: 0, marginTop: 6 }}
           >
-            Manage products, orders, and delivery
+            {isGiftCardsPage
+              ? 'Create and manage store credit gift cards'
+              : isCouponsPage
+                ? 'Create and manage discount codes for your shop'
+                : 'Manage products, gift cards, orders, and delivery'}
           </p>
         </div>
       </div>
 
+      {!isPromosSubpage ? (
+      <>
       <div className="foleio-dash-stats">
         {productStats.map((stat) => {
           const Icon = stat.icon;
@@ -1277,7 +1655,19 @@ export function CreatorShopManager({
           onClick={() => setTab('products')}
         >
           Products
-          <span className="foleio-dash-tab-count">{products.length}</span>
+          <span className="foleio-dash-tab-count">{catalogProducts.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'gift-cards'}
+          className={`foleio-dash-tab${tab === 'gift-cards' ? ' is-active' : ''}`}
+          onClick={() => setTab('gift-cards')}
+        >
+          Gift cards / Coupons
+          <span className="foleio-dash-tab-count">
+            {giftCardProducts.length + coupons.length}
+          </span>
         </button>
         <button
           type="button"
@@ -1300,8 +1690,423 @@ export function CreatorShopManager({
           <span className="foleio-dash-tab-count">{deliveryTiers.length}</span>
         </button>
       </div>
+      </>
+      ) : null}
 
-      {tab === 'products' ? (
+      {isPromosSubpage || tab === 'gift-cards' ? (
+        <div style={{ display: 'grid', gap: 14 }}>
+          {!isPromosSubpage ? (
+          <div className="foleio-dash-panel">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <h2 className="foleio-dash-panel-title" style={{ margin: 0 }}>
+                    Gift cards / Coupons
+                  </h2>
+                </div>
+                <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+                  Sell store credit or offer discount codes. Pro features.
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button
+                  type="button"
+                  className="foleio-dash-btn-ghost"
+                  onClick={openCreateGiftCard}
+                  aria-disabled={!limits.canSellGiftCards}
+                  style={
+                    !limits.canSellGiftCards
+                      ? { opacity: 0.55, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {!limits.canSellGiftCards ? (
+                    <Lock className="h-4 w-4" strokeWidth={1.5} />
+                  ) : (
+                    <Gift className="h-4 w-4" strokeWidth={1.5} />
+                  )}
+                  Create gift card
+                  {!limits.canSellGiftCards ? (
+                    <span className="foleio-dash-badge is-warning">Pro</span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className="foleio-dash-btn-ghost"
+                  onClick={openCreateCoupon}
+                  aria-disabled={!limits.canUseCoupons}
+                  style={
+                    !limits.canUseCoupons
+                      ? { opacity: 0.55, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {!limits.canUseCoupons ? (
+                    <Lock className="h-4 w-4" strokeWidth={1.5} />
+                  ) : (
+                    <Tag className="h-4 w-4" strokeWidth={1.5} />
+                  )}
+                  Create coupon
+                  {!limits.canUseCoupons ? (
+                    <span className="foleio-dash-badge is-warning">Pro</span>
+                  ) : null}
+                </button>
+              </div>
+            </div>
+          </div>
+          ) : isGiftCardsPage ? (
+          <div className="foleio-dash-panel">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <h2 className="foleio-dash-panel-title" style={{ margin: 0 }}>
+                  All gift cards
+                </h2>
+                <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+                  Face-value amounts fans purchase as store credit
+                </p>
+              </div>
+              <button
+                type="button"
+                className="foleio-dash-btn-ghost"
+                onClick={openCreateGiftCard}
+                aria-disabled={!limits.canSellGiftCards}
+                style={
+                  !limits.canSellGiftCards
+                    ? { opacity: 0.55, cursor: 'not-allowed' }
+                    : undefined
+                }
+              >
+                {!limits.canSellGiftCards ? (
+                  <Lock className="h-4 w-4" strokeWidth={1.5} />
+                ) : (
+                  <Gift className="h-4 w-4" strokeWidth={1.5} />
+                )}
+                Create gift card
+                {!limits.canSellGiftCards ? (
+                  <span className="foleio-dash-badge is-warning">Pro</span>
+                ) : null}
+              </button>
+            </div>
+          </div>
+          ) : null}
+
+          {isGiftCardsPage || !isCouponsPage ? (
+          <div className="foleio-dash-panel">
+            <style dangerouslySetInnerHTML={{ __html: productCardCss }} />
+            <div
+              style={{
+                marginBottom: giftCardPreview.length > 0 || loading ? 4 : 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <h2 className="foleio-dash-panel-title" style={{ margin: 0 }}>
+                  {isGiftCardsPage ? 'Gift cards' : 'Gift card list'}
+                </h2>
+                {!isGiftCardsPage ? (
+                  <FieldInfoTip text="Face-value amounts fans purchase as store credit" />
+                ) : null}
+              </div>
+              {showGiftCardsViewAll ? (
+                <button
+                  type="button"
+                  className="foleio-dash-btn-ghost"
+                  onClick={() => router.push('/shop/gift-cards')}
+                >
+                  View all
+                </button>
+              ) : null}
+            </div>
+            {loading && giftCardProducts.length === 0 ? (
+              <p className="foleio-dash-empty">Loading gift cards…</p>
+            ) : giftCardProducts.length === 0 ? (
+              <p className="foleio-dash-empty">No gift cards yet.</p>
+            ) : (
+              <div className="foleio-product-card-list">
+                {giftCardPreview.map((product) => {
+                  const index = products.findIndex((item) => item.id === product.id);
+                  const thumb = productImages(product)[0];
+                  return (
+                    <div key={product.id} className="foleio-product-card">
+                      <div className="foleio-product-card-media">
+                        {thumb ? (
+                          <RemoteImage
+                            src={thumb}
+                            alt=""
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="foleio-product-card-body">
+                        <div className="foleio-product-card-top">
+                          <div style={{ minWidth: 0 }}>
+                            <p className="foleio-product-card-title">
+                              {product.name}
+                              <span
+                                className="foleio-dash-badge is-muted"
+                                style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                              >
+                                Gift card
+                              </span>
+                            </p>
+                          </div>
+                          <span className="foleio-product-card-stock">Gift card</span>
+                        </div>
+                        {product.description ? (
+                          <p className="foleio-product-card-desc">{product.description}</p>
+                        ) : (
+                          <p className="foleio-product-card-desc">No description yet.</p>
+                        )}
+                        <div className="foleio-product-card-footer">
+                          <p className="foleio-product-card-price">
+                            {formatNaira(product.price)}
+                          </p>
+                          <div className="foleio-product-card-actions">
+                            <Switch
+                              checked={product.status === 'active'}
+                              onCheckedChange={() => void toggleVisible(product)}
+                              className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                              aria-label={
+                                product.status === 'active'
+                                  ? 'Hide gift card from profile'
+                                  : 'Show gift card on profile'
+                              }
+                            />
+                            {isGiftCardsPage ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="foleio-product-card-icon-btn is-ghost"
+                                  disabled={index === 0}
+                                  onClick={() => void moveProduct(product.id, -1)}
+                                  aria-label="Move up"
+                                >
+                                  <ArrowUp strokeWidth={1.75} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="foleio-product-card-icon-btn is-ghost"
+                                  disabled={index === products.length - 1}
+                                  onClick={() => void moveProduct(product.id, 1)}
+                                  aria-label="Move down"
+                                >
+                                  <ArrowDown strokeWidth={1.75} />
+                                </button>
+                              </>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="foleio-product-card-icon-btn"
+                              onClick={() => openEditProduct(product)}
+                              aria-label={`Edit ${product.name}`}
+                            >
+                              <Pencil strokeWidth={1.75} />
+                            </button>
+                            <button
+                              type="button"
+                              className="foleio-product-card-icon-btn is-danger"
+                              onClick={() => void deleteProduct(product.id)}
+                              aria-label={`Delete ${product.name}`}
+                            >
+                              <Trash2 strokeWidth={1.75} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          ) : null}
+
+          {isCouponsPage || !isGiftCardsPage ? (
+          <div className="foleio-dash-panel">
+            {isCouponsPage ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <h2 className="foleio-dash-panel-title" style={{ margin: 0 }}>
+                    All coupons
+                  </h2>
+                  <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
+                    Percent or fixed discounts applied to product subtotal at checkout
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="foleio-dash-btn-ghost"
+                  onClick={openCreateCoupon}
+                  aria-disabled={!limits.canUseCoupons}
+                  style={
+                    !limits.canUseCoupons
+                      ? { opacity: 0.55, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {!limits.canUseCoupons ? (
+                    <Lock className="h-4 w-4" strokeWidth={1.5} />
+                  ) : (
+                    <Tag className="h-4 w-4" strokeWidth={1.5} />
+                  )}
+                  Create coupon
+                  {!limits.canUseCoupons ? (
+                    <span className="foleio-dash-badge is-warning">Pro</span>
+                  ) : null}
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  marginBottom: couponPreview.length > 0 || loading ? 4 : 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <h2 className="foleio-dash-panel-title" style={{ margin: 0 }}>
+                    Coupon codes
+                  </h2>
+                  <FieldInfoTip text="Percent or fixed discounts applied to product subtotal at checkout" />
+                </div>
+                {showCouponsViewAll ? (
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-ghost"
+                    onClick={() => router.push('/shop/coupons')}
+                  >
+                    View all
+                  </button>
+                ) : null}
+              </div>
+            )}
+            {loading && coupons.length === 0 ? (
+              <p className="foleio-dash-empty">Loading coupons…</p>
+            ) : coupons.length === 0 ? (
+              <p className="foleio-dash-empty">No coupons yet.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {couponPreview.map((coupon) => {
+                  const valueLabel =
+                    coupon.type === 'fixed'
+                      ? formatNaira(coupon.value)
+                      : `${coupon.value}% off`;
+                  const usesLabel =
+                    coupon.maxUses != null
+                      ? `${coupon.usedCount} / ${coupon.maxUses} uses`
+                      : `${coupon.usedCount} uses`;
+                  return (
+                    <div
+                      key={coupon.id}
+                      className="foleio-dash-booking-row"
+                      style={{ alignItems: 'center' }}
+                    >
+                      <div className="foleio-dash-booking-main" style={{ minWidth: 0 }}>
+                        <div className="foleio-dash-booking-top">
+                          <span className="foleio-dash-sub-name">{coupon.code}</span>
+                          <span
+                            className={`foleio-dash-badge ${
+                              coupon.status === 'active' ? 'is-muted' : 'is-warning'
+                            }`}
+                          >
+                            {coupon.status === 'active' ? 'Active' : 'Disabled'}
+                          </span>
+                        </div>
+                        <div className="foleio-dash-booking-meta">
+                          <span className="foleio-dash-sub-date">{valueLabel}</span>
+                          <span className="foleio-dash-sub-date">{usesLabel}</span>
+                          {coupon.minSubtotalKobo ? (
+                            <span className="foleio-dash-sub-date">
+                              Min {formatNaira(coupon.minSubtotalKobo)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div
+                        className="foleio-dash-booking-actions"
+                        style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+                      >
+                        <Switch
+                          checked={coupon.status === 'active'}
+                          onCheckedChange={() => void toggleCouponActive(coupon)}
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                          aria-label={
+                            coupon.status === 'active'
+                              ? 'Disable coupon'
+                              : 'Enable coupon'
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="foleio-product-card-icon-btn"
+                          onClick={() => openEditCoupon(coupon)}
+                          aria-label={`Edit ${coupon.code}`}
+                        >
+                          <Pencil strokeWidth={1.75} />
+                        </button>
+                        <button
+                          type="button"
+                          className="foleio-product-card-icon-btn is-danger"
+                          onClick={() => void deleteCoupon(coupon.id)}
+                          aria-label={`Delete ${coupon.code}`}
+                        >
+                          <Trash2 strokeWidth={1.75} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!isPromosSubpage && tab === 'products' ? (
         <>
           <div style={{ display: 'grid', gap: 14 }}>
             <div className="foleio-dash-panel">
@@ -1523,7 +2328,7 @@ export function CreatorShopManager({
             <p className="foleio-dash-empty">Loading products…</p>
           ) : filteredProducts.length === 0 ? (
             <p className="foleio-dash-empty">
-              {products.length === 0
+              {catalogProducts.length === 0
                 ? 'No products yet. Add one or import a CSV.'
                 : productFilter === 'active'
                   ? 'No active products yet.'
@@ -1540,19 +2345,24 @@ export function CreatorShopManager({
                 compareAtPrice: product.compareAtPrice,
                 isPreorder: product.isPreorder,
                 preorderSettings: product.preorderSettings,
+                discountStartsAt: product.discountStartsAt,
+                discountEndsAt: product.discountEndsAt,
               });
               const pct = discountPercent(pricing.price, pricing.compareAtPrice);
               const thumb = productImages(product)[0];
               const stockCount = product.stock ?? 0;
               const isDigital = product.type === 'digital';
-              const inStock = isDigital || stockCount > 0;
+              const isGiftCard = product.type === 'gift_card';
+              const inStock = isDigital || isGiftCard || stockCount > 0;
               const stockLabel = isDigital
                 ? 'Digital'
-                : !inStock
-                  ? 'Out of stock'
-                  : product.showLimitedStock
-                    ? 'Limited stock'
-                    : `In Stock : ${stockCount}`;
+                : isGiftCard
+                  ? 'Gift card'
+                  : !inStock
+                    ? 'Out of stock'
+                    : product.showLimitedStock
+                      ? 'Limited stock'
+                      : `In Stock : ${stockCount}`;
               return (
                 <div key={product.id} className="foleio-product-card">
                   <div className="foleio-product-card-media">
@@ -1585,6 +2395,13 @@ export function CreatorShopManager({
                               style={{ marginLeft: 8, verticalAlign: 'middle' }}
                             >
                               Digital
+                            </span>
+                          ) : isGiftCard ? (
+                            <span
+                              className="foleio-dash-badge is-muted"
+                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                            >
+                              Gift card
                             </span>
                           ) : pricing.isPreorderActive ? (
                             <span
@@ -1686,7 +2503,7 @@ export function CreatorShopManager({
         </>
       ) : null}
 
-      {tab === 'orders' ? (
+      {!isPromosSubpage && tab === 'orders' ? (
         <div className="foleio-dash-panel">
           {orders.length === 0 ? (
             <p className="foleio-dash-empty">No orders yet.</p>
@@ -1779,7 +2596,7 @@ export function CreatorShopManager({
         </div>
       ) : null}
 
-      {tab === 'delivery' ? (
+      {!isPromosSubpage && tab === 'delivery' ? (
         <div style={{ display: 'grid', gap: 14 }}>
           <div className="foleio-dash-panel">
             <div
@@ -1794,7 +2611,7 @@ export function CreatorShopManager({
               <div>
                 <h3 className="foleio-dash-panel-title">Delivery</h3>
                 <p className="foleio-dash-panel-meta">
-                  Add flat-rate, free delivery, or pickup options for checkout.
+                  Add flat-rate, free, pickup, or conditional delivery options for checkout.
                 </p>
               </div>
               {deliveryComposer === 'idle' ? (
@@ -1933,6 +2750,65 @@ export function CreatorShopManager({
                     </p>
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!limits.canUseConditionalDelivery) {
+                      showUpgradeModal('conditionalDelivery');
+                      return;
+                    }
+                    chooseDeliveryType('paid');
+                  }}
+                  disabled={Boolean(deliveryAction || deletingTierId)}
+                  aria-disabled={!limits.canUseConditionalDelivery}
+                  style={{
+                    textAlign: 'left',
+                    padding: 16,
+                    borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: limits.canUseConditionalDelivery ? '#f4f4f5' : '#828282',
+                    cursor:
+                      deliveryAction || deletingTierId
+                        ? 'not-allowed'
+                        : limits.canUseConditionalDelivery
+                          ? 'pointer'
+                          : 'not-allowed',
+                    opacity:
+                      deliveryAction || deletingTierId
+                        ? 0.65
+                        : limits.canUseConditionalDelivery
+                          ? 1
+                          : 0.55,
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                      color: limits.canUseConditionalDelivery ? '#f4f4f5' : '#adadad',
+                    }}
+                  >
+                    {!limits.canUseConditionalDelivery ? (
+                      <Lock className="h-4 w-4" strokeWidth={1.5} />
+                    ) : null}
+                    Conditional delivery
+                    {!limits.canUseConditionalDelivery ? (
+                      <span className="foleio-dash-badge is-warning">Pro</span>
+                    ) : null}
+                  </p>
+                  <p
+                    className="foleio-dash-panel-meta"
+                    style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
+                  >
+                    Free delivery when spend or quantity hits a threshold.
+                  </p>
+                </button>
               </div>
             ) : null}
 
@@ -1989,6 +2865,64 @@ export function CreatorShopManager({
                     required
                   />
                 </label>
+                {limits.canUseConditionalDelivery ? (
+                  <>
+                    <label className="foleio-dash-field">
+                      <span>Free when spend reaches (₦, optional)</span>
+                      <input
+                        className="foleio-dash-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g. 15000"
+                        value={tierForm.minSubtotal}
+                        onChange={(event) =>
+                          setTierForm((prev) => ({
+                            ...prev,
+                            minSubtotal: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="foleio-dash-field">
+                      <span>Free when quantity reaches (optional)</span>
+                      <input
+                        className="foleio-dash-input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="e.g. 3"
+                        value={tierForm.minItemQuantity}
+                        onChange={(event) =>
+                          setTierForm((prev) => ({
+                            ...prev,
+                            minItemQuantity: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <p className="foleio-dash-field-hint" style={{ margin: 0 }}>
+                    Conditional free delivery (spend or quantity) is available on
+                    Pro.{' '}
+                    <button
+                      type="button"
+                      className="foleio-dash-link"
+                      onClick={goToBillingUpgrade}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#fafafa',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Upgrade
+                    </button>
+                  </p>
+                )}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button
                     type="submit"
@@ -2287,8 +3221,12 @@ export function CreatorShopManager({
                       : productDrawerView === 'discount'
                         ? 'Discount settings'
                         : productForm.id
-                          ? 'Edit product'
-                          : 'Add product'}
+                          ? isGiftCardProduct
+                            ? 'Edit gift card'
+                            : 'Edit product'
+                          : isGiftCardProduct
+                            ? 'Create gift card'
+                            : 'Add product'}
                   </h2>
                   <p
                     style={{
@@ -2319,8 +3257,11 @@ export function CreatorShopManager({
                       : productDrawerView === 'discount'
                         ? 'Set old and new prices independently (default sale price is kept until you turn discount off).'
                         : productForm.id
-                          ? productForm.name.trim() || 'Untitled product'
-                          : 'Physical products only — image uploads go to R2.'}
+                          ? productForm.name.trim() ||
+                            (isGiftCardProduct ? 'Untitled gift card' : 'Untitled product')
+                          : isGiftCardProduct
+                            ? 'Set a face value fans can redeem in your shop.'
+                            : 'Physical products only — image uploads go to R2.'}
                   </p>
                 </div>
               </div>
@@ -2370,6 +3311,44 @@ export function CreatorShopManager({
               >
                 {productDrawerView === 'preorder' ? (
                   <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <label className="foleio-dash-field">
+                        <span>Start date</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="date"
+                          value={productForm.preorder.startDate}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              preorder: {
+                                ...prev.preorder,
+                                startDate: event.target.value,
+                              },
+                            }))
+                          }
+                          required
+                        />
+                      </label>
+                      <label className="foleio-dash-field">
+                        <span>Start time</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="time"
+                          value={productForm.preorder.startTime}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              preorder: {
+                                ...prev.preorder,
+                                startTime: event.target.value,
+                              },
+                            }))
+                          }
+                          required
+                        />
+                      </label>
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <label className="foleio-dash-field">
                         <span>Release date</span>
@@ -2721,12 +3700,73 @@ export function CreatorShopManager({
                         }
                       />
                     </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <label className="foleio-dash-field">
+                        <span>Starts (optional)</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="date"
+                          value={productForm.discountStartDate}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              discountStartDate: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="foleio-dash-field">
+                        <span>Start time</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="time"
+                          value={productForm.discountStartTime}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              discountStartTime: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <label className="foleio-dash-field">
+                        <span>Ends (optional)</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="date"
+                          value={productForm.discountEndDate}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              discountEndDate: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="foleio-dash-field">
+                        <span>End time</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="time"
+                          value={productForm.discountEndTime}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              discountEndTime: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
                     <p className="foleio-dash-panel-meta" style={{ margin: 0 }}>
                       Default sale price (
                       {productForm.regularPrice
                         ? `₦${Number(productForm.regularPrice).toLocaleString('en-NG')}`
                         : '—'}
-                      ) is kept until you turn discount off.
+                      ) is kept until you turn discount off. Outside the window, the
+                      old price is charged.
                     </p>
                     <button
                       type="button"
@@ -2739,11 +3779,19 @@ export function CreatorShopManager({
                 ) : (
                   <>
                 <div className="foleio-dash-field">
-                  <span>Product type</span>
+                  <span>{isGiftCardProduct ? 'Type' : 'Product type'}</span>
+                  {isGiftCardProduct ? (
+                    <p
+                      className="foleio-dash-panel-meta"
+                      style={{ margin: '8px 0 0', color: '#fafafa' }}
+                    >
+                      Gift card
+                    </p>
+                  ) : (
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                       gap: 8,
                       marginTop: 8,
                     }}
@@ -2809,12 +3857,14 @@ export function CreatorShopManager({
                       </button>
                     )}
                   </div>
+                  )}
                 </div>
 
                 <div className="foleio-dash-field">
                   <span>Photos</span>
                   <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
-                    Add up to 2 photos. First photo is the main image.
+                    Add up to {productImageSlots} photos. First photo is the main
+                    image.
                   </p>
                   <input
                     ref={imageInputRef}
@@ -2833,12 +3883,13 @@ export function CreatorShopManager({
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: 10,
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      gap: 8,
                       marginTop: 10,
+                      maxWidth: 280,
                     }}
                   >
-                    {Array.from({ length: PRODUCT_IMAGE_SLOTS }).map((_, index) => {
+                    {Array.from({ length: productImageSlots }).map((_, index) => {
                       const url = productForm.imageUrls[index];
                       const busy = uploadingSlot === index;
                       const preview = slotPreview[index];
@@ -2853,7 +3904,7 @@ export function CreatorShopManager({
                           style={{
                             position: 'relative',
                             aspectRatio: '1',
-                            borderRadius: 12,
+                            borderRadius: 8,
                             border: '1px dashed rgba(255,255,255,0.18)',
                             background: '#2b2b2b',
                             overflow: 'hidden',
@@ -3000,33 +4051,49 @@ export function CreatorShopManager({
                 </label>
 
                 <label className="foleio-dash-field">
-                  <span>Sale price (₦)</span>
+                  <span>
+                    {isGiftCardProduct ? 'Face value (₦)' : 'Sale price (₦)'}
+                  </span>
                   <input
                     className="foleio-dash-input"
                     type="number"
                     min="0"
                     step="0.01"
                     value={
-                      productForm.isPreorder
-                        ? productForm.preorder.postPreorderPrice
-                        : productForm.discountEnabled
-                          ? productForm.regularPrice
-                          : productForm.price
+                      isGiftCardProduct
+                        ? productForm.price
+                        : productForm.isPreorder
+                          ? productForm.preorder.postPreorderPrice
+                          : productForm.discountEnabled
+                            ? productForm.regularPrice
+                            : productForm.price
                     }
                     onChange={(event) =>
                       setProductForm((prev) =>
-                        prev.discountEnabled
-                          ? { ...prev, regularPrice: event.target.value }
-                          : {
+                        isGiftCardProduct || !prev.discountEnabled
+                          ? {
                               ...prev,
                               price: event.target.value,
                               regularPrice: event.target.value,
                             }
+                          : { ...prev, regularPrice: event.target.value }
                       )
                     }
-                    required={!productForm.isPreorder && !productForm.discountEnabled}
-                    disabled={productForm.isPreorder || productForm.discountEnabled}
+                    required={
+                      isGiftCardProduct ||
+                      (!productForm.isPreorder && !productForm.discountEnabled)
+                    }
+                    disabled={
+                      !isGiftCardProduct &&
+                      (productForm.isPreorder || productForm.discountEnabled)
+                    }
                   />
+                  {isGiftCardProduct ? (
+                    <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
+                      Buyers receive a reusable gift card code for this amount. Unlimited
+                      stock.
+                    </p>
+                  ) : null}
                 </label>
 
                 {isDigitalProduct ? (
@@ -3067,7 +4134,7 @@ export function CreatorShopManager({
                       )}
                     </div>
                   </div>
-                ) : (
+                ) : isGiftCardProduct ? null : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <label className="foleio-dash-field">
                     <span>Stock</span>
@@ -3099,7 +4166,7 @@ export function CreatorShopManager({
                 </div>
                 )}
 
-                {!isDigitalProduct ? (
+                {productForm.type === 'physical' ? (
                 <div className="foleio-dash-field">
                   <div
                     style={{
@@ -3134,7 +4201,7 @@ export function CreatorShopManager({
                 </div>
                 ) : null}
 
-                {!isDigitalProduct ? (
+                {productForm.type === 'physical' ? (
                 <>
                 <div className="foleio-dash-field">
                   <div
@@ -3664,6 +4731,7 @@ export function CreatorShopManager({
                 </>
                 ) : null}
 
+                {productForm.type === 'physical' ? (
                 <div
                   className="foleio-dash-field"
                   style={{
@@ -3724,6 +4792,8 @@ export function CreatorShopManager({
                     </div>
                   </div>
                 </div>
+                ) : null}
+
                   </>
                 )}
 
@@ -3761,10 +4831,262 @@ export function CreatorShopManager({
                     {isSavingProduct ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
                     ) : null}
-                    Save product
+                    {isGiftCardProduct ? 'Save gift card' : 'Save product'}
                   </button>
                 </div>
                 ) : null}
+              </form>
+            </div>
+          </aside>
+        </>
+      ) : null}
+
+      {isCouponDialogOpen ? (
+        <>
+          <div
+            className="foleio-dash-drawer-backdrop"
+            onClick={closeCouponDrawer}
+            aria-hidden
+          />
+          <aside
+            className="foleio-dash-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="coupon-drawer-title"
+          >
+            <div className="foleio-dash-drawer-header">
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h2
+                  id="coupon-drawer-title"
+                  className="foleio-dash-panel-title"
+                  style={{ margin: 0 }}
+                >
+                  {couponForm.id ? 'Edit coupon' : 'Create coupon'}
+                </h2>
+                <p
+                  className="foleio-dash-panel-meta"
+                  style={{ margin: '4px 0 0' }}
+                >
+                  Discount applies to product subtotal before delivery.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="foleio-dash-drawer-close"
+                onClick={closeCouponDrawer}
+                aria-label="Close coupon drawer"
+                disabled={isSavingCoupon}
+              >
+                <X className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="foleio-dash-drawer-body">
+              <form onSubmit={(event) => void saveCoupon(event)}>
+                <div style={{ display: 'grid', gap: 14 }}>
+                  <label className="foleio-dash-field">
+                    <span>Code</span>
+                    <input
+                      className="foleio-dash-input"
+                      value={couponForm.code}
+                      onChange={(event) =>
+                        setCouponForm((prev) => ({
+                          ...prev,
+                          code: event.target.value.toUpperCase(),
+                        }))
+                      }
+                      placeholder="e.g. WELCOME10"
+                      required
+                    />
+                  </label>
+
+                  <div className="foleio-dash-field">
+                    <span>Type</span>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 8,
+                        marginTop: 8,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className={
+                          couponForm.type === 'percent'
+                            ? 'foleio-dash-btn-outline'
+                            : 'foleio-dash-btn-ghost'
+                        }
+                        style={{
+                          borderColor:
+                            couponForm.type === 'percent' ? '#fafafa' : undefined,
+                        }}
+                        onClick={() =>
+                          setCouponForm((prev) => ({ ...prev, type: 'percent' }))
+                        }
+                      >
+                        Percent
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          couponForm.type === 'fixed'
+                            ? 'foleio-dash-btn-outline'
+                            : 'foleio-dash-btn-ghost'
+                        }
+                        style={{
+                          borderColor:
+                            couponForm.type === 'fixed' ? '#fafafa' : undefined,
+                        }}
+                        onClick={() =>
+                          setCouponForm((prev) => ({ ...prev, type: 'fixed' }))
+                        }
+                      >
+                        Fixed ₦
+                      </button>
+                    </div>
+                  </div>
+
+                  <label className="foleio-dash-field">
+                    <span>
+                      {couponForm.type === 'fixed' ? 'Amount (₦)' : 'Percent (%)'}
+                    </span>
+                    <input
+                      className="foleio-dash-input"
+                      type="number"
+                      min={couponForm.type === 'percent' ? 1 : 1}
+                      max={couponForm.type === 'percent' ? 100 : undefined}
+                      step={couponForm.type === 'percent' ? 1 : 1}
+                      value={couponForm.value}
+                      onChange={(event) =>
+                        setCouponForm((prev) => ({
+                          ...prev,
+                          value: event.target.value,
+                        }))
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label className="foleio-dash-field">
+                    <span>Minimum spend (₦, optional)</span>
+                    <input
+                      className="foleio-dash-input"
+                      type="number"
+                      min={0}
+                      value={couponForm.minSubtotalNaira}
+                      onChange={(event) =>
+                        setCouponForm((prev) => ({
+                          ...prev,
+                          minSubtotalNaira: event.target.value,
+                        }))
+                      }
+                      placeholder="No minimum"
+                    />
+                  </label>
+
+                  <label className="foleio-dash-field">
+                    <span>Max uses (optional)</span>
+                    <input
+                      className="foleio-dash-input"
+                      type="number"
+                      min={1}
+                      value={couponForm.maxUses}
+                      onChange={(event) =>
+                        setCouponForm((prev) => ({
+                          ...prev,
+                          maxUses: event.target.value,
+                        }))
+                      }
+                      placeholder="Unlimited"
+                    />
+                  </label>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: 10,
+                    }}
+                  >
+                    <label className="foleio-dash-field">
+                      <span>Starts (optional)</span>
+                      <input
+                        className="foleio-dash-input"
+                        type="date"
+                        value={couponForm.startDate}
+                        onChange={(event) =>
+                          setCouponForm((prev) => ({
+                            ...prev,
+                            startDate: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="foleio-dash-field">
+                      <span>Ends (optional)</span>
+                      <input
+                        className="foleio-dash-input"
+                        type="date"
+                        value={couponForm.endDate}
+                        onChange={(event) =>
+                          setCouponForm((prev) => ({
+                            ...prev,
+                            endDate: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div
+                    className="foleio-dash-field"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <span>Active</span>
+                    <Switch
+                      checked={couponForm.status === 'active'}
+                      onCheckedChange={(checked) =>
+                        setCouponForm((prev) => ({
+                          ...prev,
+                          status: checked ? 'active' : 'disabled',
+                        }))
+                      }
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                    />
+                  </div>
+
+                  {couponError ? (
+                    <p style={{ margin: 0, color: '#f87171', fontSize: 13 }}>
+                      {couponError}
+                    </p>
+                  ) : null}
+
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-ghost"
+                      onClick={closeCouponDrawer}
+                      disabled={isSavingCoupon}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="foleio-dash-btn-primary"
+                      disabled={isSavingCoupon}
+                    >
+                      {isSavingCoupon ? (
+                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                      ) : null}
+                      {couponForm.id ? 'Save coupon' : 'Create coupon'}
+                    </button>
+                  </div>
+                </div>
               </form>
             </div>
           </aside>

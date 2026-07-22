@@ -8,7 +8,7 @@ import {
 import { BRAND_CLAIM } from '@/components/marketing/marketingCss';
 
 const description =
-  'Sell physical products with delivery and preorders on your Foleio page. Pro unlocks digital PDF downloads — get paid via Paystack.';
+  'Sell physical products with delivery and preorders on your Foleio page. Pro unlocks digital downloads, gift cards, coupons, and conditional free delivery — get paid via Paystack.';
 
 export const metadata: Metadata = {
   title: 'Sell products on your page | Foleio',
@@ -45,7 +45,7 @@ export default function ProductShopPage() {
       <MarketingHero
         eyebrow={BRAND_CLAIM}
         title="Sell products on your page"
-        subtitle="Add a shop to your Foleio link — physical products with delivery and preorders. Pro creators can sell digital PDF downloads too."
+        subtitle="Add a shop to your Foleio link — physical products with delivery and preorders. Pro unlocks digital downloads, gift cards, coupons, and conditional free delivery."
       />
 
       <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
@@ -57,8 +57,8 @@ export default function ProductShopPage() {
                 'List items with pricing, stock, delivery options, and preorders when you need them.',
               ],
               [
-                'Digital downloads (Pro)',
-                'Sell PDF products with secure delivery after Paystack checkout.',
+                'Pro shop tools',
+                'Sell PDF downloads, gift cards, and coupon codes — plus free delivery when customers hit a spend or quantity threshold.',
               ],
               [
                 'Payouts to your bank',

@@ -44,6 +44,8 @@ type PlatformSubscription = {
 
 export default function AdminBillingPage() {
   const [platformSubs, setPlatformSubs] = useState<PlatformSubscription[]>([]);
+  const [syncingFees, setSyncingFees] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -54,6 +56,34 @@ export default function AdminBillingPage() {
     }
     void load();
   }, []);
+
+  async function syncSubaccountFees() {
+    setSyncingFees(true);
+    setSyncMessage(null);
+    try {
+      const response = await fetch('/api/admin/billing/sync-fees', {
+        method: 'POST',
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        total?: number;
+        updated?: number;
+        failed?: number;
+      };
+      if (!response.ok) {
+        setSyncMessage(data.error || 'Fee sync failed');
+        return;
+      }
+      setSyncMessage(
+        `Synced ${data.updated ?? 0} of ${data.total ?? 0} subaccounts` +
+          (data.failed ? ` (${data.failed} failed)` : '')
+      );
+    } catch {
+      setSyncMessage('Fee sync failed');
+    } finally {
+      setSyncingFees(false);
+    }
+  }
 
   const stats = useMemo(() => {
     const active = platformSubs.filter((s) =>
@@ -88,6 +118,19 @@ export default function AdminBillingPage() {
         <p className={`foleio-admin-meta ${adminMutedClass}`}>
           Free {formatFreeFeeLabel()} · Pro {formatProFeeLabel()} · ₦3k/mo or ₦7.5k/quarter · legacy Pro 0% until period end
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void syncSubaccountFees()}
+            disabled={syncingFees}
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-[#f4f4f5] hover:bg-white/10 disabled:opacity-50"
+          >
+            {syncingFees ? 'Syncing Paystack fees…' : 'Sync Paystack subaccount fees'}
+          </button>
+          {syncMessage ? (
+            <p className={`text-sm ${adminMutedClass}`}>{syncMessage}</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-5">

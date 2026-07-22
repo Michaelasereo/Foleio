@@ -447,7 +447,43 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   background: #212121;
   border-radius: 10px;
 }
-.foleio-dash-header + .foleio-dash-tabs {
+.foleio-dash-underline-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+}
+.foleio-dash-underline-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #828282;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.foleio-dash-underline-tab:hover {
+  color: #fafafa;
+}
+.foleio-dash-underline-tab.is-active {
+  color: #fafafa;
+  border-bottom-color: #fafafa;
+  background: transparent;
+}
+.foleio-dash-header + .foleio-dash-tabs,
+.foleio-dash-header + .foleio-dash-underline-tabs {
   margin-top: 0;
   margin-bottom: 16px;
 }

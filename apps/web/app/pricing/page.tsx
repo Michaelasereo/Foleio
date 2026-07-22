@@ -4,7 +4,9 @@ import {
   formatFreeFeeLabel,
   formatPlanPrice,
   formatProFeeLabel,
+  freePlanFeatureBullets,
   PLATFORM_PLAN_AMOUNTS_KOBO,
+  proPlanFeatureBullets,
 } from '@/lib/billing/platform-plans';
 import {
   MarketingCta,
@@ -14,7 +16,7 @@ import {
 import { BRAND_CLAIM } from '@/components/marketing/marketingCss';
 
 const description =
-  'Foleio pricing: Free ₦0/mo with platform fee; Pro from ₦3,000/mo with lower fees, digital downloads, and Top Creators listing.';
+  'Foleio pricing: Free ₦0/mo with platform fee; Pro from ₦3,000/mo with lower fees, unlimited catalog, reviews, gift cards, and Top Creators listing.';
 
 export const metadata: Metadata = {
   title: 'Pricing | Foleio',
@@ -38,6 +40,8 @@ export default function PricingPage() {
   const proQuarterly = formatPlanPrice(PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly);
   const monthlyKobo = PLATFORM_PLAN_AMOUNTS_KOBO.pro.monthly;
   const quarterlyKobo = PLATFORM_PLAN_AMOUNTS_KOBO.pro.quarterly;
+  const freeFeatures = freePlanFeatureBullets();
+  const proFeatures = proPlanFeatureBullets().filter((f) => f !== 'Everything on Free');
 
   return (
     <MarketingShell activePath="/pricing">
@@ -82,7 +86,7 @@ export default function PricingPage() {
       <MarketingHero
         eyebrow={BRAND_CLAIM}
         title="Simple pricing for creator businesses"
-        subtitle="Start free. Upgrade to Pro for lower fees, unlimited catalog, digital downloads, and Top Creators discoverability."
+        subtitle="Start free. Upgrade to Pro for lower fees, unlimited catalog, digital downloads, reviews, gift cards, and Top Creators discoverability."
       />
 
       <section className="foleio-mkt-section" style={{ paddingTop: 0 }}>
@@ -97,10 +101,9 @@ export default function PricingPage() {
                 {freeFee} per transaction
               </p>
               <ul>
-                <li>Public page, bookings, and shop</li>
-                <li>Up to 10 services and 10 products</li>
-                <li>One Home portfolio gallery</li>
-                <li>Paystack payouts to your bank</li>
+                {freeFeatures.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
               </ul>
             </div>
             <div className="foleio-mkt-card foleio-mkt-card-accent">
@@ -116,14 +119,18 @@ export default function PricingPage() {
                 {proFee} per transaction
               </p>
               <ul>
-                <li>Unlimited services &amp; products</li>
-                <li>Digital PDF downloads</li>
-                <li>Portfolio categories &amp; schedule templates</li>
-                <li>
-                  <Link href="/creators" className="underline underline-offset-2">
-                    Appear on Top Creators &amp; Google
-                  </Link>
-                </li>
+                <li>Everything on Free</li>
+                {proFeatures.map((feature) =>
+                  feature.includes('Top Creators') ? (
+                    <li key={feature}>
+                      <Link href="/creators" className="underline underline-offset-2">
+                        Appear on Top Creators &amp; Google
+                      </Link>
+                    </li>
+                  ) : (
+                    <li key={feature}>{feature}</li>
+                  )
+                )}
               </ul>
             </div>
           </div>

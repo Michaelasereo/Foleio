@@ -10,6 +10,7 @@ import {
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
+import { resolveDeliveryFeeKobo } from '@/lib/shop/delivery-fee';
 import { productCardCss } from '@/components/shop/product-card-styles';
 
 type ProductVariant = {
@@ -24,10 +25,13 @@ export type ShopProduct = {
   description: string | null;
   price: number;
   compareAtPrice?: number | null;
+  discountStartsAt?: string | null;
+  discountEndsAt?: string | null;
   imageUrl: string | null;
   imageUrls?: string[];
   stock: number | null;
   showLimitedStock?: boolean;
+  type?: string;
   isPreorder?: boolean;
   preorderSettings?: unknown;
   addons?: unknown;
@@ -38,7 +42,7 @@ function productImages(product: Pick<ShopProduct, 'imageUrl' | 'imageUrls'>): st
   const fromArray = Array.isArray(product.imageUrls)
     ? product.imageUrls.map(String).filter(Boolean)
     : [];
-  if (fromArray.length > 0) return fromArray.slice(0, 2);
+  if (fromArray.length > 0) return fromArray.slice(0, 5);
   return product.imageUrl ? [product.imageUrl] : [];
 }
 
@@ -48,6 +52,8 @@ export type ShopDeliveryTier = {
   description: string | null;
   type: string;
   flatRate: number;
+  minSubtotalKobo?: number | null;
+  minItemQuantity?: number | null;
 };
 
 type CartItem = {
@@ -56,9 +62,12 @@ type CartItem = {
   selectedAddons: AddonOption[];
   quantity: number;
   unitPrice: number;
+  giftCardSendToEmail?: string;
 };
 
-type DrawerStep = 'product' | 'cart' | 'checkout';
+type DrawerStep = 'catalog' | 'product' | 'cart' | 'checkout';
+
+const PUBLIC_SHOP_PREVIEW = 4;
 
 type ShopCatalogPayload = {
   creatorId: string;
@@ -123,6 +132,14 @@ function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString('en-NG')}`;
 }
 
+function isNonPhysicalProduct(product: Pick<ShopProduct, 'type'>) {
+  return product.type === 'digital' || product.type === 'gift_card';
+}
+
+function isGiftCardProduct(product: Pick<ShopProduct, 'type'>) {
+  return product.type === 'gift_card';
+}
+
 function discountPercent(price: number, compareAt?: number | null) {
   if (!compareAt || compareAt <= price) return null;
   return Math.round(((compareAt - price) / compareAt) * 100);
@@ -134,6 +151,8 @@ function shopProductPricing(product: ShopProduct) {
     compareAtPrice: product.compareAtPrice,
     isPreorder: Boolean(product.isPreorder),
     preorderSettings: product.preorderSettings,
+    discountStartsAt: product.discountStartsAt,
+    discountEndsAt: product.discountEndsAt,
   });
 }
 
@@ -342,9 +361,11 @@ export function PublicShopPanel({
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [step, setStep] = useState<DrawerStep>('product');
+  const [browseFromCatalog, setBrowseFromCatalog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveryTierId, setDeliveryTierId] = useState('');
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [address, setAddress] = useState({
     firstName: '',
     lastName: '',
@@ -354,7 +375,15 @@ export function PublicShopPanel({
     address: '',
     city: '',
     state: '',
+    isGift: false,
+    occasion: '' as '' | 'birthday' | 'anniversary' | 'wedding' | 'special' | 'custom',
+    customOccasion: '',
+    recipientName: '',
+    recipientEmail: '',
+    giftMessage: '',
+    giftCardCode: '',
   });
+  const [giftCardSendToEmail, setGiftCardSendToEmail] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -415,7 +444,7 @@ export function PublicShopPanel({
     return livePricing.price + addonsTotal;
   }, [selectedProduct, catalogAddons, selectedAddonIds, livePricing.price]);
 
-  const needsDelivery = cart.length > 0;
+  const needsDelivery = cart.some((item) => !isNonPhysicalProduct(item.product));
 
   const deliverySelectionRequired = needsDelivery && deliveryTiers.length > 0;
 
@@ -424,18 +453,30 @@ export function PublicShopPanel({
     [deliveryTiers, deliveryTierId]
   );
 
-  const deliveryFee =
-    needsDelivery && selectedTier
-      ? selectedTier.type === 'paid'
-        ? selectedTier.flatRate
-        : 0
-      : 0;
-
   const cartSubtotal = cart.reduce(
     (sum, item) => sum + item.unitPrice * item.quantity,
     0
   );
-  const cartTotal = cartSubtotal + deliveryFee;
+
+  const deliveryFee =
+    needsDelivery && selectedTier
+      ? resolveDeliveryFeeKobo(
+          {
+            type: selectedTier.type,
+            flatRate: selectedTier.flatRate,
+            minSubtotalKobo: selectedTier.minSubtotalKobo,
+            minItemQuantity: selectedTier.minItemQuantity,
+          },
+          cartSubtotal,
+          cart.reduce((sum, item) => {
+            if (isNonPhysicalProduct(item.product)) return sum;
+            return sum + item.quantity;
+          }, 0)
+        )
+      : 0;
+
+  const cartTotalBeforeCredit = cartSubtotal + deliveryFee;
+  const payableTotal = cartTotalBeforeCredit;
   const deliverySelected = Boolean(selectedTier);
 
   useEffect(() => {
@@ -464,17 +505,29 @@ export function PublicShopPanel({
     setSelectedVariants({});
     setSelectedAddonIds([]);
     setQuantity(1);
+    setGiftCardSendToEmail('');
     setStep('product');
+    setError(null);
+  }
+
+  function openCatalog() {
+    setSelectedProduct(null);
+    setLightboxIndex(null);
+    setBrowseFromCatalog(true);
+    setStep('catalog');
     setError(null);
   }
 
   function closeDrawer() {
     setSelectedProduct(null);
+    setLightboxIndex(null);
+    setBrowseFromCatalog(false);
     setStep('product');
     setError(null);
   }
 
   function variantsReady(product: ShopProduct) {
+    if (isGiftCardProduct(product)) return true;
     return product.variants.every((variant) => selectedVariants[variant.name]);
   }
 
@@ -487,10 +540,12 @@ export function PublicShopPanel({
       );
       return;
     }
-    const requiredError = validateRequiredAddons(addonCategories, selectedAddonIds);
-    if (requiredError) {
-      setError(requiredError);
-      return;
+    if (!isGiftCardProduct(selectedProduct)) {
+      const requiredError = validateRequiredAddons(addonCategories, selectedAddonIds);
+      if (requiredError) {
+        setError(requiredError);
+        return;
+      }
     }
     const selectedAddons = catalogAddons.filter((addon) =>
       selectedAddonIds.includes(addon.id)
@@ -500,9 +555,12 @@ export function PublicShopPanel({
       {
         product: selectedProduct,
         selectedVariants: { ...selectedVariants },
-        selectedAddons,
+        selectedAddons: isGiftCardProduct(selectedProduct) ? [] : selectedAddons,
         quantity,
         unitPrice: liveUnitPrice,
+        giftCardSendToEmail: isGiftCardProduct(selectedProduct)
+          ? giftCardSendToEmail.trim() || undefined
+          : undefined,
       },
     ]);
     setStep('cart');
@@ -530,6 +588,24 @@ export function PublicShopPanel({
       setError('Email and phone are required');
       return;
     }
+    if (address.isGift) {
+      if (!address.recipientName.trim()) {
+        setError('Recipient name is required for gift orders');
+        return;
+      }
+      if (!address.recipientEmail.trim()) {
+        setError('Recipient email is required for gift orders');
+        return;
+      }
+      if (!address.occasion) {
+        setError('Select a gift occasion');
+        return;
+      }
+      if (address.occasion === 'custom' && !address.customOccasion.trim()) {
+        setError('Enter a custom occasion');
+        return;
+      }
+    }
     if (needsDelivery && deliveryTiers.length === 0) {
       setError('Delivery is required, but this shop has no delivery options yet.');
       return;
@@ -550,27 +626,41 @@ export function PublicShopPanel({
     setIsSubmitting(true);
     setError(null);
     try {
+      const cartGiftCardEmail =
+        cart.find((item) => item.giftCardSendToEmail)?.giftCardSendToEmail || '';
       const response = await fetch('/api/shop/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           creatorId,
+          giftCardCode: address.giftCardCode.trim() || null,
           deliveryTierId: needsDelivery ? deliveryTierId || null : null,
           deliveryAddress: {
             ...address,
             name: `${address.firstName.trim()} ${address.lastName.trim()}`.trim(),
+            giftCardSendToEmail: cartGiftCardEmail || address.email.trim(),
           },
           items: cart.map((item) => ({
             productId: item.product.id,
             variantSelected: item.selectedVariants,
             addonIds: item.selectedAddons.map((addon) => addon.id),
             quantity: item.quantity,
+            giftCardSendToEmail: item.giftCardSendToEmail,
           })),
         }),
       });
       const data = await response.json();
-      if (!response.ok || !data.paystackUrl) {
+      if (!response.ok) {
         setError(data.error || 'Could not start payment');
+        setIsSubmitting(false);
+        return;
+      }
+      if (data.orderId && !data.paystackUrl) {
+        window.location.href = `/shop/order-success?orderId=${encodeURIComponent(data.orderId)}`;
+        return;
+      }
+      if (!data.paystackUrl) {
+        setError('Could not start payment');
         setIsSubmitting(false);
         return;
       }
@@ -620,17 +710,25 @@ export function PublicShopPanel({
         className="foleio-product-card-list"
         style={{ marginTop: cart.length > 0 ? 12 : embedded ? 12 : 0 }}
       >
-        {products.map((product) => {
+        {products.slice(0, PUBLIC_SHOP_PREVIEW).map((product) => {
           const pricing = shopProductPricing(product);
           const pct = discountPercent(pricing.price, pricing.compareAtPrice);
           const thumb = productImages(product)[0];
           const stockCount = product.stock ?? 0;
-          const inStock = stockCount > 0;
-          const stockLabel = !inStock
-            ? 'Out of stock'
-            : product.showLimitedStock
-              ? 'Limited stock'
-              : `In Stock : ${stockCount}`;
+          const inStock =
+            product.type === 'digital' ||
+            product.type === 'gift_card' ||
+            stockCount > 0;
+          const stockLabel =
+            product.type === 'digital'
+              ? 'Digital'
+              : product.type === 'gift_card'
+                ? 'Gift card'
+                : !inStock
+                  ? 'Out of stock'
+                  : product.showLimitedStock
+                    ? 'Limited stock'
+                    : `In Stock : ${stockCount}`;
           return (
             <button
               key={product.id}
@@ -699,8 +797,22 @@ export function PublicShopPanel({
           );
         })}
       </div>
+      {products.length > PUBLIC_SHOP_PREVIEW ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <button
+            type="button"
+            className="foleio-shop-btn-ghost"
+            onClick={openCatalog}
+          >
+            View all
+          </button>
+        </div>
+      ) : null}
 
-      {selectedProduct || step === 'cart' || step === 'checkout' ? (
+      {selectedProduct ||
+      step === 'cart' ||
+      step === 'checkout' ||
+      step === 'catalog' ? (
         <>
           <div className="foleio-shop-drawer-backdrop" onClick={closeDrawer} />
           <div
@@ -720,7 +832,9 @@ export function PublicShopPanel({
                   flex: 1,
                 }}
               >
-                {step === 'cart' || step === 'checkout' ? (
+                {step === 'cart' ||
+                step === 'checkout' ||
+                (step === 'product' && browseFromCatalog) ? (
                   <button
                     type="button"
                     className="foleio-shop-drawer-back"
@@ -731,19 +845,26 @@ export function PublicShopPanel({
                         setStep('cart');
                         return;
                       }
+                      if (step === 'cart') {
+                        setSelectedProduct(null);
+                        setStep(browseFromCatalog ? 'catalog' : 'product');
+                        return;
+                      }
                       setSelectedProduct(null);
-                      setStep('product');
+                      setStep('catalog');
                     }}
                   >
                     <ArrowLeft strokeWidth={1.75} />
                   </button>
                 ) : null}
                 <h2 id="shop-drawer-title" className="foleio-shop-drawer-title">
-                  {step === 'product'
-                    ? selectedProduct?.name
-                    : step === 'cart'
-                      ? 'Cart'
-                      : 'Checkout'}
+                  {step === 'catalog'
+                    ? 'All products'
+                    : step === 'product'
+                      ? selectedProduct?.name
+                      : step === 'cart'
+                        ? 'Cart'
+                        : 'Checkout'}
                 </h2>
                 {step === 'product' && selectedProduct && livePricing.isPreorderActive ? (
                   <span className="foleio-shop-chip is-preorder">Preorder</span>
@@ -755,6 +876,103 @@ export function PublicShopPanel({
             </div>
 
             <div className="foleio-shop-drawer-body">
+              {step === 'catalog' ? (
+                <div className="foleio-product-card-list">
+                  {products.map((product) => {
+                    const pricing = shopProductPricing(product);
+                    const pct = discountPercent(pricing.price, pricing.compareAtPrice);
+                    const thumb = productImages(product)[0];
+                    const stockCount = product.stock ?? 0;
+                    const inStock =
+                      product.type === 'digital' ||
+                      product.type === 'gift_card' ||
+                      stockCount > 0;
+                    const stockLabel =
+                      product.type === 'digital'
+                        ? 'Digital'
+                        : product.type === 'gift_card'
+                          ? 'Gift card'
+                          : !inStock
+                            ? 'Out of stock'
+                            : product.showLimitedStock
+                              ? 'Limited stock'
+                              : `In Stock : ${stockCount}`;
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        className="foleio-product-card"
+                        onClick={() => openProduct(product)}
+                      >
+                        <div className="foleio-product-card-media">
+                          {thumb ? (
+                            <Image
+                              src={thumb}
+                              alt={product.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          ) : null}
+                          {pct ? (
+                            <div className="foleio-product-card-badges">
+                              <span className="foleio-product-card-discount">
+                                {pct}% off
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="foleio-product-card-body">
+                          <div className="foleio-product-card-top">
+                            <p className="foleio-product-card-title">
+                              {product.name}
+                              {pricing.isPreorderActive ? (
+                                <span
+                                  className="foleio-shop-chip is-preorder"
+                                  style={{ marginLeft: 8 }}
+                                >
+                                  Preorder
+                                </span>
+                              ) : null}
+                            </p>
+                            <span
+                              className={`foleio-product-card-stock${
+                                inStock ? '' : ' is-out'
+                              }`}
+                            >
+                              {stockLabel}
+                            </span>
+                          </div>
+                          <p className="foleio-product-card-desc">
+                            {product.description?.trim() || 'View details and order.'}
+                          </p>
+                          <div className="foleio-product-card-footer">
+                            <p className="foleio-product-card-price">
+                              {pricing.compareAtPrice &&
+                              pricing.compareAtPrice > pricing.price ? (
+                                <>
+                                  <span className="is-compare">
+                                    {formatNaira(pricing.compareAtPrice)}
+                                  </span>
+                                  {formatNaira(pricing.price)}
+                                </>
+                              ) : (
+                                formatNaira(pricing.price)
+                              )}
+                            </p>
+                            <span
+                              className="foleio-product-card-shop-btn"
+                              aria-hidden="true"
+                            >
+                              Shop
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               {step === 'product' && selectedProduct ? (
                 <div style={{ display: 'grid', gap: 16 }}>
                   {(() => {
@@ -765,14 +983,24 @@ export function PublicShopPanel({
                     );
                     return (
                       <div style={{ display: 'grid', gap: 8 }}>
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => images[0] && setLightboxIndex(0)}
                           style={{
                             position: 'relative',
                             aspectRatio: '1.2',
                             borderRadius: 12,
                             overflow: 'hidden',
                             background: '#1f1f1f',
+                            border: 'none',
+                            padding: 0,
+                            cursor: images[0] ? 'zoom-in' : 'default',
+                            display: 'block',
+                            width: '100%',
                           }}
+                          aria-label={
+                            images[0] ? `View ${selectedProduct.name} photo` : undefined
+                          }
                         >
                           {images[0] ? (
                             <Image
@@ -788,25 +1016,37 @@ export function PublicShopPanel({
                               <span className="foleio-shop-image-badge is-discount">{pct}% off</span>
                             </div>
                           ) : null}
-                        </div>
+                        </button>
                         {images.length > 1 ? (
                           <div
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: '1fr 1fr',
+                              gridTemplateColumns:
+                                images.length >= 4
+                                  ? 'repeat(4, minmax(0, 1fr))'
+                                  : 'repeat(3, minmax(0, 1fr))',
                               gap: 8,
                             }}
                           >
                             {images.map((src, index) => (
-                              <div
+                              <button
                                 key={`${src}-${index}`}
+                                type="button"
+                                onClick={() => setLightboxIndex(index)}
                                 style={{
                                   position: 'relative',
                                   aspectRatio: '1',
                                   borderRadius: 10,
                                   overflow: 'hidden',
                                   background: '#1f1f1f',
+                                  border:
+                                    lightboxIndex === index
+                                      ? '2px solid #fafafa'
+                                      : '2px solid transparent',
+                                  padding: 0,
+                                  cursor: 'zoom-in',
                                 }}
+                                aria-label={`View photo ${index + 1}`}
                               >
                                 <Image
                                   src={src}
@@ -815,7 +1055,7 @@ export function PublicShopPanel({
                                   className="object-cover"
                                   unoptimized
                                 />
-                              </div>
+                              </button>
                             ))}
                           </div>
                         ) : null}
@@ -849,7 +1089,8 @@ export function PublicShopPanel({
                     )}
                   </p>
 
-                  {selectedProduct.variants.map((variant) => {
+                  {selectedProduct && !isGiftCardProduct(selectedProduct)
+                    ? selectedProduct.variants.map((variant) => {
                     const showSwatches =
                       isColorVariantName(variant.name) ||
                       variant.options.every((option) => isHexColor(option));
@@ -915,9 +1156,12 @@ export function PublicShopPanel({
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                    : null}
 
-                  {addonCategories.length > 0 ? (
+                  {selectedProduct &&
+                  !isGiftCardProduct(selectedProduct) &&
+                  addonCategories.length > 0 ? (
                     <div style={{ display: 'grid', gap: 14 }}>
                       {addonCategories.map((category) => (
                         <div key={category.id}>
@@ -988,20 +1232,44 @@ export function PublicShopPanel({
                     </div>
                   ) : null}
 
+                  {selectedProduct && isGiftCardProduct(selectedProduct) ? (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <p style={{ margin: 0, fontSize: 13, color: 'rgba(250,250,250,0.72)' }}>
+                        Face value · unlimited stock
+                      </p>
+                      <input
+                        className="foleio-shop-field"
+                        placeholder="Send gift card code to (optional)"
+                        type="email"
+                        value={giftCardSendToEmail}
+                        onChange={(event) => setGiftCardSendToEmail(event.target.value)}
+                      />
+                      <p style={{ margin: 0, fontSize: 12, color: 'rgba(250,250,250,0.55)' }}>
+                        Defaults to your email at checkout if left blank
+                      </p>
+                    </div>
+                  ) : null}
+
                   <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
                     Quantity
                     <input
                       className="foleio-shop-field"
                       type="number"
                       min={1}
-                      max={selectedProduct.stock || 1}
+                      max={
+                        selectedProduct && isGiftCardProduct(selectedProduct)
+                          ? 99
+                          : selectedProduct.stock || 1
+                      }
                       value={quantity}
                       onChange={(event) =>
                         setQuantity(
                           Math.max(
                             1,
                             Math.min(
-                              Number(selectedProduct.stock || 1),
+                              selectedProduct && isGiftCardProduct(selectedProduct)
+                                ? 99
+                                : Number(selectedProduct.stock || 1),
                               Number(event.target.value) || 1
                             )
                           )
@@ -1077,7 +1345,7 @@ export function PublicShopPanel({
                     })
                   )}
 
-                  {cart.length > 0 ? (
+                  {cart.length > 0 && needsDelivery ? (
                     <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
                         Choose delivery
@@ -1188,7 +1456,7 @@ export function PublicShopPanel({
                       >
                         <span>Total</span>
                         <span>
-                          {deliverySelected ? formatNaira(cartTotal) : '—'}
+                          {deliverySelected ? formatNaira(payableTotal) : '—'}
                         </span>
                       </div>
                     </div>
@@ -1249,6 +1517,180 @@ export function PublicShopPanel({
                     }
                     style={{ resize: 'vertical', minHeight: 72 }}
                   />
+
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Who is this for?</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={
+                          !address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'
+                        }
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: 13,
+                          background: !address.isGift
+                            ? 'rgba(250,250,250,0.12)'
+                            : undefined,
+                        }}
+                        onClick={() =>
+                          setAddress((prev) => ({ ...prev, isGift: false }))
+                        }
+                      >
+                        For me
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'
+                        }
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: 13,
+                          background: address.isGift
+                            ? 'rgba(250,250,250,0.12)'
+                            : undefined,
+                        }}
+                        onClick={() =>
+                          setAddress((prev) => ({ ...prev, isGift: true }))
+                        }
+                      >
+                        This is a gift
+                      </button>
+                    </div>
+                  </div>
+
+                  {address.isGift ? (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Occasion</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {(
+                          [
+                            ['birthday', 'Birthday'],
+                            ['anniversary', 'Anniversary'],
+                            ['wedding', 'Wedding'],
+                            ['special', 'Special'],
+                            ['custom', 'Custom'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className="foleio-shop-btn-ghost"
+                            style={{
+                              padding: '8px 12px',
+                              fontSize: 12,
+                              background:
+                                address.occasion === value
+                                  ? 'rgba(250,250,250,0.12)'
+                                  : 'transparent',
+                              border:
+                                address.occasion === value
+                                  ? '1px solid rgba(255,255,255,0.35)'
+                                  : undefined,
+                            }}
+                            onClick={() =>
+                              setAddress((prev) => ({ ...prev, occasion: value }))
+                            }
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {address.occasion === 'custom' ? (
+                        <input
+                          className="foleio-shop-field"
+                          placeholder="Custom occasion"
+                          value={address.customOccasion}
+                          onChange={(event) =>
+                            setAddress((prev) => ({
+                              ...prev,
+                              customOccasion: event.target.value,
+                            }))
+                          }
+                        />
+                      ) : null}
+                      <input
+                        className="foleio-shop-field"
+                        placeholder="Recipient name"
+                        value={address.recipientName}
+                        onChange={(event) =>
+                          setAddress((prev) => ({
+                            ...prev,
+                            recipientName: event.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        className="foleio-shop-field"
+                        placeholder="Recipient email"
+                        type="email"
+                        value={address.recipientEmail}
+                        onChange={(event) =>
+                          setAddress((prev) => ({
+                            ...prev,
+                            recipientEmail: event.target.value,
+                          }))
+                        }
+                      />
+                      <textarea
+                        className="foleio-shop-field"
+                        placeholder="Gift message (optional)"
+                        rows={3}
+                        value={address.giftMessage}
+                        onChange={(event) =>
+                          setAddress((prev) => ({
+                            ...prev,
+                            giftMessage: event.target.value,
+                          }))
+                        }
+                        style={{ resize: 'vertical', minHeight: 72 }}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
+                      Gift card or coupon code
+                    </p>
+                    <input
+                      className="foleio-shop-field"
+                      placeholder="Enter code (optional)"
+                      value={address.giftCardCode}
+                      onChange={(event) =>
+                        setAddress((prev) => ({
+                          ...prev,
+                          giftCardCode: event.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                    {address.giftCardCode.trim() ? (
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 12,
+                          color: 'rgba(250,250,250,0.55)',
+                        }}
+                      >
+                        Balance will be applied at checkout
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {cart.some((item) => isGiftCardProduct(item.product)) ? (
+                    <input
+                      className="foleio-shop-field"
+                      placeholder="Send gift card code to (email, optional)"
+                      type="email"
+                      value={
+                        cart.find((item) => item.giftCardSendToEmail)?.giftCardSendToEmail ||
+                        address.email
+                      }
+                      readOnly
+                      style={{ opacity: 0.75 }}
+                    />
+                  ) : null}
+
                   {needsDelivery && selectedTier?.type !== 'pickup' ? (
                     <>
                       <input
@@ -1314,8 +1756,21 @@ export function PublicShopPanel({
                         </span>
                       </div>
                     ) : null}
+                    {address.giftCardCode.trim() ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: 14,
+                          color: 'rgba(250,250,250,0.72)',
+                        }}
+                      >
+                        <span>Gift card</span>
+                        <span>Applied at checkout</span>
+                      </div>
+                    ) : null}
                     <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>
-                      Total {formatNaira(cartTotal)}
+                      Total {formatNaira(payableTotal)}
                     </p>
                   </div>
                 </div>
@@ -1356,7 +1811,7 @@ export function PublicShopPanel({
                   >
                     Checkout
                     {deliverySelected || !needsDelivery
-                      ? ` · ${formatNaira(cartTotal)}`
+                      ? ` · ${formatNaira(payableTotal)}`
                       : ''}
                   </button>
                 </div>
@@ -1385,7 +1840,11 @@ export function PublicShopPanel({
                       (deliverySelectionRequired && !deliveryTierId)
                     }
                   >
-                    {isSubmitting ? 'Starting payment…' : `Pay ${formatNaira(cartTotal)}`}
+                    {isSubmitting
+                      ? 'Starting payment…'
+                      : payableTotal <= 0 && address.giftCardCode.trim()
+                        ? 'Complete order'
+                        : `Pay ${formatNaira(payableTotal)}`}
                   </button>
                 </div>
               ) : null}
@@ -1393,6 +1852,65 @@ export function PublicShopPanel({
           </div>
         </>
       ) : null}
+
+      {lightboxIndex != null && selectedProduct
+        ? (() => {
+            const images = productImages(selectedProduct);
+            const src = images[lightboxIndex];
+            if (!src) return null;
+            return (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Product photo"
+                onClick={() => setLightboxIndex(null)}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 80,
+                  background: 'rgba(0,0,0,0.88)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  padding: 16,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(null)}
+                  aria-label="Close photo"
+                  style={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 999,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(0,0,0,0.4)',
+                    color: '#fafafa',
+                    cursor: 'pointer',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <X strokeWidth={1.75} style={{ width: 18, height: 18 }} />
+                </button>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={selectedProduct.name}
+                  onClick={(event) => event.stopPropagation()}
+                  style={{
+                    maxWidth: 'min(920px, 100%)',
+                    maxHeight: '85vh',
+                    objectFit: 'contain',
+                    borderRadius: 12,
+                  }}
+                />
+              </div>
+            );
+          })()
+        : null}
     </>
   );
 }

@@ -24,7 +24,11 @@ export async function GET(
         where: {
           creatorId: creator.id,
           status: 'active',
-          OR: [{ type: 'digital' }, { stock: { gt: 0 } }],
+          OR: [
+            { type: 'digital' },
+            { type: 'gift_card' },
+            { stock: { gt: 0 } },
+          ],
         },
         include: { variants: true },
         orderBy: [{ orderIndex: 'asc' }, { createdAt: 'desc' }],

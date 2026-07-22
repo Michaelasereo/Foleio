@@ -7,6 +7,10 @@ import { useToast } from '@/components/ui/use-toast';
 import { broadcastAvatarUpdated } from '@/lib/creator/profile-live';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 import { PortfolioGallerySettings } from '@/components/creator/PortfolioGallerySettings';
+import {
+  CreatorReviewsSettings,
+  type CreatorReviewRow,
+} from '@/components/creator/CreatorReviewsSettings';
 import { BillingPage } from '@/components/creator/BillingPage';
 import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
 import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
@@ -16,20 +20,37 @@ import { parseSocialUrl } from '@/lib/creator/social-urls';
 
 type SettingsTab =
   | 'profile'
+  | 'portfolio'
+  | 'reviews'
   | 'notifications'
   | 'policy'
-  | 'portfolio'
   | 'billing'
   | 'support';
 
-const tabs: Array<{ id: SettingsTab; label: string }> = [
+type SettingsSegment = 'general' | 'admin';
+
+const GENERAL_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'profile', label: 'Profile' },
   { id: 'portfolio', label: 'Portfolio' },
+  { id: 'reviews', label: 'Reviews' },
   { id: 'billing', label: 'Billing' },
+];
+
+const ADMIN_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'policy', label: 'Deposits & policy' },
   { id: 'support', label: 'Chat with us' },
 ];
+
+const ALL_SETTINGS_TABS = [...GENERAL_TABS, ...ADMIN_TABS];
+
+function segmentForTab(tab: SettingsTab): SettingsSegment {
+  return GENERAL_TABS.some((t) => t.id === tab) ? 'general' : 'admin';
+}
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return ALL_SETTINGS_TABS.some((t) => t.id === value);
+}
 
 type SubscriptionRecord = {
   id: string;
@@ -73,6 +94,8 @@ interface AccountSettingsTabsProps {
       orderIndex: number;
     }>;
   };
+  reviews?: CreatorReviewRow[];
+  reviewsEnabled?: boolean;
   userEmail?: string | null;
 }
 
@@ -80,6 +103,8 @@ export function AccountSettingsTabs({
   creator,
   billing,
   portfolio,
+  reviews,
+  reviewsEnabled = true,
   userEmail,
 }: AccountSettingsTabsProps) {
   const router = useRouter();
@@ -88,6 +113,7 @@ export function AccountSettingsTabs({
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const [segment, setSegment] = useState<SettingsSegment>('general');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(creator.avatarUrl || null);
@@ -108,17 +134,13 @@ export function AccountSettingsTabs({
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (
-      tab === 'profile' ||
-      tab === 'notifications' ||
-      tab === 'policy' ||
-      tab === 'portfolio' ||
-      tab === 'billing' ||
-      tab === 'support'
-    ) {
+    if (isSettingsTab(tab)) {
       setActiveTab(tab);
+      setSegment(segmentForTab(tab));
     }
   }, [searchParams]);
+
+  const visibleTabs = segment === 'general' ? GENERAL_TABS : ADMIN_TABS;
 
   useEffect(() => {
     let isMounted = true;
@@ -180,6 +202,7 @@ export function AccountSettingsTabs({
 
   function selectTab(tab: SettingsTab) {
     setActiveTab(tab);
+    setSegment(segmentForTab(tab));
     const params = new URLSearchParams(searchParams.toString());
     if (tab === 'profile') {
       params.delete('tab');
@@ -188,6 +211,13 @@ export function AccountSettingsTabs({
     }
     const query = params.toString();
     router.replace(query ? `/settings?${query}` : '/settings', { scroll: false });
+  }
+
+  function selectSegment(next: SettingsSegment) {
+    if (next === segment) return;
+    setSegment(next);
+    const firstTab = (next === 'general' ? GENERAL_TABS : ADMIN_TABS)[0]!.id;
+    selectTab(firstTab);
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -384,8 +414,28 @@ export function AccountSettingsTabs({
         </div>
       </div>
 
+      <div className="foleio-dash-underline-tabs" role="tablist" aria-label="Settings groups">
+        {(
+          [
+            { id: 'general' as const, label: 'General' },
+            { id: 'admin' as const, label: 'Admin' },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={segment === item.id}
+            className={`foleio-dash-underline-tab${segment === item.id ? ' is-active' : ''}`}
+            onClick={() => selectSegment(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       <div className="foleio-dash-tabs" role="tablist" aria-label="Settings sections">
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -675,6 +725,15 @@ export function AccountSettingsTabs({
         <PortfolioGallerySettings
           initialSectionId={portfolio?.sectionId}
           initialItems={portfolio?.items || []}
+          platformPlan={creator.platformPlan}
+          platformSubscriptionActive={creator.platformSubscriptionActive}
+        />
+      ) : null}
+
+      {activeTab === 'reviews' ? (
+        <CreatorReviewsSettings
+          initialReviews={reviews || []}
+          initialReviewsEnabled={reviewsEnabled}
           platformPlan={creator.platformPlan}
           platformSubscriptionActive={creator.platformSubscriptionActive}
         />

@@ -12,6 +12,17 @@ import {
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
 import { paystackTransactionChargeKobo, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
+import {
+  findUsableGiftCard,
+  giftCardCreditForTotal,
+} from '@/lib/shop/gift-cards';
+import { findUsableCoupon } from '@/lib/shop/coupons';
+import {
+  applyConfirmedShopOrderSideEffects,
+  parseDeliveryAddressGiftFields,
+  sendConfirmedShopOrderEmails,
+  validateGiftAddressFields,
+} from '@/lib/shop/fulfill-order';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,13 +32,18 @@ type OrderItemInput = {
   variantSelected?: Record<string, string>;
   addonIds?: string[];
   quantity?: number;
+  giftCardSendToEmail?: string;
 };
+
+function isNonPhysicalProductType(type: string | null | undefined) {
+  return type === 'digital' || type === 'gift_card';
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const creatorId = String(body?.creatorId || '').trim();
-    const deliveryAddress = (body?.deliveryAddress || {}) as Record<string, string>;
+    const deliveryAddress = (body?.deliveryAddress || {}) as Record<string, unknown>;
     const items = Array.isArray(body?.items) ? (body.items as OrderItemInput[]) : [];
 
     if (!creatorId || items.length === 0) {
@@ -45,6 +61,13 @@ export async function POST(request: Request) {
     const email = String(deliveryAddress.email || '').trim();
     const phone = String(deliveryAddress.phone || '').trim();
     const notes = String(deliveryAddress.notes || '').trim();
+
+    const giftFields = parseDeliveryAddressGiftFields(deliveryAddress);
+    const giftValidationError = validateGiftAddressFields(giftFields);
+    if (giftValidationError) {
+      return NextResponse.json({ error: giftValidationError }, { status: 400 });
+    }
+
     if (!firstName || !lastName || !email || !phone) {
       return NextResponse.json(
         { error: 'First name, last name, email, and phone are required' },
@@ -125,6 +148,7 @@ export async function POST(request: Request) {
       variantSelected?: Record<string, string>;
       addonsSelected: AddonOption[];
       unitPrice: number;
+      giftCardSendToEmail?: string;
     }> = [];
 
     for (const item of items) {
@@ -135,10 +159,10 @@ export async function POST(request: Request) {
       }
 
       const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
-      const isDigital = product.type === 'digital';
+      const isNonPhysical = isNonPhysicalProductType(product.type);
       const stock = product.stock;
-      if (!isDigital || stock != null) {
-        const available = stock ?? 0;
+      if (!isNonPhysical || stock != null) {
+        const available = isNonPhysical ? stock ?? Infinity : stock ?? 0;
         if (available < quantity) {
           return NextResponse.json(
             { error: `${product.name} does not have enough stock` },
@@ -148,13 +172,15 @@ export async function POST(request: Request) {
       }
 
       const selectedVariants = (item.variantSelected || {}) as Record<string, string>;
-      for (const variant of product.variants) {
-        const chosen = selectedVariants[variant.name];
-        if (!chosen || !variant.options.includes(chosen)) {
-          return NextResponse.json(
-            { error: `Select ${variant.name} for ${product.name}` },
-            { status: 400 }
-          );
+      if (product.type !== 'gift_card') {
+        for (const variant of product.variants) {
+          const chosen = selectedVariants[variant.name];
+          if (!chosen || !variant.options.includes(chosen)) {
+            return NextResponse.json(
+              { error: `Select ${variant.name} for ${product.name}` },
+              { status: 400 }
+            );
+          }
         }
       }
 
@@ -163,12 +189,14 @@ export async function POST(request: Request) {
       const requestedAddonIds = Array.isArray(item.addonIds)
         ? item.addonIds.map(String)
         : [];
-      const requiredError = validateRequiredAddons(addonCategories, requestedAddonIds);
-      if (requiredError) {
-        return NextResponse.json(
-          { error: `${requiredError} for ${product.name}` },
-          { status: 400 }
-        );
+      if (product.type !== 'gift_card') {
+        const requiredError = validateRequiredAddons(addonCategories, requestedAddonIds);
+        if (requiredError) {
+          return NextResponse.json(
+            { error: `${requiredError} for ${product.name}` },
+            { status: 400 }
+          );
+        }
       }
       const addonsSelected = catalogAddons.filter((addon) =>
         requestedAddonIds.includes(addon.id)
@@ -179,6 +207,8 @@ export async function POST(request: Request) {
         compareAtPrice: product.compareAtPrice,
         isPreorder: Boolean(product.isPreorder),
         preorderSettings: product.preorderSettings,
+        discountStartsAt: product.discountStartsAt,
+        discountEndsAt: product.discountEndsAt,
       });
       const unitPrice = pricing.price + addonsTotal;
 
@@ -189,6 +219,10 @@ export async function POST(request: Request) {
           Object.keys(selectedVariants).length > 0 ? selectedVariants : undefined,
         addonsSelected,
         unitPrice,
+        giftCardSendToEmail:
+          product.type === 'gift_card'
+            ? String(item.giftCardSendToEmail || '').trim() || undefined
+            : undefined,
       });
     }
 
@@ -196,7 +230,18 @@ export async function POST(request: Request) {
     let deliveryFee = 0;
     let deliveryType: string | null = null;
 
-    const hasPhysicalProduct = products.some((product) => product.type !== 'digital');
+    const hasPhysicalProduct = products.some(
+      (product) => !isNonPhysicalProductType(product.type)
+    );
+    const subtotal = mappedItems.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0
+    );
+    const physicalQty = mappedItems.reduce((sum, item) => {
+      const product = products.find((entry) => entry.id === item.productId);
+      if (!product || isNonPhysicalProductType(product.type)) return sum;
+      return sum + item.quantity;
+    }, 0);
 
     if (hasPhysicalProduct) {
       const requestedDeliveryTierId = String(body?.deliveryTierId || '').trim();
@@ -216,8 +261,17 @@ export async function POST(request: Request) {
 
       deliveryTierId = deliveryTier.id;
       deliveryType = deliveryTier.type || 'paid';
-      deliveryFee =
-        deliveryType === 'paid' ? Math.max(0, Number(deliveryTier.flatRate) || 0) : 0;
+      const { resolveDeliveryFeeKobo } = await import('@/lib/shop/delivery-fee');
+      deliveryFee = resolveDeliveryFeeKobo(
+        {
+          type: deliveryType,
+          flatRate: Number(deliveryTier.flatRate) || 0,
+          minSubtotalKobo: deliveryTier.minSubtotalKobo,
+          minItemQuantity: deliveryTier.minItemQuantity,
+        },
+        subtotal,
+        physicalQty
+      );
 
       if (deliveryType !== 'pickup') {
         const address = String(deliveryAddress.address || '').trim();
@@ -231,17 +285,61 @@ export async function POST(request: Request) {
         }
       }
     } else {
-      deliveryType = 'digital';
+      deliveryType = products.some((p) => p.type === 'gift_card') ? 'gift_card' : 'digital';
       deliveryFee = 0;
     }
 
-    const subtotal = mappedItems.reduce(
-      (sum, item) => sum + item.unitPrice * item.quantity,
-      0
-    );
-    const total = subtotal + deliveryFee;
-    if (total < 100) {
+    const promoCode = String(
+      body?.giftCardCode ||
+        body?.couponCode ||
+        deliveryAddress.giftCardCode ||
+        deliveryAddress.couponCode ||
+        ''
+    ).trim();
+
+    let couponId: string | null = null;
+    let couponDiscountKobo = 0;
+    let usableGiftCard: Awaited<ReturnType<typeof findUsableGiftCard>> = null;
+
+    if (promoCode) {
+      const couponResult = await findUsableCoupon(creatorId, promoCode, subtotal);
+      if (couponResult.kind === 'ok') {
+        couponId = couponResult.coupon.id;
+        couponDiscountKobo = couponResult.discountKobo;
+      } else if (couponResult.kind === 'unusable') {
+        return NextResponse.json({ error: couponResult.error }, { status: 400 });
+      } else {
+        usableGiftCard = await findUsableGiftCard(creatorId, promoCode);
+        if (!usableGiftCard) {
+          return NextResponse.json(
+            { error: 'Gift card or coupon code is invalid' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const discountedSubtotal = Math.max(0, subtotal - couponDiscountKobo);
+    const orderTotalBeforeCredit = discountedSubtotal + deliveryFee;
+
+    const giftCardAppliedKobo = usableGiftCard
+      ? giftCardCreditForTotal(usableGiftCard.balanceKobo, orderTotalBeforeCredit)
+      : 0;
+    const chargeAmount = Math.max(0, orderTotalBeforeCredit - giftCardAppliedKobo);
+
+    if (subtotal <= 0) {
       return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
+    }
+
+    if (chargeAmount > 0 && chargeAmount < 100) {
+      return NextResponse.json(
+        {
+          error: usableGiftCard
+            ? 'Remaining balance after gift card must be at least ₦1'
+            : 'Order total after discount must be at least ₦1 or fully covered',
+        },
+        { status: 400 }
+      );
     }
 
     const supabase = await createRouteHandlerClient();
@@ -249,6 +347,11 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
     const fanId = user?.id || 'guest';
+
+    const giftCardSendToEmail =
+      giftFields.giftCardSendToEmail ||
+      mappedItems.find((item) => item.giftCardSendToEmail)?.giftCardSendToEmail ||
+      '';
 
     const normalizedAddress = {
       firstName,
@@ -261,18 +364,74 @@ export async function POST(request: Request) {
       city: String(deliveryAddress.city || '').trim(),
       state: String(deliveryAddress.state || '').trim(),
       fulfillment: deliveryType || 'delivery',
+      isGift: giftFields.isGift,
+      occasion: giftFields.occasion,
+      customOccasion: giftFields.customOccasion || null,
+      recipientName: giftFields.recipientName || null,
+      recipientEmail: giftFields.recipientEmail || null,
+      giftMessage: giftFields.giftMessage || null,
+      giftCardSendToEmail: giftCardSendToEmail || null,
     };
+
+    const orderId = crypto.randomUUID();
+
+    if (chargeAmount === 0) {
+      const order = await prisma.order.create({
+        data: {
+          id: orderId,
+          fanId,
+          creatorId,
+          deliveryTierId,
+          deliveryAddress: normalizedAddress,
+          subtotal,
+          deliveryFee,
+          total: chargeAmount,
+          couponId,
+          couponDiscountKobo,
+          giftCardId: usableGiftCard?.id || null,
+          giftCardAppliedKobo,
+          status: 'confirmed',
+          items: {
+            createMany: {
+              data: mappedItems.map((item) => ({
+                id: crypto.randomUUID(),
+                productId: item.productId,
+                variantSelected: item.variantSelected,
+                addonsSelected: item.addonsSelected,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+              })),
+            },
+          },
+        },
+      });
+
+      await applyConfirmedShopOrderSideEffects(order.id);
+      void sendConfirmedShopOrderEmails(order.id);
+
+      return NextResponse.json({
+        success: true,
+        orderId: order.id,
+        paystackUrl: null,
+        couponDiscountKobo,
+        giftCardAppliedKobo,
+      });
+    }
 
     const order = await prisma.order.create({
       data: {
-        id: crypto.randomUUID(),
+        id: orderId,
         fanId,
         creatorId,
         deliveryTierId,
         deliveryAddress: normalizedAddress,
         subtotal,
         deliveryFee,
-        total,
+        total: chargeAmount,
+        couponId,
+        couponDiscountKobo,
+        giftCardId: usableGiftCard?.id || null,
+        giftCardAppliedKobo,
         status: 'pending',
         items: {
           createMany: {
@@ -292,12 +451,12 @@ export async function POST(request: Request) {
     let paymentData;
     try {
       const transactionCharge = paystackTransactionChargeKobo(
-        total,
+        chargeAmount,
         toFeePlanInput(creator)
       );
       paymentData = await paystack.initializePayment({
         email,
-        amount: total,
+        amount: chargeAmount,
         channels: ['card', 'bank', 'ussd'],
         subaccount: subaccountCode,
         transaction_charge: transactionCharge,
@@ -307,6 +466,8 @@ export async function POST(request: Request) {
           creatorId,
           fanId,
           paymentType: 'DIRECT_SUBACCOUNT',
+          giftCardAppliedKobo,
+          couponDiscountKobo,
           ...(transactionCharge
             ? { platformFeeType: 'flat', platformFeeKobo: transactionCharge }
             : {}),
@@ -354,6 +515,8 @@ export async function POST(request: Request) {
       orderId: order.id,
       paystackUrl: paymentData.data.authorization_url,
       reference: paymentData.data.reference,
+      couponDiscountKobo,
+      giftCardAppliedKobo,
     });
   } catch (error) {
     console.error('[shop/orders][POST] failed:', error);

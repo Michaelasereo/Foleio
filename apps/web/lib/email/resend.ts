@@ -358,3 +358,168 @@ export async function sendOrderConfirmationEmail({
     return { success: false };
   }
 }
+
+type GiftOrderEmailProps = {
+  email: string;
+  recipientName: string;
+  buyerName: string;
+  occasion?: 'birthday' | 'anniversary' | 'wedding' | 'special' | 'custom' | null;
+  customOccasion?: string | null;
+  giftMessage?: string | null;
+  items: Array<{ name: string; quantity: number }>;
+  creatorName: string;
+};
+
+function giftOccasionLabel(
+  occasion: GiftOrderEmailProps['occasion'],
+  custom?: string | null
+) {
+  if (occasion === 'custom') {
+    const text = String(custom || '').trim();
+    return text || 'a special occasion';
+  }
+  switch (occasion) {
+    case 'birthday':
+      return 'your birthday';
+    case 'anniversary':
+      return 'your anniversary';
+    case 'wedding':
+      return 'your wedding';
+    case 'special':
+      return 'a special occasion';
+    default:
+      return 'a special occasion';
+  }
+}
+
+export async function sendGiftOrderEmail({
+  email,
+  recipientName,
+  buyerName,
+  occasion,
+  customOccasion,
+  giftMessage,
+  items,
+  creatorName,
+}: GiftOrderEmailProps) {
+  if (!canSendEmails()) {
+    console.log('📧 Email skipped (dev mode):', `You've received a gift — ${creatorName}`, email);
+    return { success: true };
+  }
+
+  const occasionText = giftOccasionLabel(occasion, customOccasion);
+  const itemsHtml = items
+    .map(
+      (item) =>
+        `<li style="margin:6px 0;font-size:14px;color:#1C1008;">${item.quantity}× ${item.name}</li>`
+    )
+    .join('');
+
+  const subject = `You've received a gift from ${buyerName}! 🎁`;
+  const html = baseEmailTemplate({
+    previewText: `${buyerName} sent you a gift for ${occasionText}.`,
+    body: `
+          <h1 style="font-size:28px;color:#1C1008;margin:0 0 12px;">You've got a gift! 🎁</h1>
+          <p style="font-size:15px;color:#6B5E52;line-height:1.6;">
+            Hi ${recipientName}, <strong>${buyerName}</strong> sent you something special from
+            <strong>${creatorName}</strong> for ${occasionText}.
+          </p>
+          ${
+            giftMessage
+              ? `
+          <div style="margin:20px 0;padding:16px 20px;border-left:4px solid #F97316;background:#FFF7ED;border-radius:8px;">
+            <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#9E8E82;text-transform:uppercase;letter-spacing:0.5px;">Personal message</p>
+            <p style="margin:0;font-size:15px;color:#1C1008;font-style:italic;line-height:1.6;">"${giftMessage}"</p>
+          </div>
+          `
+              : ''
+          }
+          ${
+            items.length > 0
+              ? `
+          <div style="margin:20px 0;padding:16px;border:1px solid #F0EAE0;border-radius:12px;">
+            <p style="margin:0 0 10px;font-size:13px;color:#9E8E82;">What's inside</p>
+            <ul style="margin:0;padding-left:18px;">${itemsHtml}</ul>
+          </div>
+          `
+              : ''
+          }
+          <p style="font-size:14px;color:#6B5E52;line-height:1.6;margin-top:20px;">
+            The buyer will receive delivery updates. Enjoy your gift!
+          </p>
+        `,
+  });
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
+      to: email,
+      subject,
+      html,
+    });
+    if (error) {
+      console.error('Gift order email send error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error('Gift order email send error:', error);
+    return { success: false };
+  }
+}
+
+type GiftCardCodeEmailProps = {
+  email: string;
+  code: string;
+  balanceKobo: number;
+  creatorName: string;
+};
+
+export async function sendGiftCardCodeEmail({
+  email,
+  code,
+  balanceKobo,
+  creatorName,
+}: GiftCardCodeEmailProps) {
+  if (!canSendEmails()) {
+    console.log('📧 Email skipped (dev mode):', `Your gift card — ${creatorName}`, email);
+    return { success: true };
+  }
+
+  const balance = `₦${(balanceKobo / 100).toLocaleString('en-NG')}`;
+  const subject = `Your ${creatorName} gift card — ${balance} 🎉`;
+  const html = baseEmailTemplate({
+    previewText: `Your gift card code is ${code}. Balance: ${balance}.`,
+    body: `
+          <h1 style="font-size:28px;color:#1C1008;margin:0 0 12px;">Your gift card is ready! 🎉</h1>
+          <p style="font-size:15px;color:#6B5E52;line-height:1.6;">
+            Here's your gift card for <strong>${creatorName}</strong>'s shop.
+          </p>
+          <div style="margin:24px 0;padding:20px;border:2px dashed #F97316;border-radius:14px;text-align:center;background:#FFF7ED;">
+            <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#9E8E82;text-transform:uppercase;letter-spacing:1px;">Gift card code</p>
+            <p style="margin:0;font-size:26px;font-weight:800;color:#1C1008;letter-spacing:2px;font-family:monospace;">${code}</p>
+            <p style="margin:12px 0 0;font-size:16px;font-weight:700;color:#F97316;">Balance: ${balance}</p>
+          </div>
+          <p style="font-size:14px;color:#6B5E52;line-height:1.6;">
+            Enter this code at checkout on ${creatorName}'s shop to redeem your balance.
+          </p>
+        `,
+  });
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: resolveFromEmail(),
+      to: email,
+      subject,
+      html,
+    });
+    if (error) {
+      console.error('Gift card code email send error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error('Gift card code email send error:', error);
+    return { success: false };
+  }
+}

@@ -40,6 +40,7 @@ export default async function SettingsPage() {
     tiktokHandle: true,
     platformPlan: true,
     platformSubscriptionActive: true,
+    reviewsEnabled: true,
     creatorLinks: creatorLinkSelect,
   };
 
@@ -55,6 +56,7 @@ export default async function SettingsPage() {
     growthEligible: boolean;
     platformPlan: string | null;
     platformSubscriptionActive: boolean;
+    reviewsEnabled: boolean;
     creatorLinks: Array<{ linkType: string; url: string }>;
   } | null = null;
 
@@ -72,6 +74,7 @@ export default async function SettingsPage() {
         growthEligible: Boolean(row.growthEligible),
         platformPlan: row.platformPlan ?? null,
         platformSubscriptionActive: Boolean(row.platformSubscriptionActive),
+        reviewsEnabled: row.reviewsEnabled !== false,
       };
     }
   } catch (error) {
@@ -88,6 +91,7 @@ export default async function SettingsPage() {
           growthEligible: false,
           platformPlan: row.platformPlan ?? null,
           platformSubscriptionActive: Boolean(row.platformSubscriptionActive),
+          reviewsEnabled: row.reviewsEnabled !== false,
         };
       }
     } catch (retryError) {
@@ -175,6 +179,33 @@ export default async function SettingsPage() {
     console.warn('Settings portfolio lookup failed (non-fatal).');
   }
 
+  let initialReviews: Array<{
+    id: string;
+    customerName: string;
+    location: string | null;
+    quote: string;
+    orderIndex: number;
+    isActive: boolean;
+  }> = [];
+  try {
+    initialReviews = serializeForClient(
+      await prisma.creatorReview.findMany({
+        where: { creatorId: creator.id },
+        orderBy: { orderIndex: 'asc' },
+        select: {
+          id: true,
+          customerName: true,
+          location: true,
+          quote: true,
+          orderIndex: true,
+          isActive: true,
+        },
+      })
+    );
+  } catch {
+    console.warn('Settings reviews lookup failed (non-fatal).');
+  }
+
   return (
     <Suspense fallback={<SettingsLoading />}>
       <AccountSettingsTabs
@@ -202,6 +233,8 @@ export default async function SettingsPage() {
           sectionId: gallerySectionId,
           items: galleryItems,
         }}
+        reviews={initialReviews}
+        reviewsEnabled={creator.reviewsEnabled}
       />
     </Suspense>
   );

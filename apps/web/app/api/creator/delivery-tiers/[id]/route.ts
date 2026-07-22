@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
+import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
+import { parseOptionalPositiveInt } from '@/lib/shop/delivery-fee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +19,7 @@ function parseTierType(raw: unknown): 'paid' | 'free' | 'pickup' {
   return 'paid';
 }
 
-async function getCreatorId() {
+async function getCreator() {
   const supabase = await createRouteHandlerClient();
   const {
     data: { user },
@@ -26,24 +28,26 @@ async function getCreatorId() {
 
   if (authError || !user) return null;
 
-  const creator = await prisma.creator.findUnique({
+  return prisma.creator.findUnique({
     where: { userId: user.id },
-    select: { id: true },
+    select: {
+      id: true,
+      platformPlan: true,
+      platformSubscriptionActive: true,
+    },
   });
-
-  return creator?.id || null;
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const creatorId = await getCreatorId();
-    if (!creatorId) {
+    const creator = await getCreator();
+    if (!creator) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const { id } = await params;
     const existing = await prisma.deliveryTier.findFirst({
-      where: { id, creatorId },
+      where: { id, creatorId: creator.id },
       select: { id: true },
     });
 
@@ -51,11 +55,34 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Delivery option not found' }, { status: 404 });
     }
 
+    const limits = await getEffectiveCreatorPlanLimits(creator);
     const body = await request.json();
     const name = String(body?.name || '').trim();
     const description = body?.description ? String(body.description) : null;
     const type = parseTierType(body?.type);
     const flatRate = type === 'paid' ? toKobo(body?.flatRate) : 0;
+
+    let minSubtotalKobo: number | null = null;
+    let minItemQuantity: number | null = null;
+    if (type === 'paid') {
+      const rawMinSpend =
+        body?.minSubtotalKobo != null
+          ? body.minSubtotalKobo
+          : body?.minSubtotal != null
+            ? toKobo(body.minSubtotal)
+            : null;
+      minSubtotalKobo = parseOptionalPositiveInt(rawMinSpend);
+      minItemQuantity = parseOptionalPositiveInt(body?.minItemQuantity);
+      if (
+        (minSubtotalKobo != null || minItemQuantity != null) &&
+        !limits.canUseConditionalDelivery
+      ) {
+        return NextResponse.json(
+          { error: 'Plan limit reached', limitType: 'conditionalDelivery' },
+          { status: 403 }
+        );
+      }
+    }
 
     if (!name) {
       return NextResponse.json({ error: 'Option name is required' }, { status: 400 });
@@ -69,6 +96,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         type,
         estimatedDays: null,
         flatRate,
+        minSubtotalKobo,
+        minItemQuantity,
       },
     });
 
@@ -79,16 +108,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const creatorId = await getCreatorId();
-    if (!creatorId) {
+    const creator = await getCreator();
+    if (!creator) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const { id } = await params;
     const existing = await prisma.deliveryTier.findFirst({
-      where: { id, creatorId },
+      where: { id, creatorId: creator.id },
       select: { id: true },
     });
 

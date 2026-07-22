@@ -164,6 +164,33 @@ export function planCompareAtKobo(
   return PLATFORM_PLAN_COMPARE_AT_KOBO.pro.quarterly;
 }
 
+/** Free plan bullets for Billing + marketing (fee shown separately where needed). */
+export function freePlanFeatureBullets(): string[] {
+  return [
+    'Public page, bookings, and shop',
+    'Up to 10 services and 10 products (5 preorders)',
+    'Up to 3 photos per product',
+    'One Home portfolio gallery',
+    'Paystack payouts to your bank',
+  ];
+}
+
+/** Pro plan bullets for Billing + marketing (fee shown separately where needed). */
+export function proPlanFeatureBullets(): string[] {
+  return [
+    'Everything on Free',
+    'Unlimited services & products',
+    'Digital PDF downloads',
+    'Gift cards & coupon codes',
+    'Conditional free delivery',
+    'Up to 5 photos per product',
+    'Up to 3 portfolio categories',
+    'Up to 10 customer reviews',
+    'Availability schedule templates',
+    'Appear on Top Creators & Google',
+  ];
+}
+
 export function isLegacyZeroFeeSubscription(sub: {
   plan?: string | null;
   amount?: number | null;

@@ -185,11 +185,11 @@ export function SettingsForm({ creator, publicUrl }: SettingsFormProps) {
       return;
     }
 
-    // Validate file size (max 10MB for banner)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validate file size (max 20MB for banner)
+    if (file.size > 20 * 1024 * 1024) {
       toast({
         title: 'File too large',
-        description: 'Please select an image smaller than 10MB.',
+        description: 'Please select an image smaller than 20MB.',
         variant: 'destructive',
       });
       return;

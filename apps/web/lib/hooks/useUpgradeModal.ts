@@ -1,19 +1,27 @@
-import { useState } from 'react';
+'use client';
+
+import { useRouter } from 'next/navigation';
 import type { PLAN_LIMIT_MESSAGES } from '@/lib/utils/plan-limits';
 
+/**
+ * Pro upsell helper. Opens Billing settings instead of the legacy upgrade modal.
+ * Keep the same return shape so existing call sites keep working.
+ */
 export function useUpgradeModal() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [limitType, setLimitType] = useState<keyof typeof PLAN_LIMIT_MESSAGES | null>(null);
+  const router = useRouter();
 
-  function showUpgradeModal(type: keyof typeof PLAN_LIMIT_MESSAGES) {
-    setLimitType(type);
-    setIsOpen(true);
+  function showUpgradeModal(_type?: keyof typeof PLAN_LIMIT_MESSAGES) {
+    router.push('/settings?tab=billing');
   }
 
   function closeUpgradeModal() {
-    setIsOpen(false);
-    setLimitType(null);
+    // No-op: modal no longer used.
   }
 
-  return { isOpen, limitType, showUpgradeModal, closeUpgradeModal };
+  return {
+    isOpen: false,
+    limitType: null as keyof typeof PLAN_LIMIT_MESSAGES | null,
+    showUpgradeModal,
+    closeUpgradeModal,
+  };
 }

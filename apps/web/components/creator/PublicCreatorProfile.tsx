@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, BadgeCheck, Calendar, Link2, ShoppingBag } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Calendar, Link2, ShoppingBag, X } from 'lucide-react';
 import { PriceListModal } from '@/components/booking/PriceListModal';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { authCss } from '@/components/auth/styles';
@@ -16,6 +16,7 @@ import {
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { RemoteImage } from '@/components/creator/RemoteImage';
 import { PublicShopPanel, prefetchPublicShop } from '@/components/shop/PublicShopPanel';
+import { productCardCss } from '@/components/shop/product-card-styles';
 import { PublicGalleryPanel } from '@/components/creator/public/PublicGalleryPanel';
 import { resolveBookingPolicyHref } from '@/lib/booking/booking-policy-document';
 
@@ -63,6 +64,28 @@ interface PortfolioSectionPublic {
 interface GroupedPriceList {
   category: string | null;
   items: PriceListItem[];
+}
+
+const PUBLIC_LIST_PREVIEW = 4;
+
+function takeGroupedPreview(
+  grouped: GroupedPriceList[],
+  limit = PUBLIC_LIST_PREVIEW
+): GroupedPriceList[] {
+  const preview: GroupedPriceList[] = [];
+  let remaining = limit;
+  for (const group of grouped) {
+    if (remaining <= 0) break;
+    const items = group.items.slice(0, remaining);
+    if (items.length === 0) continue;
+    preview.push({ category: group.category, items });
+    remaining -= items.length;
+  }
+  return preview;
+}
+
+function countGroupedItems(grouped: GroupedPriceList[]) {
+  return grouped.reduce((sum, group) => sum + group.items.length, 0);
 }
 
 interface Availability {
@@ -115,6 +138,7 @@ interface PublicCreatorProfileProps {
   /** When offerings data is still streaming, hint from lean query for CTA. */
   hasServicesHint?: boolean;
   portfolioSections?: PortfolioSectionPublic[];
+  reviews?: Array<{ id: string; customerName: string; location?: string | null; quote: string }>;
   requireDojahKyc?: boolean;
   /** full = classic page; shell = header + slots; offerings = panel + modals only */
   variant?: 'full' | 'shell' | 'offerings';
@@ -272,6 +296,93 @@ body:has(.foleio-public-root) footer { display: none !important; }
   font-size: 14px;
   font-weight: 500;
   line-height: 1.5;
+}
+
+.foleio-product-card .foleio-review-name {
+  margin: 0;
+  color: #fafafa;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.foleio-reviews-drawer-body .foleio-product-card-desc {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.foleio-reviews-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.55);
+}
+.foleio-reviews-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100vw);
+  background: #212121;
+  color: #f4f4f5;
+  font-family: var(--font-body), sans-serif;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+  animation: foleio-reviews-drawer-in 180ms ease-out;
+}
+@keyframes foleio-reviews-drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.foleio-reviews-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 0;
+  flex-shrink: 0;
+}
+.foleio-reviews-drawer-title {
+  margin: 0;
+  color: #f4f4f5;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.foleio-reviews-drawer-meta {
+  margin: 6px 0 0;
+  color: #828282;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.foleio-reviews-drawer-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #adadad;
+  cursor: pointer;
+}
+.foleio-reviews-drawer-close:hover {
+  color: #f4f4f5;
+}
+.foleio-reviews-drawer-close svg {
+  width: 18px;
+  height: 18px;
+}
+.foleio-reviews-drawer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 24px;
 }
 
 .foleio-public-cta {
@@ -506,6 +617,7 @@ export function PublicCreatorProfile({
   creator,
   groupedPriceList = [],
   portfolioSections = [],
+  reviews = [],
   requireDojahKyc = false,
   hasActiveProducts = false,
   hasServicesHint = false,
@@ -517,7 +629,10 @@ export function PublicCreatorProfile({
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<PriceListItem | null>(null);
   const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null);
-  const [offeringsTab, setOfferingsTab] = useState<'services' | 'shop'>('services');
+  const [offeringsTab, setOfferingsTab] = useState<'services' | 'shop' | 'reviews'>(
+    'services'
+  );
+  const [reviewsDrawerOpen, setReviewsDrawerOpen] = useState(false);
   const offeringsPanelRef = useRef<HTMLElement | null>(null);
   const setOfferingsPanelRef = (node: HTMLElement | null) => {
     offeringsPanelRef.current = node;
@@ -531,27 +646,54 @@ export function PublicCreatorProfile({
 
   const hasRealServices = groupedPriceList.length > 0 || hasServicesHint;
   const hasShop = Boolean(hasActiveProducts);
+  const hasReviews = reviews.length > 0;
   const displayGrouped = groupedPriceList;
   const displayPriceListItems = displayGrouped.flatMap((group) => group.items);
+  const servicesPreviewGrouped = takeGroupedPreview(displayGrouped);
+  const servicesTotalCount = countGroupedItems(displayGrouped);
+  const showServicesViewAll = servicesTotalCount > PUBLIC_LIST_PREVIEW;
+  const reviewsPreview = reviews.slice(0, PUBLIC_LIST_PREVIEW);
+  const showReviewsViewAll = reviews.length > PUBLIC_LIST_PREVIEW;
   const displayAvailability = creator.availability;
   const showOfferingsPanel =
-    Boolean(offeringsSlot) || hasRealServices || hasShop || !hasServicesHint;
-  const showBothTabs = hasRealServices && hasShop && !offeringsSlot;
-  // Keep panel heading stable when both tabs exist — only shop-only profiles use "Shop".
-  const panelTitle = showBothTabs
-    ? 'Services'
-    : !hasRealServices && hasShop
+    Boolean(offeringsSlot) ||
+    hasRealServices ||
+    hasShop ||
+    hasReviews ||
+    !hasServicesHint;
+
+  const offeringsTabOptions = [
+    hasRealServices ? ('services' as const) : null,
+    hasShop ? ('shop' as const) : null,
+    hasReviews ? ('reviews' as const) : null,
+  ].filter(Boolean) as Array<'services' | 'shop' | 'reviews'>;
+
+  const showOfferingsTabs = offeringsTabOptions.length > 1 && !offeringsSlot;
+
+  const panelTitle = showOfferingsTabs
+    ? 'Offerings'
+    : hasShop && !hasRealServices && !hasReviews
       ? 'Shop'
-      : 'Services';
-  const activeOfferingsTab = showBothTabs
-    ? offeringsTab
-    : hasShop && !hasRealServices
-      ? 'shop'
-      : 'services';
+      : hasReviews && !hasRealServices && !hasShop
+        ? 'Reviews'
+        : 'Services';
+
+  const activeOfferingsTab = showOfferingsTabs
+    ? offeringsTabOptions.includes(offeringsTab)
+      ? offeringsTab
+      : offeringsTabOptions[0]!
+    : offeringsTabOptions[0] || 'services';
 
   useEffect(() => {
-    if (showBothTabs) setOfferingsTab('services');
-  }, [showBothTabs]);
+    const options = [
+      hasRealServices ? ('services' as const) : null,
+      hasShop ? ('shop' as const) : null,
+      hasReviews ? ('reviews' as const) : null,
+    ].filter(Boolean) as Array<'services' | 'shop' | 'reviews'>;
+    if (!options.includes(offeringsTab) && options[0]) {
+      setOfferingsTab(options[0]);
+    }
+  }, [hasRealServices, hasShop, hasReviews, offeringsTab]);
 
   useEffect(() => {
     if (!hasShop) return;
@@ -592,7 +734,7 @@ export function PublicCreatorProfile({
   }
 
   function openShopPanel() {
-    if (showBothTabs) setOfferingsTab('shop');
+    if (hasShop) setOfferingsTab('shop');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('foleio:open-shop'));
     }
@@ -710,15 +852,43 @@ export function PublicCreatorProfile({
   const servicesMeta =
     activeOfferingsTab === 'shop'
       ? 'Browse products and checkout'
-      : canBook
-        ? hasAvailability
-          ? 'Choose a service to book a date.'
-          : 'Choose a service — add future available dates in Bookings so clients can pick a day.'
-        : hasRealServices
-          ? 'Services from this creator.'
-          : 'No services published yet.';
+      : activeOfferingsTab === 'reviews'
+        ? 'What clients say about this creator'
+        : canBook
+          ? hasAvailability
+            ? 'Choose a service to book a date.'
+            : 'Add available dates in Bookings to enable booking.'
+          : hasRealServices
+            ? 'Services from this creator.'
+            : 'No services published yet.';
 
-  const injectStyles = <style dangerouslySetInnerHTML={{ __html: publicProfileCss }} />;
+  const injectStyles = (
+    <style
+      dangerouslySetInnerHTML={{ __html: `${productCardCss}\n${publicProfileCss}` }}
+    />
+  );
+
+  function renderReviewCard(review: {
+    id: string;
+    customerName: string;
+    location?: string | null;
+    quote: string;
+  }) {
+    const location = review.location?.trim();
+    return (
+      <div key={review.id} className="foleio-product-card">
+        <div className="foleio-product-card-body">
+          <div className="foleio-product-card-top">
+            <p className="foleio-review-name">{review.customerName}</p>
+            {location ? (
+              <span className="foleio-product-card-stock is-out">{location}</span>
+            ) : null}
+          </div>
+          <p className="foleio-product-card-desc">“{review.quote}”</p>
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'offerings') {
     return (
@@ -728,7 +898,7 @@ export function PublicCreatorProfile({
           <section className="foleio-public-panel" ref={setOfferingsPanelRef}>
             <h2 className="foleio-public-panel-title">{panelTitle}</h2>
             <p className="foleio-public-panel-meta">{servicesMeta}</p>
-            {showBothTabs ? (
+            {showOfferingsTabs ? (
               <div
                 style={{
                   display: 'flex',
@@ -743,44 +913,68 @@ export function PublicCreatorProfile({
                 role="tablist"
                 aria-label="Offerings"
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={offeringsTab === 'services'}
-                  onClick={() => setOfferingsTab('services')}
-                  style={{
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '8px 14px',
-                    cursor: 'pointer',
-                    background: offeringsTab === 'services' ? '#fafafa' : 'transparent',
-                    color: offeringsTab === 'services' ? '#18181b' : '#fafafa',
-                    fontSize: 13,
-                    fontWeight: 600,
-                  }}
-                >
-                  Services
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={offeringsTab === 'shop'}
-                  onClick={() => setOfferingsTab('shop')}
-                  onMouseEnter={() => prefetchPublicShop(creator.username)}
-                  onFocus={() => prefetchPublicShop(creator.username)}
-                  style={{
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '8px 14px',
-                    cursor: 'pointer',
-                    background: offeringsTab === 'shop' ? '#fafafa' : 'transparent',
-                    color: offeringsTab === 'shop' ? '#18181b' : '#fafafa',
-                    fontSize: 13,
-                    fontWeight: 600,
-                  }}
-                >
-                  Shop
-                </button>
+                {hasRealServices ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={offeringsTab === 'services'}
+                    onClick={() => setOfferingsTab('services')}
+                    style={{
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      background: offeringsTab === 'services' ? '#fafafa' : 'transparent',
+                      color: offeringsTab === 'services' ? '#18181b' : '#fafafa',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Services
+                  </button>
+                ) : null}
+                {hasShop ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={offeringsTab === 'shop'}
+                    onClick={() => setOfferingsTab('shop')}
+                    onMouseEnter={() => prefetchPublicShop(creator.username)}
+                    onFocus={() => prefetchPublicShop(creator.username)}
+                    style={{
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      background: offeringsTab === 'shop' ? '#fafafa' : 'transparent',
+                      color: offeringsTab === 'shop' ? '#18181b' : '#fafafa',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Shop
+                  </button>
+                ) : null}
+                {hasReviews ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={offeringsTab === 'reviews'}
+                    onClick={() => setOfferingsTab('reviews')}
+                    style={{
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      background: offeringsTab === 'reviews' ? '#fafafa' : 'transparent',
+                      color: offeringsTab === 'reviews' ? '#18181b' : '#fafafa',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Reviews
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {hasShop ? (
@@ -791,13 +985,14 @@ export function PublicCreatorProfile({
                 <PublicShopPanel username={creator.username} embedded />
               </div>
             ) : null}
-            {activeOfferingsTab !== 'shop' ? (
+            {activeOfferingsTab === 'services' ? (
               displayGrouped.length === 0 ? (
               <p className="foleio-public-empty">
                 No services published yet. Check back soon.
               </p>
             ) : (
-              displayGrouped.map((group) => (
+              <>
+              {servicesPreviewGrouped.map((group) => (
                 <div key={group.category || 'uncategorized'} className="foleio-public-group">
                   {group.category ? (
                     <h3 className="foleio-public-group-label">{group.category}</h3>
@@ -883,10 +1078,77 @@ export function PublicCreatorProfile({
                     );
                   })}
                 </div>
-              ))
+              ))}
+              {showServicesViewAll ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="foleio-public-btn-outline"
+                    onClick={() => openServiceDrawer()}
+                  >
+                    View all
+                  </button>
+                </div>
+              ) : null}
+              </>
             )
             ) : null}
+            {activeOfferingsTab === 'reviews' && hasReviews ? (
+              <div className="foleio-product-card-list" style={{ marginTop: 12 }}>
+                {reviewsPreview.map((review) => renderReviewCard(review))}
+                {showReviewsViewAll ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 0 }}>
+                    <button
+                      type="button"
+                      className="foleio-public-btn-outline"
+                      onClick={() => setReviewsDrawerOpen(true)}
+                    >
+                      View all
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </section>
+        ) : null}
+        {reviewsDrawerOpen ? (
+          <>
+            <div
+              className="foleio-reviews-drawer-backdrop"
+              onClick={() => setReviewsDrawerOpen(false)}
+              aria-hidden
+            />
+            <aside
+              className="foleio-reviews-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reviews-drawer-title"
+            >
+              <div className="foleio-reviews-drawer-header">
+                <div>
+                  <h2 id="reviews-drawer-title" className="foleio-reviews-drawer-title">
+                    Reviews
+                  </h2>
+                  <p className="foleio-reviews-drawer-meta">
+                    What clients say about {creator.displayName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="foleio-reviews-drawer-close"
+                  onClick={() => setReviewsDrawerOpen(false)}
+                  aria-label="Close reviews"
+                >
+                  <X strokeWidth={1.75} />
+                </button>
+              </div>
+              <div className="foleio-reviews-drawer-body">
+                <div className="foleio-product-card-list">
+                  {reviews.map((review) => renderReviewCard(review))}
+                </div>
+              </div>
+            </aside>
+          </>
         ) : null}
         {hasPriceList ? (
           <PriceListModal
@@ -1059,7 +1321,7 @@ export function PublicCreatorProfile({
               <h2 className="foleio-public-panel-title">{panelTitle}</h2>
               <p className="foleio-public-panel-meta">{servicesMeta}</p>
 
-              {showBothTabs ? (
+              {showOfferingsTabs ? (
                 <div
                   style={{
                     display: 'flex',
@@ -1074,45 +1336,70 @@ export function PublicCreatorProfile({
                   role="tablist"
                   aria-label="Offerings"
                 >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={offeringsTab === 'services'}
-                    onClick={() => setOfferingsTab('services')}
-                    style={{
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 14px',
-                      cursor: 'pointer',
-                      background:
-                        offeringsTab === 'services' ? '#fafafa' : 'transparent',
-                      color: offeringsTab === 'services' ? '#18181b' : '#fafafa',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Services
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={offeringsTab === 'shop'}
-                    onClick={() => setOfferingsTab('shop')}
-                    onMouseEnter={() => prefetchPublicShop(creator.username)}
-                    onFocus={() => prefetchPublicShop(creator.username)}
-                    style={{
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 14px',
-                      cursor: 'pointer',
-                      background: offeringsTab === 'shop' ? '#fafafa' : 'transparent',
-                      color: offeringsTab === 'shop' ? '#18181b' : '#fafafa',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Shop
-                  </button>
+                  {hasRealServices ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={offeringsTab === 'services'}
+                      onClick={() => setOfferingsTab('services')}
+                      style={{
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '8px 14px',
+                        cursor: 'pointer',
+                        background:
+                          offeringsTab === 'services' ? '#fafafa' : 'transparent',
+                        color: offeringsTab === 'services' ? '#18181b' : '#fafafa',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Services
+                    </button>
+                  ) : null}
+                  {hasShop ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={offeringsTab === 'shop'}
+                      onClick={() => setOfferingsTab('shop')}
+                      onMouseEnter={() => prefetchPublicShop(creator.username)}
+                      onFocus={() => prefetchPublicShop(creator.username)}
+                      style={{
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '8px 14px',
+                        cursor: 'pointer',
+                        background: offeringsTab === 'shop' ? '#fafafa' : 'transparent',
+                        color: offeringsTab === 'shop' ? '#18181b' : '#fafafa',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Shop
+                    </button>
+                  ) : null}
+                  {hasReviews ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={offeringsTab === 'reviews'}
+                      onClick={() => setOfferingsTab('reviews')}
+                      style={{
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '8px 14px',
+                        cursor: 'pointer',
+                        background:
+                          offeringsTab === 'reviews' ? '#fafafa' : 'transparent',
+                        color: offeringsTab === 'reviews' ? '#18181b' : '#fafafa',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Reviews
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1124,13 +1411,14 @@ export function PublicCreatorProfile({
                   <PublicShopPanel username={creator.username} embedded />
                 </div>
               ) : null}
-              {activeOfferingsTab !== 'shop' ? (
+              {activeOfferingsTab === 'services' ? (
                 displayGrouped.length === 0 ? (
                 <p className="foleio-public-empty">
                   No services published yet. Check back soon.
                 </p>
               ) : (
-                displayGrouped.map((group) => (
+                <>
+                {servicesPreviewGrouped.map((group) => (
                   <div key={group.category || 'uncategorized'} className="foleio-public-group">
                     {group.category ? (
                       <h3 className="foleio-public-group-label">{group.category}</h3>
@@ -1223,14 +1511,82 @@ export function PublicCreatorProfile({
                       );
                     })}
                   </div>
-                ))
+                ))}
+                {showServicesViewAll ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="foleio-public-btn-outline"
+                      onClick={() => openServiceDrawer()}
+                    >
+                      View all
+                    </button>
+                  </div>
+                ) : null}
+                </>
               )
+              ) : null}
+              {activeOfferingsTab === 'reviews' && hasReviews ? (
+                <div className="foleio-product-card-list" style={{ marginTop: 12 }}>
+                  {reviewsPreview.map((review) => renderReviewCard(review))}
+                  {showReviewsViewAll ? (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 0 }}>
+                      <button
+                        type="button"
+                        className="foleio-public-btn-outline"
+                        onClick={() => setReviewsDrawerOpen(true)}
+                      >
+                        View all
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
             </section>
             ) : null}
           </div>
         </div>
       </div>
+
+      {offeringsSlot == null && reviewsDrawerOpen ? (
+        <>
+          <div
+            className="foleio-reviews-drawer-backdrop"
+            onClick={() => setReviewsDrawerOpen(false)}
+            aria-hidden
+          />
+          <aside
+            className="foleio-reviews-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reviews-drawer-title-shell"
+          >
+            <div className="foleio-reviews-drawer-header">
+              <div>
+                <h2 id="reviews-drawer-title-shell" className="foleio-reviews-drawer-title">
+                  Reviews
+                </h2>
+                <p className="foleio-reviews-drawer-meta">
+                  What clients say about {creator.displayName}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="foleio-reviews-drawer-close"
+                onClick={() => setReviewsDrawerOpen(false)}
+                aria-label="Close reviews"
+              >
+                <X strokeWidth={1.75} />
+              </button>
+            </div>
+            <div className="foleio-reviews-drawer-body">
+              <div className="foleio-product-card-list">
+                {reviews.map((review) => renderReviewCard(review))}
+              </div>
+            </div>
+          </aside>
+        </>
+      ) : null}
 
       {offeringsSlot == null && hasPriceList ? (
         <PriceListModal

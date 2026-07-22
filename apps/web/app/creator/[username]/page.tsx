@@ -6,6 +6,7 @@ import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
 import { serializeForClient } from '@/lib/utils';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
 import { getPublicCreatorByUsername } from '@/lib/creator/cached-lookups';
+import { getPublicReviews } from '@/lib/creator/reviews';
 import { isCreatorDiscoverable } from '@/lib/creator/discoverability';
 import {
   GallerySectionSkeleton,
@@ -98,6 +99,7 @@ export default async function CreatorPublicPage({
     const hasActiveProducts = lean.products.length > 0;
     const hasServicesHint = lean.priceListItems.length > 0;
     const requireDojahKyc = await isDojahKycRequired();
+    const reviews = serializeForClient(await getPublicReviews(lean.id));
 
     const serializedCreator = serializeForClient({
       ...lean,
@@ -119,6 +121,14 @@ export default async function CreatorPublicPage({
         hasServicesHint={hasServicesHint}
         requireDojahKyc={requireDojahKyc}
         portfolioSections={[]}
+        reviews={
+          reviews as Array<{
+            id: string;
+            customerName: string;
+            location?: string | null;
+            quote: string;
+          }>
+        }
         gallerySlot={
           <Suspense fallback={<GallerySectionSkeleton />}>
             <PublicPortfolioSection creatorId={lean.id} username={lean.username} />
@@ -131,6 +141,14 @@ export default async function CreatorPublicPage({
               creator={serializedCreator as any}
               hasActiveProducts={hasActiveProducts}
               requireDojahKyc={requireDojahKyc}
+              reviews={
+                reviews as Array<{
+                  id: string;
+                  customerName: string;
+                  location?: string | null;
+                  quote: string;
+                }>
+              }
             />
           </Suspense>
         }

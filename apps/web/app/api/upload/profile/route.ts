@@ -81,15 +81,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file size (max 10MB, stricter for thumbnails)
-    const maxSize = type === 'thumbnail' ? MAX_THUMBNAIL_SIZE_BYTES : 10 * 1024 * 1024;
+    const maxSize =
+      type === 'thumbnail'
+        ? MAX_THUMBNAIL_SIZE_BYTES
+        : type === 'banner'
+          ? 20 * 1024 * 1024
+          : 10 * 1024 * 1024;
     if (file.size > maxSize) {
-      console.error('❌ File too large:', file.size);
+      console.error('File too large:', file.size);
       return NextResponse.json(
         {
           error:
             type === 'thumbnail'
               ? `File size must be less than ${MAX_THUMBNAIL_SIZE_LABEL}`
-              : 'File size must be less than 10MB',
+              : type === 'banner'
+                ? 'File size must be less than 20MB'
+                : 'File size must be less than 10MB',
         },
         { status: 400 }
       );
