@@ -9,13 +9,13 @@ import {
   normalizePlatformPlan,
 } from '@/lib/billing/platform-plans';
 
-/** Default Foleio cut on Free (STARTER). Overridable via env. */
+/**
+ * Default Foleio cut on Free (STARTER).
+ * Always uses plan constants — do not override with FOLEIO_PLATFORM_FEE_PERCENT
+ * (prod historically had that set to legacy 5%, which kept Paystack Split at 95%).
+ */
 export function defaultPlatformFeePercent(): number {
-  const raw = Number(
-    process.env.FOLEIO_PLATFORM_FEE_PERCENT ?? String(PLATFORM_FEE_PERCENT.free)
-  );
-  if (!Number.isFinite(raw) || raw < 0 || raw > 100) return PLATFORM_FEE_PERCENT.free;
-  return raw;
+  return PLATFORM_FEE_PERCENT.free;
 }
 
 export type FeePlanInput = {
