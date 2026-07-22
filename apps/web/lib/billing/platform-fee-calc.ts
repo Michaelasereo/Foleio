@@ -38,6 +38,17 @@ export const PLATFORM_SUB_FEE_SELECT = {
   currentPeriodEnd: true,
 } as const;
 
+function preferActivePlatformSubscription(
+  rows: Array<NonNullable<FeePlanInput['platformSubscription']>> | null | undefined
+): FeePlanInput['platformSubscription'] {
+  if (!rows?.length) return null;
+  const active = rows.find((s) => {
+    const status = String(s?.status || '').toLowerCase();
+    return status === 'active' || status === 'trialing';
+  });
+  return active ?? rows[0] ?? null;
+}
+
 /** Normalize creator + optional subscription relation into FeePlanInput. */
 export function toFeePlanInput(creator: {
   platformPlan?: string | null;
@@ -50,7 +61,7 @@ export function toFeePlanInput(creator: {
     platformSubscriptionActive: creator.platformSubscriptionActive,
     platformSubscription:
       creator.platformSubscription ??
-      creator.platformSubscriptions?.[0] ??
+      preferActivePlatformSubscription(creator.platformSubscriptions) ??
       null,
   };
 }

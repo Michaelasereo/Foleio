@@ -69,14 +69,47 @@ export default function AdminBillingPage() {
         total?: number;
         updated?: number;
         failed?: number;
+        unchanged?: number;
+        note?: string;
+        results?: Array<{
+          username?: string | null;
+          percentageCharge?: number;
+          previousPercentageCharge?: number | null;
+          verifiedPercentageCharge?: number | null;
+          creatorSplitPercent?: number | null;
+          error?: string;
+        }>;
       };
       if (!response.ok) {
         setSyncMessage(data.error || 'Fee sync failed');
         return;
       }
+      const failedRows = (data.results || []).filter((row) => row.error);
+      const sample = (data.results || [])
+        .filter((row) => row.updated || row.verifiedPercentageCharge != null)
+        .slice(0, 3)
+        .map((row) => {
+          const before =
+            row.previousPercentageCharge != null
+              ? `${row.previousPercentageCharge}%→`
+              : '';
+          const after =
+            row.verifiedPercentageCharge != null
+              ? `${row.verifiedPercentageCharge}%`
+              : `${row.percentageCharge}%`;
+          const split =
+            row.creatorSplitPercent != null
+              ? ` (Split ${row.creatorSplitPercent}%)`
+              : '';
+          return `@${row.username || '?'}: ${before}${after}${split}`;
+        })
+        .join(' · ');
       setSyncMessage(
         `Synced ${data.updated ?? 0} of ${data.total ?? 0} subaccounts` +
-          (data.failed ? ` (${data.failed} failed)` : '')
+          (data.failed ? ` · ${data.failed} failed` : '') +
+          (failedRows[0]?.error ? ` · ${failedRows[0].error}` : '') +
+          (sample ? ` · ${sample}` : '') +
+          (data.note ? ` · ${data.note}` : '')
       );
     } catch {
       setSyncMessage('Fee sync failed');
@@ -158,9 +191,11 @@ export default function AdminBillingPage() {
                 <th className={adminTableCellClass}>Interval</th>
                 <th className={adminTableCellClass}>Status</th>
                 <th className={adminTableCellClass}>Amount</th>
-                <th className={adminTableCellClass}>Fee %</th>
+                <th className={adminTableCellClass} title="Foleio target fee — not live Paystack Split">
+                  Target fee %
+                </th>
                 <th className={adminTableCellClass}>Growth invite</th>
-                <th className={adminTableCellClass}>Fee sync</th>
+                <th className={adminTableCellClass}>Subaccount</th>
                 <th className={adminTableCellClass}>Period end</th>
               </tr>
             </thead>

@@ -216,24 +216,41 @@ export const paystack = {
    */
   async updateSubaccount(params: UpdateSubaccountParams) {
     const { subaccount_code, ...rest } = params;
+    const body: Record<string, unknown> = {};
+    if (rest.business_name != null) body.business_name = rest.business_name;
+    if (rest.settlement_bank != null) body.settlement_bank = rest.settlement_bank;
+    if (rest.account_number != null) body.account_number = rest.account_number;
+    if (rest.percentage_charge != null) body.percentage_charge = rest.percentage_charge;
+    if (rest.primary_contact_email != null) {
+      body.primary_contact_email = rest.primary_contact_email;
+    }
+    if (rest.primary_contact_name != null) {
+      body.primary_contact_name = rest.primary_contact_name;
+    }
+    if (rest.primary_contact_phone != null) {
+      body.primary_contact_phone = rest.primary_contact_phone;
+    }
+    if (rest.settlement_schedule != null) {
+      body.settlement_schedule = rest.settlement_schedule;
+    }
+
     const response = await fetch(`${PAYSTACK_BASE_URL}/subaccount/${subaccount_code}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        ...rest,
-        settlement_schedule: rest.settlement_schedule || 'auto',
-      }),
+      body: JSON.stringify(body),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update subaccount');
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.status) {
+      throw new Error(
+        payload?.message || 'Failed to update subaccount'
+      );
     }
 
-    return response.json();
+    return payload;
   },
 
   /**
