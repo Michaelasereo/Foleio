@@ -5,6 +5,10 @@ import { paystack } from '@/lib/paystack';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
 import { paystackTransactionChargeKobo, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
+import {
+  isBelowMinPayableKobo,
+  MIN_PAYABLE_NAIRA,
+} from '@/lib/payments/min-amount';
 
 const schema = z.object({
   bookingId: z.string().uuid(),
@@ -103,8 +107,13 @@ export async function POST(request: NextRequest) {
           ? Number(booking.depositAmount)
           : Number(booking.totalAmount);
 
-    if (!Number.isFinite(amount) || amount < 100) {
-      return NextResponse.json({ error: 'Invalid booking amount' }, { status: 400 });
+    if (!Number.isFinite(amount) || isBelowMinPayableKobo(amount)) {
+      return NextResponse.json(
+        {
+          error: `Payment amount must be at least ₦${MIN_PAYABLE_NAIRA.toLocaleString('en-NG')}`,
+        },
+        { status: 400 }
+      );
     }
 
     let paymentData;
@@ -116,7 +125,7 @@ export async function POST(request: NextRequest) {
       paymentData = await paystack.initializePayment({
         email: booking.customerEmail,
         amount,
-        channels: ['card', 'bank', 'ussd'],
+        channels: ['card', 'bank', 'ussd', 'bank_transfer', 'qr'],
         subaccount: subaccountCode,
         transaction_charge: transactionCharge,
         metadata: {

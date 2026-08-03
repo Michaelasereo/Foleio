@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
+import { MIN_PAYABLE_KOBO, MIN_PAYABLE_PRICE_ERROR } from '@/lib/payments/min-amount';
 
 const addonSchema = z.object({
   id: z.string().min(1),
@@ -26,7 +27,7 @@ const priceListItemSchema = z.object({
   location: z.string().max(500).optional().nullable(),
   sessionDescription: z.string().optional().nullable(),
   calendlyLink: z.string().url('Enter a valid URL').optional().nullable().or(z.literal('')),
-  price: z.number().min(0, 'Price must be positive'),
+  price: z.number().min(MIN_PAYABLE_KOBO, MIN_PAYABLE_PRICE_ERROR),
   durationMinutes: z.number().optional().nullable(),
   addons: z.array(addonSchema).optional(),
   locationOptions: z.array(locationOptionSchema).optional(),

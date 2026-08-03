@@ -82,7 +82,15 @@ export const paystack = {
           amount: params.amount,
           plan: params.plan,
           metadata: params.metadata,
-          channels: params.channels || ['card', 'bank', 'ussd'],
+          // bank_transfer = Pay with Transfer (primary NG channel).
+          // `bank` alone is Pay with Bank and is not the same thing.
+          channels: params.channels || [
+            'card',
+            'bank',
+            'ussd',
+            'bank_transfer',
+            'qr',
+          ],
           subaccount: params.subaccount,
           ...(typeof params.transaction_charge === 'number' &&
           params.transaction_charge > 0

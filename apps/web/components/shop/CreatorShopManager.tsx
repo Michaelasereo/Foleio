@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { RemoteImage } from '@/components/creator/RemoteImage';
+import { MIN_PAYABLE_NAIRA, MIN_PAYABLE_PRICE_ERROR } from '@/lib/payments/min-amount';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { FieldInfoTip } from '@/components/ui/FieldInfoTip';
@@ -920,8 +921,8 @@ export function CreatorShopManager({
         setProductDrawerView('discount');
         return;
       }
-      if (!productForm.price.trim() || !Number.isFinite(newPrice) || newPrice < 0) {
-        setProductError('Set a new discounted price');
+      if (!productForm.price.trim() || !Number.isFinite(newPrice) || newPrice < MIN_PAYABLE_NAIRA) {
+        setProductError(MIN_PAYABLE_PRICE_ERROR);
         setProductDrawerView('discount');
         return;
       }
@@ -1025,6 +1026,27 @@ export function CreatorShopManager({
       ) {
         setProductError('Discount end must be after the start');
         setProductDrawerView('discount');
+        return;
+      }
+    }
+
+    const salePriceNaira = Number(
+      productForm.isPreorder
+        ? productForm.preorder.postPreorderPrice
+        : productForm.discountEnabled
+          ? productForm.price
+          : productForm.regularPrice || productForm.price
+    );
+    if (!Number.isFinite(salePriceNaira) || salePriceNaira < MIN_PAYABLE_NAIRA) {
+      setProductError(MIN_PAYABLE_PRICE_ERROR);
+      setProductDrawerView('details');
+      return;
+    }
+    if (productForm.isPreorder) {
+      const preorderPriceNaira = Number(productForm.preorder.preorderPrice);
+      if (!Number.isFinite(preorderPriceNaira) || preorderPriceNaira < MIN_PAYABLE_NAIRA) {
+        setProductError(`Preorder ${MIN_PAYABLE_PRICE_ERROR.toLowerCase()}`);
+        setProductDrawerView('preorder');
         return;
       }
     }
@@ -4057,8 +4079,8 @@ export function CreatorShopManager({
                   <input
                     className="foleio-dash-input"
                     type="number"
-                    min="0"
-                    step="0.01"
+                    min="1000"
+                    step="1"
                     value={
                       isGiftCardProduct
                         ? productForm.price

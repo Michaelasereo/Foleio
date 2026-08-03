@@ -4,6 +4,10 @@ import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
+import {
+  isBelowMinPayableKobo,
+  MIN_PAYABLE_PRICE_ERROR,
+} from '@/lib/payments/min-amount';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,8 +64,8 @@ function normalizeRow(raw: BulkProductInput, index: number) {
   if (!name) {
     return { index, error: 'Product name is required' as const };
   }
-  if (price <= 0) {
-    return { index, error: 'Price must be greater than 0' as const };
+  if (isBelowMinPayableKobo(price)) {
+    return { index, error: MIN_PAYABLE_PRICE_ERROR as const };
   }
   if (stock === null || !Number.isFinite(stock) || stock < 0) {
     return { index, error: 'Stock is required and must be 0 or more' as const };

@@ -23,6 +23,10 @@ import {
   sendConfirmedShopOrderEmails,
   validateGiftAddressFields,
 } from '@/lib/shop/fulfill-order';
+import {
+  isBelowMinPayableKobo,
+  minPayableChargeError,
+} from '@/lib/payments/min-amount';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -331,12 +335,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
     }
 
-    if (chargeAmount > 0 && chargeAmount < 100) {
+    if (chargeAmount > 0 && isBelowMinPayableKobo(chargeAmount)) {
       return NextResponse.json(
         {
-          error: usableGiftCard
-            ? 'Remaining balance after gift card must be at least ₦1'
-            : 'Order total after discount must be at least ₦1 or fully covered',
+          error: minPayableChargeError({ afterGiftCard: Boolean(usableGiftCard) }),
         },
         { status: 400 }
       );
@@ -457,7 +459,7 @@ export async function POST(request: Request) {
       paymentData = await paystack.initializePayment({
         email,
         amount: chargeAmount,
-        channels: ['card', 'bank', 'ussd'],
+        channels: ['card', 'bank', 'ussd', 'bank_transfer', 'qr'],
         subaccount: subaccountCode,
         transaction_charge: transactionCharge,
         metadata: {

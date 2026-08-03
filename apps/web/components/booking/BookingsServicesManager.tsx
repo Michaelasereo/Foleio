@@ -362,8 +362,8 @@ export function BookingsServicesManager({
       setError('Service name is required.');
       return;
     }
-    if (!Number.isFinite(priceNaira) || priceNaira < 1) {
-      setError('Enter a valid price of at least ₦1.');
+    if (!Number.isFinite(priceNaira) || priceNaira < 1000) {
+      setError('Enter a valid price of at least ₦1,000.');
       return;
     }
 
@@ -686,6 +686,7 @@ export function BookingsServicesManager({
                     type="number"
                     min={1}
                     step={1}
+                    min={1000}
                     value={form.priceNaira}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, priceNaira: e.target.value }))

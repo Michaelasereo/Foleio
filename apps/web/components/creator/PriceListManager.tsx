@@ -51,7 +51,7 @@ const priceItemSchema = z.object({
   description: z.string().optional(),
   sessionDescription: z.string().optional(),
   calendlyLink: z.string().optional(),
-  price: z.number().min(100, 'Minimum price is ₦1'),
+  price: z.number().min(100000, 'Minimum price is ₦1,000'),
   durationMinutes: z.number().optional(),
 });
 

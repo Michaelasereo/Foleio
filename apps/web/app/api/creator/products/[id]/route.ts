@@ -6,6 +6,10 @@ import { normalizeAddonCategoriesInput } from '@/lib/shop/product-addons';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { validatePreorderSettingsInput } from '@/lib/shop/preorder';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
+import {
+  isBelowMinPayableKobo,
+  MIN_PAYABLE_PRICE_ERROR,
+} from '@/lib/payments/min-amount';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -280,8 +284,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!name) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
     }
-    if (price <= 0) {
-      return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 });
+    if (isBelowMinPayableKobo(price)) {
+      return NextResponse.json({ error: MIN_PAYABLE_PRICE_ERROR }, { status: 400 });
     }
     if (!isNonPhysical && (stock === null || !Number.isFinite(stock))) {
       return NextResponse.json({ error: 'Stock is required' }, { status: 400 });
