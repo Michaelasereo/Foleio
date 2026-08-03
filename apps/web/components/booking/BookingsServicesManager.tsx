@@ -684,9 +684,8 @@ export function BookingsServicesManager({
                   <input
                     className="foleio-dash-input"
                     type="number"
-                    min={1}
-                    step={1}
                     min={1000}
+                    step={1}
                     value={form.priceNaira}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, priceNaira: e.target.value }))

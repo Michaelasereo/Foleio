@@ -409,7 +409,7 @@ export async function POST(request: Request) {
       });
 
       await applyConfirmedShopOrderSideEffects(order.id);
-      void sendConfirmedShopOrderEmails(order.id);
+      await sendConfirmedShopOrderEmails(order.id);
 
       return NextResponse.json({
         success: true,

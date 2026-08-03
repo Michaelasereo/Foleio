@@ -1,4 +1,5 @@
 import { prisma } from '@foleio/database';
+import { paystack } from '@/lib/paystack';
 import {
   generateGiftCardCode,
   occasionLabel,
@@ -141,6 +142,102 @@ export async function applyConfirmedShopOrderSideEffects(orderId: string) {
   });
 }
 
+/**
+ * Idempotently confirm a paid shop order (stock + emails).
+ * Safe to call from both Paystack webhook and the order-success page.
+ */
+export async function confirmPaidShopOrder(input: {
+  orderId?: string | null;
+  reference?: string | null;
+}): Promise<{
+  ok: boolean;
+  status: 'confirmed' | 'already_confirmed' | 'pending' | 'not_found' | 'unpaid';
+  orderId?: string;
+}> {
+  const orderId = String(input.orderId || '').trim() || null;
+  const reference = String(input.reference || '').trim() || null;
+
+  const order = orderId
+    ? await prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          status: true,
+          total: true,
+          paystackReference: true,
+        },
+      })
+    : reference
+      ? await prisma.order.findFirst({
+          where: { paystackReference: reference },
+          select: {
+            id: true,
+            status: true,
+            total: true,
+            paystackReference: true,
+          },
+        })
+      : null;
+
+  if (!order) {
+    return { ok: false, status: 'not_found' };
+  }
+
+  if (order.status === 'confirmed') {
+    return { ok: true, status: 'already_confirmed', orderId: order.id };
+  }
+
+  if (order.status !== 'pending') {
+    return { ok: false, status: 'pending', orderId: order.id };
+  }
+
+  const paystackRef = reference || order.paystackReference;
+  if (!paystackRef) {
+    return { ok: false, status: 'unpaid', orderId: order.id };
+  }
+
+  const verification = await paystack.verifyPayment(paystackRef);
+  const verifiedStatus = String(verification?.data?.status || '').toLowerCase();
+  if (!verification?.status || verifiedStatus !== 'success') {
+    return { ok: false, status: 'unpaid', orderId: order.id };
+  }
+
+  const verifiedAmount = Number(verification?.data?.amount || 0);
+  if (
+    Number.isFinite(verifiedAmount) &&
+    verifiedAmount > 0 &&
+    Math.abs(verifiedAmount - order.total) > 1
+  ) {
+    console.error('[shop] Paystack amount mismatch', {
+      orderId: order.id,
+      expected: order.total,
+      got: verifiedAmount,
+    });
+    return { ok: false, status: 'unpaid', orderId: order.id };
+  }
+
+  const claimed = await prisma.order.updateMany({
+    where: { id: order.id, status: 'pending' },
+    data: {
+      status: 'confirmed',
+      paystackReference: paystackRef,
+    },
+  });
+
+  if (claimed.count === 0) {
+    return { ok: true, status: 'already_confirmed', orderId: order.id };
+  }
+
+  await applyConfirmedShopOrderSideEffects(order.id);
+  try {
+    await sendConfirmedShopOrderEmails(order.id);
+  } catch (error) {
+    console.error('[shop] confirmation email failed after payment:', order.id, error);
+  }
+
+  return { ok: true, status: 'confirmed', orderId: order.id };
+}
+
 /** Send post-confirmation emails (buyer, gift recipient, purchased gift-card codes). */
 export async function sendConfirmedShopOrderEmails(orderId: string) {
   const order = await prisma.order.findUnique({
@@ -157,11 +254,17 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
       deliveryTier: true,
     },
   });
-  if (!order) return;
+  if (!order) {
+    console.error('[shop] email skipped — order not found:', orderId);
+    return { success: false, reason: 'not_found' as const };
+  }
 
   const deliveryAddress = (order.deliveryAddress || {}) as DeliveryAddress;
   const buyerEmail = String(deliveryAddress.email || '').trim();
-  if (!buyerEmail) return;
+  if (!buyerEmail) {
+    console.error('[shop] email skipped — no buyer email on order:', orderId);
+    return { success: false, reason: 'no_email' as const };
+  }
 
   const emailItems = await Promise.all(
     order.items.map(async (item) => {
@@ -190,7 +293,7 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
   const customOccasion = String(deliveryAddress.customOccasion || '').trim();
 
   if (isGift && recipientEmail) {
-    void sendGiftOrderEmail({
+    await sendGiftOrderEmail({
       email: recipientEmail,
       recipientName: String(deliveryAddress.recipientName || '').trim() || 'there',
       buyerName: deliveryAddress.name || deliveryAddress.firstName || 'Someone',
@@ -204,7 +307,7 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
     });
   }
 
-  void sendOrderConfirmationEmail({
+  const confirmation = await sendOrderConfirmationEmail({
     email: buyerEmail,
     fanName: deliveryAddress.name,
     orderId: order.id,
@@ -243,13 +346,20 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
   });
 
   for (const card of purchasedCards) {
-    void sendGiftCardCodeEmail({
+    await sendGiftCardCodeEmail({
       email: sendToEmail,
       code: card.code,
       balanceKobo: card.balanceKobo,
       creatorName: order.creator.displayName,
     });
   }
+
+  if (!confirmation?.success) {
+    console.error('[shop] order confirmation email failed:', orderId, confirmation);
+    return { success: false, reason: 'send_failed' as const, to: buyerEmail };
+  }
+
+  return { success: true, to: buyerEmail };
 }
 
 export function parseDeliveryAddressGiftFields(raw: Record<string, unknown>) {

@@ -10,8 +10,7 @@ import { paymentFailedTemplate, payoutConfirmationTemplate } from '@/lib/email/t
 import { checkAndLogMilestone, checkEarned10kMilestone } from '@/lib/utils/milestones';
 import { formatNaira } from '@foleio/utils';
 import {
-  applyConfirmedShopOrderSideEffects,
-  sendConfirmedShopOrderEmails,
+  confirmPaidShopOrder,
 } from '@/lib/shop/fulfill-order';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
@@ -259,7 +258,18 @@ async function processWebhookEvent(eventType: string, eventData: any) {
 }
 
 async function handleChargeSuccess(eventData: any) {
-  const { reference, amount, customer, metadata } = eventData;
+  const { reference, amount, customer } = eventData;
+  let metadata = eventData?.metadata;
+  if (typeof metadata === 'string') {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      metadata = {};
+    }
+  }
+  if (!metadata || typeof metadata !== 'object') {
+    metadata = {};
+  }
 
   try {
     // Handle creator -> Foleio platform subscription payments
@@ -328,13 +338,15 @@ async function handleChargeSuccess(eventData: any) {
           metadata?.paymentKind === 'balance' ? 'balance' : 'initial';
 
         let completedPayment = false;
+        let confirmResult: Awaited<ReturnType<typeof confirmBookingPayment>> | null =
+          null;
 
         if (
           booking.status === 'pending' ||
           booking.status === 'deposit_paid' ||
           booking.status === 'balance_overdue'
         ) {
-          const confirmResult = await confirmBookingPayment(
+          confirmResult = await confirmBookingPayment(
             booking.id,
             reference,
             paymentKind
@@ -374,7 +386,7 @@ async function handleChargeSuccess(eventData: any) {
               `⏭️ Skipping processFirstPayout for subaccount booking ${booking.id}`
             );
           }
-        } else if (confirmResult.data?.status === 'deposit_paid') {
+        } else if (confirmResult?.data?.status === 'deposit_paid') {
           const recordResult = await recordBookingPaymentTransaction({
             bookingId: booking.id,
             reference,
@@ -405,30 +417,35 @@ async function handleChargeSuccess(eventData: any) {
 
     if (metadata?.type === 'shop_order' && metadata?.orderId) {
       try {
-        const pendingOrder = await prisma.order.findUnique({
-          where: { id: metadata.orderId },
-          select: { id: true, status: true },
+        const result = await confirmPaidShopOrder({
+          orderId: String(metadata.orderId),
+          reference: String(reference || ''),
         });
-
-        if (!pendingOrder) {
-          console.error('[webhook] shop order not found:', metadata.orderId);
-          return;
-        }
-
-        if (pendingOrder.status === 'pending') {
-          await prisma.order.update({
-            where: { id: pendingOrder.id },
-            data: { status: 'confirmed' },
-          });
-          await applyConfirmedShopOrderSideEffects(pendingOrder.id);
-          void sendConfirmedShopOrderEmails(pendingOrder.id);
-        }
-
-        console.log('[webhook] shop order confirmed:', metadata.orderId);
+        console.log('[webhook] shop order confirm:', metadata.orderId, result);
       } catch (err) {
         console.error('[webhook] shop order update failed:', err);
       }
       return;
+    }
+
+    // Fallback when metadata.type is missing but we stored the Paystack reference.
+    if (reference) {
+      const orderByRef = await prisma.order.findFirst({
+        where: { paystackReference: String(reference) },
+        select: { id: true, status: true },
+      });
+      if (orderByRef) {
+        try {
+          const result = await confirmPaidShopOrder({
+            orderId: orderByRef.id,
+            reference: String(reference),
+          });
+          console.log('[webhook] shop order confirm by reference:', orderByRef.id, result);
+        } catch (err) {
+          console.error('[webhook] shop order confirm-by-ref failed:', err);
+        }
+        return;
+      }
     }
 
     // Handle other charge types (subscriptions, etc.)

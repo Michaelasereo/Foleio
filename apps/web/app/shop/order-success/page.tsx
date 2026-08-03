@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import { prisma } from '@foleio/database';
+import { confirmPaidShopOrder } from '@/lib/shop/fulfill-order';
 import { FoleioStatusPage } from '@/components/system/FoleioStatusPage';
 
 export const dynamic = 'force-dynamic';
@@ -11,9 +12,25 @@ function formatNaira(kobo: number) {
 export default async function OrderSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string }>;
+  searchParams: Promise<{
+    orderId?: string;
+    reference?: string;
+    trxref?: string;
+  }>;
 }) {
-  const { orderId } = await searchParams;
+  const params = await searchParams;
+  const orderId = params.orderId;
+  const reference = params.reference || params.trxref || null;
+
+  // Paystack redirects here after payment. Confirm + email even if the webhook is late.
+  if (orderId || reference) {
+    try {
+      await confirmPaidShopOrder({ orderId, reference });
+    } catch (error) {
+      console.error('[order-success] confirm failed:', error);
+    }
+  }
+
   const order = orderId
     ? await prisma.order.findUnique({
         where: { id: orderId },
@@ -23,7 +40,16 @@ export default async function OrderSuccessPage({
           creator: { select: { username: true, displayName: true } },
         },
       })
-    : null;
+    : reference
+      ? await prisma.order.findFirst({
+          where: { paystackReference: reference },
+          include: {
+            items: { include: { product: true } },
+            deliveryTier: true,
+            creator: { select: { username: true, displayName: true } },
+          },
+        })
+      : null;
 
   const shopHref = order?.creator?.username
     ? `/creator/${order.creator.username}`
@@ -38,11 +64,18 @@ export default async function OrderSuccessPage({
     : null;
 
   const hasShop = Boolean(order?.creator?.username);
+  const paid =
+    order?.status === 'confirmed' ||
+    (order?.status === 'pending' && Boolean(reference));
 
   return (
     <FoleioStatusPage
-      title="Order confirmed"
-      description="Payment received. Thanks for your order — the creator will handle fulfillment from here."
+      title={paid ? 'Order confirmed' : 'Payment received'}
+      description={
+        paid
+          ? 'Thanks for your order — a confirmation email is on its way. Check spam if you do not see it.'
+          : 'We are confirming your payment. You will get an email once it clears.'
+      }
       icon={<Check strokeWidth={1.75} style={{ width: 24, height: 24 }} />}
       iconTone="ok"
       primaryAction={{

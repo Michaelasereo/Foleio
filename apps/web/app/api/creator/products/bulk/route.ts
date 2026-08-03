@@ -65,7 +65,7 @@ function normalizeRow(raw: BulkProductInput, index: number) {
     return { index, error: 'Product name is required' as const };
   }
   if (isBelowMinPayableKobo(price)) {
-    return { index, error: MIN_PAYABLE_PRICE_ERROR as const };
+    return { index, error: MIN_PAYABLE_PRICE_ERROR };
   }
   if (stock === null || !Number.isFinite(stock) || stock < 0) {
     return { index, error: 'Stock is required and must be 0 or more' as const };
