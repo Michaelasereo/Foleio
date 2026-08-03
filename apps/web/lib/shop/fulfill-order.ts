@@ -11,7 +11,10 @@ import {
   sendGiftCardCodeEmail,
   sendGiftOrderEmail,
   sendOrderConfirmationEmail,
+  sendShopOrderCreatorNotification,
 } from '@/lib/email/resend';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
 type DeliveryAddress = {
   firstName?: string;
@@ -23,6 +26,7 @@ type DeliveryAddress = {
   address?: string;
   city?: string;
   state?: string;
+  fulfillment?: string;
   isGift?: boolean | string;
   occasion?: string;
   customOccasion?: string;
@@ -243,7 +247,13 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      creator: { select: { displayName: true } },
+      creator: {
+        select: {
+          displayName: true,
+          username: true,
+          user: { select: { email: true } },
+        },
+      },
       items: {
         include: {
           product: {
@@ -354,12 +364,53 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
     });
   }
 
-  if (!confirmation?.success) {
-    console.error('[shop] order confirmation email failed:', orderId, confirmation);
-    return { success: false, reason: 'send_failed' as const, to: buyerEmail };
+  const creatorEmail = String(order.creator.user?.email || '').trim();
+  let creatorNotified = false;
+  if (creatorEmail) {
+    const deliveryLabel =
+      order.deliveryTier?.name ||
+      (String(deliveryAddress.fulfillment || '').trim() || null);
+    const creatorResult = await sendShopOrderCreatorNotification({
+      creatorEmail,
+      creatorName: order.creator.displayName,
+      customerName:
+        deliveryAddress.name ||
+        `${deliveryAddress.firstName || ''} ${deliveryAddress.lastName || ''}`.trim() ||
+        'Customer',
+      customerEmail: buyerEmail,
+      customerPhone: deliveryAddress.phone || null,
+      items: emailItems.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      })),
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      total: order.total,
+      deliveryLabel,
+      isGift,
+      giftRecipientName: String(deliveryAddress.recipientName || '').trim() || null,
+      ordersUrl: `${APP_URL}/shop`,
+    });
+    creatorNotified = Boolean(creatorResult?.success);
+    if (!creatorNotified) {
+      console.error('[shop] creator order email failed:', orderId, creatorResult);
+    }
+  } else {
+    console.warn('[shop] creator has no email — skipped merchant notification:', orderId);
   }
 
-  return { success: true, to: buyerEmail };
+  if (!confirmation?.success) {
+    console.error('[shop] order confirmation email failed:', orderId, confirmation);
+    return {
+      success: false,
+      reason: 'send_failed' as const,
+      to: buyerEmail,
+      creatorNotified,
+    };
+  }
+
+  return { success: true, to: buyerEmail, creatorNotified };
 }
 
 export function parseDeliveryAddressGiftFields(raw: Record<string, unknown>) {

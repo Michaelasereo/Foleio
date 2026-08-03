@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { baseEmailTemplate } from './base-template';
+import { shopOrderCreatorNotificationEmail } from '@/lib/email/templates/shop-order-creator-notification';
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -520,6 +521,50 @@ export async function sendGiftCardCodeEmail({
     return { success: true, id: data?.id };
   } catch (error) {
     console.error('Gift card code email send error:', error);
+    return { success: false };
+  }
+}
+
+export async function sendShopOrderCreatorNotification(data: {
+  creatorEmail: string;
+  creatorName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  deliveryLabel?: string | null;
+  isGift?: boolean;
+  giftRecipientName?: string | null;
+  ordersUrl: string;
+}) {
+  if (!canSendEmails()) {
+    console.log(
+      '📧 Email skipped (dev mode):',
+      data.isGift ? 'New gift order' : 'New shop order',
+      data.creatorEmail
+    );
+    return { success: true };
+  }
+
+  const { subject, html } = shopOrderCreatorNotificationEmail(data);
+
+  try {
+    const { data: sent, error } = await resend.emails.send({
+      from: resolveFromEmail(),
+      to: data.creatorEmail,
+      subject,
+      html,
+    });
+    if (error) {
+      console.error('Shop order creator email send error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, id: sent?.id };
+  } catch (error) {
+    console.error('Shop order creator email send error:', error);
     return { success: false };
   }
 }

@@ -1,8 +1,7 @@
-import { prisma } from '@foleio/database';
 import { getAdminIdFromRequest, isAdminAuthed } from '@/lib/admin/auth';
+import { prisma } from '@foleio/database';
 import { sendBookingConfirmationEmail } from '@/lib/actions/email';
-import { sendOrderConfirmationEmail } from '@/lib/email/resend';
-import { resolveDigitalDownloadUrl } from '@/lib/shop/digital-downloads';
+import { sendConfirmedShopOrderEmails } from '@/lib/shop/fulfill-order';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -85,19 +84,13 @@ export async function POST(request: Request) {
       });
     }
 
-    // shop_order
+    // shop_order — buyer + gift recipient + gift cards + merchant
     const order = await prisma.order.findUnique({
       where: { id },
-      include: {
-        creator: { select: { displayName: true } },
-        items: {
-          include: {
-            product: {
-              select: { name: true, type: true, digitalFileUrl: true },
-            },
-          },
-        },
-        deliveryTier: true,
+      select: {
+        id: true,
+        status: true,
+        deliveryAddress: true,
       },
     });
     if (!order) {
@@ -119,57 +112,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await sendOrderConfirmationEmail({
-      email: recipientEmail,
-      fanName: deliveryAddress.name,
-      orderId: order.id,
-      items: await Promise.all(
-        order.items.map(async (item) => {
-          const productType =
-            (item.product?.type as 'physical' | 'digital' | null) || null;
-          const rawDigitalUrl = item.product?.digitalFileUrl || null;
-          const digitalFileUrl =
-            productType === 'digital'
-              ? await resolveDigitalDownloadUrl(rawDigitalUrl)
-              : null;
-          return {
-            name: item.product?.name || 'Product',
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            type: productType,
-            digitalFileUrl,
-          };
-        })
-      ),
-      deliveryAddress: {
-        address: deliveryAddress.address,
-        city: deliveryAddress.city,
-        state: deliveryAddress.state,
-      },
-      deliveryTier: order.deliveryTier
-        ? {
-            name: order.deliveryTier.name,
-            estimatedDays: order.deliveryTier.estimatedDays || undefined,
-          }
-        : null,
-      subtotal: order.subtotal,
-      deliveryFee: order.deliveryFee,
-      total: order.total,
-      creatorName: order.creator.displayName,
-      sampleTo: sampleTo || undefined,
-    });
-
+    const result = await sendConfirmedShopOrderEmails(order.id);
     if (!result.success) {
       return Response.json(
-        { error: ('error' in result && result.error) || 'Email send failed' },
+        {
+          error:
+            result.reason === 'no_email'
+              ? 'Order has no customer email on file'
+              : 'Email send failed',
+        },
         { status: 502 }
       );
     }
 
     return Response.json({
       success: true,
-      sentTo: recipientEmail,
-      sampleSent: Boolean('sampleSent' in result && result.sampleSent),
+      sentTo: result.to || recipientEmail,
+      creatorNotified: Boolean(result.creatorNotified),
+      sampleSent: false,
       sampleTo: sampleTo || null,
     });
   } catch (error) {
