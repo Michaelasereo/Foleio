@@ -10,7 +10,11 @@ import {
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
-import { resolveDeliveryFeeKobo } from '@/lib/shop/delivery-fee';
+import { resolveDeliveryFeeKobo, isAddressOptionalDeliveryType } from '@/lib/shop/delivery-fee';
+import {
+  formatPrepEstimateLabel,
+  groupByPrepEstimate,
+} from '@/lib/shop/prep-estimate';
 import { productCardCss } from '@/components/shop/product-card-styles';
 
 type ProductVariant = {
@@ -33,6 +37,10 @@ export type ShopProduct = {
   showLimitedStock?: boolean;
   type?: string;
   isPreorder?: boolean;
+  minOrderQuantity?: number;
+  prepDaysMin?: number | null;
+  prepDaysMax?: number | null;
+  requiresCustomDelivery?: boolean;
   preorderSettings?: unknown;
   addons?: unknown;
   variants: ProductVariant[];
@@ -71,6 +79,7 @@ const PUBLIC_SHOP_PREVIEW = 4;
 
 type ShopCatalogPayload = {
   creatorId: string;
+  merchantPhone: string | null;
   products: ShopProduct[];
   deliveryTiers: ShopDeliveryTier[];
 };
@@ -100,11 +109,16 @@ async function loadPublicShopCatalog(
       if (!response.ok) return null;
       const payload: ShopCatalogPayload = {
         creatorId: data.creator?.id || '',
+        merchantPhone: data.creator?.phoneNumber || null,
         products: (Array.isArray(data.products) ? data.products : []).map(
           (product: ShopProduct) => ({
             ...product,
             isPreorder: Boolean(product.isPreorder),
             preorderSettings: product.preorderSettings ?? null,
+            minOrderQuantity: Math.max(1, Number(product.minOrderQuantity) || 1),
+            prepDaysMin: product.prepDaysMin ?? null,
+            prepDaysMax: product.prepDaysMax ?? null,
+            requiresCustomDelivery: Boolean(product.requiresCustomDelivery),
           })
         ),
         deliveryTiers: data.deliveryTiers || [],
@@ -348,6 +362,9 @@ export function PublicShopPanel({
 }) {
   const cachedCatalog = shopCatalogCache.get(username);
   const [creatorId, setCreatorId] = useState(cachedCatalog?.creatorId || '');
+  const [merchantPhone, setMerchantPhone] = useState<string | null>(
+    cachedCatalog?.merchantPhone || null
+  );
   const [products, setProducts] = useState<ShopProduct[]>(
     cachedCatalog?.products || []
   );
@@ -383,12 +400,17 @@ export function PublicShopPanel({
     giftMessage: '',
     giftCardCode: '',
   });
+  const [customDelivery, setCustomDelivery] = useState({
+    phone: '',
+    notes: '',
+  });
   const [giftCardSendToEmail, setGiftCardSendToEmail] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     const apply = (payload: ShopCatalogPayload) => {
       setCreatorId(payload.creatorId);
+      setMerchantPhone(payload.merchantPhone);
       setProducts(payload.products);
       setDeliveryTiers(payload.deliveryTiers);
       setLoading(false);
@@ -445,6 +467,17 @@ export function PublicShopPanel({
   }, [selectedProduct, catalogAddons, selectedAddonIds, livePricing.price]);
 
   const needsDelivery = cart.some((item) => !isNonPhysicalProduct(item.product));
+  const needsCustomDeliveryBlock = cart.some(
+    (item) => !isNonPhysicalProduct(item.product) && Boolean(item.product.requiresCustomDelivery)
+  );
+  const cartPrepGroups = useMemo(
+    () =>
+      groupByPrepEstimate(cart, (item) => ({
+        prepDaysMin: item.product.prepDaysMin,
+        prepDaysMax: item.product.prepDaysMax,
+      })),
+    [cart]
+  );
 
   const deliverySelectionRequired = needsDelivery && deliveryTiers.length > 0;
 
@@ -504,7 +537,7 @@ export function PublicShopPanel({
     setSelectedProduct(product);
     setSelectedVariants({});
     setSelectedAddonIds([]);
-    setQuantity(1);
+    setQuantity(Math.max(1, Number(product.minOrderQuantity) || 1));
     setGiftCardSendToEmail('');
     setStep('product');
     setError(null);
@@ -538,6 +571,11 @@ export function PublicShopPanel({
           ? 'Select all variants first'
           : 'Could not add to cart'
       );
+      return;
+    }
+    const minQty = Math.max(1, Number(selectedProduct.minOrderQuantity) || 1);
+    if (quantity < minQty) {
+      setError(`Minimum order is ${minQty}`);
       return;
     }
     if (!isGiftCardProduct(selectedProduct)) {
@@ -617,10 +655,17 @@ export function PublicShopPanel({
     if (
       needsDelivery &&
       selectedTier &&
-      selectedTier.type !== 'pickup' &&
+      !isAddressOptionalDeliveryType(selectedTier.type) &&
       (!address.address.trim() || !address.city.trim() || !address.state.trim())
     ) {
       setError('Delivery address, city, and state are required');
+      return;
+    }
+    const needsCustomDeliveryBlock = cart.some(
+      (item) => item.product.type !== 'digital' && item.product.type !== 'gift_card' && item.product.requiresCustomDelivery
+    );
+    if (needsCustomDeliveryBlock && !customDelivery.phone.trim()) {
+      setError('Custom delivery phone is required');
       return;
     }
     setIsSubmitting(true);
@@ -639,6 +684,14 @@ export function PublicShopPanel({
             ...address,
             name: `${address.firstName.trim()} ${address.lastName.trim()}`.trim(),
             giftCardSendToEmail: cartGiftCardEmail || address.email.trim(),
+            ...(needsCustomDeliveryBlock
+              ? {
+                  customDelivery: {
+                    phone: customDelivery.phone.trim(),
+                    notes: customDelivery.notes.trim() || null,
+                  },
+                }
+              : {}),
           },
           items: cart.map((item) => ({
             productId: item.product.id,
@@ -1255,27 +1308,45 @@ export function PublicShopPanel({
                     <input
                       className="foleio-shop-field"
                       type="number"
-                      min={1}
+                      min={Math.max(1, Number(selectedProduct?.minOrderQuantity) || 1)}
                       max={
                         selectedProduct && isGiftCardProduct(selectedProduct)
                           ? 99
                           : selectedProduct.stock || 1
                       }
                       value={quantity}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const minQty = Math.max(
+                          1,
+                          Number(selectedProduct?.minOrderQuantity) || 1
+                        );
                         setQuantity(
                           Math.max(
-                            1,
+                            minQty,
                             Math.min(
                               selectedProduct && isGiftCardProduct(selectedProduct)
                                 ? 99
                                 : Number(selectedProduct.stock || 1),
-                              Number(event.target.value) || 1
+                              Number(event.target.value) || minQty
                             )
                           )
-                        )
-                      }
+                        );
+                      }}
                     />
+                    {selectedProduct &&
+                    Math.max(1, Number(selectedProduct.minOrderQuantity) || 1) > 1 ? (
+                      <span style={{ fontSize: 12, color: 'rgba(250,250,250,0.55)' }}>
+                        Minimum {Math.max(1, Number(selectedProduct.minOrderQuantity) || 1)}
+                      </span>
+                    ) : null}
+                    {selectedProduct ? (
+                      <span style={{ fontSize: 12, color: 'rgba(250,250,250,0.55)' }}>
+                        {formatPrepEstimateLabel(
+                          selectedProduct.prepDaysMin,
+                          selectedProduct.prepDaysMax
+                        )}
+                      </span>
+                    ) : null}
                   </label>
                 </div>
               ) : null}
@@ -1287,62 +1358,83 @@ export function PublicShopPanel({
                       Your cart is empty.
                     </p>
                   ) : (
-                    cart.map((item, index) => {
-                      const variantLabel = Object.entries(item.selectedVariants)
-                        .map(([name, value]) => `${name}: ${value}`)
-                        .join(' · ');
-                      return (
-                        <div
-                          key={`${item.product.id}-${index}`}
+                    cartPrepGroups.map((group) => (
+                      <div key={group.key} style={{ display: 'grid', gap: 8 }}>
+                        <p
                           style={{
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 12,
-                            padding: 12,
-                            display: 'grid',
-                            gap: 8,
+                            margin: 0,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            color: 'rgba(250,250,250,0.55)',
                           }}
                         >
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              gap: 12,
-                              alignItems: 'flex-start',
-                            }}
-                          >
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <p style={{ margin: 0, fontWeight: 600 }}>{item.product.name}</p>
-                              <p
-                                style={{
-                                  margin: '4px 0 0',
-                                  fontSize: 13,
-                                  color: 'rgba(250,250,250,0.65)',
-                                }}
-                              >
-                                {item.quantity} × {formatNaira(item.unitPrice)}
-                                {variantLabel ? ` · ${variantLabel}` : ''}
-                                {item.selectedAddons.length
-                                  ? ` · ${item.selectedAddons.map((addon) => addon.name).join(', ')}`
-                                  : ''}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="foleio-shop-btn-ghost"
-                              aria-label={`Remove ${item.product.name} from cart`}
-                              onClick={() => removeCartItem(index)}
+                          {group.label}
+                        </p>
+                        {group.items.map((item) => {
+                          const index = cart.indexOf(item);
+                          const variantLabel = Object.entries(item.selectedVariants)
+                            .map(([name, value]) => `${name}: ${value}`)
+                            .join(' · ');
+                          return (
+                            <div
+                              key={`${item.product.id}-${index}`}
                               style={{
-                                flexShrink: 0,
-                                padding: '6px 10px',
-                                fontSize: 12,
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: 12,
+                                padding: 12,
+                                display: 'grid',
+                                gap: 8,
                               }}
                             >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  gap: 12,
+                                  alignItems: 'flex-start',
+                                }}
+                              >
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <p style={{ margin: 0, fontWeight: 600 }}>
+                                    {item.product.name}
+                                  </p>
+                                  <p
+                                    style={{
+                                      margin: '4px 0 0',
+                                      fontSize: 13,
+                                      color: 'rgba(250,250,250,0.65)',
+                                    }}
+                                  >
+                                    {item.quantity} × {formatNaira(item.unitPrice)}
+                                    {variantLabel ? ` · ${variantLabel}` : ''}
+                                    {item.selectedAddons.length
+                                      ? ` · ${item.selectedAddons
+                                          .map((addon) => addon.name)
+                                          .join(', ')}`
+                                      : ''}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="foleio-shop-btn-ghost"
+                                  aria-label={`Remove ${item.product.name} from cart`}
+                                  onClick={() => removeCartItem(index)}
+                                  style={{
+                                    flexShrink: 0,
+                                    padding: '6px 10px',
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
                   )}
 
                   {cart.length > 0 && needsDelivery ? (
@@ -1391,7 +1483,9 @@ export function PublicShopPanel({
                                   ? formatNaira(tier.flatRate)
                                   : tier.type === 'free'
                                     ? 'Free'
-                                    : 'Pickup'}
+                                    : tier.type === 'customer_arranged'
+                                      ? 'You arrange'
+                                      : 'Pickup'}
                               </span>
                             </span>
                             {tier.description ? (
@@ -1438,9 +1532,9 @@ export function PublicShopPanel({
                         <span>Delivery</span>
                         <span>
                           {deliverySelected
-                            ? selectedTier?.type === 'free' || selectedTier?.type === 'pickup'
-                              ? 'Free'
-                              : formatNaira(deliveryFee)
+                            ? selectedTier?.type === 'paid'
+                              ? formatNaira(deliveryFee)
+                              : 'Free'
                             : 'Select option'}
                         </span>
                       </div>
@@ -1691,7 +1785,9 @@ export function PublicShopPanel({
                     />
                   ) : null}
 
-                  {needsDelivery && selectedTier?.type !== 'pickup' ? (
+                  {needsDelivery &&
+                  selectedTier &&
+                  !isAddressOptionalDeliveryType(selectedTier.type) ? (
                     <>
                       <input
                         className="foleio-shop-field"
@@ -1719,6 +1815,84 @@ export function PublicShopPanel({
                       />
                     </>
                   ) : null}
+
+                  {needsCustomDeliveryBlock ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: 8,
+                        marginTop: 8,
+                        paddingTop: 12,
+                        borderTop: '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
+                        Custom delivery details
+                      </p>
+                      <p style={{ margin: 0, fontSize: 12, color: 'rgba(250,250,250,0.55)' }}>
+                        Needed for items that require special logistics.
+                      </p>
+                      {merchantPhone ? (
+                        <p style={{ margin: 0, fontSize: 12, color: 'rgba(250,250,250,0.72)' }}>
+                          Merchant contact: {merchantPhone}
+                        </p>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: 12, color: 'rgba(250,250,250,0.45)' }}>
+                          Merchant phone not listed — you can still complete checkout.
+                        </p>
+                      )}
+                      <input
+                        className="foleio-shop-field"
+                        placeholder="Phone for custom delivery"
+                        value={customDelivery.phone}
+                        onChange={(event) =>
+                          setCustomDelivery((prev) => ({
+                            ...prev,
+                            phone: event.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        className="foleio-shop-field"
+                        placeholder="Notes (optional)"
+                        value={customDelivery.notes}
+                        onChange={(event) =>
+                          setCustomDelivery((prev) => ({
+                            ...prev,
+                            notes: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
+
+                  {cartPrepGroups.length > 0 ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: 6,
+                        marginTop: 8,
+                        paddingTop: 10,
+                        borderTop: '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Order timing</p>
+                      {cartPrepGroups.map((group) => (
+                        <p
+                          key={group.key}
+                          style={{
+                            margin: 0,
+                            fontSize: 13,
+                            color: 'rgba(250,250,250,0.72)',
+                          }}
+                        >
+                          {group.label}:{' '}
+                          {group.items.map((item) => item.product.name).join(', ')}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+
                   <div
                     style={{
                       display: 'grid',

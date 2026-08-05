@@ -1,35 +1,35 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { AvailabilityManager } from '@/components/booking/AvailabilityManager';
 import { serializeForClient } from '@/lib/utils';
+import { resolveCreatorShellContext } from '@/lib/creator/shell-context';
 
 export default async function AvailabilityPage() {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { creator: shellCreator, supportMode, authenticated } =
+    await resolveCreatorShellContext();
 
-  if (!session) {
+  if (!shellCreator && !authenticated && !supportMode) {
     redirect('/login');
   }
 
   let creator: Awaited<ReturnType<typeof prisma.creator.findUnique>> = null;
-  try {
-    creator = await prisma.creator.findUnique({
-      where: { userId: session.user.id },
-    });
-  } catch {
-    console.warn('Availability page creator lookup failed (non-fatal).');
-    return (
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Availability Calendar</h1>
-        <p className="text-muted-foreground">
-          We could not load your availability data right now. Please try again
-          in a moment.
-        </p>
-      </div>
-    );
+  if (shellCreator) {
+    try {
+      creator = await prisma.creator.findUnique({
+        where: { id: shellCreator.id },
+      });
+    } catch {
+      console.warn('Availability page creator lookup failed (non-fatal).');
+      return (
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Availability Calendar</h1>
+          <p className="text-muted-foreground">
+            We could not load your availability data right now. Please try again
+            in a moment.
+          </p>
+        </div>
+      );
+    }
   }
 
   if (!creator) {

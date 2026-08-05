@@ -27,6 +27,7 @@ export async function getPublicReviews(creatorId: string) {
       customerName: true,
       location: true,
       quote: true,
+      rating: true,
     },
   });
 }

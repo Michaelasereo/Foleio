@@ -1,32 +1,25 @@
 import { redirect } from 'next/navigation';
 import { serializeForClient } from '@/lib/utils';
 import { CreatorAppShell } from '@/components/creator/CreatorAppShell';
-import { getCreatorForUser, getCurrentUser } from '@/lib/creator/cached-lookups';
+import { resolveCreatorShellContext } from '@/lib/creator/shell-context';
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
+  const {
+    creator,
+    supportMode,
+    lookupFailed: creatorLookupFailed,
+    authenticated,
+  } = await resolveCreatorShellContext();
 
-  if (!user) {
+  if (!creator && !authenticated && !supportMode) {
     return <>{children}</>;
   }
 
-  let creator: Awaited<ReturnType<typeof getCreatorForUser>> = null;
-  let creatorLookupFailed = false;
-
-  try {
-    creator = await getCreatorForUser(user.id);
-  } catch {
-    console.warn('Dashboard layout creator lookup failed (non-fatal).');
-    creator = null;
-    creatorLookupFailed = true;
-  }
-
-  // Confirmed missing Creator (not a transient DB failure) → onboarding.
-  if (!creator && !creatorLookupFailed) {
+  if (!creator && authenticated && !creatorLookupFailed && !supportMode) {
     redirect('/onboard');
   }
 
@@ -57,7 +50,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <CreatorAppShell creator={serializeForClient(creator)}>
+    <CreatorAppShell creator={serializeForClient(creator)} supportMode={supportMode}>
       {children}
     </CreatorAppShell>
   );

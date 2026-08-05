@@ -8,7 +8,7 @@ const FREE_LIMITS = {
   maxProducts: 10,
   maxPreorderProducts: 5,
   maxProductImages: 3,
-  maxReviews: 0,
+  maxReviews: 3,
   maxPortfolioCategories: 0,
   canCreateCollections: true,
   canUseAvailabilityTemplates: false,
@@ -142,9 +142,9 @@ export const PLAN_LIMIT_MESSAGES = {
     feature: 'Up to 5 product photos',
   },
   maxReviews: {
-    title: 'Customer reviews are Pro',
+    title: 'Review limit reached',
     description:
-      'Add up to 10 customer testimonials on your public page with Pro.',
+      'Free includes up to 3 customer reviews. Upgrade to Pro for up to 10.',
     feature: 'Up to 10 customer reviews',
   },
   conditionalDelivery: {

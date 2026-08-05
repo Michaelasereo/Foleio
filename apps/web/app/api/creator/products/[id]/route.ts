@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@foleio/database';
-import { createRouteHandlerClient } from '@/lib/supabase/server';
+import { getCreatorApiAccess } from '@/lib/creator/api-session';
 import { normalizeAddonCategoriesInput } from '@/lib/shop/product-addons';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
 import { validatePreorderSettingsInput } from '@/lib/shop/preorder';
@@ -104,27 +104,14 @@ function normalizePreorderSettingsBody(raw: unknown) {
   };
 }
 
-async function getCreatorSession() {
-  const supabase = await createRouteHandlerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) return null;
-  return prisma.creator.findUnique({
-    where: { userId: user.id },
-    select: {
-      id: true,
-      username: true,
-      platformPlan: true,
-      platformSubscriptionActive: true,
-    },
-  });
+async function getCreatorSession(request?: Request) {
+  const access = await getCreatorApiAccess(request);
+  return access?.creator ?? null;
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const creator = await getCreatorSession();
+    const creator = await getCreatorSession(request);
     if (!creator) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
@@ -237,6 +224,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         ? null
         : toKobo(body.compareAtPrice);
     const isPreorder = isNonPhysical ? false : Boolean(body?.isPreorder);
+    const minOrderQuantity = isNonPhysical
+      ? 1
+      : Math.max(1, Math.floor(Number(body?.minOrderQuantity) || 1));
+    const prepDaysMinRaw =
+      body?.prepDaysMin === '' || body?.prepDaysMin == null
+        ? null
+        : Math.max(0, Math.floor(Number(body.prepDaysMin)));
+    const prepDaysMaxRaw =
+      body?.prepDaysMax === '' || body?.prepDaysMax == null
+        ? null
+        : Math.max(0, Math.floor(Number(body.prepDaysMax)));
+    const prepDaysMin =
+      prepDaysMinRaw == null || prepDaysMinRaw <= 0 ? null : prepDaysMinRaw;
+    const prepDaysMax =
+      prepDaysMin == null
+        ? null
+        : prepDaysMaxRaw != null && prepDaysMaxRaw >= prepDaysMin
+          ? prepDaysMaxRaw
+          : null;
+    const requiresCustomDelivery = isNonPhysical
+      ? false
+      : Boolean(body?.requiresCustomDelivery);
     const addons = isNonPhysical ? [] : parseAddons(body?.addons);
     const variants = isNonPhysical ? [] : parseVariants(body?.variants);
     let preorderSettings: ReturnType<
@@ -329,6 +338,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           stock,
           status: nextStatus,
           waiveDeliveryFee: false,
+          minOrderQuantity,
+          prepDaysMin,
+          prepDaysMax,
+          requiresCustomDelivery,
           isPreorder,
           preorderSettings: isPreorder
             ? (preorderSettings as Prisma.InputJsonValue)
@@ -379,9 +392,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const creator = await getCreatorSession();
+    const creator = await getCreatorSession(request);
     if (!creator) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }

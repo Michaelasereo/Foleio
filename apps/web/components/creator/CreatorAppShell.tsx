@@ -1554,7 +1554,17 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   flex-shrink: 0;
 }
 
-.foleio-setup-tour {
+.foleio-dev-support-banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(147, 197, 253, 0.12);
+  color: #93c5fd;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
   position: fixed;
   right: 16px;
   bottom: 16px;
@@ -1918,6 +1928,7 @@ interface CreatorAppShellProps {
     platformPlan?: string | null;
     platformSubscriptionActive?: boolean | null;
   } | null;
+  supportMode?: boolean;
 }
 
 const NAV = [
@@ -2115,7 +2126,7 @@ function CreatorShellProfile({
   );
 }
 
-export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
+export function CreatorAppShell({ children, creator, supportMode = false }: CreatorAppShellProps) {
   const pathname = usePathname();
   const isDashboardHome = pathname === '/dashboard';
   const navMenuRef = useRef<HTMLDivElement>(null);
@@ -2367,6 +2378,12 @@ export function CreatorAppShell({ children, creator }: CreatorAppShellProps) {
             </div>
 
             <div className="foleio-auth-right">
+              {supportMode ? (
+                <div className="foleio-dev-support-banner" role="status">
+                  Developer support mode — earnings, payouts, and billing are blocked.
+                  Access expires 7 days after accept.
+                </div>
+              ) : null}
               {children}
               <AuthLegalFooter />
             </div>

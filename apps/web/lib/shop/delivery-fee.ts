@@ -9,6 +9,12 @@ export type DeliveryFeeInput = {
   minItemQuantity?: number | null;
 };
 
+/** Pickup / customer-arranged: no street address required at checkout. */
+export function isAddressOptionalDeliveryType(type: string | null | undefined): boolean {
+  const value = String(type || '').toLowerCase();
+  return value === 'pickup' || value === 'customer_arranged';
+}
+
 export function parseOptionalPositiveInt(value: unknown): number | null {
   if (value === '' || value === null || value === undefined) return null;
   const parsed = Number(value);

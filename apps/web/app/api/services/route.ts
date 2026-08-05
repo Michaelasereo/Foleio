@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
+import { getCreatorApiAccess } from '@/lib/creator/api-session';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
@@ -17,10 +17,8 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const access = await getCreatorApiAccess(request);
+    if (!access) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -29,7 +27,7 @@ export async function GET(request: Request) {
 
     const services = await withTimeout(
       prisma.priceListItem.findMany({
-        where: { creator: { userId: user.id } },
+        where: { creatorId: access.creator.id },
         include: {
           _count: {
             select: {
@@ -85,20 +83,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const access = await getCreatorApiAccess(request);
+    if (!access) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // Get creator
     const creator = await withTimeout(
       prisma.creator.findUnique({
-        where: { userId: user.id }
+        where: { id: access.creator.id },
       }),
       2500
     );

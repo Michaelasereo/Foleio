@@ -163,6 +163,13 @@ export async function POST(request: Request) {
       }
 
       const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
+      const minQty = Math.max(1, Math.floor(Number(product.minOrderQuantity) || 1));
+      if (quantity < minQty) {
+        return NextResponse.json(
+          { error: `${product.name} requires a minimum of ${minQty}` },
+          { status: 400 }
+        );
+      }
       const isNonPhysical = isNonPhysicalProductType(product.type);
       const stock = product.stock;
       if (!isNonPhysical || stock != null) {
@@ -277,7 +284,8 @@ export async function POST(request: Request) {
         physicalQty
       );
 
-      if (deliveryType !== 'pickup') {
+      const { isAddressOptionalDeliveryType } = await import('@/lib/shop/delivery-fee');
+      if (!isAddressOptionalDeliveryType(deliveryType)) {
         const address = String(deliveryAddress.address || '').trim();
         const city = String(deliveryAddress.city || '').trim();
         const state = String(deliveryAddress.state || '').trim();
@@ -350,6 +358,28 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     const fanId = user?.id || 'guest';
 
+    const customDeliveryRaw =
+      deliveryAddress.customDelivery &&
+      typeof deliveryAddress.customDelivery === 'object'
+        ? (deliveryAddress.customDelivery as Record<string, unknown>)
+        : null;
+    const needsCustomDelivery = products.some(
+      (product) =>
+        !isNonPhysicalProductType(product.type) && Boolean(product.requiresCustomDelivery)
+    );
+    const customDelivery = needsCustomDelivery
+      ? {
+          phone: String(customDeliveryRaw?.phone || phone || '').trim(),
+          notes: String(customDeliveryRaw?.notes || '').trim() || null,
+        }
+      : null;
+    if (needsCustomDelivery && !customDelivery?.phone) {
+      return NextResponse.json(
+        { error: 'Custom delivery phone is required for one or more items' },
+        { status: 400 }
+      );
+    }
+
     const giftCardSendToEmail =
       giftFields.giftCardSendToEmail ||
       mappedItems.find((item) => item.giftCardSendToEmail)?.giftCardSendToEmail ||
@@ -373,6 +403,7 @@ export async function POST(request: Request) {
       recipientEmail: giftFields.recipientEmail || null,
       giftMessage: giftFields.giftMessage || null,
       giftCardSendToEmail: giftCardSendToEmail || null,
+      ...(customDelivery ? { customDelivery } : {}),
     };
 
     const orderId = crypto.randomUUID();

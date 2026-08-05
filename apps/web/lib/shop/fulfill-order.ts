@@ -34,6 +34,10 @@ type DeliveryAddress = {
   recipientEmail?: string;
   giftMessage?: string;
   giftCardSendToEmail?: string;
+  customDelivery?: {
+    phone?: string | null;
+    notes?: string | null;
+  } | null;
 };
 
 /** Decrement stock and apply gift-card balance after an order is confirmed. */
@@ -257,7 +261,13 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
       items: {
         include: {
           product: {
-            select: { name: true, type: true, digitalFileUrl: true },
+            select: {
+              name: true,
+              type: true,
+              digitalFileUrl: true,
+              prepDaysMin: true,
+              prepDaysMax: true,
+            },
           },
         },
       },
@@ -291,6 +301,8 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
         unitPrice: item.unitPrice,
         type: productType,
         digitalFileUrl,
+        prepDaysMin: item.product?.prepDaysMin ?? null,
+        prepDaysMax: item.product?.prepDaysMax ?? null,
       };
     })
   );
@@ -330,11 +342,21 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
           ? ('digital' as const)
           : ('physical' as const),
       digitalFileUrl: item.digitalFileUrl,
+      prepDaysMin: item.prepDaysMin,
+      prepDaysMax: item.prepDaysMax,
     })),
     deliveryAddress: {
       address: deliveryAddress.address,
       city: deliveryAddress.city,
       state: deliveryAddress.state,
+      customDelivery:
+        deliveryAddress.customDelivery &&
+        typeof deliveryAddress.customDelivery === 'object'
+          ? (deliveryAddress.customDelivery as {
+              phone?: string | null;
+              notes?: string | null;
+            })
+          : null,
     },
     deliveryTier: order.deliveryTier
       ? {
@@ -383,6 +405,8 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        prepDaysMin: item.prepDaysMin,
+        prepDaysMax: item.prepDaysMax,
       })),
       subtotal: order.subtotal,
       deliveryFee: order.deliveryFee,

@@ -7,10 +7,13 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  LifeBuoy,
   ListChecks,
+  Loader2,
   Percent,
   X,
 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const SETUP_STEPS = [
   {
@@ -106,7 +109,10 @@ export function CreatorSetupTourCard({
 
   const [minimized, setMinimized] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [devSupportOpen, setDevSupportOpen] = useState(false);
+  const [devSupportRequesting, setDevSupportRequesting] = useState(false);
   const [done, setDone] = useState<Set<StepId>>(() => new Set());
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!creatorId || !mounted) return;
@@ -154,6 +160,36 @@ export function CreatorSetupTourCard({
     minimize();
   }
 
+  async function requestDeveloperSupport() {
+    setDevSupportRequesting(true);
+    try {
+      const response = await fetch('/api/creator/developer-support/request', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+      if (data.whatsappUrl) {
+        window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
+      }
+      toast({
+        title: 'Developer support requested',
+        description: 'Continue on WhatsApp while we email the accept link.',
+      });
+      setDevSupportOpen(false);
+      minimize();
+    } catch (error) {
+      toast({
+        title: 'Request failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDevSupportRequesting(false);
+    }
+  }
+
   if (!mounted || !creatorId) return null;
 
   const setupDoneCount = SETUP_STEPS.filter((step) => done.has(step.id)).length;
@@ -192,6 +228,7 @@ export function CreatorSetupTourCard({
   }
 
   return (
+    <>
     <aside className="foleio-setup-tour" aria-label="Creator setup tour">
       <div className="foleio-setup-tour-header">
         <div>
@@ -289,8 +326,89 @@ export function CreatorSetupTourCard({
               strokeWidth={1.75}
             />
           </Link>
+          <button
+            type="button"
+            className="foleio-setup-tour-item"
+            onClick={() => {
+              setDevSupportOpen(true);
+              setListOpen(false);
+            }}
+          >
+            <LifeBuoy className="foleio-setup-tour-check" strokeWidth={1.75} aria-hidden />
+            <span className="foleio-setup-tour-label">Developer support</span>
+            <ChevronRight className="foleio-setup-tour-arrow" strokeWidth={1.75} />
+          </button>
         </nav>
       ) : null}
     </aside>
+
+    {devSupportOpen ? (
+      <>
+        <div
+          className="foleio-dash-drawer-backdrop"
+          onClick={() => !devSupportRequesting && setDevSupportOpen(false)}
+          aria-hidden
+        />
+        <aside
+          className="foleio-dash-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dev-support-drawer-title"
+        >
+          <div className="foleio-dash-drawer-header">
+            <div>
+              <h2 id="dev-support-drawer-title" className="foleio-dash-panel-title">
+                Developer support
+              </h2>
+              <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
+                Request help setting up shop and bookings — no password sharing.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="foleio-dash-drawer-close"
+              onClick={() => setDevSupportOpen(false)}
+              disabled={devSupportRequesting}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="foleio-dash-drawer-body">
+            <p className="foleio-dash-panel-meta">
+              We email your developer an accept link (7-day access). Earnings and billing stay
+              blocked.
+            </p>
+            <button
+              type="button"
+              className="foleio-dash-btn-primary"
+              style={{ width: '100%', marginTop: 12 }}
+              onClick={() => void requestDeveloperSupport()}
+              disabled={devSupportRequesting}
+            >
+              {devSupportRequesting ? (
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+              ) : null}
+              Request & open WhatsApp
+            </button>
+            <Link
+              href="/settings?tab=developer-support"
+              className="foleio-dash-btn-ghost"
+              style={{
+                display: 'inline-flex',
+                width: '100%',
+                marginTop: 8,
+                justifyContent: 'center',
+                textDecoration: 'none',
+              }}
+              onClick={() => setDevSupportOpen(false)}
+            >
+              Manage in settings
+            </Link>
+          </div>
+        </aside>
+      </>
+    ) : null}
+    </>
   );
 }

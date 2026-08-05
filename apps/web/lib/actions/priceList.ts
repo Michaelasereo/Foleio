@@ -2,7 +2,9 @@
 
 import { prisma } from '@foleio/database';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { getDeveloperSupportSession } from '@/lib/developer-support/session';
 import { z } from 'zod';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 import { MIN_PAYABLE_KOBO, MIN_PAYABLE_PRICE_ERROR } from '@/lib/payments/min-amount';
@@ -36,6 +38,7 @@ const priceListItemSchema = z.object({
   depositType: z.enum(['percent', 'fixed']).optional().nullable(),
   depositValue: z.number().int().min(0).optional().nullable(),
   allowPayInFull: z.boolean().optional(),
+  minNoticeDays: z.number().int().min(0).optional().nullable(),
   orderIndex: z.number().optional(),
   categoryOrderIndex: z.number().optional(),
 });
@@ -50,21 +53,31 @@ function revalidatePriceListPaths(username?: string | null) {
   }
 }
 
-// Create a new price list item
-export async function createPriceListItem(data: PriceListItemInput) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
-    return { error: 'Unauthorized' };
+async function getCreatorForPriceListActions() {
+  const support = await getDeveloperSupportSession(await cookies());
+  if (support) {
+    return prisma.creator.findUnique({
+      where: { id: support.creatorId },
+    });
   }
 
-  const creator = await prisma.creator.findUnique({
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return null;
+
+  return prisma.creator.findUnique({
     where: { userId: session.user.id },
   });
+}
 
+// Create a new price list item
+export async function createPriceListItem(data: PriceListItemInput) {
+  const creator = await getCreatorForPriceListActions();
+  
   if (!creator) {
-    return { error: 'Creator not found' };
+    return { error: 'Unauthorized' };
   }
 
   const validation = priceListItemSchema.safeParse(data);
@@ -136,6 +149,10 @@ export async function createPriceListItem(data: PriceListItemInput) {
         depositType: data.depositType ?? null,
         depositValue: data.depositValue ?? null,
         allowPayInFull: data.allowPayInFull ?? true,
+        minNoticeDays:
+          data.minNoticeDays != null && data.minNoticeDays > 0
+            ? data.minNoticeDays
+            : null,
         orderIndex: data.orderIndex ?? (maxOrder?.orderIndex || 0) + 1,
         categoryOrderIndex: categoryOrderIndex || 0,
       },
@@ -151,19 +168,10 @@ export async function createPriceListItem(data: PriceListItemInput) {
 
 // Update an existing price list item
 export async function updatePriceListItem(itemId: string, data: Partial<PriceListItemInput>) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const creator = await getCreatorForPriceListActions();
   
-  if (!session) {
-    return { error: 'Unauthorized' };
-  }
-
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
-
   if (!creator) {
-    return { error: 'Creator not found' };
+    return { error: 'Unauthorized' };
   }
 
   // Verify ownership
@@ -209,6 +217,12 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
         ...(data.allowPayInFull !== undefined && {
           allowPayInFull: data.allowPayInFull,
         }),
+        ...(data.minNoticeDays !== undefined && {
+          minNoticeDays:
+            data.minNoticeDays != null && data.minNoticeDays > 0
+              ? data.minNoticeDays
+              : null,
+        }),
         ...(data.orderIndex !== undefined && { orderIndex: data.orderIndex }),
         ...(data.categoryOrderIndex !== undefined && { categoryOrderIndex: data.categoryOrderIndex }),
       },
@@ -228,19 +242,10 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
 
 // Delete a price list item
 export async function deletePriceListItem(itemId: string) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const creator = await getCreatorForPriceListActions();
   
-  if (!session) {
-    return { error: 'Unauthorized' };
-  }
-
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
-
   if (!creator) {
-    return { error: 'Creator not found' };
+    return { error: 'Unauthorized' };
   }
 
   // Verify ownership
@@ -267,19 +272,10 @@ export async function deletePriceListItem(itemId: string) {
 
 // Toggle active status of a price list item
 export async function togglePriceListItemActive(itemId: string) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const creator = await getCreatorForPriceListActions();
   
-  if (!session) {
-    return { error: 'Unauthorized' };
-  }
-
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
-
   if (!creator) {
-    return { error: 'Creator not found' };
+    return { error: 'Unauthorized' };
   }
 
   // Verify ownership
@@ -309,19 +305,10 @@ export async function togglePriceListItemActive(itemId: string) {
 
 // Reorder price list items
 export async function reorderPriceListItems(itemIds: string[]) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const creator = await getCreatorForPriceListActions();
   
-  if (!session) {
-    return { error: 'Unauthorized' };
-  }
-
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
-
   if (!creator) {
-    return { error: 'Creator not found' };
+    return { error: 'Unauthorized' };
   }
 
   try {
@@ -345,19 +332,10 @@ export async function reorderPriceListItems(itemIds: string[]) {
 
 // Get price list for a creator (for creator dashboard)
 export async function getMyPriceList() {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const creator = await getCreatorForPriceListActions();
   
-  if (!session) {
-    return { error: 'Unauthorized' };
-  }
-
-  const creator = await prisma.creator.findUnique({
-    where: { userId: session.user.id },
-  });
-
   if (!creator) {
-    return { error: 'Creator not found' };
+    return { error: 'Unauthorized' };
   }
 
   try {

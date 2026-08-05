@@ -1,5 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  DEVELOPER_SUPPORT_COOKIE,
+} from '@/lib/developer-support/session';
+import {
+  developerSupportBlockedMessage,
+  isDeveloperSupportBlockedApi,
+  isDeveloperSupportBlockedPage,
+} from '@/lib/developer-support/guard';
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -56,6 +64,8 @@ export async function middleware(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     const pathname = request.nextUrl.pathname;
+    const supportCookie = request.cookies.get(DEVELOPER_SUPPORT_COOKIE)?.value;
+
     const isOnboardingRoute =
       pathname.startsWith('/onboarding') || pathname.startsWith('/onboard');
     const creatorProtectedPrefixes = [
@@ -100,6 +110,22 @@ export async function middleware(request: NextRequest) {
       return response;
     };
 
+    if (supportCookie) {
+      if (isDeveloperSupportBlockedPage(pathname, request.nextUrl.search)) {
+        return copyCookies(
+          NextResponse.redirect(new URL('/dashboard?support=blocked', request.url))
+        );
+      }
+      if (pathname.startsWith('/api/') && isDeveloperSupportBlockedApi(pathname)) {
+        return copyCookies(
+          NextResponse.json(
+            { error: developerSupportBlockedMessage() },
+            { status: 403 }
+          )
+        );
+      }
+    }
+
     if (isHiddenPublicCreatorDeepLink(pathname)) {
       const username = creatorUsernameFromPath(pathname);
       const target = username ? `/creator/${username}` : '/';
@@ -137,7 +163,7 @@ export async function middleware(request: NextRequest) {
       const isOnboardingPreview =
         isOnboardingRoute && request.nextUrl.searchParams.get('preview') === '1';
 
-      if (!user && !isOnboardingPreview) {
+      if (!user && !isOnboardingPreview && !supportCookie) {
         const loginUrl = new URL('/login', request.url);
         return copyCookies(NextResponse.redirect(loginUrl));
       }
@@ -180,7 +206,18 @@ export const config = {
     '/subscriptions/:path*',
     '/shop',
     '/shop/:path*',
+    '/support/:path*',
     '/creator/:path*',
     '/admin/:path*',
+    '/api/creator/earnings',
+    '/api/creator/earnings/:path*',
+    '/api/creator/payouts',
+    '/api/creator/payouts/:path*',
+    '/api/creator/bank',
+    '/api/creator/bank/:path*',
+    '/api/creator/analytics',
+    '/api/creator/analytics/:path*',
+    '/api/billing',
+    '/api/billing/:path*',
   ],
 };

@@ -90,6 +90,10 @@ type Product = {
   status: 'draft' | 'active';
   orderIndex: number;
   isPreorder: boolean;
+  minOrderQuantity?: number;
+  prepDaysMin?: number | null;
+  prepDaysMax?: number | null;
+  requiresCustomDelivery?: boolean;
   preorderSettings?: unknown;
   addons: Addon[] | unknown;
   variants: Variant[];
@@ -331,6 +335,10 @@ function emptyProductForm() {
     showLimitedStock: false,
     status: 'draft' as 'draft' | 'active',
     isPreorder: false,
+    minOrderQuantity: '1',
+    prepDaysMin: '',
+    prepDaysMax: '',
+    requiresCustomDelivery: false,
     discountEnabled: false,
     preorder: emptyPreorderForm(),
     variants: [] as Variant[],
@@ -396,11 +404,12 @@ export function CreatorShopManager({
     'details' | 'preorder' | 'discount'
   >('details');
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [isConvertingProduct, setIsConvertingProduct] = useState(false);
   const [productForm, setProductForm] = useState(emptyProductForm());
   const [tierForm, setTierForm] = useState(emptyTierForm());
   const [deliveryComposer, setDeliveryComposer] = useState<'idle' | 'choose' | 'flat'>('idle');
   const [deliveryAction, setDeliveryAction] = useState<
-    'saving' | 'free' | 'pickup' | null
+    'saving' | 'free' | 'pickup' | 'customer_arranged' | null
   >(null);
   const [deletingTierId, setDeletingTierId] = useState<string | null>(null);
   const [productError, setProductError] = useState('');
@@ -755,6 +764,16 @@ export function CreatorShopManager({
       showLimitedStock: Boolean(product.showLimitedStock),
       status: product.status,
       isPreorder: productType === 'physical' ? Boolean(product.isPreorder) : false,
+      minOrderQuantity: String(Math.max(1, Number(product.minOrderQuantity) || 1)),
+      prepDaysMin:
+        product.prepDaysMin != null && Number(product.prepDaysMin) > 0
+          ? String(product.prepDaysMin)
+          : '',
+      prepDaysMax:
+        product.prepDaysMax != null && Number(product.prepDaysMax) > 0
+          ? String(product.prepDaysMax)
+          : '',
+      requiresCustomDelivery: Boolean(product.requiresCustomDelivery),
       discountEnabled: productType === 'physical' ? discountEnabled : false,
       preorder: settingsToPreorderForm(product.preorderSettings, price, compareAtPrice),
       variants:
@@ -774,10 +793,39 @@ export function CreatorShopManager({
   }
 
   function closeProductDrawer() {
-    if (isSavingProduct || isUploadingImage || isUploadingPdf) return;
+    if (isSavingProduct || isUploadingImage || isUploadingPdf || isConvertingProduct) return;
     setIsProductDialogOpen(false);
     setProductDrawerView('details');
     setProductError('');
+  }
+
+  async function convertProductToService() {
+    if (!productForm.id || isNonPhysicalProduct) return;
+    if (
+      !confirm(
+        'Convert this product to a bookable service? The product will be removed and you will go to Bookings.'
+      )
+    ) {
+      return;
+    }
+    setIsConvertingProduct(true);
+    setProductError('');
+    try {
+      const response = await fetch('/api/creator/convert-offering', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceType: 'product', sourceId: productForm.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Conversion failed');
+      }
+      router.push(data.redirectPath || '/bookings');
+    } catch (error) {
+      setProductError(error instanceof Error ? error.message : 'Conversion failed');
+    } finally {
+      setIsConvertingProduct(false);
+    }
   }
 
   function setProductType(nextType: 'physical' | 'digital' | 'gift_card') {
@@ -1077,6 +1125,22 @@ export function CreatorShopManager({
       showLimitedStock: isNonPhysicalProduct ? false : productForm.showLimitedStock,
       status: productForm.status,
       isPreorder: isNonPhysicalProduct ? false : productForm.isPreorder,
+      minOrderQuantity: isNonPhysicalProduct
+        ? 1
+        : Math.max(1, Math.floor(Number(productForm.minOrderQuantity) || 1)),
+      prepDaysMin: isNonPhysicalProduct
+        ? null
+        : productForm.prepDaysMin.trim()
+          ? Math.max(0, Math.floor(Number(productForm.prepDaysMin) || 0))
+          : null,
+      prepDaysMax: isNonPhysicalProduct
+        ? null
+        : productForm.prepDaysMax.trim()
+          ? Math.max(0, Math.floor(Number(productForm.prepDaysMax) || 0))
+          : null,
+      requiresCustomDelivery: isNonPhysicalProduct
+        ? false
+        : Boolean(productForm.requiresCustomDelivery),
       preorderSettings: isNonPhysicalProduct ? null : preorderSettingsPayload,
       variants:
         isNonPhysicalProduct
@@ -1430,13 +1494,62 @@ export function CreatorShopManager({
     }
   }
 
-  function chooseDeliveryType(type: 'paid' | 'free' | 'pickup') {
+  async function enableCustomerArranged() {
+    if (deliveryAction) return;
+
+    const existing = deliveryTiers.find((tier) => tier.type === 'customer_arranged');
+    if (existing) {
+      setDeliveryComposer('idle');
+      toast({ title: 'Customer arranges delivery is already enabled' });
+      return;
+    }
+    setDeliveryAction('customer_arranged');
+
+    try {
+      const response = await fetch('/api/creator/delivery-tiers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Customer arranges delivery',
+          description: null,
+          type: 'customer_arranged',
+          flatRate: 0,
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        toast({
+          title: 'Could not enable customer arranges delivery',
+          description: data.error || 'Try again',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setDeliveryComposer('idle');
+      await fetchDeliveryTiers();
+      toast({ title: 'Customer arranges delivery enabled' });
+    } catch {
+      toast({
+        title: 'Could not enable customer arranges delivery',
+        description: 'Try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeliveryAction(null);
+    }
+  }
+
+  function chooseDeliveryType(type: 'paid' | 'free' | 'pickup' | 'customer_arranged') {
     if (type === 'free') {
       void enableFreeDelivery();
       return;
     }
     if (type === 'pickup') {
       void enablePickup();
+      return;
+    }
+    if (type === 'customer_arranged') {
+      void enableCustomerArranged();
       return;
     }
     setTierForm({
@@ -1453,7 +1566,9 @@ export function CreatorShopManager({
   }
 
   function editTier(tier: DeliveryTier) {
-    if (tier.type === 'free' || tier.type === 'pickup') return;
+    if (tier.type === 'free' || tier.type === 'pickup' || tier.type === 'customer_arranged') {
+      return;
+    }
     setTierForm({
       id: tier.id,
       name: tier.name,
@@ -2772,6 +2887,46 @@ export function CreatorShopManager({
                     </p>
                   </button>
                 ) : null}
+                {!deliveryTiers.some((tier) => tier.type === 'customer_arranged') ? (
+                  <button
+                    type="button"
+                    onClick={() => chooseDeliveryType('customer_arranged')}
+                    disabled={Boolean(deliveryAction || deletingTierId)}
+                    style={{
+                      textAlign: 'left',
+                      padding: 16,
+                      borderRadius: 12,
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      background: 'rgba(255,255,255,0.04)',
+                      color: '#f4f4f5',
+                      cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
+                      opacity: deliveryAction || deletingTierId ? 0.65 : 1,
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {deliveryAction === 'customer_arranged' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                      ) : null}
+                      Customer arranges delivery
+                    </p>
+                    <p
+                      className="foleio-dash-panel-meta"
+                      style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
+                    >
+                      Buyer handles logistics — ₦0 fee, no street address required.
+                    </p>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
@@ -2984,10 +3139,14 @@ export function CreatorShopManager({
               const flatTiers = deliveryTiers.filter((tier) => tier.type === 'paid');
               const freeTiers = deliveryTiers.filter((tier) => tier.type === 'free');
               const pickupTiers = deliveryTiers.filter((tier) => tier.type === 'pickup');
+              const customerArrangedTiers = deliveryTiers.filter(
+                (tier) => tier.type === 'customer_arranged'
+              );
               if (
                 flatTiers.length === 0 &&
                 freeTiers.length === 0 &&
-                pickupTiers.length === 0
+                pickupTiers.length === 0 &&
+                customerArrangedTiers.length === 0
               ) {
                 return null;
               }
@@ -3174,6 +3333,60 @@ export function CreatorShopManager({
                                   onClick={() => void deleteTier(tier.id)}
                                   disabled={Boolean(deliveryAction || deletingTierId)}
                                   aria-label="Delete pickup"
+                                >
+                                  {deletingTierId === tier.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {customerArrangedTiers.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 0 }}>
+                      {customerArrangedTiers.map((tier) => (
+                        <div key={tier.id} className="foleio-dash-booking-row">
+                          <div className="foleio-dash-booking-main">
+                            <div
+                              className="foleio-dash-booking-top"
+                              style={{
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: 12,
+                                width: '100%',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  minWidth: 0,
+                                }}
+                              >
+                                <span className="foleio-dash-sub-name">
+                                  Customer arranges delivery
+                                </span>
+                                <span className="foleio-dash-badge is-muted">Enabled</span>
+                              </div>
+                              <div
+                                className="foleio-dash-booking-actions"
+                                style={{ margin: 0, flexShrink: 0, gap: 6 }}
+                              >
+                                <button
+                                  type="button"
+                                  className="foleio-dash-btn-danger"
+                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
+                                  onClick={() => void deleteTier(tier.id)}
+                                  disabled={Boolean(deliveryAction || deletingTierId)}
+                                  aria-label="Delete customer arranges delivery"
                                 >
                                   {deletingTierId === tier.id ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
@@ -4224,6 +4437,99 @@ export function CreatorShopManager({
                 ) : null}
 
                 {productForm.type === 'physical' ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                      <label className="foleio-dash-field">
+                        <span>Min order qty</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={productForm.minOrderQuantity}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              minOrderQuantity: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="foleio-dash-field">
+                        <span>Prep days min</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="Ready now"
+                          value={productForm.prepDaysMin}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              prepDaysMin: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="foleio-dash-field">
+                        <span>Prep days max</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="Optional"
+                          value={productForm.prepDaysMax}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              prepDaysMax: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <p className="foleio-dash-field-hint" style={{ marginTop: -4 }}>
+                      Prep days are an estimate only (e.g. “Takes 3–5 days”). Leave blank for
+                      ready now — no calendar on products.
+                    </p>
+                    <div className="foleio-dash-field">
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          Needs custom delivery details
+                          <FieldInfoTip text="Shows an extra checkout block for logistics phone/notes. Buyer still picks a delivery option above." />
+                        </span>
+                        <Switch
+                          checked={productForm.requiresCustomDelivery}
+                          onCheckedChange={(checked) =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              requiresCustomDelivery: checked,
+                            }))
+                          }
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                          aria-label="Needs custom delivery details"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {productForm.type === 'physical' ? (
                 <>
                 <div className="foleio-dash-field">
                   <div
@@ -4832,29 +5138,66 @@ export function CreatorShopManager({
                 <div
                   style={{
                     display: 'flex',
-                    justifyContent: 'flex-end',
+                    flexDirection: 'column',
                     gap: 8,
                     marginTop: 8,
                   }}
                 >
+                  {productForm.id && productForm.type === 'physical' ? (
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-outline"
+                      style={{ width: '100%' }}
+                      onClick={() => void convertProductToService()}
+                      disabled={
+                        isSavingProduct ||
+                        isUploadingImage ||
+                        isUploadingPdf ||
+                        isConvertingProduct
+                      }
+                    >
+                      {isConvertingProduct ? (
+                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                      ) : null}
+                      Convert to service
+                    </button>
+                  ) : null}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      gap: 8,
+                    }}
+                  >
                   <button
                     type="button"
                     className="foleio-dash-btn-ghost"
                     onClick={closeProductDrawer}
-                    disabled={isSavingProduct || isUploadingImage || isUploadingPdf}
+                    disabled={
+                      isSavingProduct ||
+                      isUploadingImage ||
+                      isUploadingPdf ||
+                      isConvertingProduct
+                    }
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     className="foleio-dash-btn-primary"
-                    disabled={isSavingProduct || isUploadingImage || isUploadingPdf}
+                    disabled={
+                      isSavingProduct ||
+                      isUploadingImage ||
+                      isUploadingPdf ||
+                      isConvertingProduct
+                    }
                   >
                     {isSavingProduct ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
                     ) : null}
                     {isGiftCardProduct ? 'Save gift card' : 'Save product'}
                   </button>
+                  </div>
                 </div>
                 ) : null}
               </form>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import {
@@ -15,6 +15,7 @@ export type CreatorReviewRow = {
   customerName: string;
   location: string | null;
   quote: string;
+  rating?: number;
   orderIndex: number;
   isActive: boolean;
 };
@@ -53,8 +54,6 @@ export function CreatorReviewsSettings({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [togglingEnabled, setTogglingEnabled] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState<ReviewFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ReviewFormState>(emptyForm);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -64,7 +63,6 @@ export function CreatorReviewsSettings({
     platformPlan,
     platformSubscriptionActive,
   });
-  const atCap = reviews.length >= limits.maxReviews;
   const canUseReviews = limits.maxReviews > 0;
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
 
@@ -128,56 +126,6 @@ export function CreatorReviewsSettings({
     }
   }
 
-  function startAdd() {
-    if (!canUseReviews || atCap) {
-      showUpgradeModal('maxReviews');
-      return;
-    }
-    setShowAddForm(true);
-    setAddForm(emptyForm());
-    setEditingId(null);
-    setError('');
-  }
-
-  async function submitAdd() {
-    const customerName = addForm.customerName.trim();
-    const location = addForm.location.trim();
-    const quote = addForm.quote.trim();
-    if (!customerName) {
-      setError('Customer name is required');
-      return;
-    }
-    if (!quote) {
-      setError('Review quote is required');
-      return;
-    }
-
-    setSaving(true);
-    setError('');
-    try {
-      const response = await fetch('/api/creator/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName, location, quote }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (response.status === 403 && payload?.limitType === 'maxReviews') {
-        showUpgradeModal('maxReviews');
-        return;
-      }
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Could not add review');
-      }
-      setShowAddForm(false);
-      setAddForm(emptyForm());
-      await loadReviews();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not add review');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   function startEdit(review: CreatorReviewRow) {
     setEditingId(review.id);
     setEditForm({
@@ -185,39 +133,31 @@ export function CreatorReviewsSettings({
       location: review.location || '',
       quote: review.quote,
     });
-    setShowAddForm(false);
     setError('');
   }
 
-  async function submitEdit(reviewId: string) {
-    const customerName = editForm.customerName.trim();
-    const location = editForm.location.trim();
-    const quote = editForm.quote.trim();
-    if (!customerName) {
-      setError('Customer name is required');
-      return;
-    }
-    if (!quote) {
-      setError('Review quote is required');
-      return;
-    }
-
+  async function saveEdit() {
+    if (!editingId) return;
     setSaving(true);
     setError('');
     try {
-      const response = await fetch(`/api/creator/reviews/${reviewId}`, {
+      const response = await fetch(`/api/creator/reviews/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName, location, quote }),
+        body: JSON.stringify({
+          customerName: editForm.customerName,
+          location: editForm.location || null,
+          quote: editForm.quote,
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || 'Could not save review');
+        throw new Error(payload?.error || 'Could not update review');
       }
       setEditingId(null);
       await loadReviews();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save review');
+      setError(err instanceof Error ? err.message : 'Could not update review');
     } finally {
       setSaving(false);
     }
@@ -244,8 +184,8 @@ export function CreatorReviewsSettings({
     }
   }
 
-  async function handleDelete(reviewId: string) {
-    if (!confirm('Delete this review?')) return;
+  async function deleteReview(reviewId: string) {
+    if (!window.confirm('Delete this review?')) return;
     setDeletingId(reviewId);
     setError('');
     try {
@@ -303,259 +243,143 @@ export function CreatorReviewsSettings({
       </div>
       <p className="foleio-dash-panel-meta">
         {!canUseReviews
-          ? 'Add up to 10 customer testimonials on your public page with Pro.'
+          ? 'Reviews are unavailable on this plan.'
           : reviewsEnabled
-            ? `Add testimonials from customers. Active reviews appear on your public page. ${reviews.length}/${limits.maxReviews} used.`
-            : `Reviews are hidden from your public page. You can still manage them here. ${reviews.length}/${limits.maxReviews} used.`}
+            ? `Customers leave reviews after a completed booking or delivered order. ${reviews.length}/${limits.maxReviews} used.`
+            : `Reviews are hidden from your public page. You can still hide or delete them here. ${reviews.length}/${limits.maxReviews} used.`}
       </p>
-      {!showAddForm ? (
-        <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            className="foleio-dash-btn-ghost"
-            onClick={startAdd}
-            disabled={saving || Boolean(deletingId)}
-            aria-disabled={!canUseReviews}
-            style={
-              !canUseReviews ? { opacity: 0.55, cursor: 'not-allowed' } : undefined
-            }
-          >
-            {!canUseReviews ? (
-              <Lock className="h-4 w-4" strokeWidth={1.5} />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Add review
-            {!canUseReviews ? (
-              <span className="foleio-dash-badge is-warning">Pro</span>
-            ) : null}
-          </button>
-        </div>
-      ) : null}
 
-      {showAddForm ? (
-        <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-          <input
-            type="text"
-            value={addForm.customerName}
-            onChange={(e) => setAddForm((prev) => ({ ...prev, customerName: e.target.value }))}
-            placeholder="Customer name"
-            className="foleio-dash-input"
-            autoFocus
-          />
-          <input
-            type="text"
-            value={addForm.location}
-            onChange={(e) => setAddForm((prev) => ({ ...prev, location: e.target.value }))}
-            placeholder="Location (optional)"
-            className="foleio-dash-input"
-          />
-          <textarea
-            value={addForm.quote}
-            onChange={(e) => setAddForm((prev) => ({ ...prev, quote: e.target.value }))}
-            placeholder="What they said about your work"
-            className="foleio-dash-input"
-            rows={3}
-            style={{ resize: 'vertical', minHeight: 72 }}
-          />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="foleio-dash-btn-primary"
-              onClick={() => void submitAdd()}
-              disabled={saving}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save review'}
-            </button>
-            <button
-              type="button"
-              className="foleio-dash-btn-ghost"
-              onClick={() => {
-                setShowAddForm(false);
-                setAddForm(emptyForm());
-              }}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {canUseReviews && reviews.length === 0 && !showAddForm ? (
-        <p className="foleio-dash-panel-meta" style={{ marginTop: 16, marginBottom: 0 }}>
-          No reviews yet. Add your first customer testimonial.
+      {error ? (
+        <p className="foleio-dash-error" style={{ marginTop: 12 }}>
+          {error}
         </p>
       ) : null}
 
-      {reviews.length > 0 ? (
+      {reviews.length === 0 ? (
+        <p className="foleio-dash-empty" style={{ marginTop: 16 }}>
+          No reviews yet. They appear here when customers submit from their email link.
+        </p>
+      ) : (
         <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-          {reviews.map((review) => {
-            const isEditing = editingId === review.id;
-            const busy = saving || deletingId === review.id;
-
-            return (
-              <div
-                key={review.id}
-                style={{
-                  padding: 14,
-                  borderRadius: 12,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'rgba(255,255,255,0.03)',
-                  opacity: review.isActive ? 1 : 0.65,
-                }}
-              >
-                {isEditing ? (
-                  <div style={{ display: 'grid', gap: 10 }}>
+          {reviews.map((review) => (
+            <div key={review.id} className="foleio-dash-booking-row">
+              <div className="foleio-dash-booking-main">
+                {editingId === review.id ? (
+                  <div style={{ display: 'grid', gap: 8 }}>
                     <input
-                      type="text"
+                      className="foleio-dash-input"
                       value={editForm.customerName}
                       onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, customerName: e.target.value }))
+                        setEditForm((prev) => ({
+                          ...prev,
+                          customerName: e.target.value,
+                        }))
                       }
-                      className="foleio-dash-input"
-                      autoFocus
+                      placeholder="Customer name"
                     />
                     <input
-                      type="text"
+                      className="foleio-dash-input"
                       value={editForm.location}
                       onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, location: e.target.value }))
+                        setEditForm((prev) => ({
+                          ...prev,
+                          location: e.target.value,
+                        }))
                       }
                       placeholder="Location (optional)"
-                      className="foleio-dash-input"
                     />
                     <textarea
+                      className="foleio-dash-input"
                       value={editForm.quote}
                       onChange={(e) =>
                         setEditForm((prev) => ({ ...prev, quote: e.target.value }))
                       }
-                      className="foleio-dash-input"
+                      placeholder="Quote"
                       rows={3}
-                      style={{ resize: 'vertical', minHeight: 72 }}
                     />
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         type="button"
-                        className="foleio-dash-btn-primary"
-                        disabled={busy}
-                        onClick={() => void submitEdit(review.id)}
+                        className="foleio-dash-btn-outline"
+                        onClick={() => setEditingId(null)}
+                        disabled={saving}
                       >
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                        Cancel
                       </button>
                       <button
                         type="button"
-                        className="foleio-dash-btn-ghost"
-                        disabled={busy}
-                        onClick={() => setEditingId(null)}
+                        className="foleio-dash-btn"
+                        onClick={() => void saveEdit()}
+                        disabled={saving}
                       >
-                        Cancel
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: '#f4f4f5',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {review.customerName}
-                      {review.location ? (
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            color: '#828282',
-                            fontSize: 13,
-                            fontWeight: 500,
-                          }}
-                        >
-                          · {review.location}
+                    <div className="foleio-dash-booking-top">
+                      <span className="foleio-dash-sub-name">{review.customerName}</span>
+                      {review.rating ? (
+                        <span className="foleio-dash-badge is-muted">
+                          {'★'.repeat(Math.min(5, Math.max(1, review.rating)))}
                         </span>
                       ) : null}
-                    </p>
-                    <p
-                      className="foleio-dash-panel-meta"
-                      style={{ margin: '8px 0 0', fontStyle: 'italic', lineHeight: 1.5 }}
-                    >
-                      “{review.quote}”
-                    </p>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 8,
-                        flexWrap: 'wrap',
-                        marginTop: 12,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-outline"
-                        style={{ padding: '7px 10px', fontSize: 13 }}
-                        disabled={busy}
-                        onClick={() => startEdit(review)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-outline"
-                        style={{ padding: '7px 10px', fontSize: 13 }}
-                        disabled={busy}
-                        onClick={() => void toggleActive(review)}
-                      >
-                        {review.isActive ? 'Hide on profile' : 'Show on profile'}
-                      </button>
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-danger"
-                        style={{ padding: '7px 10px', fontSize: 13 }}
-                        disabled={busy}
-                        onClick={() => void handleDelete(review.id)}
-                      >
-                        {deletingId === review.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        Delete
-                      </button>
                       {!review.isActive ? (
-                        <span className="foleio-dash-panel-meta" style={{ margin: 0 }}>
-                          Hidden from public page
-                        </span>
+                        <span className="foleio-dash-badge is-muted">Hidden</span>
                       ) : null}
                     </div>
+                    {review.location ? (
+                      <p className="foleio-dash-panel-meta" style={{ margin: '4px 0 0' }}>
+                        {review.location}
+                      </p>
+                    ) : null}
+                    <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.45 }}>
+                      {review.quote}
+                    </p>
                   </>
                 )}
               </div>
-            );
-          })}
+              {editingId === review.id ? null : (
+                <div className="foleio-dash-booking-actions">
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-ghost"
+                    onClick={() => void toggleActive(review)}
+                    disabled={saving || Boolean(deletingId)}
+                  >
+                    {review.isActive ? 'Hide' : 'Show'}
+                  </button>
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-outline"
+                    style={{ padding: 6, minWidth: 0 }}
+                    onClick={() => startEdit(review)}
+                    disabled={saving || Boolean(deletingId)}
+                    aria-label="Edit review"
+                  >
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  </button>
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-danger"
+                    style={{ padding: 6, minWidth: 0 }}
+                    onClick={() => void deleteReview(review.id)}
+                    disabled={saving || Boolean(deletingId)}
+                    aria-label="Delete review"
+                  >
+                    {deletingId === review.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-      ) : null}
-
-      {error ? (
-        <p
-          className="foleio-dash-panel-meta"
-          style={{ color: '#fca5a5', marginTop: 12, marginBottom: 0 }}
-        >
-          {error}{' '}
-          <button
-            type="button"
-            className="foleio-dash-btn-ghost"
-            style={{ display: 'inline', padding: '0 6px' }}
-            onClick={() => void loadReviews({ blank: reviews.length === 0 })}
-          >
-            Retry
-          </button>
-        </p>
-      ) : null}
+      )}
 
       {limitType ? (
         <UpgradeModal

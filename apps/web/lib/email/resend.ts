@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { baseEmailTemplate } from './base-template';
 import { shopOrderCreatorNotificationEmail } from '@/lib/email/templates/shop-order-creator-notification';
+import { groupByPrepEstimate } from '@/lib/shop/prep-estimate';
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -179,11 +180,17 @@ type OrderConfirmationEmailProps = {
     unitPrice: number;
     type?: 'physical' | 'digital' | null;
     digitalFileUrl?: string | null;
+    prepDaysMin?: number | null;
+    prepDaysMax?: number | null;
   }>;
   deliveryAddress: {
     address?: string;
     city?: string;
     state?: string;
+    customDelivery?: {
+      phone?: string | null;
+      notes?: string | null;
+    } | null;
   };
   deliveryTier?: {
     name?: string;
@@ -220,19 +227,48 @@ export async function sendOrderConfirmationEmail({
     (item) => item.type === 'digital' && Boolean(item.digitalFileUrl)
   );
   const physicalItems = items.filter((item) => item.type !== 'digital');
+  const physicalGroups = groupByPrepEstimate(physicalItems, (item) => ({
+    prepDaysMin: item.prepDaysMin,
+    prepDaysMax: item.prepDaysMax,
+  }));
 
-  const itemsHtml = physicalItems
-    .map(
-      (item) =>
-        `<tr>
+  const itemsHtml = physicalGroups
+    .map((group) => {
+      const rows = group.items
+        .map(
+          (item) =>
+            `<tr>
           <td style="padding:8px 0;font-size:14px;color:#1C1008;">${item.quantity}x ${item.name}</td>
           <td style="padding:8px 0;font-size:14px;color:#1C1008;text-align:right;">₦${(
             (item.unitPrice * item.quantity) /
             100
           ).toLocaleString('en-NG')}</td>
         </tr>`
-    )
+        )
+        .join('');
+      return `<tr><td colspan="2" style="padding:14px 0 4px;font-size:12px;font-weight:700;color:#9E8E82;text-transform:uppercase;letter-spacing:0.04em;">${group.label}</td></tr>${rows}`;
+    })
     .join('');
+
+  const customDelivery = deliveryAddress.customDelivery;
+  const customDeliveryHtml =
+    customDelivery?.phone || customDelivery?.notes
+      ? `
+          <div style="margin:20px 0;padding:16px;border:1px solid #F0EAE0;border-radius:12px;">
+            <p style="margin:0 0 8px;font-size:13px;color:#9E8E82;">Custom delivery</p>
+            ${
+              customDelivery.phone
+                ? `<p style="margin:0;font-size:14px;color:#1C1008;">Phone: ${customDelivery.phone}</p>`
+                : ''
+            }
+            ${
+              customDelivery.notes
+                ? `<p style="margin:6px 0 0;font-size:13px;color:#6B5E52;">${customDelivery.notes}</p>`
+                : ''
+            }
+          </div>
+        `
+      : '';
 
   const subject = `Order confirmed — ${creatorName}'s Shop 🎉`;
   const html = baseEmailTemplate({
@@ -306,6 +342,7 @@ export async function sendOrderConfirmationEmail({
               ${deliveryTier?.name || 'Digital delivery'} ${deliveryTier?.estimatedDays ? `· ${deliveryTier.estimatedDays}` : ''}
             </p>
           </div>
+          ${customDeliveryHtml}
           `
               : ''
           }
@@ -531,7 +568,13 @@ export async function sendShopOrderCreatorNotification(data: {
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
-  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    prepDaysMin?: number | null;
+    prepDaysMax?: number | null;
+  }>;
   subtotal: number;
   deliveryFee: number;
   total: number;

@@ -12,7 +12,12 @@ export async function GET(
     const { username } = await params;
     const creator = await prisma.creator.findUnique({
       where: { username, isPublic: true },
-      select: { id: true, username: true, displayName: true },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        user: { select: { phoneNumber: true } },
+      },
     });
 
     if (!creator) {
@@ -45,7 +50,12 @@ export async function GET(
     });
 
     return NextResponse.json({
-      creator,
+      creator: {
+        id: creator.id,
+        username: creator.username,
+        displayName: creator.displayName,
+        phoneNumber: creator.user?.phoneNumber || null,
+      },
       products: publicProducts,
       deliveryTiers,
     });

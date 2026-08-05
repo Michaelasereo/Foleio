@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ImagePlus, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
 import {
@@ -46,6 +47,7 @@ export type ServiceItem = {
   depositType?: string | null;
   depositValue?: number | null;
   allowPayInFull?: boolean | null;
+  minNoticeDays?: number | null;
   orderIndex: number;
   categoryOrderIndex: number;
   isActive: boolean;
@@ -65,6 +67,7 @@ type FormState = {
   depositType: 'percent' | 'fixed';
   depositValue: string;
   allowPayInFull: boolean;
+  minNoticeDays: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -81,6 +84,7 @@ const EMPTY_FORM: FormState = {
   depositType: 'percent',
   depositValue: '40',
   allowPayInFull: true,
+  minNoticeDays: '',
 };
 
 const LOCATION_PRESETS = ['Studio', 'Lekki', 'Surulere'] as const;
@@ -128,11 +132,13 @@ export function BookingsServicesManager({
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
 }) {
+  const router = useRouter();
   const [items, setItems] = useState<ServiceItem[]>(initialPriceList);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -220,6 +226,10 @@ export function BookingsServicesManager({
           ? String(Math.round((item.depositValue || 0) / 100))
           : String(item.depositValue || 40),
       allowPayInFull: item.allowPayInFull !== false,
+      minNoticeDays:
+        item.minNoticeDays != null && item.minNoticeDays > 0
+          ? String(item.minNoticeDays)
+          : '',
     });
     setError('');
     setModalOpen(true);
@@ -457,6 +467,9 @@ export function BookingsServicesManager({
       depositType,
       depositValue,
       allowPayInFull: form.allowPayInFull,
+      minNoticeDays: form.minNoticeDays.trim()
+        ? Math.max(0, Math.floor(Number(form.minNoticeDays) || 0))
+        : null,
     };
 
     setSaving(true);
@@ -503,6 +516,35 @@ export function BookingsServicesManager({
       await reload();
     } finally {
       setTogglingId(null);
+    }
+  }
+
+  async function convertServiceToProduct() {
+    if (!editing) return;
+    if (
+      !confirm(
+        'Convert this service to a shop product? The service will be removed and you will go to Shop.'
+      )
+    ) {
+      return;
+    }
+    setIsConverting(true);
+    setError('');
+    try {
+      const response = await fetch('/api/creator/convert-offering', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceType: 'service', sourceId: editing.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Conversion failed');
+      }
+      router.push(data.redirectPath || '/shop');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Conversion failed');
+    } finally {
+      setIsConverting(false);
     }
   }
 
@@ -936,6 +978,26 @@ export function BookingsServicesManager({
                         />
                         <span>Allow clients to pay in full</span>
                       </label>
+                      <label className="foleio-dash-field" style={{ gridColumn: '1 / -1' }}>
+                        <span>Minimum notice (days)</span>
+                        <input
+                          className="foleio-dash-input"
+                          type="number"
+                          min={0}
+                          step={1}
+                          placeholder="Optional — greys early calendar dates"
+                          value={form.minNoticeDays}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              minNoticeDays: e.target.value,
+                            }))
+                          }
+                        />
+                        <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
+                          Clients cannot book sooner than today + this many days.
+                        </p>
+                      </label>
                     </div>
                   ) : null}
                 </div>
@@ -1131,29 +1193,51 @@ export function BookingsServicesManager({
                 <div
                   style={{
                     display: 'flex',
-                    justifyContent: 'flex-end',
+                    flexDirection: 'column',
                     gap: 8,
                     marginTop: 8,
                   }}
                 >
+                  {editing ? (
+                    <button
+                      type="button"
+                      className="foleio-dash-btn-outline"
+                      style={{ width: '100%' }}
+                      onClick={() => void convertServiceToProduct()}
+                      disabled={saving || uploadingImage || isConverting}
+                    >
+                      {isConverting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                      ) : null}
+                      Convert to product
+                    </button>
+                  ) : null}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      gap: 8,
+                    }}
+                  >
                   <button
                     type="button"
                     className="foleio-dash-btn-ghost"
                     onClick={closeModal}
-                    disabled={saving || uploadingImage}
+                    disabled={saving || uploadingImage || isConverting}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     className="foleio-dash-btn-primary"
-                    disabled={saving || uploadingImage}
+                    disabled={saving || uploadingImage || isConverting}
                   >
                     {saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
                     ) : null}
                     {editing ? 'Save changes' : 'Add service'}
                   </button>
+                  </div>
                 </div>
               </form>
             </div>

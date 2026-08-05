@@ -1,6 +1,6 @@
 import { serializeForClient } from '@/lib/utils';
 import { CreatorAppShell } from '@/components/creator/CreatorAppShell';
-import { getCreatorForUser, getCurrentUser } from '@/lib/creator/cached-lookups';
+import { resolveCreatorShellContext } from '@/lib/creator/shell-context';
 
 /** Shared shell layout for bookings / settings / analytics / earnings. */
 export async function CreatorToolShellLayout({
@@ -10,19 +10,10 @@ export async function CreatorToolShellLayout({
   children: React.ReactNode;
   label: string;
 }) {
-  const user = await getCurrentUser();
+  const { creator, supportMode, lookupFailed } = await resolveCreatorShellContext();
 
-  if (!user) {
+  if (!creator && !lookupFailed && !supportMode) {
     return <>{children}</>;
-  }
-
-  let creator: Awaited<ReturnType<typeof getCreatorForUser>> = null;
-
-  try {
-    creator = await getCreatorForUser(user.id);
-  } catch {
-    console.warn(`${label} layout creator lookup failed (non-fatal).`);
-    creator = null;
   }
 
   if (!creator) {
@@ -43,7 +34,7 @@ export async function CreatorToolShellLayout({
   }
 
   return (
-    <CreatorAppShell creator={serializeForClient(creator)}>
+    <CreatorAppShell creator={serializeForClient(creator)} supportMode={supportMode}>
       {children}
     </CreatorAppShell>
   );

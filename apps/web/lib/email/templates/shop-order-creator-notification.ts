@@ -5,6 +5,7 @@ import {
   formatNairaAmount,
   renderFoleioDarkEmail,
 } from '@/lib/email/foleio-dark-email';
+import { groupByPrepEstimate } from '@/lib/shop/prep-estimate';
 
 export function shopOrderCreatorNotificationEmail({
   creatorName,
@@ -24,7 +25,13 @@ export function shopOrderCreatorNotificationEmail({
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
-  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    prepDaysMin?: number | null;
+    prepDaysMax?: number | null;
+  }>;
   subtotal: number;
   deliveryFee: number;
   total: number;
@@ -33,9 +40,18 @@ export function shopOrderCreatorNotificationEmail({
   giftRecipientName?: string | null;
   ordersUrl: string;
 }) {
-  const itemSummary = items
-    .map((item) => `${item.quantity}× ${item.name}`)
-    .join(', ');
+  const groups = groupByPrepEstimate(items, (item) => ({
+    prepDaysMin: item.prepDaysMin,
+    prepDaysMax: item.prepDaysMax,
+  }));
+  const itemSummary = groups
+    .map(
+      (group) =>
+        `${group.label}: ${group.items
+          .map((item) => `${item.quantity}× ${item.name}`)
+          .join(', ')}`
+    )
+    .join(' · ');
 
   const subject = isGift
     ? `New gift order from ${customerName}`

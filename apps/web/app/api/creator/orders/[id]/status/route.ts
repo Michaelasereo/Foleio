@@ -77,6 +77,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
     }
 
+    if (status === 'delivered' && existing.status !== 'delivered') {
+      const { sendShopOrderReviewRequest } = await import('@/lib/reviews/request');
+      void sendShopOrderReviewRequest(order.id).catch((err) => {
+        console.error('[creator/orders/status] review request failed:', err);
+      });
+    }
+
     return NextResponse.json({ order });
   } catch (error) {
     console.error('[creator/orders/:id/status][PATCH] failed:', error);

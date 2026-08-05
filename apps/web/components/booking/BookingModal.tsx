@@ -44,6 +44,7 @@ interface PriceListItem {
   depositType?: string | null;
   depositValue?: number | null;
   allowPayInFull?: boolean | null;
+  minNoticeDays?: number | null;
 }
 
 interface AvailabilityDate {
@@ -561,6 +562,13 @@ export function BookingModal({
   const receiptCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const minNoticeDays = Math.max(0, Math.floor(Number(selectedService.minNoticeDays) || 0));
+  const earliestBookableKey = useMemo(() => {
+    if (minNoticeDays <= 0) return todayKey;
+    const d = new Date();
+    d.setDate(d.getDate() + minNoticeDays);
+    return toDateKey(d);
+  }, [todayKey, minNoticeDays]);
   const openDateKeys = useMemo(() => {
     const set = new Set<string>();
     for (const d of openDates) {
@@ -1252,7 +1260,8 @@ export function BookingModal({
 
                       const isOpen = openDateKeys.has(cell.key);
                       const isPast = cell.key < todayKey;
-                      const canSelect = isOpen && !isPast;
+                      const isTooSoon = cell.key < earliestBookableKey;
+                      const canSelect = isOpen && !isPast && !isTooSoon;
                       const isSelected = allowMultipleDates
                         ? selectedDates.includes(cell.key)
                         : selectedDate === cell.key;
@@ -1272,7 +1281,7 @@ export function BookingModal({
                             .filter(Boolean)
                             .join(' ')}
                           aria-pressed={isSelected}
-                          aria-label={`${cell.key}${canSelect ? ', available' : ', unavailable'}${isSelected ? ', selected' : ''}`}
+                          aria-label={`${cell.key}${canSelect ? ', available' : isTooSoon ? ', requires more notice' : ', unavailable'}${isSelected ? ', selected' : ''}`}
                         >
                           {cell.day}
                         </button>

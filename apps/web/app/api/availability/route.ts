@@ -1,19 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { BOOKINGS_PER_DAY } from '@/lib/booking/day-capacity';
+import { getCreatorApiAccess } from '@/lib/creator/api-session';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const access = await getCreatorApiAccess(request);
+    if (!access) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
@@ -22,10 +17,10 @@ export async function GET(request: Request) {
     const endDate = searchParams.get('endDate');
 
     const where: {
-      creator: { userId: string };
+      creatorId: string;
       date?: { gte?: Date; lte?: Date };
     } = {
-      creator: { userId: user.id },
+      creatorId: access.creator.id,
     };
 
     if (startDate && endDate) {
@@ -92,18 +87,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const access = await getCreatorApiAccess(request);
+    if (!access) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const creator = await prisma.creator.findUnique({
-      where: { userId: user.id },
+      where: { id: access.creator.id },
     });
 
     if (!creator) {

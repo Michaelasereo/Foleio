@@ -46,6 +46,7 @@ interface PriceListItem {
   depositType?: string | null;
   depositValue?: number | null;
   allowPayInFull?: boolean | null;
+  minNoticeDays?: number | null;
 }
 
 interface PortfolioSectionPublic {

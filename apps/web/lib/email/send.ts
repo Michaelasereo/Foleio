@@ -11,6 +11,7 @@ import { creatorSessionReminderEmail } from './templates/creator-session-reminde
 import { payoutConfirmationEmail } from './templates/payout-confirmation';
 import { foundingCreatorResetEmailTemplate } from './templates/founding-creator-reset';
 import { understandYourFeesEmail } from './templates/understand-your-fees';
+import { developerSupportInviteEmail } from './templates/developer-support-invite';
 import { baseEmailTemplate } from './base-template';
 import { getFoleioLogoAttachment } from './foleio-dark-email';
 import type { BalanceReminderKind } from '@/lib/booking/deposit';
@@ -480,6 +481,21 @@ export async function notifySubscribersNewEntry({
         }),
       }))
     );
+  }
+}
+
+export async function sendDeveloperSupportInviteEmail(data: {
+  to: string;
+  creatorName: string;
+  creatorUsername: string;
+  acceptUrl: string;
+}) {
+  try {
+    const { subject, html } = developerSupportInviteEmail(data);
+    return await sendEmail({ to: data.to, subject, html, withLogo: true });
+  } catch (error) {
+    console.error('sendDeveloperSupportInviteEmail failed:', error);
+    return { success: false };
   }
 }
 

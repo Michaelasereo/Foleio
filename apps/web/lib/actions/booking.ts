@@ -80,6 +80,24 @@ export async function createBookingRequest(data: CreateBookingInput) {
       return { error: 'Service not found or unavailable. Please refresh the page and try again.' };
     }
 
+    const minNoticeDays =
+      priceListItem.minNoticeDays != null && priceListItem.minNoticeDays > 0
+        ? Math.floor(priceListItem.minNoticeDays)
+        : 0;
+    if (minNoticeDays > 0) {
+      const today = new Date();
+      const todayUtc = new Date(
+        Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+      );
+      const earliest = new Date(todayUtc);
+      earliest.setUTCDate(earliest.getUTCDate() + minNoticeDays);
+      if (dateOnly.getTime() < earliest.getTime()) {
+        return {
+          error: `This service requires at least ${minNoticeDays} day${minNoticeDays === 1 ? '' : 's'} notice. Please pick a later date.`,
+        };
+      }
+    }
+
     // Check availability
     console.log('🔍 Looking for availability:', { creatorId: data.creatorId, date: dateOnly.toISOString() });
     
@@ -735,6 +753,12 @@ export async function completeService(bookingId: string) {
     });
 
     revalidatePath('/bookings');
+
+    const { sendBookingReviewRequest } = await import('@/lib/reviews/request');
+    void sendBookingReviewRequest(bookingId).catch((err) => {
+      console.error('[completeService] review request failed:', err);
+    });
+
     return { success: true, data: updatedBooking, transactionId };
   } catch (error) {
     console.error('Error completing service:', error);

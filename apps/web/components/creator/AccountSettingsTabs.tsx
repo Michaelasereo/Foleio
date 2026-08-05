@@ -25,9 +25,10 @@ type SettingsTab =
   | 'notifications'
   | 'policy'
   | 'billing'
-  | 'support';
+  | 'support'
+  | 'developer-support';
 
-type SettingsSegment = 'general' | 'admin';
+type SettingsSegment = 'general' | 'admin' | 'developer-support';
 
 const GENERAL_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'profile', label: 'Profile' },
@@ -42,9 +43,14 @@ const ADMIN_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'support', label: 'Chat with us' },
 ];
 
-const ALL_SETTINGS_TABS = [...GENERAL_TABS, ...ADMIN_TABS];
+const DEVELOPER_SUPPORT_TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'developer-support', label: 'Developer support' },
+];
+
+const ALL_SETTINGS_TABS = [...GENERAL_TABS, ...ADMIN_TABS, ...DEVELOPER_SUPPORT_TABS];
 
 function segmentForTab(tab: SettingsTab): SettingsSegment {
+  if (tab === 'developer-support') return 'developer-support';
   return GENERAL_TABS.some((t) => t.id === tab) ? 'general' : 'admin';
 }
 
@@ -125,6 +131,11 @@ export function AccountSettingsTabs({
   const [tiktokUrl, setTiktokUrl] = useState(creator.tiktokHandle || '');
   const [twitterUrl, setTwitterUrl] = useState(creator.twitterUrl || '');
   const [portfolioUrl, setPortfolioUrl] = useState(creator.portfolioUrl || '');
+  const [devSupportStatus, setDevSupportStatus] = useState<string>('none');
+  const [devSupportExpiresAt, setDevSupportExpiresAt] = useState<string | null>(null);
+  const [devSupportLoading, setDevSupportLoading] = useState(true);
+  const [devSupportRequesting, setDevSupportRequesting] = useState(false);
+  const [devSupportRevoking, setDevSupportRevoking] = useState(false);
   const [urlErrors, setUrlErrors] = useState<{
     instagramUrl?: string;
     tiktokUrl?: string;
@@ -140,7 +151,90 @@ export function AccountSettingsTabs({
     }
   }, [searchParams]);
 
-  const visibleTabs = segment === 'general' ? GENERAL_TABS : ADMIN_TABS;
+  const visibleTabs =
+    segment === 'general'
+      ? GENERAL_TABS
+      : segment === 'admin'
+        ? ADMIN_TABS
+        : DEVELOPER_SUPPORT_TABS;
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadDevSupport() {
+      setDevSupportLoading(true);
+      try {
+        const response = await fetch('/api/creator/developer-support', {
+          cache: 'no-store',
+        });
+        const data = await response.json();
+        if (!mounted || !response.ok) return;
+        setDevSupportStatus(data.status || 'none');
+        setDevSupportExpiresAt(data.expiresAt || null);
+      } catch {
+        // ignore
+      } finally {
+        if (mounted) setDevSupportLoading(false);
+      }
+    }
+    void loadDevSupport();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function handleRequestDeveloperSupport() {
+    setDevSupportRequesting(true);
+    try {
+      const response = await fetch('/api/creator/developer-support/request', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+      setDevSupportStatus('pending');
+      if (data.whatsappUrl) {
+        window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
+      }
+      toast({
+        title: 'Developer support requested',
+        description: 'We emailed your developer an accept link.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Request failed',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDevSupportRequesting(false);
+    }
+  }
+
+  async function handleRevokeDeveloperSupport() {
+    if (!confirm('Revoke developer access to your account?')) return;
+    setDevSupportRevoking(true);
+    try {
+      const response = await fetch('/api/creator/developer-support/revoke', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Revoke failed');
+      }
+      setDevSupportStatus('revoked');
+      setDevSupportExpiresAt(null);
+      toast({ title: 'Developer access revoked' });
+    } catch (error: any) {
+      toast({
+        title: 'Revoke failed',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDevSupportRevoking(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -216,7 +310,12 @@ export function AccountSettingsTabs({
   function selectSegment(next: SettingsSegment) {
     if (next === segment) return;
     setSegment(next);
-    const firstTab = (next === 'general' ? GENERAL_TABS : ADMIN_TABS)[0]!.id;
+    const firstTab =
+      (next === 'general'
+        ? GENERAL_TABS
+        : next === 'admin'
+          ? ADMIN_TABS
+          : DEVELOPER_SUPPORT_TABS)[0]!.id;
     selectTab(firstTab);
   }
 
@@ -419,6 +518,7 @@ export function AccountSettingsTabs({
           [
             { id: 'general' as const, label: 'General' },
             { id: 'admin' as const, label: 'Admin' },
+            { id: 'developer-support' as const, label: 'Developer support' },
           ] as const
         ).map((item) => (
           <button
@@ -768,6 +868,58 @@ export function AccountSettingsTabs({
           creatorName={displayName || creator.displayName}
           creatorEmail={userEmail}
         />
+      ) : null}
+
+      {activeTab === 'developer-support' ? (
+        <div className="foleio-dash-panel" style={{ maxWidth: 560 }}>
+          <h2 className="foleio-dash-panel-title">Developer support</h2>
+          <p className="foleio-dash-panel-meta">
+            Grant a Foleio developer temporary setup access without sharing your password.
+            Earnings, payouts, and billing stay blocked.
+          </p>
+          <p className="foleio-dash-panel-meta" style={{ marginBottom: 12 }}>
+            Status:{' '}
+            <strong style={{ color: '#f4f4f5' }}>
+              {devSupportLoading ? 'Loading…' : devSupportStatus}
+            </strong>
+            {devSupportExpiresAt && devSupportStatus === 'active' ? (
+              <>
+                {' '}
+                · expires{' '}
+                {new Date(devSupportExpiresAt).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </>
+            ) : null}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              type="button"
+              className="foleio-dash-btn-primary"
+              onClick={() => void handleRequestDeveloperSupport()}
+              disabled={devSupportRequesting || devSupportRevoking}
+            >
+              {devSupportRequesting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              Request support
+            </button>
+            {devSupportStatus === 'pending' || devSupportStatus === 'active' ? (
+              <button
+                type="button"
+                className="foleio-dash-btn-danger"
+                onClick={() => void handleRevokeDeveloperSupport()}
+                disabled={devSupportRequesting || devSupportRevoking}
+              >
+                {devSupportRevoking ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Revoke access
+              </button>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </>
   );

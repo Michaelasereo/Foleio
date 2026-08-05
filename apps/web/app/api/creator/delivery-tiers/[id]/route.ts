@@ -13,9 +13,9 @@ function toKobo(value: unknown) {
   return Math.round(parsed * 100);
 }
 
-function parseTierType(raw: unknown): 'paid' | 'free' | 'pickup' {
+function parseTierType(raw: unknown): 'paid' | 'free' | 'pickup' | 'customer_arranged' {
   const value = String(raw || 'paid').toLowerCase();
-  if (value === 'free' || value === 'pickup') return value;
+  if (value === 'free' || value === 'pickup' || value === 'customer_arranged') return value;
   return 'paid';
 }
 

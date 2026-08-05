@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
-import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,52 +73,12 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  try {
-    const creator = await getCreator();
-    if (!creator) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    const limits = await getEffectiveCreatorPlanLimits(creator);
-    const reviewCount = await prisma.creatorReview.count({
-      where: { creatorId: creator.id },
-    });
-
-    if (reviewCount >= limits.maxReviews) {
-      return NextResponse.json(
-        { error: 'Plan limit reached', limitType: 'maxReviews' },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const customerName = String(body?.customerName || '').trim();
-    const location = String(body?.location || '').trim() || null;
-    const quote = String(body?.quote || '').trim();
-
-    if (!customerName) {
-      return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
-    }
-    if (!quote) {
-      return NextResponse.json({ error: 'Review quote is required' }, { status: 400 });
-    }
-
-    const review = await prisma.creatorReview.create({
-      data: {
-        id: crypto.randomUUID(),
-        creatorId: creator.id,
-        customerName,
-        location,
-        quote,
-        orderIndex: reviewCount,
-        isActive: true,
-      },
-    });
-
-    return NextResponse.json({ review });
-  } catch (error) {
-    console.error('[creator/reviews][POST] failed:', error);
-    return NextResponse.json({ error: 'Failed to create review' }, { status: 500 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      error:
+        'Manual reviews are disabled. Customers leave reviews from the email link after a completed booking or delivered order.',
+    },
+    { status: 405 }
+  );
 }
