@@ -62,6 +62,7 @@ export type ShopDeliveryTier = {
   flatRate: number;
   minSubtotalKobo?: number | null;
   minItemQuantity?: number | null;
+  contactPhone?: string | null;
 };
 
 type CartItem = {
@@ -1493,10 +1494,36 @@ export function PublicShopPanel({
                                 {tier.description}
                               </span>
                             ) : null}
+                            {tier.type === 'customer_arranged' &&
+                            (tier.contactPhone || merchantPhone) ? (
+                              <span
+                                style={{
+                                  opacity: 0.72,
+                                  paddingLeft: 24,
+                                  fontSize: 12,
+                                }}
+                              >
+                                Call {tier.contactPhone || merchantPhone} to arrange
+                              </span>
+                            ) : null}
                           </label>
                         ))
                       )}
                     </div>
+                  ) : null}
+
+                  {selectedTier?.type === 'customer_arranged' ? (
+                    <p
+                      style={{
+                        margin: '8px 0 0',
+                        fontSize: 13,
+                        color: 'rgba(250,250,250,0.78)',
+                      }}
+                    >
+                      {selectedTier.contactPhone || merchantPhone
+                        ? `Call ${selectedTier.contactPhone || merchantPhone} to arrange delivery`
+                        : 'Merchant contact phone will appear on your receipt after checkout.'}
+                    </p>
                   ) : null}
 
                   {cart.length > 0 ? (

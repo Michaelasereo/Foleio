@@ -3,20 +3,23 @@ import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 import { parseOptionalPositiveInt } from '@/lib/shop/delivery-fee';
+import { nairaInputToKobo } from '@/lib/shop/money';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function toKobo(value: unknown) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return 0;
-  return Math.round(parsed * 100);
-}
+const toKobo = nairaInputToKobo;
 
 function parseTierType(raw: unknown): 'paid' | 'free' | 'pickup' | 'customer_arranged' {
   const value = String(raw || 'paid').toLowerCase();
   if (value === 'free' || value === 'pickup' || value === 'customer_arranged') return value;
   return 'paid';
+}
+
+function parseContactPhone(raw: unknown, type: string): string | null {
+  const phone = String(raw || '').trim();
+  if (type !== 'customer_arranged') return null;
+  return phone || null;
 }
 
 async function getCreator() {
@@ -61,6 +64,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const description = body?.description ? String(body.description) : null;
     const type = parseTierType(body?.type);
     const flatRate = type === 'paid' ? toKobo(body?.flatRate) : 0;
+    const contactPhone = parseContactPhone(body?.contactPhone, type);
 
     let minSubtotalKobo: number | null = null;
     let minItemQuantity: number | null = null;
@@ -87,6 +91,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!name) {
       return NextResponse.json({ error: 'Option name is required' }, { status: 400 });
     }
+    if (type === 'customer_arranged' && !contactPhone) {
+      return NextResponse.json(
+        { error: 'Add a phone number buyers can call to arrange delivery' },
+        { status: 400 }
+      );
+    }
 
     const deliveryTier = await prisma.deliveryTier.update({
       where: { id },
@@ -98,6 +108,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         flatRate,
         minSubtotalKobo,
         minItemQuantity,
+        contactPhone,
       },
     });
 

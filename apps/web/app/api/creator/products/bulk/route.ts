@@ -8,17 +8,14 @@ import {
   isBelowMinPayableKobo,
   MIN_PAYABLE_PRICE_ERROR,
 } from '@/lib/payments/min-amount';
+import { nairaInputToKobo } from '@/lib/shop/money';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BULK_PRODUCTS = 15;
 
-function toKobo(value: unknown) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return 0;
-  return Math.round(parsed * 100);
-}
+const toKobo = nairaInputToKobo;
 
 async function getCreatorSession() {
   const supabase = await createRouteHandlerClient();

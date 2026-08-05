@@ -38,6 +38,7 @@ type DeliveryAddress = {
     phone?: string | null;
     notes?: string | null;
   } | null;
+  merchantContactPhone?: string | null;
 };
 
 /** Decrement stock and apply gift-card balance after an order is confirmed. */
@@ -349,6 +350,8 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
       address: deliveryAddress.address,
       city: deliveryAddress.city,
       state: deliveryAddress.state,
+      fulfillment: deliveryAddress.fulfillment || null,
+      merchantContactPhone: deliveryAddress.merchantContactPhone || null,
       customDelivery:
         deliveryAddress.customDelivery &&
         typeof deliveryAddress.customDelivery === 'object'
@@ -362,6 +365,8 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
       ? {
           name: order.deliveryTier.name,
           estimatedDays: order.deliveryTier.estimatedDays || undefined,
+          type: order.deliveryTier.type || null,
+          contactPhone: order.deliveryTier.contactPhone || null,
         }
       : null,
     subtotal: order.subtotal,

@@ -29,6 +29,7 @@ import { Switch } from '@/components/ui/switch';
 import { FieldInfoTip } from '@/components/ui/FieldInfoTip';
 import { parseAddonCategories } from '@/lib/shop/product-addons';
 import { parsePreorderSettings, resolveProductPricing } from '@/lib/shop/preorder';
+import { koboToNairaInput, nairaInputToKobo } from '@/lib/shop/money';
 import {
   downloadProductCsvTemplate,
   parseProductCsv,
@@ -183,10 +184,11 @@ type DeliveryTier = {
   id: string;
   name: string;
   description: string | null;
-  type: 'paid' | 'free' | 'pickup' | string;
+  type: 'paid' | 'free' | 'pickup' | 'customer_arranged' | string;
   flatRate: number;
   minSubtotalKobo?: number | null;
   minItemQuantity?: number | null;
+  contactPhone?: string | null;
 };
 
 type Order = {
@@ -219,7 +221,7 @@ function normalizeOrderStatus(status: string) {
 }
 
 function formatNaira(kobo: number) {
-  return `₦${(kobo / 100).toLocaleString('en-NG')}`;
+  return `₦${(Math.round(kobo) / 100).toLocaleString('en-NG')}`;
 }
 
 function categoriesToForm(raw: unknown): AddonCategoryForm[] {
@@ -230,7 +232,7 @@ function categoriesToForm(raw: unknown): AddonCategoryForm[] {
     options: category.options.map((option) => ({
       id: option.id,
       name: option.name,
-      price: String(option.price / 100),
+      price: koboToNairaInput(option.price),
     })),
   }));
 }
@@ -289,15 +291,15 @@ function settingsToPreorderForm(raw: unknown, fallbackPrice: string, fallbackCom
     startTime: start.time,
     releaseDate: release.date,
     releaseTime: release.time,
-    preorderPrice: String(settings.preorderPrice / 100),
+    preorderPrice: koboToNairaInput(settings.preorderPrice),
     preorderCompareAtPrice:
       settings.preorderCompareAtPrice != null
-        ? String(settings.preorderCompareAtPrice / 100)
+        ? koboToNairaInput(settings.preorderCompareAtPrice)
         : '',
-    postPreorderPrice: String(settings.postPreorderPrice / 100),
+    postPreorderPrice: koboToNairaInput(settings.postPreorderPrice),
     postPreorderCompareAtPrice:
       settings.postPreorderCompareAtPrice != null
-        ? String(settings.postPreorderCompareAtPrice / 100)
+        ? koboToNairaInput(settings.postPreorderCompareAtPrice)
         : '',
     phases: settings.phases.map((phase) => {
       const phaseStart = splitIsoLocal(phase.startsAt);
@@ -307,7 +309,7 @@ function settingsToPreorderForm(raw: unknown, fallbackPrice: string, fallbackCom
         startTime: phaseStart.time,
         type: phase.type,
         value:
-          phase.type === 'amount' ? String(phase.value / 100) : String(phase.value),
+          phase.type === 'amount' ? koboToNairaInput(phase.value) : String(phase.value),
       };
     }),
   };
@@ -351,10 +353,11 @@ function emptyTierForm() {
     id: '',
     name: '',
     description: '',
-    type: 'paid' as 'paid' | 'free' | 'pickup',
+    type: 'paid' as 'paid' | 'free' | 'pickup' | 'customer_arranged',
     flatRate: '',
     minSubtotal: '',
     minItemQuantity: '',
+    contactPhone: '',
   };
 }
 
@@ -407,7 +410,9 @@ export function CreatorShopManager({
   const [isConvertingProduct, setIsConvertingProduct] = useState(false);
   const [productForm, setProductForm] = useState(emptyProductForm());
   const [tierForm, setTierForm] = useState(emptyTierForm());
-  const [deliveryComposer, setDeliveryComposer] = useState<'idle' | 'choose' | 'flat'>('idle');
+  const [deliveryComposer, setDeliveryComposer] = useState<
+    'idle' | 'choose' | 'flat' | 'customer_arranged'
+  >('idle');
   const [deliveryAction, setDeliveryAction] = useState<
     'saving' | 'free' | 'pickup' | 'customer_arranged' | null
   >(null);
@@ -528,11 +533,11 @@ export function CreatorShopManager({
       type: coupon.type === 'fixed' ? 'fixed' : 'percent',
       value:
         coupon.type === 'fixed'
-          ? String(coupon.value / 100)
+          ? koboToNairaInput(coupon.value)
           : String(coupon.value),
       minSubtotalNaira:
         coupon.minSubtotalKobo != null && coupon.minSubtotalKobo > 0
-          ? String(coupon.minSubtotalKobo / 100)
+          ? koboToNairaInput(coupon.minSubtotalKobo)
           : '',
       maxUses: coupon.maxUses != null ? String(coupon.maxUses) : '',
       startDate: toDateInputValue(coupon.startsAt),
@@ -728,9 +733,9 @@ export function CreatorShopManager({
 
   function openEditProduct(product: Product) {
     const addons = categoriesToForm(product.addons);
-    const price = String(product.price / 100);
+    const price = koboToNairaInput(product.price);
     const compareAtPrice = product.compareAtPrice
-      ? String(product.compareAtPrice / 100)
+      ? koboToNairaInput(product.compareAtPrice)
       : '';
     const discountEnabled =
       Boolean(compareAtPrice) && !Boolean(product.isPreorder);
@@ -1028,16 +1033,30 @@ export function CreatorShopManager({
       preorderSettingsPayload = {
         startsAt,
         releaseAt,
-        preorderPrice: productForm.preorder.preorderPrice,
-        preorderCompareAtPrice: productForm.preorder.preorderCompareAtPrice || null,
-        postPreorderPrice: productForm.preorder.postPreorderPrice,
-        postPreorderCompareAtPrice:
-          productForm.preorder.postPreorderCompareAtPrice || null,
+        preorderPrice: koboToNairaInput(
+          nairaInputToKobo(productForm.preorder.preorderPrice)
+        ),
+        preorderCompareAtPrice: productForm.preorder.preorderCompareAtPrice
+          ? koboToNairaInput(
+              nairaInputToKobo(productForm.preorder.preorderCompareAtPrice)
+            )
+          : null,
+        postPreorderPrice: koboToNairaInput(
+          nairaInputToKobo(productForm.preorder.postPreorderPrice)
+        ),
+        postPreorderCompareAtPrice: productForm.preorder.postPreorderCompareAtPrice
+          ? koboToNairaInput(
+              nairaInputToKobo(productForm.preorder.postPreorderCompareAtPrice)
+            )
+          : null,
         phases: productForm.preorder.phases.map((phase) => ({
           id: phase.id,
           startsAt: combineLocalDateTime(phase.startDate, phase.startTime),
           type: phase.type,
-          value: phase.value,
+          value:
+            phase.type === 'amount'
+              ? koboToNairaInput(nairaInputToKobo(phase.value))
+              : phase.value,
         })),
       };
     }
@@ -1100,21 +1119,29 @@ export function CreatorShopManager({
     }
 
     setIsSavingProduct(true);
+    const normalizeNairaField = (raw: string) =>
+      koboToNairaInput(nairaInputToKobo(raw));
     const payload = {
       name: productForm.name,
       description: productForm.description,
       type: productForm.type,
       digitalFileUrl:
         productForm.type === 'digital' ? productForm.digitalFileUrl || null : null,
-      price: productForm.isPreorder
-        ? productForm.preorder.postPreorderPrice
-        : productForm.discountEnabled
-          ? productForm.price
-          : productForm.regularPrice || productForm.price,
+      price: normalizeNairaField(
+        productForm.isPreorder
+          ? productForm.preorder.postPreorderPrice
+          : productForm.discountEnabled
+            ? productForm.price
+            : productForm.regularPrice || productForm.price
+      ),
       compareAtPrice: productForm.isPreorder
-        ? productForm.preorder.postPreorderCompareAtPrice || null
+        ? productForm.preorder.postPreorderCompareAtPrice
+          ? normalizeNairaField(productForm.preorder.postPreorderCompareAtPrice)
+          : null
         : productForm.discountEnabled
-          ? productForm.compareAtPrice || null
+          ? productForm.compareAtPrice
+            ? normalizeNairaField(productForm.compareAtPrice)
+            : null
           : null,
       discountStartsAt: productForm.discountEnabled ? discountStartsAt : null,
       discountEndsAt: productForm.discountEnabled ? discountEndsAt : null,
@@ -1172,7 +1199,7 @@ export function CreatorShopManager({
               options: category.options.map((option) => ({
                 id: option.id,
                 name: option.name,
-                price: option.price,
+                price: koboToNairaInput(nairaInputToKobo(option.price)),
               })),
             })),
     };
@@ -1349,22 +1376,41 @@ export function CreatorShopManager({
     event.preventDefault();
     if (deliveryAction) return;
 
-    const payload = {
-      name: tierForm.name,
-      description: tierForm.description,
-      type: tierForm.type === 'free' ? 'free' : 'paid',
-      flatRate: tierForm.type === 'paid' ? tierForm.flatRate : 0,
-      minSubtotal:
-        tierForm.type === 'paid' && tierForm.minSubtotal.trim()
-          ? tierForm.minSubtotal
-          : null,
-      minItemQuantity:
-        tierForm.type === 'paid' && tierForm.minItemQuantity.trim()
-          ? Number(tierForm.minItemQuantity)
-          : null,
-    };
+    const isCustomerArranged = tierForm.type === 'customer_arranged';
+    if (isCustomerArranged && !tierForm.contactPhone.trim()) {
+      toast({
+        title: 'Phone required',
+        description: 'Add a number buyers can call to arrange delivery',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const payload = isCustomerArranged
+      ? {
+          name: tierForm.name.trim() || 'Customer arranges delivery',
+          description: tierForm.description || null,
+          type: 'customer_arranged' as const,
+          flatRate: 0,
+          contactPhone: tierForm.contactPhone.trim(),
+        }
+      : {
+          name: tierForm.name,
+          description: tierForm.description,
+          type: tierForm.type === 'free' ? 'free' : 'paid',
+          flatRate: tierForm.type === 'paid' ? tierForm.flatRate : 0,
+          minSubtotal:
+            tierForm.type === 'paid' && tierForm.minSubtotal.trim()
+              ? tierForm.minSubtotal
+              : null,
+          minItemQuantity:
+            tierForm.type === 'paid' && tierForm.minItemQuantity.trim()
+              ? Number(tierForm.minItemQuantity)
+              : null,
+          contactPhone: null,
+        };
     const isEdit = Boolean(tierForm.id);
-    setDeliveryAction('saving');
+    setDeliveryAction(isCustomerArranged ? 'customer_arranged' : 'saving');
 
     try {
       const response = await fetch(
@@ -1387,7 +1433,15 @@ export function CreatorShopManager({
       setTierForm(emptyTierForm());
       setDeliveryComposer('idle');
       await fetchDeliveryTiers();
-      toast({ title: isEdit ? 'Delivery option updated' : 'Delivery option added' });
+      toast({
+        title: isCustomerArranged
+          ? isEdit
+            ? 'Contact phone updated'
+            : 'Customer arranges delivery enabled'
+          : isEdit
+            ? 'Delivery option updated'
+            : 'Delivery option added',
+      });
     } catch {
       toast({
         title: 'Could not save option',
@@ -1494,49 +1548,26 @@ export function CreatorShopManager({
     }
   }
 
-  async function enableCustomerArranged() {
-    if (deliveryAction) return;
-
-    const existing = deliveryTiers.find((tier) => tier.type === 'customer_arranged');
+  function openCustomerArrangedComposer(existing?: DeliveryTier) {
     if (existing) {
-      setDeliveryComposer('idle');
-      toast({ title: 'Customer arranges delivery is already enabled' });
-      return;
-    }
-    setDeliveryAction('customer_arranged');
-
-    try {
-      const response = await fetch('/api/creator/delivery-tiers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Customer arranges delivery',
-          description: null,
-          type: 'customer_arranged',
-          flatRate: 0,
-        }),
+      setTierForm({
+        id: existing.id,
+        name: existing.name || 'Customer arranges delivery',
+        description: existing.description || '',
+        type: 'customer_arranged',
+        flatRate: '',
+        minSubtotal: '',
+        minItemQuantity: '',
+        contactPhone: existing.contactPhone || '',
       });
-      if (!response.ok) {
-        const data = await response.json();
-        toast({
-          title: 'Could not enable customer arranges delivery',
-          description: data.error || 'Try again',
-          variant: 'destructive',
-        });
-        return;
-      }
-      setDeliveryComposer('idle');
-      await fetchDeliveryTiers();
-      toast({ title: 'Customer arranges delivery enabled' });
-    } catch {
-      toast({
-        title: 'Could not enable customer arranges delivery',
-        description: 'Try again',
-        variant: 'destructive',
+    } else {
+      setTierForm({
+        ...emptyTierForm(),
+        type: 'customer_arranged',
+        name: 'Customer arranges delivery',
       });
-    } finally {
-      setDeliveryAction(null);
     }
+    setDeliveryComposer('customer_arranged');
   }
 
   function chooseDeliveryType(type: 'paid' | 'free' | 'pickup' | 'customer_arranged') {
@@ -1549,7 +1580,13 @@ export function CreatorShopManager({
       return;
     }
     if (type === 'customer_arranged') {
-      void enableCustomerArranged();
+      const existing = deliveryTiers.find((tier) => tier.type === 'customer_arranged');
+      if (existing) {
+        setDeliveryComposer('idle');
+        toast({ title: 'Customer arranges delivery is already enabled' });
+        return;
+      }
+      openCustomerArrangedComposer();
       return;
     }
     setTierForm({
@@ -1566,7 +1603,11 @@ export function CreatorShopManager({
   }
 
   function editTier(tier: DeliveryTier) {
-    if (tier.type === 'free' || tier.type === 'pickup' || tier.type === 'customer_arranged') {
+    if (tier.type === 'free' || tier.type === 'pickup') {
+      return;
+    }
+    if (tier.type === 'customer_arranged') {
+      openCustomerArrangedComposer(tier);
       return;
     }
     setTierForm({
@@ -1574,11 +1615,12 @@ export function CreatorShopManager({
       name: tier.name,
       description: tier.description || '',
       type: 'paid',
-      flatRate: String(tier.flatRate / 100),
+      flatRate: koboToNairaInput(tier.flatRate),
       minSubtotal:
-        tier.minSubtotalKobo != null ? String(tier.minSubtotalKobo / 100) : '',
+        tier.minSubtotalKobo != null ? koboToNairaInput(tier.minSubtotalKobo) : '',
       minItemQuantity:
         tier.minItemQuantity != null ? String(tier.minItemQuantity) : '',
+      contactPhone: '',
     });
     setDeliveryComposer('flat');
   }
@@ -3126,6 +3168,64 @@ export function CreatorShopManager({
                 </div>
               </form>
             ) : null}
+
+            {deliveryComposer === 'customer_arranged' ? (
+              <form
+                onSubmit={saveTier}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}
+              >
+                <p className="foleio-dash-panel-meta" style={{ margin: 0 }}>
+                  {tierForm.id
+                    ? 'Update the phone buyers call to arrange delivery'
+                    : 'Add a phone number buyers can call to arrange delivery'}
+                </p>
+                <label className="foleio-dash-field">
+                  <span>Contact phone</span>
+                  <input
+                    className="foleio-dash-input"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="e.g. 08012345678"
+                    value={tierForm.contactPhone}
+                    onChange={(event) =>
+                      setTierForm((prev) => ({
+                        ...prev,
+                        contactPhone: event.target.value,
+                      }))
+                    }
+                    required
+                    autoFocus
+                  />
+                </label>
+                <p className="foleio-dash-field-hint" style={{ margin: 0 }}>
+                  Shown on checkout, the order confirmation email, and the receipt.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="submit"
+                    className="foleio-dash-btn-primary"
+                    disabled={Boolean(deliveryAction || deletingTierId)}
+                  >
+                    {deliveryAction === 'customer_arranged' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                    ) : null}
+                    {tierForm.id ? 'Update phone' : 'Enable'}
+                  </button>
+                  <button
+                    type="button"
+                    className="foleio-dash-btn-ghost"
+                    disabled={Boolean(deliveryAction || deletingTierId)}
+                    onClick={() =>
+                      tierForm.id
+                        ? cancelDeliveryComposer()
+                        : setDeliveryComposer('choose')
+                    }
+                  >
+                    {tierForm.id ? 'Cancel' : 'Back'}
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </div>
 
           <div className="foleio-dash-panel">
@@ -3365,21 +3465,54 @@ export function CreatorShopManager({
                               <div
                                 style={{
                                   display: 'flex',
-                                  flexWrap: 'wrap',
-                                  alignItems: 'center',
-                                  gap: 8,
+                                  flexDirection: 'column',
+                                  gap: 4,
                                   minWidth: 0,
                                 }}
                               >
-                                <span className="foleio-dash-sub-name">
-                                  Customer arranges delivery
-                                </span>
-                                <span className="foleio-dash-badge is-muted">Enabled</span>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                  }}
+                                >
+                                  <span className="foleio-dash-sub-name">
+                                    Customer arranges delivery
+                                  </span>
+                                  <span className="foleio-dash-badge is-muted">Enabled</span>
+                                </div>
+                                {tier.contactPhone ? (
+                                  <span
+                                    className="foleio-dash-panel-meta"
+                                    style={{ margin: 0, fontSize: 13 }}
+                                  >
+                                    Call {tier.contactPhone}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="foleio-dash-panel-meta"
+                                    style={{ margin: 0, fontSize: 13, color: '#f97316' }}
+                                  >
+                                    Add a contact phone
+                                  </span>
+                                )}
                               </div>
                               <div
                                 className="foleio-dash-booking-actions"
                                 style={{ margin: 0, flexShrink: 0, gap: 6 }}
                               >
+                                <button
+                                  type="button"
+                                  className="foleio-dash-btn-ghost"
+                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
+                                  onClick={() => editTier(tier)}
+                                  disabled={Boolean(deliveryAction || deletingTierId)}
+                                  aria-label="Edit contact phone"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                </button>
                                 <button
                                   type="button"
                                   className="foleio-dash-btn-danger"

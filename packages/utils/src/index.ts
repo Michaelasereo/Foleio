@@ -11,17 +11,17 @@ export function formatNaira(amount: number): string {
 }
 
 /**
- * Format a number in kobo to Naira
+ * Format a number in kobo to Naira (2dp-safe via integer kobo).
  */
 export function koboToNaira(kobo: number): number {
-  return kobo / 100;
+  return Math.round(Number(kobo) || 0) / 100;
 }
 
 /**
- * Format Naira to kobo
+ * Format Naira to kobo (integer kobo, no float leftovers).
  */
 export function nairaToKobo(naira: number): number {
-  return Math.round(naira * 100);
+  return Math.round(Number(naira) * 100);
 }
 
 /**

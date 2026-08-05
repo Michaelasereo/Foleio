@@ -1,3 +1,5 @@
+import { nairaInputToKobo } from '@/lib/shop/money';
+
 export type AddonOption = {
   id: string;
   name: string;
@@ -38,7 +40,7 @@ function parseOptionKobo(raw: RawOption): AddonOption | null {
   const id = String(raw?.id || '').trim() || crypto.randomUUID();
   const name = String(raw?.name || '').trim();
   if (!name) return null;
-  const price = Math.max(0, Math.floor(Number(raw?.price) || 0));
+  const price = Math.max(0, Math.round(Number(raw?.price) || 0));
   return { id, name, price };
 }
 
@@ -46,7 +48,7 @@ function parseOptionNaira(raw: RawOption): AddonOption | null {
   const id = String(raw?.id || '').trim() || crypto.randomUUID();
   const name = String(raw?.name || '').trim();
   if (!name) return null;
-  const price = Math.max(0, Math.round(Number(raw?.price) * 100) || 0);
+  const price = Math.max(0, nairaInputToKobo(raw?.price));
   return { id, name, price };
 }
 

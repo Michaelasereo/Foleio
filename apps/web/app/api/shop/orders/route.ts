@@ -240,6 +240,7 @@ export async function POST(request: Request) {
     let deliveryTierId: string | null = null;
     let deliveryFee = 0;
     let deliveryType: string | null = null;
+    let merchantContactPhone: string | null = null;
 
     const hasPhysicalProduct = products.some(
       (product) => !isNonPhysicalProductType(product.type)
@@ -272,6 +273,19 @@ export async function POST(request: Request) {
 
       deliveryTierId = deliveryTier.id;
       deliveryType = deliveryTier.type || 'paid';
+      if (deliveryType === 'customer_arranged') {
+        const contactPhone = String(deliveryTier.contactPhone || '').trim();
+        if (!contactPhone) {
+          return NextResponse.json(
+            {
+              error:
+                'This delivery option is missing a merchant contact phone. Please choose another option or contact the seller.',
+            },
+            { status: 400 }
+          );
+        }
+        merchantContactPhone = contactPhone;
+      }
       const { resolveDeliveryFeeKobo } = await import('@/lib/shop/delivery-fee');
       deliveryFee = resolveDeliveryFeeKobo(
         {
@@ -404,6 +418,7 @@ export async function POST(request: Request) {
       giftMessage: giftFields.giftMessage || null,
       giftCardSendToEmail: giftCardSendToEmail || null,
       ...(customDelivery ? { customDelivery } : {}),
+      ...(merchantContactPhone ? { merchantContactPhone } : {}),
     };
 
     const orderId = crypto.randomUUID();

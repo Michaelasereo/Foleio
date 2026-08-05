@@ -63,6 +63,18 @@ export default async function OrderSuccessPage({
         : 'Delivery')
     : null;
 
+  const deliveryAddress = (order?.deliveryAddress || {}) as {
+    fulfillment?: string;
+    merchantContactPhone?: string | null;
+  };
+  const arrangedContactPhone =
+    String(deliveryAddress.merchantContactPhone || '').trim() ||
+    String(order?.deliveryTier?.contactPhone || '').trim() ||
+    '';
+  const isCustomerArranged =
+    order?.deliveryTier?.type === 'customer_arranged' ||
+    deliveryAddress.fulfillment === 'customer_arranged';
+
   const hasShop = Boolean(order?.creator?.username);
   const paid =
     order?.status === 'confirmed' ||
@@ -133,6 +145,25 @@ export default async function OrderSuccessPage({
             <p style={{ margin: 0, color: '#adadad', fontSize: 13 }}>
               Delivery: {deliveryLabel}
             </p>
+          ) : null}
+          {isCustomerArranged && arrangedContactPhone ? (
+            <div
+              style={{
+                display: 'grid',
+                gap: 4,
+                padding: 12,
+                borderRadius: 8,
+                background: '#1f1f1f',
+                border: '1px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              <p style={{ margin: 0, color: '#adadad', fontSize: 12, fontWeight: 600 }}>
+                Arrange delivery
+              </p>
+              <p style={{ margin: 0, color: '#f4f4f5', fontSize: 14, fontWeight: 600 }}>
+                Call {order.creator?.displayName || 'the seller'} on {arrangedContactPhone}
+              </p>
+            </div>
           ) : null}
           <p
             style={{

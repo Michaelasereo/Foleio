@@ -725,6 +725,8 @@ model DeliveryTier {
   /** Free delivery when physical item quantity reaches this (Pro). */
   minItemQuantity  Int?     @map("min_item_quantity")
   estimatedDays    String?  @map("estimated_days") // unused in v1 UI
+  /** Merchant phone for customer_arranged — shown on checkout, email, receipt. */
+  contactPhone     String?  @map("contact_phone")
   createdAt        DateTime @default(now()) @map("created_at")
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)

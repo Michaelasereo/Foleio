@@ -191,10 +191,14 @@ type OrderConfirmationEmailProps = {
       phone?: string | null;
       notes?: string | null;
     } | null;
+    merchantContactPhone?: string | null;
+    fulfillment?: string | null;
   };
   deliveryTier?: {
     name?: string;
     estimatedDays?: string;
+    type?: string | null;
+    contactPhone?: string | null;
   } | null;
   subtotal: number;
   deliveryFee: number;
@@ -266,6 +270,28 @@ export async function sendOrderConfirmationEmail({
                 ? `<p style="margin:6px 0 0;font-size:13px;color:#6B5E52;">${customDelivery.notes}</p>`
                 : ''
             }
+          </div>
+        `
+      : '';
+
+  const arrangedContactPhone =
+    String(deliveryAddress.merchantContactPhone || '').trim() ||
+    String(deliveryTier?.contactPhone || '').trim() ||
+    '';
+  const isCustomerArranged =
+    deliveryTier?.type === 'customer_arranged' ||
+    deliveryAddress.fulfillment === 'customer_arranged';
+  const arrangedDeliveryHtml =
+    isCustomerArranged && arrangedContactPhone
+      ? `
+          <div style="margin:20px 0;padding:16px;border:1px solid #F0EAE0;border-radius:12px;background:#FFF8F0;">
+            <p style="margin:0 0 8px;font-size:13px;color:#9E8E82;">Arrange delivery</p>
+            <p style="margin:0;font-size:15px;font-weight:600;color:#1C1008;">
+              Call ${creatorName} on ${arrangedContactPhone}
+            </p>
+            <p style="margin:6px 0 0;font-size:13px;color:#6B5E52;">
+              Use this number to arrange pickup or delivery with the seller.
+            </p>
           </div>
         `
       : '';
@@ -343,6 +369,7 @@ export async function sendOrderConfirmationEmail({
             </p>
           </div>
           ${customDeliveryHtml}
+          ${arrangedDeliveryHtml}
           `
               : ''
           }
