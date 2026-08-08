@@ -14,9 +14,7 @@ import {
   formatBalanceDueDate,
   getBookingBalanceDueDate,
 } from '@/lib/booking/deposit';
-
-// Note: This uses a placeholder email implementation
-// In production, integrate with Resend, SendGrid, or similar
+import { FOLEIO_ADMIN_OPS_EMAIL } from '@/lib/config/support';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
@@ -88,7 +86,7 @@ export async function sendBookingConfirmationEmail(
       balanceAmount: balanceNaira,
       balanceDueDateLabel: dueLabel,
       status: booking.status,
-      sampleTo: opts?.sampleTo,
+      sampleTo: opts?.sampleTo || FOLEIO_ADMIN_OPS_EMAIL,
     });
 
     let creatorResult: { success: boolean } | null = null;

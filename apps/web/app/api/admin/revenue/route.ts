@@ -76,8 +76,17 @@ export async function GET(request: Request) {
     channel === 'all' ? ALL_REVENUE_TYPES : CHANNEL_TYPES[channel];
 
   const includeServicesFallback = channel === 'all' || channel === 'services';
+  const includeShopFallback = channel === 'all' || channel === 'shop';
 
-  const [transactions, depositBookings] = await Promise.all([
+  const PAID_SHOP_ORDER_STATUSES = [
+    'confirmed',
+    'processing',
+    'delivered',
+    'in_progress',
+    'shipped',
+  ] as const;
+
+  const [transactions, depositBookings, shopOrders] = await Promise.all([
     prisma.transaction.findMany({
       where: {
         status: { in: [...ADMIN_SUCCESS_TX_STATUSES] },
@@ -126,14 +135,48 @@ export async function GET(request: Request) {
           orderBy: { createdAt: 'desc' },
         })
       : Promise.resolve([]),
+    includeShopFallback
+      ? prisma.order.findMany({
+          where: {
+            status: { in: [...PAID_SHOP_ORDER_STATUSES] },
+            createdAt: { gte: since },
+          },
+          select: {
+            id: true,
+            total: true,
+            paystackReference: true,
+            deliveryAddress: true,
+            createdAt: true,
+            creator: {
+              select: {
+                displayName: true,
+                username: true,
+                platformPlan: true,
+                platformSubscriptionActive: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : Promise.resolve([]),
   ]);
 
   const bookingIdsWithDepositTx = new Set<string>();
+  const shopOrderIdsWithTx = new Set<string>();
+  const shopRefsWithTx = new Set<string>();
   for (const tx of transactions) {
-    if (tx.type !== 'deposit' && tx.type !== 'booking_deposit') continue;
-    const meta = (tx.metadata || {}) as Record<string, unknown>;
-    if (typeof meta.bookingId === 'string') {
-      bookingIdsWithDepositTx.add(meta.bookingId);
+    if (tx.type === 'deposit' || tx.type === 'booking_deposit') {
+      const meta = (tx.metadata || {}) as Record<string, unknown>;
+      if (typeof meta.bookingId === 'string') {
+        bookingIdsWithDepositTx.add(meta.bookingId);
+      }
+    }
+    if (tx.type === 'shop_order') {
+      const meta = (tx.metadata || {}) as Record<string, unknown>;
+      if (typeof meta.orderId === 'string') {
+        shopOrderIdsWithTx.add(meta.orderId);
+      }
+      if (tx.reference) shopRefsWithTx.add(tx.reference);
     }
   }
 
@@ -178,6 +221,45 @@ export async function GET(request: Request) {
       user: {
         email: booking.customerEmail,
         fullName: booking.customerName,
+      },
+    });
+  }
+
+  // Historical shop orders that never got a shop_order ledger row
+  for (const order of shopOrders) {
+    if (shopOrderIdsWithTx.has(order.id)) continue;
+    const ref = String(order.paystackReference || '').trim();
+    if (ref && shopRefsWithTx.has(ref)) continue;
+    const amount = Math.max(0, Math.round(Number(order.total) || 0));
+    // Include zero-total (gift-card covered) for count; fee split still works.
+    const split = platformFeeFromGross(amount, order.creator);
+    const address = (order.deliveryAddress || {}) as {
+      email?: string;
+      name?: string;
+      firstName?: string;
+      lastName?: string;
+    };
+    const fullName =
+      String(address.name || '').trim() ||
+      [address.firstName, address.lastName].filter(Boolean).join(' ').trim() ||
+      null;
+    rows.push({
+      id: `shop_order_${order.id}`,
+      type: 'shop_order',
+      reference: ref || `shop_order_${order.id}`,
+      amount,
+      platformFee: split.platformFee,
+      creatorEarnings: split.creatorEarnings,
+      createdAt: order.createdAt,
+      creator: order.creator
+        ? {
+            displayName: order.creator.displayName,
+            username: order.creator.username,
+          }
+        : null,
+      user: {
+        email: String(address.email || '').trim() || null,
+        fullName,
       },
     });
   }
@@ -267,7 +349,8 @@ export async function GET(request: Request) {
       createdAt: row.createdAt.toISOString(),
       creator: row.creator,
       user: row.user,
-      deletable: !row.id.startsWith('deposit_booking_'),
+      deletable:
+        !row.id.startsWith('deposit_booking_') && !row.id.startsWith('shop_order_'),
     }));
 
   return Response.json({

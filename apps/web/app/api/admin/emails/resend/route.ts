@@ -112,7 +112,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await sendConfirmedShopOrderEmails(order.id);
+    const result = await sendConfirmedShopOrderEmails(order.id, {
+      sampleTo: sampleTo || undefined,
+    });
     if (!result.success) {
       return Response.json(
         {
@@ -129,7 +131,7 @@ export async function POST(request: Request) {
       success: true,
       sentTo: result.to || recipientEmail,
       creatorNotified: Boolean(result.creatorNotified),
-      sampleSent: false,
+      sampleSent: Boolean('sampleSent' in result && result.sampleSent),
       sampleTo: sampleTo || null,
     });
   } catch (error) {

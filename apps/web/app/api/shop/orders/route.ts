@@ -20,7 +20,9 @@ import { findUsableCoupon } from '@/lib/shop/coupons';
 import {
   applyConfirmedShopOrderSideEffects,
   parseDeliveryAddressGiftFields,
+  recordShopOrderPaymentTransaction,
   sendConfirmedShopOrderEmails,
+  shopFreeOrderReference,
   validateGiftAddressFields,
 } from '@/lib/shop/fulfill-order';
 import {
@@ -455,6 +457,13 @@ export async function POST(request: Request) {
       });
 
       await applyConfirmedShopOrderSideEffects(order.id);
+      const freeRecord = await recordShopOrderPaymentTransaction({
+        orderId: order.id,
+        reference: shopFreeOrderReference(order.id),
+      });
+      if ('error' in freeRecord && freeRecord.error) {
+        console.error('[shop] free order ledger write failed:', order.id, freeRecord.error);
+      }
       await sendConfirmedShopOrderEmails(order.id);
 
       return NextResponse.json({

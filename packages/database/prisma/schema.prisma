@@ -752,6 +752,8 @@ model Order {
   status            String   @default("pending")
   paystackReference String?  @map("paystack_reference")
   notes             String?
+  /** Set when stock/coupon/gift-card side effects have been applied (idempotent). */
+  inventoryAppliedAt DateTime? @map("inventory_applied_at")
   reviewToken       String?  @unique @map("review_token")
   reviewEmailSentAt DateTime? @map("review_email_sent_at")
   createdAt         DateTime @default(now()) @map("created_at")
@@ -762,6 +764,7 @@ model Order {
   coupon       Coupon?       @relation(fields: [couponId], references: [id], onDelete: SetNull)
   giftCard     GiftCard?     @relation(fields: [giftCardId], references: [id], onDelete: SetNull)
   items        OrderItem[]
+  emailLogs    OrderEmailLog[]
   review       CreatorReview?
   @@map("orders")
   @@index([fanId])
@@ -936,6 +939,19 @@ model BookingEmailLog {
 
   @@unique([bookingId, emailType])
   @@map("booking_email_logs")
+  @@index([emailType])
+}
+
+/// Idempotent log for shop order lifecycle emails (abandoned checkout, etc.)
+model OrderEmailLog {
+  id        String   @id @default(cuid())
+  orderId   String   @map("order_id")
+  emailType String   @map("email_type")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, emailType])
+  @@map("order_email_logs")
   @@index([emailType])
 }
 

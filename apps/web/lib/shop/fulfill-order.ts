@@ -13,6 +13,13 @@ import {
   sendOrderConfirmationEmail,
   sendShopOrderCreatorNotification,
 } from '@/lib/email/resend';
+import {
+  recordShopOrderPaymentTransaction,
+  shopFreeOrderReference,
+} from '@/lib/shop/record-shop-transaction';
+import { FOLEIO_ADMIN_OPS_EMAIL } from '@/lib/config/support';
+
+export { recordShopOrderPaymentTransaction, shopFreeOrderReference };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com';
 
@@ -49,6 +56,7 @@ export async function applyConfirmedShopOrderSideEffects(orderId: string) {
       include: { items: true },
     });
     if (!order) return;
+    if (order.inventoryAppliedAt) return;
 
     if (order.couponId && order.couponDiscountKobo > 0) {
       const coupon = await tx.coupon.findUnique({
@@ -148,11 +156,16 @@ export async function applyConfirmedShopOrderSideEffects(orderId: string) {
         },
       });
     }
+
+    await tx.order.update({
+      where: { id: order.id },
+      data: { inventoryAppliedAt: new Date() },
+    });
   });
 }
 
 /**
- * Idempotently confirm a paid shop order (stock + emails).
+ * Idempotently confirm a paid shop order (stock + ledger + emails).
  * Safe to call from both Paystack webhook and the order-success page.
  */
 export async function confirmPaidShopOrder(input: {
@@ -174,6 +187,7 @@ export async function confirmPaidShopOrder(input: {
           status: true,
           total: true,
           paystackReference: true,
+          inventoryAppliedAt: true,
         },
       })
     : reference
@@ -184,6 +198,7 @@ export async function confirmPaidShopOrder(input: {
             status: true,
             total: true,
             paystackReference: true,
+            inventoryAppliedAt: true,
           },
         })
       : null;
@@ -192,7 +207,22 @@ export async function confirmPaidShopOrder(input: {
     return { ok: false, status: 'not_found' };
   }
 
+  const paystackRef = reference || order.paystackReference;
+
+  // Already confirmed: still repair missing inventory / ledger on retries.
   if (order.status === 'confirmed') {
+    if (paystackRef) {
+      const record = await recordShopOrderPaymentTransaction({
+        orderId: order.id,
+        reference: paystackRef,
+      });
+      if ('error' in record && record.error) {
+        console.error('[shop] ledger repair failed:', order.id, record.error);
+      }
+    }
+    if (!order.inventoryAppliedAt) {
+      await applyConfirmedShopOrderSideEffects(order.id);
+    }
     return { ok: true, status: 'already_confirmed', orderId: order.id };
   }
 
@@ -200,7 +230,6 @@ export async function confirmPaidShopOrder(input: {
     return { ok: false, status: 'pending', orderId: order.id };
   }
 
-  const paystackRef = reference || order.paystackReference;
   if (!paystackRef) {
     return { ok: false, status: 'unpaid', orderId: order.id };
   }
@@ -234,7 +263,31 @@ export async function confirmPaidShopOrder(input: {
   });
 
   if (claimed.count === 0) {
+    const latest = await prisma.order.findUnique({
+      where: { id: order.id },
+      select: { inventoryAppliedAt: true },
+    });
+    const record = await recordShopOrderPaymentTransaction({
+      orderId: order.id,
+      reference: paystackRef,
+      gatewayResponse: verification?.data,
+    });
+    if ('error' in record && record.error) {
+      console.error('[shop] ledger repair failed:', order.id, record.error);
+    }
+    if (!latest?.inventoryAppliedAt) {
+      await applyConfirmedShopOrderSideEffects(order.id);
+    }
     return { ok: true, status: 'already_confirmed', orderId: order.id };
+  }
+
+  const record = await recordShopOrderPaymentTransaction({
+    orderId: order.id,
+    reference: paystackRef,
+    gatewayResponse: verification?.data,
+  });
+  if ('error' in record && record.error) {
+    console.error('[shop] ledger write failed:', order.id, record.error);
   }
 
   await applyConfirmedShopOrderSideEffects(order.id);
@@ -248,7 +301,10 @@ export async function confirmPaidShopOrder(input: {
 }
 
 /** Send post-confirmation emails (buyer, gift recipient, purchased gift-card codes). */
-export async function sendConfirmedShopOrderEmails(orderId: string) {
+export async function sendConfirmedShopOrderEmails(
+  orderId: string,
+  opts?: { sampleTo?: string }
+) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -373,6 +429,7 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
     deliveryFee: order.deliveryFee,
     total: order.total,
     creatorName: order.creator.displayName,
+    sampleTo: opts?.sampleTo || FOLEIO_ADMIN_OPS_EMAIL,
   });
 
   const sendToEmail =
@@ -439,7 +496,14 @@ export async function sendConfirmedShopOrderEmails(orderId: string) {
     };
   }
 
-  return { success: true, to: buyerEmail, creatorNotified };
+  return {
+    success: true,
+    to: buyerEmail,
+    creatorNotified,
+    sampleSent: Boolean(
+      confirmation && 'sampleSent' in confirmation && confirmation.sampleSent
+    ),
+  };
 }
 
 export function parseDeliveryAddressGiftFields(raw: Record<string, unknown>) {

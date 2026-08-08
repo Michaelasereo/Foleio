@@ -9,6 +9,7 @@ import {
   isBelowMinPayableKobo,
   MIN_PAYABLE_NAIRA,
 } from '@/lib/payments/min-amount';
+import { assertPendingBookingStillBookable } from '@/lib/booking/assert-pending-bookable';
 
 const schema = z.object({
   bookingId: z.string().uuid(),
@@ -67,6 +68,19 @@ export async function POST(request: NextRequest) {
         { error: 'Booking is not awaiting balance payment' },
         { status: 400 }
       );
+    }
+
+    if (paymentKind === 'initial') {
+      const slotCheck = await assertPendingBookingStillBookable({
+        id: booking.id,
+        creatorId: booking.creatorId,
+        bookingDate: booking.bookingDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+      });
+      if (!slotCheck.ok) {
+        return NextResponse.json({ error: slotCheck.error }, { status: 409 });
+      }
     }
 
     const subaccountCode = booking.creator.paystackSubaccountCode;

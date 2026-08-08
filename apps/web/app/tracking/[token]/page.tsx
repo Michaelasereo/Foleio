@@ -609,24 +609,35 @@ export default function TrackingPage() {
   const [refundReason, setRefundReason] = useState('');
   const [isRequestingRefund, setIsRequestingRefund] = useState(false);
   const [isPayingBalance, setIsPayingBalance] = useState(false);
+  const [isPayingInitial, setIsPayingInitial] = useState(false);
 
   useEffect(() => {
     void loadPreview();
   }, [token]);
 
-  // After Paystack hosted checkout redirect, verify balance and restore session
+  // After Paystack hosted checkout redirect, verify payment and restore session
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     const paymentRef = url.searchParams.get('reference') || url.searchParams.get('trxref');
     if (!paymentRef) return;
 
-    const stashKey = `foleio_balance_pay_${token}`;
+    const balanceKey = `foleio_balance_pay_${token}`;
+    const initialKey = `foleio_initial_pay_${token}`;
     let stashed: { email?: string; bookingId?: string } | null = null;
+    let paymentKind: 'balance' | 'initial' = 'balance';
     try {
-      const raw = sessionStorage.getItem(stashKey);
-      if (raw) stashed = JSON.parse(raw) as { email?: string; bookingId?: string };
-      sessionStorage.removeItem(stashKey);
+      const balanceRaw = sessionStorage.getItem(balanceKey);
+      const initialRaw = sessionStorage.getItem(initialKey);
+      if (balanceRaw) {
+        stashed = JSON.parse(balanceRaw) as { email?: string; bookingId?: string };
+        paymentKind = 'balance';
+        sessionStorage.removeItem(balanceKey);
+      } else if (initialRaw) {
+        stashed = JSON.parse(initialRaw) as { email?: string; bookingId?: string };
+        paymentKind = 'initial';
+        sessionStorage.removeItem(initialKey);
+      }
     } catch {
       // ignore
     }
@@ -643,7 +654,7 @@ export default function TrackingPage() {
           body: JSON.stringify({
             reference: paymentRef,
             bookingId: stashed?.bookingId,
-            paymentKind: 'balance',
+            paymentKind,
           }),
         });
       } catch {
@@ -849,6 +860,7 @@ export default function TrackingPage() {
   const showBalancePay =
     ['deposit_paid', 'balance_overdue'].includes(booking.status) &&
     Boolean(booking.balanceAmount);
+  const showInitialPay = booking.status === 'pending';
   const showRefund =
     ['deposit_paid', 'balance_overdue', 'paid', 'first_payout_done', 'service_day'].includes(
       booking.status
@@ -1068,6 +1080,78 @@ export default function TrackingPage() {
           </div>
 
           <div className="foleio-track-actions">
+            {showInitialPay ? (
+              <button
+                type="button"
+                className="foleio-track-btn"
+                disabled={isPayingInitial}
+                onClick={async () => {
+                  setIsPayingInitial(true);
+                  try {
+                    const initRes = await fetch('/api/bookings/initialize-payment', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        bookingId: booking.id,
+                        paymentKind: 'initial',
+                      }),
+                    });
+                    const initData = await initRes.json();
+                    if (!initRes.ok) {
+                      throw new Error(
+                        initData.error || 'Could not start payment'
+                      );
+                    }
+
+                    const authorizationUrl = initData.authorization_url as
+                      | string
+                      | undefined;
+                    if (!authorizationUrl) {
+                      throw new Error('Could not start payment');
+                    }
+
+                    try {
+                      sessionStorage.setItem(
+                        `foleio_initial_pay_${token}`,
+                        JSON.stringify({
+                          email,
+                          bookingId: booking.id,
+                        })
+                      );
+                    } catch {
+                      // ignore
+                    }
+
+                    window.location.href = authorizationUrl;
+                  } catch (err) {
+                    alert(
+                      err instanceof Error
+                        ? err.message
+                        : 'Could not start payment'
+                    );
+                    setIsPayingInitial(false);
+                    if (
+                      err instanceof Error &&
+                      /no longer available/i.test(err.message)
+                    ) {
+                      window.location.reload();
+                    }
+                  }
+                }}
+              >
+                {isPayingInitial ? (
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                ) : null}
+                Complete payment (
+                {formatPrice(
+                  booking.paymentPlan === 'deposit' && booking.depositAmount
+                    ? booking.depositAmount
+                    : booking.totalAmount || 0
+                )}
+                )
+              </button>
+            ) : null}
+
             {showBalancePay ? (
               <button
                 type="button"

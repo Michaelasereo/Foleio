@@ -7,6 +7,8 @@ import { bookingCreatorNotificationEmail } from './templates/booking-creator-not
 import { bookingStatusUpdateEmail } from './templates/booking-status-update';
 import { balanceReminderEmail } from './templates/balance-reminder';
 import { balanceOverdueCreatorEmail } from './templates/balance-overdue-creator';
+import { abandonedBookingCheckoutEmail } from './templates/abandoned-booking-checkout';
+import { abandonedShopCheckoutEmail } from './templates/abandoned-shop-checkout';
 import { creatorSessionReminderEmail } from './templates/creator-session-reminder';
 import { payoutConfirmationEmail } from './templates/payout-confirmation';
 import { foundingCreatorResetEmailTemplate } from './templates/founding-creator-reset';
@@ -222,6 +224,50 @@ export async function sendBalanceReminderEmail(data: {
     });
   } catch (error) {
     console.error('sendBalanceReminderEmail failed:', error);
+    return { success: false };
+  }
+}
+
+export async function sendAbandonedBookingCheckoutEmail(data: {
+  customerEmail: string;
+  customerName: string;
+  creatorName: string;
+  serviceName: string;
+  amountNaira: number;
+  resumeUrl: string;
+}) {
+  try {
+    const { subject, html } = abandonedBookingCheckoutEmail(data);
+    return await sendEmail({
+      to: data.customerEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendAbandonedBookingCheckoutEmail failed:', error);
+    return { success: false };
+  }
+}
+
+export async function sendAbandonedShopCheckoutEmail(data: {
+  customerEmail: string;
+  customerName: string;
+  creatorName: string;
+  itemSummary: string;
+  amountNaira: number;
+  resumeUrl: string;
+}) {
+  try {
+    const { subject, html } = abandonedShopCheckoutEmail(data);
+    return await sendEmail({
+      to: data.customerEmail,
+      subject,
+      html,
+      withLogo: true,
+    });
+  } catch (error) {
+    console.error('sendAbandonedShopCheckoutEmail failed:', error);
     return { success: false };
   }
 }
