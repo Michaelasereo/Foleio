@@ -3,7 +3,16 @@ import { prisma } from '@foleio/database';
 import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { serializePrismaObject } from '@/lib/utils/serialization';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
-import { feePercentForCreator, platformFeeFromGross, toFeePlanInput, PLATFORM_SUB_FEE_SELECT } from '@/lib/billing/platform-fee';
+import {
+  feePercentForCreator,
+  platformFeeFromGross,
+  toFeePlanInput,
+  PLATFORM_SUB_FEE_SELECT,
+} from '@/lib/billing/platform-fee';
+import {
+  recordShopOrderPaymentTransaction,
+  shopFreeOrderReference,
+} from '@/lib/shop/record-shop-transaction';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +26,8 @@ const SUCCESS_TX_STATUSES = new Set([
   'paid',
 ]);
 
+const SUCCESS_TX_STATUS_LIST = [...SUCCESS_TX_STATUSES];
+
 const PAID_BOOKING_STATUSES = [
   'paid',
   'first_payout_done',
@@ -25,6 +36,14 @@ const PAID_BOOKING_STATUSES = [
 ];
 
 const DEPOSIT_BOOKING_STATUSES = ['deposit_paid', 'balance_overdue'];
+
+const PAID_SHOP_ORDER_STATUSES = [
+  'confirmed',
+  'processing',
+  'delivered',
+  'in_progress',
+  'shipped',
+] as const;
 
 function creatorShareFromGross(grossKobo: number, feePct: number) {
   const split = platformFeeFromGross(grossKobo, feePct);
@@ -74,10 +93,13 @@ export async function GET() {
 
     let transactions: any[] = [];
     try {
+      // All successful txs for accurate totals (not capped).
       transactions = await prisma.transaction.findMany({
-        where: { creatorId: creator.id },
+        where: {
+          creatorId: creator.id,
+          status: { in: SUCCESS_TX_STATUS_LIST },
+        },
         orderBy: { createdAt: 'desc' },
-        take: 50,
       });
     } catch (error) {
       console.error('[earnings] transactions:', error);
@@ -106,7 +128,6 @@ export async function GET() {
           },
         },
         orderBy: { createdAt: 'desc' },
-        take: 100,
         select: {
           id: true,
           status: true,
@@ -126,6 +147,32 @@ export async function GET() {
       console.error('[earnings] bookings:', error);
     }
 
+    let shopOrders: Array<{
+      id: string;
+      total: number;
+      paystackReference: string | null;
+      deliveryAddress: unknown;
+      createdAt: Date;
+    }> = [];
+    try {
+      shopOrders = await prisma.order.findMany({
+        where: {
+          creatorId: creator.id,
+          status: { in: [...PAID_SHOP_ORDER_STATUSES] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          total: true,
+          paystackReference: true,
+          deliveryAddress: true,
+          createdAt: true,
+        },
+      });
+    } catch (error) {
+      console.error('[earnings] shopOrders:', error);
+    }
+
     let bankAccount: any = null;
     try {
       bankAccount = await prisma.bankAccount.findFirst({
@@ -142,11 +189,17 @@ export async function GET() {
     // earnings stay correct even if a transaction write failed.
     const txByBookingId = new Map<string, any>();
     const txByReference = new Map<string, any>();
+    const shopOrderIdsWithTx = new Set<string>();
+    const shopRefsWithTx = new Set<string>();
     for (const tx of transactions) {
       const meta = (tx?.metadata || {}) as Record<string, unknown>;
       const bookingId = typeof meta.bookingId === 'string' ? meta.bookingId : null;
       if (bookingId) txByBookingId.set(bookingId, tx);
       if (tx?.reference) txByReference.set(String(tx.reference), tx);
+      if (String(tx?.type || '') === 'shop_order') {
+        if (typeof meta.orderId === 'string') shopOrderIdsWithTx.add(meta.orderId);
+        if (tx?.reference) shopRefsWithTx.add(String(tx.reference));
+      }
     }
 
     let fullPayments = 0;
@@ -240,7 +293,7 @@ export async function GET() {
       });
     }
 
-    // Include non-booking successful transactions (subscriptions, etc.)
+    // Include non-booking successful transactions (shop, subscriptions, etc.)
     for (const tx of transactions) {
       const status = String(tx?.status || '');
       if (!SUCCESS_TX_STATUSES.has(status)) continue;
@@ -266,6 +319,73 @@ export async function GET() {
         ...tx,
         creatorEarnings: rawAmount,
         paymentType: tx.paymentType || 'DIRECT_SUBACCOUNT',
+      });
+    }
+
+    // Historical shop orders that never got a shop_order ledger row
+    for (const order of shopOrders) {
+      if (shopOrderIdsWithTx.has(order.id)) continue;
+      const ref = String(order.paystackReference || '').trim();
+      if (ref && shopRefsWithTx.has(ref)) continue;
+      const freeRef = shopFreeOrderReference(order.id);
+      if (shopRefsWithTx.has(freeRef)) continue;
+
+      const amount = Math.max(0, Math.round(Number(order.total) || 0));
+      const split = creatorShareFromGross(amount, feePct);
+      if (split.creatorEarnings <= 0 && amount > 0) continue;
+      // Still show zero-total (gift-card covered) in activity if useful; skip zero earnings for totals
+      if (split.creatorEarnings > 0) {
+        fullPayments += split.creatorEarnings;
+        if (order.createdAt >= sixMonthsAgo) {
+          const key = `${order.createdAt.getFullYear()}-${String(order.createdAt.getMonth() + 1).padStart(2, '0')}`;
+          monthlyMap.set(key, (monthlyMap.get(key) || 0) + split.creatorEarnings);
+          streamMap.set(
+            'shop_order',
+            (streamMap.get('shop_order') || 0) + split.creatorEarnings
+          );
+        }
+      } else if (amount === 0) {
+        // include activity for free/gift-covered orders without bumping totals
+      } else {
+        continue;
+      }
+
+      const address = (order.deliveryAddress || {}) as {
+        email?: string;
+        name?: string;
+        firstName?: string;
+        lastName?: string;
+      };
+      const customerName =
+        String(address.name || '').trim() ||
+        [address.firstName, address.lastName].filter(Boolean).join(' ').trim() ||
+        'Customer';
+
+      activityRows.push({
+        id: `shop_order_${order.id}`,
+        createdAt: order.createdAt,
+        status: 'SUCCESS',
+        type: 'shop_order',
+        amount,
+        creatorEarnings: split.creatorEarnings,
+        platformFee: split.platformFee,
+        reference: ref || freeRef,
+        paymentType: 'DIRECT_SUBACCOUNT',
+        metadata: {
+          orderId: order.id,
+          type: 'shop_order',
+          customerName,
+          customerEmail: String(address.email || '').trim() || null,
+        },
+      });
+
+      // Durable repair so export / next load use real ledger rows
+      const repairRef = ref || freeRef;
+      void recordShopOrderPaymentTransaction({
+        orderId: order.id,
+        reference: repairRef,
+      }).catch((err) => {
+        console.error('[earnings] shop ledger repair failed:', order.id, err);
       });
     }
 

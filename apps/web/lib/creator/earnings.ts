@@ -6,6 +6,7 @@ import {
   toFeePlanInput,
   PLATFORM_SUB_FEE_SELECT,
 } from '@/lib/billing/platform-fee';
+import { shopFreeOrderReference } from '@/lib/shop/record-shop-transaction';
 
 export const PAID_BOOKING_STATUSES = [
   'paid',
@@ -17,6 +18,14 @@ export const PAID_BOOKING_STATUSES = [
 export const DEPOSIT_BOOKING_STATUSES = [
   'deposit_paid',
   'balance_overdue',
+] as const;
+
+export const PAID_SHOP_ORDER_STATUSES = [
+  'confirmed',
+  'processing',
+  'delivered',
+  'in_progress',
+  'shipped',
 ] as const;
 
 const SUCCESS_TX_STATUSES = new Set([
@@ -47,6 +56,7 @@ export function creatorShareFromGross(
 /**
  * Total creator earnings from paid bookings (preferred) plus successful
  * non-booking ledger rows — same basis as /api/creator/earnings.
+ * Also includes confirmed shop orders missing a shop_order ledger row.
  */
 export async function sumCreatorEarnings(creatorId: string): Promise<{
   totalEarnings: number;
@@ -79,7 +89,7 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-  const [bookings, transactions] = await Promise.all([
+  const [bookings, transactions, shopOrders] = await Promise.all([
     prisma.booking.findMany({
       where: {
         creatorId,
@@ -102,6 +112,7 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
         where: { creatorId },
         select: {
           status: true,
+          type: true,
           creatorEarnings: true,
           reference: true,
           createdAt: true,
@@ -110,20 +121,46 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
       })
       .catch(() => [] as Array<{
         status: string | null;
+        type: string | null;
         creatorEarnings: unknown;
         reference: string | null;
         createdAt: Date;
         metadata: unknown;
       }>),
+    prisma.order
+      .findMany({
+        where: {
+          creatorId,
+          status: { in: [...PAID_SHOP_ORDER_STATUSES] },
+        },
+        select: {
+          id: true,
+          total: true,
+          paystackReference: true,
+          createdAt: true,
+        },
+      })
+      .catch(() => [] as Array<{
+        id: string;
+        total: number;
+        paystackReference: string | null;
+        createdAt: Date;
+      }>),
   ]);
 
   const txByBookingId = new Map<string, (typeof transactions)[number]>();
   const txByReference = new Map<string, (typeof transactions)[number]>();
+  const shopOrderIdsWithTx = new Set<string>();
+  const shopRefsWithTx = new Set<string>();
   for (const tx of transactions) {
     const meta = (tx.metadata || {}) as Record<string, unknown>;
     const bookingId = typeof meta.bookingId === 'string' ? meta.bookingId : null;
     if (bookingId) txByBookingId.set(bookingId, tx);
     if (tx.reference) txByReference.set(String(tx.reference), tx);
+    if (String(tx.type || '') === 'shop_order') {
+      if (typeof meta.orderId === 'string') shopOrderIdsWithTx.add(meta.orderId);
+      if (tx.reference) shopRefsWithTx.add(String(tx.reference));
+    }
   }
 
   let totalEarnings = 0;
@@ -182,6 +219,18 @@ export async function sumCreatorEarnings(creatorId: string): Promise<{
     const bookingId = typeof meta.bookingId === 'string' ? meta.bookingId : null;
     if (bookingId && seenBookingIds.has(bookingId)) continue;
     addAmount(Number(tx.creatorEarnings ?? 0), tx.createdAt);
+  }
+
+  for (const order of shopOrders) {
+    if (shopOrderIdsWithTx.has(order.id)) continue;
+    const ref = String(order.paystackReference || '').trim();
+    if (ref && shopRefsWithTx.has(ref)) continue;
+    if (shopRefsWithTx.has(shopFreeOrderReference(order.id))) continue;
+    const amount = Math.max(0, Math.round(Number(order.total) || 0));
+    addAmount(
+      creatorShareFromGross(amount, feePct).creatorEarnings,
+      order.createdAt
+    );
   }
 
   return { totalEarnings, currentMonth, prevMonth };

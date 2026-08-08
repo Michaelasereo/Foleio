@@ -26,6 +26,7 @@ type SettingsTab =
   | 'policy'
   | 'billing'
   | 'support'
+  | 'security'
   | 'developer-support';
 
 type SettingsSegment = 'general' | 'admin' | 'developer-support';
@@ -41,6 +42,7 @@ const ADMIN_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'policy', label: 'Deposits & policy' },
   { id: 'support', label: 'Chat with us' },
+  { id: 'security', label: 'Security' },
 ];
 
 const DEVELOPER_SUPPORT_TABS: Array<{ id: SettingsTab; label: string }> = [
@@ -103,6 +105,7 @@ interface AccountSettingsTabsProps {
   reviews?: CreatorReviewRow[];
   reviewsEnabled?: boolean;
   userEmail?: string | null;
+  supportMode?: boolean;
 }
 
 export function AccountSettingsTabs({
@@ -112,6 +115,7 @@ export function AccountSettingsTabs({
   reviews,
   reviewsEnabled = true,
   userEmail,
+  supportMode = false,
 }: AccountSettingsTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -136,6 +140,10 @@ export function AccountSettingsTabs({
   const [devSupportLoading, setDevSupportLoading] = useState(true);
   const [devSupportRequesting, setDevSupportRequesting] = useState(false);
   const [devSupportRevoking, setDevSupportRevoking] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
   const [urlErrors, setUrlErrors] = useState<{
     instagramUrl?: string;
     tiktokUrl?: string;
@@ -146,16 +154,28 @@ export function AccountSettingsTabs({
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (isSettingsTab(tab)) {
+      if (supportMode && (tab === 'security' || tab === 'billing')) {
+        setActiveTab('profile');
+        setSegment('general');
+        router.replace('/settings?tab=profile');
+        return;
+      }
       setActiveTab(tab);
       setSegment(segmentForTab(tab));
     }
-  }, [searchParams]);
+  }, [searchParams, supportMode, router]);
+
+  const adminTabs = supportMode
+    ? ADMIN_TABS.filter((tab) => tab.id !== 'security')
+    : ADMIN_TABS;
 
   const visibleTabs =
     segment === 'general'
-      ? GENERAL_TABS
+      ? supportMode
+        ? GENERAL_TABS.filter((tab) => tab.id !== 'billing')
+        : GENERAL_TABS
       : segment === 'admin'
-        ? ADMIN_TABS
+        ? adminTabs
         : DEVELOPER_SUPPORT_TABS;
 
   useEffect(() => {
@@ -295,6 +315,14 @@ export function AccountSettingsTabs({
   const profileUrl = `${appBaseUrl}/creator/${username || creator.username}`;
 
   function selectTab(tab: SettingsTab) {
+    if (supportMode && (tab === 'security' || tab === 'billing')) {
+      toast({
+        title: 'Unavailable',
+        description: 'This area is unavailable in developer support mode.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActiveTab(tab);
     setSegment(segmentForTab(tab));
     const params = new URLSearchParams(searchParams.toString());
@@ -310,13 +338,79 @@ export function AccountSettingsTabs({
   function selectSegment(next: SettingsSegment) {
     if (next === segment) return;
     setSegment(next);
-    const firstTab =
-      (next === 'general'
-        ? GENERAL_TABS
+    const tabsForSegment =
+      next === 'general'
+        ? supportMode
+          ? GENERAL_TABS.filter((tab) => tab.id !== 'billing')
+          : GENERAL_TABS
         : next === 'admin'
-          ? ADMIN_TABS
-          : DEVELOPER_SUPPORT_TABS)[0]!.id;
-    selectTab(firstTab);
+          ? adminTabs
+          : DEVELOPER_SUPPORT_TABS;
+    selectTab(tabsForSegment[0]!.id);
+  }
+
+  async function handleChangePassword() {
+    if (supportMode) {
+      toast({
+        title: 'Unavailable',
+        description: 'This area is unavailable in developer support mode.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast({
+        title: 'Missing fields',
+        description: 'Enter your current password and a new password twice.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({
+        title: 'Password too short',
+        description: 'New password must be at least 8 characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: 'Passwords do not match',
+        description: 'New password and confirmation must match.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const response = await fetch('/api/creator/account/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not change password');
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      toast({
+        title: 'Password updated',
+        description: 'Your password has been changed.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Change password failed',
+        description:
+          error instanceof Error ? error.message : 'Could not change password',
+        variant: 'destructive',
+      });
+    } finally {
+      setChangingPassword(false);
+    }
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -870,12 +964,89 @@ export function AccountSettingsTabs({
         />
       ) : null}
 
+      {activeTab === 'security' && !supportMode ? (
+        <div className="foleio-dash-panel" style={{ maxWidth: 560 }}>
+          <h2 className="foleio-dash-panel-title">Security</h2>
+          <p className="foleio-dash-panel-meta">
+            Change the password for your Foleio account.
+          </p>
+          {userEmail ? (
+            <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
+              <label className="foleio-dash-label" htmlFor="security-email">
+                Email
+              </label>
+              <input
+                id="security-email"
+                type="email"
+                className="foleio-dash-input"
+                value={userEmail}
+                readOnly
+                disabled
+              />
+            </div>
+          ) : null}
+          <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
+            <label className="foleio-dash-label" htmlFor="security-current-password">
+              Current password
+            </label>
+            <input
+              id="security-current-password"
+              type="password"
+              className="foleio-dash-input"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Current password"
+            />
+          </div>
+          <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
+            <label className="foleio-dash-label" htmlFor="security-new-password">
+              New password
+            </label>
+            <input
+              id="security-new-password"
+              type="password"
+              className="foleio-dash-input"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password (min 8)"
+            />
+          </div>
+          <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
+            <label className="foleio-dash-label" htmlFor="security-confirm-password">
+              Confirm new password
+            </label>
+            <input
+              id="security-confirm-password"
+              type="password"
+              className="foleio-dash-input"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+            />
+          </div>
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            onClick={() => void handleChangePassword()}
+            disabled={changingPassword}
+          >
+            {changingPassword ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            {changingPassword ? 'Updating…' : 'Update password'}
+          </button>
+        </div>
+      ) : null}
+
       {activeTab === 'developer-support' ? (
         <div className="foleio-dash-panel" style={{ maxWidth: 560 }}>
           <h2 className="foleio-dash-panel-title">Developer support</h2>
           <p className="foleio-dash-panel-meta">
             Grant a Foleio developer temporary setup access without sharing your password.
-            Earnings, payouts, and billing stay blocked.
+            Earnings, payouts, billing, and security stay blocked.
           </p>
           <p className="foleio-dash-panel-meta" style={{ marginBottom: 12 }}>
             Status:{' '}

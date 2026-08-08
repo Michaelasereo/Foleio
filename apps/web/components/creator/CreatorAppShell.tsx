@@ -2380,7 +2380,7 @@ export function CreatorAppShell({ children, creator, supportMode = false }: Crea
             <div className="foleio-auth-right">
               {supportMode ? (
                 <div className="foleio-dev-support-banner" role="status">
-                  Developer support mode — earnings, payouts, and billing are blocked.
+                  Developer support mode — earnings, payouts, billing, and security are blocked.
                   Access expires 7 days after accept.
                 </div>
               ) : null}

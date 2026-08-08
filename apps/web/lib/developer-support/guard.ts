@@ -10,6 +10,7 @@ const BLOCKED_API_PREFIXES = [
   '/api/creator/payouts',
   '/api/creator/bank',
   '/api/creator/analytics',
+  '/api/creator/account',
   '/api/billing',
   '/api/auth',
 ] as const;
@@ -22,7 +23,7 @@ export function isDeveloperSupportBlockedPage(pathname: string, search = '') {
   if (pathname === '/settings' || pathname.startsWith('/settings/')) {
     const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
     const tab = params.get('tab');
-    if (tab === 'billing') return true;
+    if (tab === 'billing' || tab === 'security') return true;
   }
 
   return false;

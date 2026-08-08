@@ -6,15 +6,23 @@ import { AccountSettingsTabs } from '@/components/creator/AccountSettingsTabs';
 import { OnboardingPrompt } from '@/components/ui/onboarding-prompt';
 import { getCreatorPaidActiveForId } from '@/lib/billing/effective-plan-limits';
 import { serializeForClient } from '@/lib/utils';
+import { resolveCreatorShellContext } from '@/lib/creator/shell-context';
 import SettingsLoading from './loading';
 
 export default async function SettingsPage() {
+  const { creator: shellCreator, supportMode, authenticated } =
+    await resolveCreatorShellContext();
+
   const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session) {
+  if (!session && !supportMode) {
+    redirect('/login');
+  }
+
+  if (!shellCreator && !authenticated && !supportMode) {
     redirect('/login');
   }
 
@@ -60,14 +68,27 @@ export default async function SettingsPage() {
     creatorLinks: Array<{ linkType: string; url: string }>;
   } | null = null;
 
+  const creatorLookupId = shellCreator?.id;
+  const creatorLookupUserId = session?.user?.id;
+
   try {
-    const row = await prisma.creator.findUnique({
-      where: { userId: session.user.id },
-      select: {
-        ...creatorBaseSelect,
-        growthEligible: true,
-      },
-    });
+    const row = creatorLookupId
+      ? await prisma.creator.findUnique({
+          where: { id: creatorLookupId },
+          select: {
+            ...creatorBaseSelect,
+            growthEligible: true,
+          },
+        })
+      : creatorLookupUserId
+        ? await prisma.creator.findUnique({
+            where: { userId: creatorLookupUserId },
+            select: {
+              ...creatorBaseSelect,
+              growthEligible: true,
+            },
+          })
+        : null;
     if (row) {
       creator = {
         ...row,
@@ -81,10 +102,17 @@ export default async function SettingsPage() {
     // Schema may lag deploy (missing growth_eligible). Retry without it.
     console.warn('Settings page creator lookup failed; retrying without growthEligible.', error);
     try {
-      const row = await prisma.creator.findUnique({
-        where: { userId: session.user.id },
-        select: creatorBaseSelect,
-      });
+      const row = creatorLookupId
+        ? await prisma.creator.findUnique({
+            where: { id: creatorLookupId },
+            select: creatorBaseSelect,
+          })
+        : creatorLookupUserId
+          ? await prisma.creator.findUnique({
+              where: { userId: creatorLookupUserId },
+              select: creatorBaseSelect,
+            })
+          : null;
       if (row) {
         creator = {
           ...row,
@@ -116,7 +144,7 @@ export default async function SettingsPage() {
         </p>
         <div style={{ marginTop: 24 }}>
           <OnboardingPrompt
-            userEmail={session.user.email || 'user'}
+            userEmail={session?.user?.email || 'user'}
             completedSteps={0}
             totalSteps={4}
           />
@@ -224,7 +252,8 @@ export default async function SettingsPage() {
           platformPlan: creator.platformPlan,
           platformSubscriptionActive: creator.platformSubscriptionActive,
         }}
-        userEmail={session.user.email}
+        userEmail={session?.user?.email || null}
+        supportMode={supportMode}
         billing={{
           currentSubscription: currentSubscription as any,
           billingHistory: billingHistory as any[],
