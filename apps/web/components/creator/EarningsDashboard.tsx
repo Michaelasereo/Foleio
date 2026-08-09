@@ -352,10 +352,10 @@ export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean
                     marginBottom: 6,
                   }}
                 >
-                  <span style={{ color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
+                  <span style={{ color: '#111827', fontSize: 14, fontWeight: 500 }}>
                     {row.label}
                   </span>
-                  <span style={{ color: '#adadad', fontSize: 13, fontWeight: 500 }}>
+                  <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 500 }}>
                     {formatNaira(Number(row.amount) / 100)} · {row.percent}%
                   </span>
                 </div>
@@ -363,7 +363,7 @@ export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean
                   style={{
                     height: 6,
                     borderRadius: 999,
-                    background: '#2b2b2b',
+                    background: '#ebe8eb',
                     overflow: 'hidden',
                   }}
                 >

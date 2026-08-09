@@ -37,7 +37,7 @@ export function RemoteImage({
     return (
       <span
         aria-label={alt}
-        className={cn('block bg-[#2b2b2b]', className)}
+        className={cn('block bg-[#ebe8eb]', className)}
         style={style}
       />
     );
@@ -60,7 +60,7 @@ export function RemoteImage({
         }
         setFailed(true);
       }}
-      className={cn('block bg-[#2b2b2b]', className)}
+      className={cn('block bg-[#ebe8eb]', className)}
       style={style}
     />
   );

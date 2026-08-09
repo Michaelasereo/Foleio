@@ -35,10 +35,47 @@ export function BookingDetailClient({
   const captureRef = useRef<HTMLDivElement | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [milestones, setMilestones] = useState(
+    () =>
+      (Array.isArray(booking.milestones) ? booking.milestones : []) as Array<{
+        id: string;
+        label: string;
+        dueDate?: string | null;
+        status: 'pending' | 'done';
+      }>
+  );
 
   const isDepositHold = ['deposit_paid', 'balance_overdue'].includes(
     booking.status
   );
+  const isQuoteBooking = booking.source === 'quote';
+
+  async function toggleMilestone(id: string) {
+    const next = milestones.map((m) =>
+      m.id === id
+        ? { ...m, status: m.status === 'done' ? 'pending' : 'done' }
+        : m
+    ) as typeof milestones;
+    setMilestones(next);
+    setActionLoading(`milestone-${id}`);
+    try {
+      const res = await fetch(`/api/creator/quotes/${booking.id}/milestones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ milestones: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Could not update milestone');
+        setMilestones(Array.isArray(booking.milestones) ? booking.milestones : []);
+      }
+    } catch {
+      alert('Could not update milestone');
+      setMilestones(Array.isArray(booking.milestones) ? booking.milestones : []);
+    } finally {
+      setActionLoading(null);
+    }
+  }
 
   async function handleDownloadPng() {
     const element = captureRef.current;
@@ -50,7 +87,7 @@ export function BookingDetailClient({
         scale: 2,
         useCORS: true,
         allowTaint: false,
-        backgroundColor: '#212121',
+        backgroundColor: '#ffffff',
         logging: false,
       });
 
@@ -300,7 +337,7 @@ export function BookingDetailClient({
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
-            background: '#212121',
+            background: '#ffffff',
             borderRadius: 12,
             padding: 20,
           }}
@@ -309,14 +346,14 @@ export function BookingDetailClient({
             <p
               style={{
                 margin: 0,
-                color: '#fafafa',
+                color: '#111827',
                 fontSize: 18,
                 fontWeight: 600,
               }}
             >
               Booking details
             </p>
-            <p style={{ margin: '6px 0 0', color: '#adadad', fontSize: 13 }}>
+            <p style={{ margin: '6px 0 0', color: '#6b7280', fontSize: 13 }}>
               {booking.priceListItem?.name || 'Service'} ·{' '}
               {formatBookingDate(
                 booking.bookingDate,
@@ -328,7 +365,7 @@ export function BookingDetailClient({
 
           <div
             style={{
-              background: '#1a1816',
+              background: '#f3f1f4',
               borderRadius: 12,
               padding: '14px 16px',
               display: 'flex',
@@ -346,12 +383,12 @@ export function BookingDetailClient({
                   gap: 16,
                 }}
               >
-                <span style={{ color: '#828282', fontSize: 12, fontWeight: 500 }}>
+                <span style={{ color: '#6b7280', fontSize: 12, fontWeight: 500 }}>
                   {row.label}
                 </span>
                 <span
                   style={{
-                    color: '#f4f4f5',
+                    color: '#111827',
                     fontSize: row.strong ? 15 : 13,
                     fontWeight: row.strong ? 600 : 500,
                     textAlign: 'right',
@@ -365,6 +402,44 @@ export function BookingDetailClient({
             ))}
           </div>
         </div>
+
+        {isQuoteBooking && milestones.length > 0 ? (
+          <div style={{ marginTop: 20 }}>
+            <p className="foleio-dash-sub-name" style={{ marginBottom: 10 }}>
+              Milestones
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {milestones.map((m) => (
+                <li
+                  key={m.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '8px 0',
+                    borderBottom: '1px solid rgba(17, 24, 39, 0.08)',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={m.status === 'done'}
+                    disabled={actionLoading === `milestone-${m.id}`}
+                    onChange={() => void toggleMilestone(m.id)}
+                  />
+                  <span
+                    style={{
+                      textDecoration:
+                        m.status === 'done' ? 'line-through' : undefined,
+                      color: m.status === 'done' ? '#6b7280' : '#111827',
+                    }}
+                  >
+                    {m.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {booking.trackingToken ? (
           <p className="foleio-dash-panel-meta" style={{ marginTop: 16, marginBottom: 0 }}>

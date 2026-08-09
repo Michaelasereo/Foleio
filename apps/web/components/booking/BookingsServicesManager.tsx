@@ -48,6 +48,7 @@ export type ServiceItem = {
   depositValue?: number | null;
   allowPayInFull?: boolean | null;
   minNoticeDays?: number | null;
+  pricingType?: string | null;
   orderIndex: number;
   categoryOrderIndex: number;
   isActive: boolean;
@@ -68,6 +69,7 @@ type FormState = {
   depositValue: string;
   allowPayInFull: boolean;
   minNoticeDays: string;
+  pricingType: 'fixed' | 'quote';
 };
 
 const EMPTY_FORM: FormState = {
@@ -85,6 +87,7 @@ const EMPTY_FORM: FormState = {
   depositValue: '40',
   allowPayInFull: true,
   minNoticeDays: '',
+  pricingType: 'fixed',
 };
 
 const LOCATION_PRESETS = ['Studio', 'Lekki', 'Surulere'] as const;
@@ -230,6 +233,7 @@ export function BookingsServicesManager({
         item.minNoticeDays != null && item.minNoticeDays > 0
           ? String(item.minNoticeDays)
           : '',
+      pricingType: item.pricingType === 'quote' ? 'quote' : 'fixed',
     });
     setError('');
     setModalOpen(true);
@@ -367,12 +371,17 @@ export function BookingsServicesManager({
     }
 
     const name = form.name.trim();
-    const priceNaira = Number(form.priceNaira);
+    const priceNaira = Number(form.priceNaira || 0);
     if (!name) {
       setError('Service name is required.');
       return;
     }
-    if (!Number.isFinite(priceNaira) || priceNaira < 1000) {
+    if (form.pricingType === 'quote') {
+      if (!Number.isFinite(priceNaira) || priceNaira < 0) {
+        setError('Enter a valid starting price (or 0).');
+        return;
+      }
+    } else if (!Number.isFinite(priceNaira) || priceNaira < 1000) {
       setError('Enter a valid price of at least ₦1,000.');
       return;
     }
@@ -451,7 +460,9 @@ export function BookingsServicesManager({
     }
 
     const payload = {
-      serviceType: 'general' as const,
+      serviceType: (form.pricingType === 'quote' ? 'quote' : 'general') as
+        | 'general'
+        | 'quote',
       name,
       category: null,
       description: form.description.trim() || null,
@@ -470,6 +481,7 @@ export function BookingsServicesManager({
       minNoticeDays: form.minNoticeDays.trim()
         ? Math.max(0, Math.floor(Number(form.minNoticeDays) || 0))
         : null,
+      pricingType: form.pricingType,
     };
 
     setSaving(true);
@@ -722,18 +734,43 @@ export function BookingsServicesManager({
                 </label>
 
                 <label className="foleio-dash-field">
-                  <span>Price (₦)</span>
+                  <span>Pricing</span>
+                  <select
+                    className="foleio-dash-input"
+                    value={form.pricingType}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        pricingType:
+                          e.target.value === 'quote' ? 'quote' : 'fixed',
+                      }))
+                    }
+                  >
+                    <option value="fixed">Fixed price (book a date)</option>
+                    <option value="quote">Custom quote (request intake)</option>
+                  </select>
+                  <p className="foleio-dash-field-hint">
+                    Quote services show “Request a quote” on your public profile.
+                  </p>
+                </label>
+
+                <label className="foleio-dash-field">
+                  <span>
+                    {form.pricingType === 'quote'
+                      ? 'Starting price (₦, optional)'
+                      : 'Price (₦)'}
+                  </span>
                   <input
                     className="foleio-dash-input"
                     type="number"
-                    min={1000}
+                    min={form.pricingType === 'quote' ? 0 : 1000}
                     step={1}
                     value={form.priceNaira}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, priceNaira: e.target.value }))
                     }
-                    placeholder="45000"
-                    required
+                    placeholder={form.pricingType === 'quote' ? '0' : '45000'}
+                    required={form.pricingType !== 'quote'}
                   />
                 </label>
 

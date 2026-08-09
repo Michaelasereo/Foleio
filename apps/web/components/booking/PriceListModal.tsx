@@ -21,6 +21,7 @@ interface PriceListItem {
   depositType?: string | null;
   depositValue?: number | null;
   allowPayInFull?: boolean | null;
+  pricingType?: string | null;
 }
 
 interface GroupedPriceList {
@@ -440,7 +441,7 @@ export function PriceListModal({
                 if (selectedItem) onSelectItem(selectedItem);
               }}
             >
-              Continue to booking
+              Continue to {selectedItem?.pricingType === 'quote' ? 'quote request' : 'booking'}
             </button>
           </div>
         </div>

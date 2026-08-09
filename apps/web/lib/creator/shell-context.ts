@@ -21,6 +21,10 @@ const creatorShellSelect = {
   bookingPolicyFileUrl: true,
   bookingPolicyFileName: true,
   bookingPolicyLinkUrl: true,
+  fixedBookingsEnabled: true,
+  customQuotesEnabled: true,
+  shopEnabled: true,
+  quoteWhatsappPhone: true,
 } as const;
 
 export type CreatorShellContext = {

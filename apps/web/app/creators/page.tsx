@@ -1,21 +1,18 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { FanSupportChat } from '@/components/ai/FanSupportChat';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { CreatorsDiscovery } from '@/components/creators/CreatorsDiscovery';
-import {
-  MarketingHero,
-  MarketingShell,
-} from '@/components/marketing/MarketingShell';
-import { BRAND_CLAIM } from '@/components/marketing/marketingCss';
+import { authCss } from '@/components/auth/styles';
 
 export const metadata: Metadata = {
-  title: 'Top Creators | Foleio',
+  title: 'Creators | Foleio',
   description:
-    'Browse top Pro creators on Foleio — book services, shop products, and pay securely with Paystack. Africa’s number one creator monetization platform.',
+    'Browse Pro creators on Foleio — book services, shop products, and pay securely with Paystack. Africa’s number one creator monetization platform.',
   openGraph: {
-    title: 'Top Creators | Foleio',
+    title: 'Creators | Foleio',
     description:
-      'Browse top Pro creators on Foleio — book services, shop products, and pay securely with Paystack.',
+      'Browse Pro creators on Foleio — book services, shop products, and pay securely with Paystack.',
     url: 'https://foleio.com/creators',
     siteName: 'Foleio',
     type: 'website',
@@ -23,23 +20,91 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://foleio.com/creators' },
 };
 
+const creatorsPageCss = `
+.foleio-creators-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #1a1816;
+  color: #ededed;
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-weight: 300;
+}
+.foleio-creators-page h1 {
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #e4e2de;
+}
+body:has(.foleio-creators-page) .foleio-site-footer {
+  display: none !important;
+}
+.foleio-creators-inner {
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
+  flex: 1;
+}
+.foleio-creators-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+  color: #adadad;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.foleio-creators-back:hover {
+  color: #fafafa;
+}
+.foleio-creators-back svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.foleio-creators-header {
+  margin-bottom: 28px;
+}
+.foleio-creators-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+  line-height: 1.15;
+}
+.foleio-creators-header p {
+  margin: 0;
+  max-width: 36rem;
+  color: #8b8f9a;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+`;
+
 export default function CreatorsPage() {
   return (
-    <MarketingShell activePath="/creators">
-      <MarketingHero
-        eyebrow={BRAND_CLAIM}
-        title="Top Creators"
-        subtitle="Pro creators on Foleio — book their services or shop their products from one public page."
-      />
+    <div className="foleio-creators-page">
+      <style dangerouslySetInnerHTML={{ __html: authCss + creatorsPageCss }} />
+      <div className="foleio-creators-inner">
+        <Link href="/" className="foleio-creators-back">
+          <ArrowLeft strokeWidth={1.5} aria-hidden />
+          Back
+        </Link>
 
-      <div className="foleio-mkt-creators-wrap">
+        <header className="foleio-creators-header">
+          <h1>Creator marketplace</h1>
+          <p>
+            Pro creators on Foleio — book their services or shop their products
+            from one public page.
+          </p>
+        </header>
+
         <Suspense fallback={<CreatorsLoading />}>
           <CreatorsDiscovery />
         </Suspense>
       </div>
-
-      <FanSupportChat />
-    </MarketingShell>
+    </div>
   );
 }
 

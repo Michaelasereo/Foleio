@@ -28,14 +28,14 @@ const chatCss = `
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #fff;
-  background: #fff;
+  border: 1px solid #c9c6c1;
+  background: #e4e2de;
   color: #001035;
   cursor: pointer;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.2s ease, background 0.15s ease;
 }
-.foleio-chat-fab:hover { transform: scale(1.06); opacity: 0.95; }
+.foleio-chat-fab:hover { transform: scale(1.06); background: #ebe9e5; }
 .foleio-chat-hint {
   pointer-events: none;
   position: absolute;
@@ -45,7 +45,7 @@ const chatCss = `
   border-radius: 8px;
   background: #2a2a2a;
   border: 1px solid rgba(255,255,255,0.12);
-  color: #e4e4e7;
+  color: #e0ddd8;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -65,7 +65,7 @@ const chatCss = `
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.12);
   background: #212121;
-  color: #f4f4f5;
+  color: #e0ddd8;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
@@ -92,7 +92,7 @@ const chatCss = `
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: #e4e2de;
   color: #001035;
   font-size: 13px;
   font-weight: 700;
@@ -101,7 +101,7 @@ const chatCss = `
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #fafafa;
+  color: #e4e2de;
 }
 .foleio-chat-close {
   border: 0;
@@ -111,7 +111,7 @@ const chatCss = `
   border-radius: 8px;
   cursor: pointer;
 }
-.foleio-chat-close:hover { color: #fafafa; background: rgba(255,255,255,0.06); }
+.foleio-chat-close:hover { color: #e4e2de; background: rgba(255,255,255,0.06); }
 .foleio-chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -130,13 +130,13 @@ const chatCss = `
 }
 .foleio-chat-bubble.is-user {
   align-self: flex-end;
-  background: #fff;
+  background: #e4e2de;
   color: #001035;
 }
 .foleio-chat-bubble.is-assistant {
   align-self: flex-start;
   background: #2b2b2b;
-  color: #e4e4e7;
+  color: #e0ddd8;
   border: 1px solid rgba(255,255,255,0.06);
 }
 .foleio-chat-typing {
@@ -171,7 +171,7 @@ const chatCss = `
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(255,255,255,0.04);
-  color: #fafafa;
+  color: #e0ddd8;
   font: inherit;
   font-size: 13px;
   outline: none;
@@ -184,23 +184,25 @@ const chatCss = `
 .foleio-chat-send {
   min-height: 42px;
   padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid #fff;
-  background: #fff;
+  border-radius: 9px;
+  border: 1px solid #c9c6c1;
+  background: #e4e2de;
   color: #001035;
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.36px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: background 0.15s ease;
 }
 .foleio-chat-send:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.foleio-chat-send:not(:disabled):hover { opacity: 0.92; }
+.foleio-chat-send:not(:disabled):hover { background: #ebe9e5; }
 @media (max-width: 480px) {
   .foleio-chat-panel {
     right: 12px;

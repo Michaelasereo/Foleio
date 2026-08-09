@@ -79,6 +79,8 @@ interface UnifiedBookingsManagerProps {
     isAvailable: boolean;
   }>;
   priceList: PriceListItem[];
+  customQuotesEnabled?: boolean;
+  fixedBookingsEnabled?: boolean;
 }
 
 export function UnifiedBookingsManager({
@@ -88,6 +90,8 @@ export function UnifiedBookingsManager({
   completedBookings,
   availability,
   priceList,
+  customQuotesEnabled: _customQuotesEnabled = false,
+  fixedBookingsEnabled = true,
 }: UnifiedBookingsManagerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -113,6 +117,10 @@ export function UnifiedBookingsManager({
     }
     if (tabParam === 'shop') {
       router.replace('/shop');
+      return;
+    }
+    if (tabParam === 'quotes') {
+      router.replace('/invoices');
       return;
     }
     const nextView: PrimaryView =
@@ -336,18 +344,20 @@ export function UnifiedBookingsManager({
           Services
           <span className="foleio-dash-tab-count">{priceList.length}</span>
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'availability'}
-          className={`foleio-dash-tab${primaryView === 'availability' ? ' is-active' : ''}`}
-          onClick={() => setView('availability')}
-        >
-          Manage availability
-        </button>
+        {fixedBookingsEnabled ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={primaryView === 'availability'}
+            className={`foleio-dash-tab${primaryView === 'availability' ? ' is-active' : ''}`}
+            onClick={() => setView('availability')}
+          >
+            Manage availability
+          </button>
+        ) : null}
       </div>
 
-      {primaryView === 'availability' ? (
+      {primaryView === 'availability' && fixedBookingsEnabled ? (
         <AvailabilitySetupForm
           creatorId={creator.id}
           platformPlan={creator.platformPlan}

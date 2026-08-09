@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   BarChart3,
   CalendarDays,
+  CheckCircle2,
   Compass,
   LayoutTemplate,
   User,
@@ -29,11 +30,38 @@ const USE_CASES = [
   { value: 'discover', label: 'Get discovered', icon: Compass },
 ] as const;
 
+type SellModule = 'booking_services' | 'shop' | 'custom_quotes';
+
+const SELL_MODULES: {
+  value: SellModule;
+  label: string;
+  examples: string;
+}[] = [
+  {
+    value: 'booking_services',
+    label: 'Booking services',
+    examples: 'e.g. makeup, hairstyles, photography',
+  },
+  {
+    value: 'shop',
+    label: 'Shop',
+    examples: 'e.g. cakes, journals, merch, and more',
+  },
+  {
+    value: 'custom_quotes',
+    label: 'Custom booking/Services',
+    examples: 'e.g. custom fashion, events, services',
+  },
+];
+
 const STEP_TITLES = [
   'What do you want to use Foleio for mostly?',
+  'How do you sell?',
   'What is your business category?',
   'Claim your username',
 ] as const;
+
+const TOTAL_STEPS = 4;
 
 function normalizeUsername(raw: string) {
   return raw
@@ -44,6 +72,14 @@ function normalizeUsername(raw: string) {
     .slice(0, 30);
 }
 
+function offeringsFromSellModules(modules: SellModule[]) {
+  return {
+    fixedBookingsEnabled: modules.includes('booking_services'),
+    shopEnabled: modules.includes('shop'),
+    customQuotesEnabled: modules.includes('custom_quotes'),
+  };
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -51,6 +87,9 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [useCases, setUseCases] = useState<string[]>([]);
+  const [sellModules, setSellModules] = useState<SellModule[]>([
+    'booking_services',
+  ]);
   const [category, setCategory] = useState('');
   const [username, setUsername] = useState('');
   const [usernameAvailable, setUsernameAvailable] = useState(false);
@@ -66,7 +105,7 @@ export default function OnboardingPage() {
       const previewStep = Number(params.get('step') || '1');
 
       if (isPreview) {
-        if (previewStep >= 1 && previewStep <= 3) {
+        if (previewStep >= 1 && previewStep <= TOTAL_STEPS) {
           setStep(previewStep);
         }
         setIsCheckingAccess(false);
@@ -177,6 +216,14 @@ export default function OnboardingPage() {
     );
   }
 
+  function toggleSellModule(value: SellModule) {
+    setSellModules((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
+  }
+
   async function handleComplete() {
     const claimed = normalizeUsername(username);
     if (claimed.length < 3) {
@@ -202,6 +249,14 @@ export default function OnboardingPage() {
         return;
       }
 
+      const offerings = offeringsFromSellModules(sellModules);
+      const merchantType =
+        offerings.customQuotesEnabled &&
+        !offerings.fixedBookingsEnabled &&
+        !offerings.shopEnabled
+          ? ('custom_projects' as const)
+          : ('services_shop' as const);
+
       const result: {
         success?: boolean;
         error?: string;
@@ -212,6 +267,8 @@ export default function OnboardingPage() {
           category: category || 'other',
           useCases,
           bio: '',
+          merchantType,
+          ...offerings,
         },
         { skipBankSetup: true },
         {
@@ -266,10 +323,22 @@ export default function OnboardingPage() {
     );
   }
 
+  const canContinue =
+    (step === 1 && useCases.length > 0) ||
+    (step === 2 && sellModules.length > 0) ||
+    (step === 3 && Boolean(category));
+
   return (
-    <AuthLumaLayout title={STEP_TITLES[step - 1]}>
+    <AuthLumaLayout
+      title={STEP_TITLES[step - 1]}
+      subtitle={
+        step === 2
+          ? 'Pick one or more. You can toggle these later in Settings.'
+          : undefined
+      }
+    >
       <div className="foleio-onboard-progress" aria-hidden>
-        {[1, 2, 3].map((n) => (
+        {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((n) => (
           <div
             key={n}
             className={`foleio-onboard-progress-seg${n <= step ? ' is-active' : ''}`}
@@ -299,7 +368,45 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 2 ? (
-        <div className="foleio-onboard-chips" role="group" aria-label="Business category">
+        <div
+          className="foleio-onboard-cards"
+          role="group"
+          aria-label="How you sell"
+        >
+          {SELL_MODULES.map((item) => {
+            const selected = sellModules.includes(item.value);
+            return (
+              <button
+                key={item.value}
+                type="button"
+                className={`foleio-onboard-card${selected ? ' is-selected' : ''}`}
+                aria-pressed={selected}
+                onClick={() => toggleSellModule(item.value)}
+              >
+                <div className="foleio-onboard-card-body">
+                  <div className="foleio-onboard-card-title">{item.label}</div>
+                  <p className="foleio-onboard-card-examples">{item.examples}</p>
+                </div>
+                {selected ? (
+                  <CheckCircle2
+                    className="foleio-onboard-card-check"
+                    fill="currentColor"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {step === 3 ? (
+        <div
+          className="foleio-onboard-chips"
+          role="group"
+          aria-label="Business category"
+        >
           {INDUSTRY_OPTIONS.map((item) => {
             const selected = category === item.value;
             return (
@@ -317,10 +424,13 @@ export default function OnboardingPage() {
         </div>
       ) : null}
 
-      {step === 3 ? (
+      {step === 4 ? (
         <div>
           <div className="foleio-onboard-username">
-            <User className="foleio-auth-row-icon ml-3 h-5 w-5" strokeWidth={1.5} />
+            <User
+              className="foleio-auth-row-icon ml-3 h-5 w-5"
+              strokeWidth={1.5}
+            />
             <span className="foleio-onboard-username-prefix">@</span>
             <input
               className="foleio-onboard-username-input"
@@ -329,7 +439,7 @@ export default function OnboardingPage() {
               autoComplete="username"
               onChange={(e) => setUsername(normalizeUsername(e.target.value))}
             />
-              {usernameAvailable ? (
+            {usernameAvailable ? (
               <BadgeCheck
                 className="foleio-onboard-username-verified h-5 w-5"
                 strokeWidth={1.5}
@@ -360,15 +470,12 @@ export default function OnboardingPage() {
           </button>
         ) : null}
 
-        {step < 3 ? (
+        {step < TOTAL_STEPS ? (
           <button
             type="button"
             className={authButtonClass}
-            disabled={
-              (step === 1 && useCases.length === 0) ||
-              (step === 2 && !category)
-            }
-            onClick={() => setStep((s) => Math.min(3, s + 1))}
+            disabled={!canContinue}
+            onClick={() => setStep((s) => Math.min(TOTAL_STEPS, s + 1))}
           >
             Continue
           </button>

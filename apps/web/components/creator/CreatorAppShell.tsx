@@ -2,16 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  BadgeCheck,
   Bell,
   CalendarDays,
-  Copy,
-  ImageOff,
+  FileText,
   LayoutDashboard,
   Menu,
-  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   ShoppingBag,
   UserRound,
@@ -20,21 +19,244 @@ import {
 } from 'lucide-react';
 import { AuthLegalFooter } from '@/components/auth/AuthLegalFooter';
 import { authCss } from '@/components/auth/styles';
-import {
-  BusinessCoverCard,
-  removeCreatorBanner,
-} from '@/components/creator/BusinessCoverCard';
-import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import { CreatorSetupTourCard } from '@/components/creator/CreatorSetupTourCard';
-import { useToast } from '@/components/ui/use-toast';
-import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
-import { subscribeAvatarUpdated, subscribeBannerUpdated } from '@/lib/creator/profile-live';
 
 const creatorShellCss = `
 ${authCss}
 
 body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   display: none !important;
+}
+
+/* Duo-style frame: icon rail on soft canvas + floating light content panel */
+.foleio-creator-root {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #f5f3f4 !important;
+  color: #1a1816;
+}
+.foleio-creator-root .foleio-auth-shell {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 12px 12px 0;
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+}
+.foleio-creator-rail {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  width: 220px;
+  flex-shrink: 0;
+  /* Match Creator Dashboard strip (32) + main gap (4) so Workspace lines up with the content panel */
+  padding: 36px 14px 18px;
+  box-sizing: border-box;
+  transition: width 0.18s ease;
+}
+.foleio-creator-rail.is-collapsed {
+  width: 72px;
+  padding: 36px 10px 16px;
+  align-items: center;
+}
+.foleio-creator-rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.foleio-creator-rail-toggle:hover {
+  color: #111827;
+  background: rgba(17, 24, 39, 0.06);
+}
+.foleio-creator-rail-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.foleio-creator-rail-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  margin: 0 4px 8px;
+  box-sizing: border-box;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-section-row {
+  justify-content: center;
+  margin: 0 0 8px;
+  width: 100%;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-section,
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-link-label {
+  display: none;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-nav,
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-footer,
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-top {
+  align-items: center;
+  width: 100%;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-link {
+  justify-content: center;
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  gap: 0;
+}
+.foleio-creator-rail-nav,
+.foleio-creator-rail-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.foleio-creator-rail-top {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.foleio-creator-rail-nav {
+  flex: 1;
+}
+.foleio-creator-rail-section {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.foleio-creator-rail-footer > .foleio-creator-rail-section {
+  margin: 14px 10px 6px;
+}
+.foleio-creator-rail-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  box-sizing: border-box;
+}
+.foleio-creator-rail-link:hover {
+  color: #374151;
+  background: rgba(17, 24, 39, 0.04);
+}
+.foleio-creator-rail-link.is-active {
+  color: #1f2937;
+  background: #eceaef;
+  font-weight: 500;
+}
+.foleio-creator-rail-link.is-active:hover {
+  color: #1f2937;
+  background: #eceaef;
+}
+.foleio-creator-rail-link svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.foleio-creator-rail-link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foleio-creator-root .foleio-auth-topbar-nav a,
+.foleio-creator-root .foleio-auth-topbar-icon {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-auth-topbar-nav a:hover,
+.foleio-creator-root .foleio-auth-topbar-nav a.is-active,
+.foleio-creator-root .foleio-auth-topbar-icon:hover,
+.foleio-creator-root .foleio-auth-topbar-icon.is-active {
+  color: #111827;
+  background: rgba(17, 24, 39, 0.06);
+}
+.foleio-creator-root .foleio-auth-topbar-mobile-pop {
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.12);
+}
+.foleio-creator-root .foleio-auth-topbar-mobile-pop a {
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-auth-topbar-mobile-pop a:hover,
+.foleio-creator-root .foleio-auth-topbar-mobile-pop a.is-active {
+  color: #111827;
+  background: rgba(17, 24, 39, 0.06);
+}
+.foleio-creator-root .foleio-auth-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+}
+.foleio-creator-root .foleio-creator-content-surface {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.foleio-creator-root .foleio-auth-columns {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+@media (min-width: 900px) {
+  .foleio-creator-rail {
+    display: flex;
+  }
+  .foleio-creator-root .foleio-auth-topbar {
+    display: none !important;
+  }
+}
+@media (max-width: 899px) {
+  .foleio-creator-root {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+  }
+  .foleio-creator-root .foleio-auth-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    padding: 12px;
+    gap: 12px;
+  }
 }
 
 /* Mobile tool pages: hide cover + name/verified; keep on /dashboard only */
@@ -292,6 +514,570 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-auth-topbar-icon svg {
   width: 20px;
   height: 20px;
+}
+
+/*
+ * Merchant main content surface: light rounded panel on the page canvas.
+ * Title + notifications sit on the canvas above the panel (not inside it).
+ */
+.foleio-creator-root .foleio-creator-content-surface {
+  display: flex;
+  flex-direction: column;
+  background: #fcfafb;
+  color: #1a1816;
+  border-radius: 6px;
+  padding: 0;
+  box-sizing: border-box;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 12px 40px rgba(80, 60, 90, 0.12);
+  border: 1px solid #e5e3e6;
+}
+.foleio-creator-root .foleio-creator-content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 4px 0 2px;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+}
+.foleio-creator-root .foleio-creator-content-title {
+  margin: 0;
+  color: #111827;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.foleio-creator-root .foleio-creator-content-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.foleio-creator-root .foleio-creator-content-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #6b7280;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.foleio-creator-root .foleio-creator-content-action:hover {
+  color: #111827;
+  background: rgba(17, 24, 39, 0.06);
+}
+.foleio-creator-root .foleio-creator-content-action svg {
+  width: 16px;
+  height: 16px;
+}
+.foleio-creator-root .foleio-creator-content-body {
+  flex: 1;
+  align-self: center;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 22px 20px 20px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.foleio-creator-root .foleio-creator-content-body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+@media (min-width: 900px) {
+  .foleio-creator-root .foleio-creator-content-header {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 4px 0 2px;
+  }
+  .foleio-creator-root .foleio-creator-content-body {
+    padding: 24px 32px 28px;
+  }
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-title {
+  color: #1a1816;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-header .foleio-auth-title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-muted,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-panel-meta,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-empty,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-stat-label,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-stat-icon,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-stat-change,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-sub-date,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-field-hint {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-label,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-field > span,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-sub-name,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-panel-title,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-stat-value {
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-panel,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-stat,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tabs {
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-sub-row {
+  border-top-color: rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-sub-badge,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-badge.is-muted {
+  background: rgba(17, 24, 39, 0.06);
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-badge {
+  background: rgba(17, 24, 39, 0.06);
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-badge.is-info {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-badge.is-success {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-badge.is-warning {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-badge.is-danger {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-underline-tabs {
+  border-bottom-color: rgba(17, 24, 39, 0.1);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-underline-tab {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-underline-tab:hover,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-underline-tab.is-active,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab.is-active {
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab.is-active {
+  background: rgba(17, 24, 39, 0.06);
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab-count {
+  background: rgba(17, 24, 39, 0.08);
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab.is-active .foleio-dash-tab-count {
+  background: rgba(17, 24, 39, 0.14);
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-btn-primary {
+  border-color: #111827;
+  background: #111827;
+  color: #f9fafb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-btn-outline {
+  border-color: rgba(17, 24, 39, 0.16);
+  background: #ffffff;
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-btn-ghost {
+  background: rgba(17, 24, 39, 0.05);
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-withdraw {
+  border-color: #111827;
+  background: #111827;
+  color: #f9fafb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-input,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-textarea,
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-input,
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-row,
+.foleio-creator-root .foleio-creator-content-surface select.foleio-dash-input {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-input:focus,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-textarea:focus,
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-input:focus {
+  outline: 1px solid rgba(17, 24, 39, 0.28);
+  border-color: rgba(17, 24, 39, 0.28);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-input::placeholder,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-textarea::placeholder {
+  color: #9ca3af;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-row {
+  border-color: rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-notes,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-meta,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-details {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-drawer-close {
+  background: rgba(17, 24, 39, 0.06);
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-drawer-close:hover {
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-legal-links a {
+  color: rgba(17, 24, 39, 0.45);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-legal-links a:hover {
+  color: rgba(17, 24, 39, 0.85);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-legal-sep {
+  color: rgba(17, 24, 39, 0.25);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-legal-copy {
+  color: rgba(17, 24, 39, 0.35);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dev-support-banner {
+  background: rgba(217, 119, 6, 0.12);
+  color: #92400e;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-amount {
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-contacts,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-booking-contacts span {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-drawer {
+  background: #fcfafb;
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.2);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-modal {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface a {
+  color: inherit;
+}
+
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-badge {
+  background: rgba(17, 24, 39, 0.06);
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-badge.is-pro {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-category {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-menu-btn {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-menu-btn:hover,
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-menu-btn[aria-expanded='true'] {
+  background: rgba(17, 24, 39, 0.06);
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-menu-pop {
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.12);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-menu-item {
+  color: #374151;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-menu-item:hover {
+  background: rgba(17, 24, 39, 0.05);
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-stub-thumb.is-avatar > * {
+  background: #e5e7eb !important;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-auth-right {
+  max-width: none;
+}
+.foleio-creator-root .foleio-creator-content-surface > .foleio-auth-legal {
+  width: 100%;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+/* Light theme: availability, settings chrome, fees, policy inside content surface */
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-availability-legend,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-tz-sep,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-title,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-pick-hint,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-mgmt-hint,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-field,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-to,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-full-hint,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-weekdays,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-legend,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-saved-meta,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-price,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-note,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-rate span {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-tz,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-card,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-saved-row {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-mgmt-date,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-option-left,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-option-value,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-capacity-input,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-mode {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-mgmt-label,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-month,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-section-label,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-plan,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-rate strong,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy-more-btn,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy a,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy h2,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy strong,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-avatar-meta button {
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy {
+  color: #374151;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy-full {
+  border-top-color: rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-policy-more-btn:hover {
+  color: #000;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-mgmt-row,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-option,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-row {
+  border-color: rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-modes {
+  background: #f3f1f4;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-mode.is-active {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-field input[type='time'],
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-capacity-input input,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-select,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-url-strip,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-link-row {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  color-scheme: light;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-field input[type='time']:focus,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-capacity-input input:focus {
+  outline: 1px solid rgba(17, 24, 39, 0.28);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-nav {
+  background: #f3f1f4;
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-nav:hover {
+  background: #ebe8eb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-day {
+  background: #f3f1f4;
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-day:hover:not(:disabled) {
+  border-color: rgba(17, 24, 39, 0.2);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-day.is-today:not(.is-selected) {
+  border-color: rgba(17, 24, 39, 0.35);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-day.is-active:not(.is-selected):not(.is-off) {
+  border-color: rgba(17, 24, 39, 0.45);
+  background: #ebe8eb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-day.is-selected {
+  background: #111827;
+  color: #ffffff;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-cal-day.is-booked:not(.is-selected) {
+  border-color: rgba(17, 24, 39, 0.35);
+  background: #ebe8eb;
+  box-shadow: inset 0 -2px 0 0 #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-legend-dot {
+  background: #d1d5db;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-legend-dot.is-booked {
+  background: #111827;
+  box-shadow: 0 0 0 2px #ebe8eb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-legend-dot.is-selected {
+  background: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-legend-dot.is-past {
+  background: #9ca3af;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-toggle {
+  background: #d1d5db;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-toggle span,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-toggle-knob {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.18);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-toggle.is-on {
+  background: #22c55e;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-toggle.is-on span,
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-toggle.is-on .foleio-avail-toggle-knob {
+  background: #ffffff;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-submit {
+  border-color: #111827;
+  background: #111827;
+  color: #f9fafb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-message.is-ok { color: #15803d; }
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-message.is-err { color: #b91c1c; }
+.foleio-creator-root .foleio-creator-content-surface .foleio-avail-saved-row.is-off { color: #b91c1c; }
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-avatar {
+  background: #e5e7eb;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-url-strip svg,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-icon-btn svg {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-icon-btn {
+  background: rgba(17, 24, 39, 0.06);
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-icon-btn:hover {
+  color: #111827;
+  background: rgba(17, 24, 39, 0.1);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-share-thumb {
+  background: #f3f1f4;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-select option {
+  background: #ffffff;
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-underline-tab.is-active {
+  border-bottom-color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-btn-danger {
+  border-color: rgba(185, 28, 28, 0.25);
+  background: rgba(185, 28, 28, 0.08);
+  color: #b91c1c;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-fee-row.is-pro .foleio-dash-fee-rate strong {
+  color: #15803d;
+}
+.foleio-creator-root .foleio-dash-modal {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  box-shadow: 0 20px 50px rgba(17, 24, 39, 0.18);
+}
+.foleio-creator-root .foleio-dash-drawer {
+  background: #fcfafb;
+  box-shadow: -16px 0 40px rgba(17, 24, 39, 0.16);
+}
+.foleio-creator-root .foleio-dash-drawer-close {
+  background: rgba(17, 24, 39, 0.06);
+  color: #4b5563;
+}
+.foleio-creator-root .foleio-dash-drawer-close:hover {
+  color: #111827;
+}
+
+/* Light theme: merchant product list cards */
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card {
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  color: #111827;
+  border-radius: 6px;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-media {
+  background: #f3f1f4;
+  border-radius: 6px;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-title,
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-price {
+  color: #111827;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-desc,
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-price .is-compare {
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-stock {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-stock.is-out {
+  background: rgba(17, 24, 39, 0.06);
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-icon-btn {
+  background: #111827;
+  color: #f9fafb;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-icon-btn.is-ghost {
+  background: rgba(17, 24, 39, 0.06);
+  color: #6b7280;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-icon-btn.is-ghost:hover {
+  color: #111827;
+  background: rgba(17, 24, 39, 0.1);
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-icon-btn.is-danger {
+  background: rgba(185, 28, 28, 0.08);
+  color: #b91c1c;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-product-card-shop-btn {
+  background: #111827;
+  color: #f9fafb;
 }
 
 .foleio-dash-header {
@@ -710,17 +1496,17 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   width: 100%;
   margin-top: 8px;
   padding: 12px 14px;
-  border: none;
+  border: 1px solid rgba(17, 24, 39, 0.12);
   border-radius: 10px;
-  background: #1a1816;
-  color: #f4f4f5;
+  background: #ffffff;
+  color: #111827;
   font-family: var(--font-body), sans-serif;
   font-size: 14px;
   font-weight: 500;
   resize: vertical;
 }
 .foleio-dash-textarea:focus {
-  outline: 1px solid rgba(255, 255, 255, 0.18);
+  outline: 1px solid rgba(17, 24, 39, 0.28);
 }
 .foleio-dash-textarea::placeholder { color: #5c6070; }
 
@@ -741,7 +1527,9 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   overflow: auto;
   padding: 20px;
   border-radius: 12px;
-  background: #212121;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid rgba(17, 24, 39, 0.08);
   font-family: var(--font-body), sans-serif;
 }
 .foleio-dash-drawer-backdrop {
@@ -759,9 +1547,9 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   display: flex;
   flex-direction: column;
   width: min(420px, 100vw);
-  background: #212121;
+  background: #fcfafb;
   font-family: var(--font-body), sans-serif;
-  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.35);
+  box-shadow: -16px 0 40px rgba(17, 24, 39, 0.16);
   animation: foleio-dash-drawer-in 180ms ease-out;
 }
 @keyframes foleio-dash-drawer-in {
@@ -854,20 +1642,20 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-dash-availability .rounded-md,
 .foleio-dash-availability .rounded-xl,
 .foleio-dash-availability .rounded-2xl {
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(17, 24, 39, 0.1) !important;
 }
 .foleio-dash-availability .bg-white,
 .foleio-dash-availability .bg-card,
 .foleio-dash-availability .bg-background {
-  background: #1a1816 !important;
-  color: #f4f4f5 !important;
+  background: #ffffff !important;
+  color: #111827 !important;
 }
 .foleio-dash-availability .text-muted-foreground {
-  color: #adadad !important;
+  color: #6b7280 !important;
 }
 .foleio-dash-availability .border,
 .foleio-dash-availability .border-border {
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(17, 24, 39, 0.1) !important;
 }
 
 .foleio-dash-services {
@@ -877,32 +1665,32 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 .foleio-dash-services .rounded-md,
 .foleio-dash-services .rounded-xl,
 .foleio-dash-services .rounded-2xl {
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(17, 24, 39, 0.1) !important;
 }
 .foleio-dash-services .bg-white,
 .foleio-dash-services .bg-card,
 .foleio-dash-services .bg-background,
 .foleio-dash-services [class*="bg-card"] {
-  background: #212121 !important;
-  color: #f4f4f5 !important;
+  background: #ffffff !important;
+  color: #111827 !important;
 }
 .foleio-dash-services .text-muted-foreground,
 .foleio-dash-services [class*="text-muted"] {
-  color: #adadad !important;
+  color: #6b7280 !important;
 }
 .foleio-dash-services .border,
 .foleio-dash-services .border-border {
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(17, 24, 39, 0.1) !important;
 }
 .foleio-dash-services input,
 .foleio-dash-services textarea,
 .foleio-dash-services select {
-  background: #1a1816 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #f4f4f5 !important;
+  background: #ffffff !important;
+  border-color: rgba(17, 24, 39, 0.12) !important;
+  color: #111827 !important;
 }
 .foleio-dash-services label {
-  color: #adadad !important;
+  color: #6b7280 !important;
 }
 
 .foleio-avail {
@@ -1221,23 +2009,26 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   padding: 2px;
   border: none;
   border-radius: 999px;
-  background: #2b2b2b;
+  background: #d1d5db;
   cursor: pointer;
 }
-.foleio-avail-toggle span {
+.foleio-avail-toggle span,
+.foleio-avail-toggle-knob {
   display: block;
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: #adadad;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.18);
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .foleio-avail-toggle.is-on {
-  background: hsl(var(--accent));
+  background: #22c55e;
 }
-.foleio-avail-toggle.is-on span {
+.foleio-avail-toggle.is-on span,
+.foleio-avail-toggle.is-on .foleio-avail-toggle-knob {
   transform: translateX(18px);
-  background: #fff;
+  background: #ffffff;
 }
 .foleio-avail-capacity-input {
   display: flex;
@@ -1927,236 +2718,102 @@ interface CreatorAppShellProps {
     category?: string | null;
     platformPlan?: string | null;
     platformSubscriptionActive?: boolean | null;
+    fixedBookingsEnabled?: boolean | null;
+    customQuotesEnabled?: boolean | null;
+    shopEnabled?: boolean | null;
   } | null;
   supportMode?: boolean;
+  title?: string | null;
 }
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
   { href: '/bookings', label: 'Bookings', icon: CalendarDays, tourId: 'bookings' },
+  { href: '/invoices', label: 'Quotes & Invoice', icon: FileText, tourId: 'invoices' },
   { href: '/shop', label: 'Shop', icon: ShoppingBag, tourId: 'shop' },
   { href: '/earnings', label: 'Earnings', icon: Wallet, tourId: 'earnings' },
 ] as const;
 
-function categoryHashtag(category?: string | null) {
-  const raw = category?.trim();
-  if (!raw) return '';
-  const match = INDUSTRY_OPTIONS.find((item) => item.value === raw);
-  const label = match?.label || raw;
-  const slug = label.replace(/[^a-zA-Z0-9]+/g, '');
-  return slug ? `#${slug}` : '';
+function isCreatorNavActive(pathname: string, href: string) {
+  if (href === '/dashboard') {
+    return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  }
+  if (href === '/shop') {
+    return pathname === '/shop' || pathname.startsWith('/services/shop');
+  }
+  if (href === '/earnings') {
+    return pathname.startsWith('/earnings') || pathname.startsWith('/analytics');
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function CreatorShellProfile({
-  creator,
-  avatarUrl,
-  hasBanner,
-  onBannerRemoved,
-}: {
-  creator?: CreatorAppShellProps['creator'];
-  avatarUrl?: string | null;
-  hasBanner?: boolean;
-  onBannerRemoved?: () => void;
-}) {
-  const { toast } = useToast();
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [removingBanner, setRemovingBanner] = useState(false);
-  const displayName = creator?.displayName?.trim() || creator?.username || '';
-  const hashtag = categoryHashtag(creator?.category);
-
-  const profileUrl = (() => {
-    if (!creator?.username) return '';
-    const base =
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') ||
-      (typeof window !== 'undefined' ? window.location.origin.replace(/\/+$/, '') : '');
-    return base ? `${base}/creator/${creator.username}` : `/creator/${creator.username}`;
-  })();
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-
-    function onPointerDown(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMenuOpen(false);
-    }
-
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [menuOpen]);
-
-  async function copyProfileUrl() {
-    if (!profileUrl) return;
-    try {
-      const absolute =
-        profileUrl.startsWith('http') || typeof window === 'undefined'
-          ? profileUrl
-          : `${window.location.origin}${profileUrl}`;
-      await navigator.clipboard.writeText(absolute);
-      toast({ title: 'Profile URL copied' });
-    } catch {
-      toast({
-        title: 'Could not copy',
-        description: 'Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setMenuOpen(false);
-    }
-  }
-
-  async function handleRemoveBanner() {
-    if (removingBanner) return;
-    setRemovingBanner(true);
-    try {
-      await removeCreatorBanner();
-      onBannerRemoved?.();
-      toast({ title: 'Banner removed' });
-    } catch (error) {
-      toast({
-        title: 'Could not remove',
-        description:
-          error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRemovingBanner(false);
-      setMenuOpen(false);
-    }
-  }
-
+function CreatorContentHeader() {
   return (
-    <div className="foleio-auth-stub" data-tour="creator-profile">
-      <div className="foleio-auth-stub-main">
-        <div
-          className={
-            creator ? 'foleio-auth-stub-thumb is-avatar' : 'foleio-auth-stub-thumb'
-          }
+    <header className="foleio-creator-content-header">
+      <h1 className="foleio-creator-content-title">Creator Dashboard</h1>
+      <div className="foleio-creator-content-actions">
+        <Link
+          href="/settings?tab=notifications"
+          className="foleio-creator-content-action"
+          aria-label="Notifications"
+          data-tour="notifications"
         >
-          {creator ? (
-            <CreatorAvatar
-              src={avatarUrl ?? creator.avatarUrl}
-              name={displayName}
-              size={42}
-            />
-          ) : null}
-        </div>
-        {displayName ? (
-          <div className="foleio-auth-stub-meta">
-            <p className="foleio-auth-stub-name">{displayName}</p>
-            {hashtag ? (
-              <p className="foleio-auth-stub-category">{hashtag}</p>
-            ) : null}
-          </div>
-        ) : null}
-        {creator ? (
-          <div className="foleio-auth-stub-menu" ref={menuRef}>
-            <button
-              type="button"
-              className="foleio-auth-stub-menu-btn"
-              aria-label="Profile actions"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <MoreHorizontal strokeWidth={1.75} />
-            </button>
-            {menuOpen ? (
-              <div className="foleio-auth-stub-menu-pop" role="menu">
-                <button
-                  type="button"
-                  className="foleio-auth-stub-menu-item"
-                  role="menuitem"
-                  onClick={copyProfileUrl}
-                >
-                  <Copy strokeWidth={1.75} />
-                  Copy profile URL
-                </button>
-                {hasBanner ? (
-                  <button
-                    type="button"
-                    className="foleio-auth-stub-menu-item"
-                    role="menuitem"
-                    disabled={removingBanner}
-                    onClick={() => void handleRemoveBanner()}
-                  >
-                    <ImageOff strokeWidth={1.75} />
-                    {removingBanner ? 'Removing…' : 'Remove banner image'}
-                  </button>
-                ) : null}
-                <Link
-                  href="/settings"
-                  className="foleio-auth-stub-menu-item"
-                  role="menuitem"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <UserRound strokeWidth={1.75} />
-                  Go to profile settings
-                </Link>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+          <Bell strokeWidth={1.5} />
+        </Link>
       </div>
-      <div
-        className={`foleio-auth-stub-badge${
-          Boolean(creator?.platformSubscriptionActive) &&
-          ['PRO', 'GROWTH', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
-            ? ' is-pro'
-            : ''
-        }`}
-        aria-label={
-          Boolean(creator?.platformSubscriptionActive) &&
-          ['PRO', 'GROWTH', 'PREMIUM'].includes((creator?.platformPlan || '').toUpperCase())
-            ? 'Pro verified'
-            : 'Verified'
-        }
-      >
-        <BadgeCheck className="h-6 w-6" strokeWidth={1.5} />
-      </div>
-    </div>
+    </header>
   );
 }
 
-export function CreatorAppShell({ children, creator, supportMode = false }: CreatorAppShellProps) {
+export function CreatorAppShell({
+  children,
+  creator,
+  supportMode = false,
+  title: _title,
+}: CreatorAppShellProps) {
   const pathname = usePathname();
-  const isDashboardHome = pathname === '/dashboard';
+  const searchParams = useSearchParams();
   const navMenuRef = useRef<HTMLDivElement>(null);
   const navMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [navMenuPos, setNavMenuPos] = useState<{ top: number; left: number } | null>(
     null
   );
-  const [bannerUrl, setBannerUrl] = useState<string | null>(
-    creator?.bannerUrl ?? null
-  );
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(
-    creator?.avatarUrl ?? null
-  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    setBannerUrl(creator?.bannerUrl ?? null);
-  }, [creator?.bannerUrl]);
-
-  useEffect(() => {
-    setAvatarUrl(creator?.avatarUrl ?? null);
-  }, [creator?.avatarUrl]);
-
-  useEffect(() => {
-    return subscribeAvatarUpdated(setAvatarUrl);
+    try {
+      const stored = window.localStorage.getItem('foleio-creator-sidebar-collapsed');
+      if (stored === '1') setSidebarCollapsed(true);
+    } catch {
+      // ignore
+    }
   }, []);
 
-  useEffect(() => {
-    return subscribeBannerUpdated(setBannerUrl);
-  }, []);
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(
+          'foleio-creator-sidebar-collapsed',
+          next ? '1' : '0'
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+  const visibleNav = NAV.filter((item) => {
+    if (item.href === '/shop') return creator?.shopEnabled !== false;
+    return true;
+  });
+  const settingsTab = searchParams.get('tab');
+  const onSettings =
+    pathname === '/settings' || pathname.startsWith('/settings/');
+  const profileActive = onSettings && (!settingsTab || settingsTab === 'profile');
+  const settingsActive =
+    onSettings && Boolean(settingsTab) && settingsTab !== 'profile';
 
   useEffect(() => {
     setNavMenuOpen(false);
@@ -2226,23 +2883,83 @@ export function CreatorAppShell({ children, creator, supportMode = false }: Crea
       />
 
       <div className="foleio-auth-shell">
+        <aside
+          className={`foleio-creator-rail${sidebarCollapsed ? ' is-collapsed' : ''}`}
+          aria-label="Creator navigation"
+        >
+          <div className="foleio-creator-rail-top">
+            <nav className="foleio-creator-rail-nav">
+              <div className="foleio-creator-rail-section-row">
+                {!sidebarCollapsed ? (
+                  <div className="foleio-creator-rail-section">Workspace</div>
+                ) : null}
+                <button
+                  type="button"
+                  className="foleio-creator-rail-toggle"
+                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  aria-expanded={!sidebarCollapsed}
+                  onClick={toggleSidebarCollapsed}
+                >
+                  {sidebarCollapsed ? (
+                    <PanelLeftOpen strokeWidth={1.5} />
+                  ) : (
+                    <PanelLeftClose strokeWidth={1.5} />
+                  )}
+                </button>
+              </div>
+              {visibleNav.map((item) => {
+                const Icon = item.icon;
+                const active = isCreatorNavActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    data-tour={item.tourId}
+                    className={`foleio-creator-rail-link${active ? ' is-active' : ''}`}
+                    aria-label={item.label}
+                    title={item.label}
+                  >
+                    <Icon strokeWidth={1.5} />
+                    <span className="foleio-creator-rail-link-label">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+          <div className="foleio-creator-rail-footer">
+            {!sidebarCollapsed ? (
+              <div className="foleio-creator-rail-section">Account</div>
+            ) : null}
+            <Link
+              href="/settings"
+              className={`foleio-creator-rail-link${profileActive ? ' is-active' : ''}`}
+              data-tour="profile"
+              aria-label="Profile"
+              title="Profile"
+            >
+              <UserRound strokeWidth={1.5} />
+              <span className="foleio-creator-rail-link-label">Profile</span>
+            </Link>
+            <Link
+              href="/settings?tab=offerings"
+              className={`foleio-creator-rail-link${settingsActive ? ' is-active' : ''}`}
+              data-tour="settings"
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings strokeWidth={1.5} />
+              <span className="foleio-creator-rail-link-label">Settings</span>
+            </Link>
+          </div>
+        </aside>
+
         <header className="foleio-auth-topbar relative z-30">
           <nav className="foleio-auth-topbar-nav" aria-label="Creator">
             <div className="foleio-auth-topbar-nav-links">
-              {NAV.map((item) => {
+              {visibleNav.map((item) => {
                 const Icon = item.icon;
-                const active =
-                  item.href === '/dashboard'
-                    ? pathname === '/dashboard' ||
-                      pathname.startsWith('/dashboard/')
-                    : item.href === '/shop'
-                      ? pathname === '/shop' ||
-                        pathname.startsWith('/services/shop')
-                      : item.href === '/earnings'
-                        ? pathname.startsWith('/earnings') ||
-                          pathname.startsWith('/analytics')
-                        : pathname === item.href ||
-                          pathname.startsWith(`${item.href}/`);
+                const active = isCreatorNavActive(pathname, item.href);
                 return (
                   <Link
                     key={item.href}
@@ -2301,20 +3018,9 @@ export function CreatorAppShell({ children, creator, supportMode = false }: Crea
                     left: navMenuPos?.left ?? 12,
                   }}
                 >
-                  {NAV.map((item) => {
+                  {visibleNav.map((item) => {
                     const Icon = item.icon;
-                    const active =
-                      item.href === '/dashboard'
-                        ? pathname === '/dashboard' ||
-                          pathname.startsWith('/dashboard/')
-                        : item.href === '/shop'
-                          ? pathname === '/shop' ||
-                            pathname.startsWith('/services/shop')
-                          : item.href === '/earnings'
-                            ? pathname.startsWith('/earnings') ||
-                              pathname.startsWith('/analytics')
-                            : pathname === item.href ||
-                              pathname.startsWith(`${item.href}/`);
+                    const active = isCreatorNavActive(pathname, item.href);
                     return (
                       <Link
                         key={item.href}
@@ -2358,26 +3064,9 @@ export function CreatorAppShell({ children, creator, supportMode = false }: Crea
         </header>
 
         <main className="foleio-auth-main relative flex-1">
-          <div className="foleio-auth-columns">
-            <div
-              className={`foleio-auth-left${
-                isDashboardHome ? '' : ' is-hide-on-mobile'
-              }`}
-            >
-              <BusinessCoverCard
-                bannerUrl={bannerUrl}
-                editable={Boolean(creator)}
-                onBannerChange={setBannerUrl}
-              />
-              <CreatorShellProfile
-                creator={creator}
-                avatarUrl={avatarUrl}
-                hasBanner={Boolean(bannerUrl)}
-                onBannerRemoved={() => setBannerUrl(null)}
-              />
-            </div>
-
-            <div className="foleio-auth-right">
+          <CreatorContentHeader />
+          <div className="foleio-creator-content-surface">
+            <div className="foleio-creator-content-body">
               {supportMode ? (
                 <div className="foleio-dev-support-banner" role="status">
                   Developer support mode — earnings, payouts, billing, and security are blocked.
@@ -2385,7 +3074,7 @@ export function CreatorAppShell({ children, creator, supportMode = false }: Crea
                 </div>
               ) : null}
               {children}
-              <AuthLegalFooter />
+              <AuthLegalFooter tone="light" />
             </div>
           </div>
         </main>

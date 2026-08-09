@@ -32,8 +32,8 @@ const drawerCss = `
   display: flex;
   flex-direction: column;
   width: min(420px, 100vw);
-  background: #212121;
-  color: #f4f4f5;
+  background: #ffffff;
+  color: #111827;
   font-family: var(--font-body), sans-serif;
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
   animation: foleio-fee-calc-in 180ms ease-out;
@@ -52,7 +52,7 @@ const drawerCss = `
 }
 .foleio-fee-calc-title {
   margin: 0;
-  color: #f4f4f5;
+  color: #111827;
   font-size: 18px;
   font-weight: 600;
   line-height: 1.2;
@@ -73,12 +73,12 @@ const drawerCss = `
   justify-content: center;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #adadad;
+  background: rgba(17, 24, 39, 0.06);
+  color: #6b7280;
   cursor: pointer;
 }
 .foleio-fee-calc-close:hover {
-  color: #f4f4f5;
+  color: #111827;
 }
 .foleio-fee-calc-body {
   flex: 1;
@@ -88,7 +88,7 @@ const drawerCss = `
 .foleio-fee-calc-label {
   display: block;
   margin: 0 0 8px;
-  color: #adadad;
+  color: #6b7280;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -98,9 +98,9 @@ const drawerCss = `
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(17, 24, 39, 0.12);
   border-radius: 10px;
-  background: #151515;
+  background: #f3f1f4;
   padding: 0 12px;
 }
 .foleio-fee-calc-currency {
@@ -113,21 +113,31 @@ const drawerCss = `
   min-width: 0;
   border: none;
   background: transparent;
-  color: #fafafa;
+  color: #111827;
   font-size: 18px;
   font-weight: 600;
   padding: 12px 0;
   outline: none;
 }
 .foleio-fee-calc-input::placeholder {
-  color: #555;
-  font-weight: 500;
+  color: #9ca3af;
+  font-weight: 400;
 }
 .foleio-fee-calc-table-wrap {
   margin-top: 18px;
   overflow-x: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: 12px;
+}
+.foleio-fee-calc-table-heading {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #111827;
+}
+.foleio-fee-calc-table-heading + .foleio-fee-calc-table-wrap {
+  margin-top: 0;
 }
 .foleio-fee-calc-sr-only {
   position: absolute;
@@ -150,7 +160,7 @@ const drawerCss = `
   padding: 12px 14px;
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
 }
 .foleio-fee-calc-table th {
   color: #828282;
@@ -158,21 +168,21 @@ const drawerCss = `
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(17, 24, 39, 0.03);
 }
 .foleio-fee-calc-table th:not(:first-child),
 .foleio-fee-calc-table td:not(:first-child) {
   text-align: right;
 }
 .foleio-fee-calc-table th.is-pro {
-  color: #fb923c;
+  color: #15803d;
 }
 .foleio-fee-calc-table tbody tr:last-child th,
 .foleio-fee-calc-table tbody tr:last-child td {
   border-bottom: none;
 }
 .foleio-fee-calc-table th[scope="row"] {
-  color: #adadad;
+  color: #6b7280;
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
@@ -180,11 +190,14 @@ const drawerCss = `
   background: transparent;
 }
 .foleio-fee-calc-table td {
-  color: #fafafa;
+  color: #111827;
   font-weight: 600;
 }
 .foleio-fee-calc-table td.is-pro {
-  color: #fdba74;
+  color: #166534;
+}
+.foleio-fee-calc-table th.is-pro .foleio-fee-calc-rate {
+  color: #16a34a;
 }
 .foleio-fee-calc-table .foleio-fee-calc-rate {
   display: block;
@@ -203,7 +216,7 @@ const drawerCss = `
 .foleio-fee-calc-footer {
   flex-shrink: 0;
   padding: 12px 20px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
 }
 .foleio-fee-calc-upgrade {
   display: flex;
@@ -215,8 +228,8 @@ const drawerCss = `
   padding: 8px 14px;
   border: none;
   border-radius: 8px;
-  background: #fafafa;
-  color: #151515 !important;
+  background: #111827;
+  color: #ffffff !important;
   font-family: var(--font-body), sans-serif;
   font-size: 14px;
   font-weight: 600;
@@ -224,8 +237,8 @@ const drawerCss = `
   text-decoration: none !important;
 }
 .foleio-fee-calc-upgrade:hover {
-  background: #e4e4e7;
-  color: #151515 !important;
+  background: #1f2937;
+  color: #ffffff !important;
   opacity: 1;
 }
 .foleio-fee-calc-save-badge {
@@ -320,7 +333,7 @@ export function FeeCalculatorDrawer({ open, onClose }: FeeCalculatorDrawerProps)
               className="foleio-fee-calc-input"
               type="text"
               inputMode="decimal"
-              placeholder="50,000"
+              placeholder="Enter amount"
               value={amountNaira}
               onChange={(event) => setAmountNaira(event.target.value)}
               autoFocus
@@ -328,44 +341,47 @@ export function FeeCalculatorDrawer({ open, onClose }: FeeCalculatorDrawerProps)
           </div>
 
           {splits ? (
-            <div className="foleio-fee-calc-table-wrap">
-              <table className="foleio-fee-calc-table">
-                <caption className="foleio-fee-calc-sr-only">
-                  Free vs Pro platform and service fees
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col" />
-                    <th scope="col">
-                      Free
-                      <span className="foleio-fee-calc-rate">
-                        {formatFreeFeeLabel()}
-                      </span>
-                    </th>
-                    <th scope="col" className="is-pro">
-                      Pro
-                      <span className="foleio-fee-calc-rate">
-                        {formatProFeeLabel()}
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">Fee</th>
-                    <td>{formatKobo(splits.free.platformFee)}</td>
-                    <td className="is-pro">{formatKobo(splits.pro.platformFee)}</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">You keep</th>
-                    <td>{formatKobo(splits.free.creatorEarnings)}</td>
-                    <td className="is-pro">
-                      {formatKobo(splits.pro.creatorEarnings)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <>
+              <h3 className="foleio-fee-calc-table-heading">Subscription tiers</h3>
+              <div className="foleio-fee-calc-table-wrap">
+                <table className="foleio-fee-calc-table">
+                  <caption className="foleio-fee-calc-sr-only">
+                    Free vs Pro platform and service fees
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" />
+                      <th scope="col">
+                        Free
+                        <span className="foleio-fee-calc-rate">
+                          {formatFreeFeeLabel()}
+                        </span>
+                      </th>
+                      <th scope="col" className="is-pro">
+                        Pro
+                        <span className="foleio-fee-calc-rate">
+                          {formatProFeeLabel()}
+                        </span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Fee</th>
+                      <td>{formatKobo(splits.free.platformFee)}</td>
+                      <td className="is-pro">{formatKobo(splits.pro.platformFee)}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">You keep</th>
+                      <td>{formatKobo(splits.free.creatorEarnings)}</td>
+                      <td className="is-pro">
+                        {formatKobo(splits.pro.creatorEarnings)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <p className="foleio-fee-calc-placeholder">
               Enter a booking or shop amount to compare fees on Free and Pro.

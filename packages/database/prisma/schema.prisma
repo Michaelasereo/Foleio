@@ -152,6 +152,14 @@ model Creator {
   hasCompletedTour Boolean @default(false) @map("has_completed_tour")
   subscriptionEnabled Boolean @default(false) @map("subscription_enabled")
   reviewsEnabled Boolean @default(true) @map("reviews_enabled")
+  /// Public fixed calendar bookings ("Book now" services)
+  fixedBookingsEnabled Boolean @default(true) @map("fixed_bookings_enabled")
+  /// Custom quote / negotiated engagements
+  customQuotesEnabled Boolean @default(false) @map("custom_quotes_enabled")
+  /// Public shop tab + shop management
+  shopEnabled Boolean @default(true) @map("shop_enabled")
+  /// Business WhatsApp for quote request/share (wa.me); digits with country code preferred
+  quoteWhatsappPhone String? @map("quote_whatsapp_phone")
   monthlyPrice Int @default(0) @map("monthly_price")
   subscriptionPerks String[] @default([]) @map("subscription_perks")
   verified  Boolean @default(false)
@@ -189,6 +197,8 @@ model Creator {
   availabilitySlots AvailabilitySlot[]
   availabilityTemplates AvailabilityTemplate[]
   bookings          Booking[]
+  quoteRequests     QuoteRequest[]
+  quotes            Quote[]
   emailSubscriptions EmailSubscription[]
   uploads           Upload[]
   milestoneLogs     MilestoneLog[]
@@ -637,6 +647,8 @@ model PriceListItem {
   allowPayInFull   Boolean  @default(true) @map("allow_pay_in_full")
   /** Minimum days ahead a customer may book (null = no extra lead time). */
   minNoticeDays    Int?     @map("min_notice_days")
+  /// fixed = calendar Book now; quote = Request a Quote intake
+  pricingType      String   @default("fixed") @map("pricing_type") // fixed | quote
   orderIndex       Int      @default(0) @map("order_index") // Order within category
   categoryOrderIndex Int    @default(0) @map("category_order_index") // Order of categories
   isActive         Boolean  @default(true) @map("is_active")
@@ -648,12 +660,15 @@ model PriceListItem {
   creator        Creator         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   bookings       Booking[]
   portfolioItems PortfolioItem[]
+  quoteRequests  QuoteRequest[]
+  quotes         Quote[]
 
   @@map("price_list_items")
   @@index([creatorId])
   @@index([category])
   @@index([orderIndex])
   @@index([isActive])
+  @@index([pricingType])
 }
 
 // Shop products (physical)
@@ -686,7 +701,7 @@ model Product {
   requiresCustomDelivery Boolean @default(false) @map("requires_custom_delivery")
   isPreorder       Boolean  @default(false) @map("is_preorder")
   preorderSettings Json?    @map("preorder_settings") // { startsAt, releaseAt, preorderPrice, ... phases[] }
-  addons           Json     @default("[]") // [{ id, name, required, options:[{ id, name, price }] }] price in kobo; legacy flat [{id,name,price}] still parsed
+  addons           Json     @default("[]") // [{ id, name, required, options:[{ id, name, price, stock? }] }] price in kobo; stock null/omit = unlimited; legacy flat [{id,name,price}] still parsed
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -731,6 +746,7 @@ model DeliveryTier {
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   orders  Order[]
+  quotes  Quote[]
 
   @@map("delivery_tiers")
   @@index([creatorId])
@@ -766,6 +782,7 @@ model Order {
   items        OrderItem[]
   emailLogs    OrderEmailLog[]
   review       CreatorReview?
+  quoteOrigin  Quote?        @relation("QuoteConvertedOrder")
   @@map("orders")
   @@index([fanId])
   @@index([creatorId])
@@ -895,6 +912,10 @@ model Booking {
   selectedLocation  Json?    @map("selected_location") // { id, name, price } snapshot; null if service has no location options
   depositReference  String?  @map("deposit_reference")
   balanceReference  String?  @map("balance_reference")
+  /// fixed | quote — quote-origin bookings skip slot capacity holds
+  source            String   @default("fixed")
+  /// [{ id, label, dueDate?, status: pending|done }] copied from Quote on convert
+  milestones        Json     @default("[]")
 
   // Status tracking
   // pending | deposit_paid | balance_overdue | paid | first_payout_done | service_day | completed | disputed | refunded | cancelled
@@ -903,6 +924,7 @@ model Booking {
   trackingToken     String   @unique @map("tracking_token")
   reviewToken       String?  @unique @map("review_token")
   reviewEmailSentAt DateTime? @map("review_email_sent_at")
+  quoteOrigin       Quote?   @relation("QuoteConvertedBooking")
 
   // Payout tracking
   firstPayoutTransactionId  String? @map("first_payout_transaction_id")
@@ -939,6 +961,95 @@ model BookingEmailLog {
 
   @@unique([bookingId, emailType])
   @@map("booking_email_logs")
+  @@index([emailType])
+}
+
+/// Inbound custom quote intake from public profile
+model QuoteRequest {
+  id               String    @id @default(uuid())
+  creatorId        String    @map("creator_id")
+  linkedServiceId  String?   @map("linked_service_id")
+  customerName     String    @map("customer_name")
+  customerEmail    String    @map("customer_email")
+  customerPhone    String    @map("customer_phone")
+  preferredDate    DateTime? @map("preferred_date") @db.Date
+  budgetMinKobo    Int?      @map("budget_min_kobo")
+  budgetMaxKobo    Int?      @map("budget_max_kobo")
+  brief            String
+  status           String    @default("open") // open | quoted | closed
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  creator       Creator        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  linkedService PriceListItem? @relation(fields: [linkedServiceId], references: [id], onDelete: SetNull)
+  quotes        Quote[]
+
+  @@map("quote_requests")
+  @@index([creatorId])
+  @@index([status])
+  @@index([customerEmail])
+}
+
+/// Merchant-built custom quote; converts to Booking and/or Order on payment
+model Quote {
+  id                  String    @id @default(uuid())
+  creatorId           String    @map("creator_id")
+  quoteRequestId      String?   @map("quote_request_id")
+  linkedServiceId     String?   @map("linked_service_id")
+  supersedesQuoteId   String?   @map("supersedes_quote_id")
+  customerName        String    @map("customer_name")
+  customerEmail       String    @map("customer_email")
+  customerPhone       String    @map("customer_phone")
+  customerAddress     String    @default("") @map("customer_address")
+  title               String
+  lineItems           Json      @default("[]") @map("line_items") // [{ id, label, amountKobo, productId?, qty? }]
+  totalAmount         Int       @map("total_amount") // kobo (line items + delivery)
+  depositType         String?   @map("deposit_type") // percent | fixed | null = full
+  depositValue        Int?      @map("deposit_value")
+  depositAmount       Int       @default(0) @map("deposit_amount")
+  balanceAmount       Int       @default(0) @map("balance_amount")
+  milestones          Json      @default("[]") // [{ id, label, dueDate?, status }]
+  serviceDate         DateTime? @map("service_date") @db.Date
+  validUntil          DateTime? @map("valid_until")
+  publicToken         String    @unique @map("public_token")
+  status              String    @default("draft") // draft | sent | accepted | declined | expired | deposit_paid
+  convertedBookingId  String?   @unique @map("converted_booking_id")
+  convertedOrderId    String?   @unique @map("converted_order_id")
+  deliveryTierId      String?   @map("delivery_tier_id")
+  deliveryFeeKobo     Int       @default(0) @map("delivery_fee_kobo")
+  /// none | tier | custom
+  deliveryFeeMode     String    @default("none") @map("delivery_fee_mode")
+  notes               String?
+  paystackReference   String?   @map("paystack_reference")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  creator           Creator        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  quoteRequest      QuoteRequest?  @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  linkedService     PriceListItem? @relation(fields: [linkedServiceId], references: [id], onDelete: SetNull)
+  deliveryTier      DeliveryTier?  @relation(fields: [deliveryTierId], references: [id], onDelete: SetNull)
+  convertedBooking  Booking?       @relation("QuoteConvertedBooking", fields: [convertedBookingId], references: [id], onDelete: SetNull)
+  convertedOrder    Order?         @relation("QuoteConvertedOrder", fields: [convertedOrderId], references: [id], onDelete: SetNull)
+  emailLogs         QuoteEmailLog[]
+
+  @@map("quotes")
+  @@index([creatorId])
+  @@index([status])
+  @@index([quoteRequestId])
+  @@index([customerEmail])
+  @@index([validUntil])
+  @@index([deliveryTierId])
+}
+
+model QuoteEmailLog {
+  id        String   @id @default(cuid())
+  quoteId   String   @map("quote_id")
+  emailType String   @map("email_type")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, emailType])
+  @@map("quote_email_logs")
   @@index([emailType])
 }
 

@@ -39,6 +39,10 @@ const creatorShellSelect = {
   bookingPolicyFileUrl: true,
   bookingPolicyFileName: true,
   bookingPolicyLinkUrl: true,
+  fixedBookingsEnabled: true,
+  customQuotesEnabled: true,
+  shopEnabled: true,
+  quoteWhatsappPhone: true,
 } as const;
 
 export type CreatorForUser = {
@@ -60,6 +64,10 @@ export type CreatorForUser = {
   bookingPolicyFileUrl: string | null;
   bookingPolicyFileName: string | null;
   bookingPolicyLinkUrl: string | null;
+  fixedBookingsEnabled: boolean;
+  customQuotesEnabled: boolean;
+  shopEnabled: boolean;
+  quoteWhatsappPhone: string | null;
 };
 
 /**
@@ -97,6 +105,10 @@ const publicCreatorLeanSelect = {
   bookingPolicyFileUrl: true,
   bookingPolicyFileName: true,
   bookingPolicyLinkUrl: true,
+  fixedBookingsEnabled: true,
+  customQuotesEnabled: true,
+  shopEnabled: true,
+  quoteWhatsappPhone: true,
   introVideo: {
     select: {
       id: true,

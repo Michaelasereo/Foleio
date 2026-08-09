@@ -95,7 +95,7 @@ export function CreatorsDiscovery() {
 .foleio-mkt-discover-search input {
   flex: 1; min-height: 44px; padding: 0 14px 0 40px;
   border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04); color: #fafafa;
+  background: rgba(255,255,255,0.04); color: #e0ddd8;
   font: inherit; font-size: 14px;
 }
 .foleio-mkt-discover-search input::placeholder { color: #828282; }
@@ -105,10 +105,13 @@ export function CreatorsDiscovery() {
   width: 16px; height: 16px; color: #828282; pointer-events: none;
 }
 .foleio-mkt-discover-search button {
-  min-height: 44px; padding: 0 16px; border-radius: 10px;
-  border: 1px solid #fff; background: #fff; color: #001035;
-  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  min-height: 44px; padding: 0 16px; border-radius: 9px;
+  border: 1px solid #c9c6c1; background: #e4e2de; color: #001035;
+  font: inherit; font-size: 14.85px; font-weight: 500;
+  letter-spacing: 0.36px; cursor: pointer;
+  transition: background 0.15s ease;
 }
+.foleio-mkt-discover-search button:hover { background: #ebe9e5; }
 .foleio-mkt-discover-cats {
   display: flex; flex-wrap: wrap; gap: 8px;
 }
@@ -119,7 +122,7 @@ export function CreatorsDiscovery() {
   font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
 }
 .foleio-mkt-discover-cat[data-active="true"] {
-  border-color: #fff; background: rgba(255,255,255,0.1); color: #fafafa;
+  border-color: #e4e2de; background: rgba(228,226,222,0.12); color: #e4e2de;
 }
 .foleio-mkt-discover-meta {
   margin: 0; color: #828282; font-size: 13px;
@@ -173,14 +176,14 @@ export function CreatorsDiscovery() {
 .foleio-mkt-creator-avatar img,
 .foleio-mkt-creator-avatar span {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  object-fit: cover; font-size: 18px; font-weight: 600; color: #fafafa;
+  object-fit: cover; font-size: 18px; font-weight: 600; color: #e4e2de;
 }
 .foleio-mkt-creator-identity {
   min-width: 0;
   padding-top: 2px;
 }
 .foleio-mkt-creator-name {
-  margin: 0; font-size: 16px; font-weight: 600; color: #fafafa; line-height: 1.3;
+  margin: 0; font-size: 16px; font-weight: 600; color: #e4e2de; line-height: 1.3;
   display: inline-flex; align-items: center; gap: 6px;
   max-width: 100%;
 }
@@ -203,13 +206,15 @@ export function CreatorsDiscovery() {
   font-size: 12px; font-weight: 500;
 }
 .foleio-mkt-creator-cta {
-  margin-top: 2px; min-height: 40px; border-radius: 10px;
+  margin-top: 2px; min-height: 40px; border-radius: 9px;
   border: 1px solid rgba(255,255,255,0.2); background: transparent;
-  color: #fafafa; font: inherit; font-size: 13px; font-weight: 600;
+  color: #e4e2de; font: inherit; font-size: 14.85px; font-weight: 500;
+  letter-spacing: 0.36px;
   display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .foleio-mkt-creator-card:hover .foleio-mkt-creator-cta {
-  border-color: #fff; background: #fff; color: #001035;
+  border-color: #c9c6c1; background: #e4e2de; color: #001035;
 }
 .foleio-mkt-discover-pager {
   display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
@@ -220,7 +225,7 @@ export function CreatorsDiscovery() {
   color: #adadad; font: inherit; font-size: 13px; cursor: pointer;
 }
 .foleio-mkt-discover-pager button[data-active="true"] {
-  border-color: #fff; color: #fafafa; background: rgba(255,255,255,0.08);
+  border-color: #e4e2de; color: #e4e2de; background: rgba(228,226,222,0.08);
 }
 .foleio-mkt-discover-pager button:disabled { opacity: 0.4; cursor: not-allowed; }
 `,

@@ -9,7 +9,7 @@ export const authCss = `
 .foleio-auth-root {
   min-height: 100vh;
   background: #1a1816;
-  color: #ededed;
+  color: #e4e2de;
   font-family: var(--font-body), sans-serif;
   font-weight: 300;
 }
@@ -37,7 +37,7 @@ export const authCss = `
   border: none;
   border-radius: 10px;
   padding: 0 14px;
-  color: #f4f4f5;
+  color: #e0ddd8;
   font-size: 16.642px;
   font-weight: 500;
   transition: background 0.15s ease;
@@ -49,9 +49,9 @@ export const authCss = `
 }
 .foleio-auth-input:-webkit-autofill,
 .foleio-auth-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #f4f4f5;
+  -webkit-text-fill-color: #e0ddd8;
   -webkit-box-shadow: 0 0 0 1000px #212121 inset;
-  caret-color: #f4f4f5;
+  caret-color: #e0ddd8;
 }
 .foleio-auth-row {
   display: flex;
@@ -87,12 +87,12 @@ export const authCss = `
   font-weight: 500;
 }
 .foleio-auth-row-input::placeholder { color: #adadad; }
-.foleio-auth-row-input:focus { outline: none; color: #f4f4f5; }
+.foleio-auth-row-input:focus { outline: none; color: #e0ddd8; }
 .foleio-auth-row-input:-webkit-autofill,
 .foleio-auth-row-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #f4f4f5;
+  -webkit-text-fill-color: #e0ddd8;
   -webkit-box-shadow: 0 0 0 1000px #212121 inset;
-  caret-color: #f4f4f5;
+  caret-color: #e0ddd8;
 }
 .foleio-auth-row-tall {
   min-height: 60px;
@@ -170,7 +170,7 @@ export const authCss = `
   letter-spacing: 0.32px;
 }
 .foleio-auth-security-input::placeholder { color: #adadad; }
-.foleio-auth-security-input:focus { outline: none; color: #f4f4f5; }
+.foleio-auth-security-input:focus { outline: none; color: #e0ddd8; }
 .foleio-auth-eye-btn {
   display: inline-flex;
   align-items: center;
@@ -182,11 +182,11 @@ export const authCss = `
   color: #adadad;
   cursor: pointer;
 }
-.foleio-auth-eye-btn:hover { color: #f4f4f5; }
+.foleio-auth-eye-btn:hover { color: #e0ddd8; }
 .foleio-auth-section-label {
   font-size: 14.64px;
   font-weight: 500;
-  color: #ffffff;
+  color: #e4e2de;
   margin: 0 0 10px;
 }
 .foleio-auth-btn {
@@ -195,24 +195,27 @@ export const authCss = `
   justify-content: center;
   height: 44px;
   width: 100%;
-  background: #ffffff;
+  background: #e4e2de;
   color: #001035;
-  border: 1px solid #000000;
+  border: 1px solid #c9c6c1;
   border-radius: 9px;
   font-weight: 500;
   font-size: 18.03px;
   letter-spacing: 0.36px;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, background 0.15s ease;
   margin-top: 8px;
 }
-.foleio-auth-btn:hover { opacity: 0.92; }
+.foleio-auth-btn:hover {
+  background: #ebe9e5;
+  opacity: 1;
+}
 .foleio-auth-btn:disabled { opacity: 0.5; pointer-events: none; }
 .foleio-auth-link {
   color: #adadad;
   font-weight: 500;
   text-underline-offset: 4px;
 }
-.foleio-auth-link:hover { text-decoration: underline; color: #fafafa; }
+.foleio-auth-link:hover { text-decoration: underline; color: #e4e2de; }
 
 .foleio-auth-terms {
   display: flex;
@@ -238,8 +241,8 @@ export const authCss = `
   border-color: rgba(250, 250, 250, 0.55);
 }
 .foleio-auth-terms-check:checked {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: #e4e2de;
+  border-color: #e4e2de;
 }
 .foleio-auth-terms-check:checked::after {
   content: '';
@@ -265,12 +268,12 @@ export const authCss = `
   cursor: pointer;
 }
 .foleio-auth-terms-label a {
-  color: #fafafa;
+  color: #e4e2de;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 .foleio-auth-terms-label a:hover {
-  color: #ffffff;
+  color: #e4e2de;
 }
 
 /* Hide global site footer on auth pages; keep in-layout legal footer */
@@ -335,14 +338,31 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   width: 100%;
   margin-bottom: 28px;
 }
-.foleio-auth-topbar-nav {
+.foleio-auth-topbar-row {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 16px;
   flex-wrap: wrap;
 }
-.foleio-auth-topbar-nav span {
+@media (min-width: 900px) {
+  .foleio-auth-topbar-row {
+    display: grid;
+    grid-template-columns: minmax(240px, 333px) minmax(0, 542px);
+    gap: clamp(24px, 4vw, 54px);
+    align-items: center;
+  }
+}
+.foleio-auth-topbar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.foleio-auth-topbar-nav span,
+.foleio-auth-topbar-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -352,10 +372,35 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   line-height: normal;
   white-space: nowrap;
 }
-.foleio-auth-topbar-nav svg {
+.foleio-auth-topbar-nav svg,
+.foleio-auth-topbar-item svg {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+.foleio-auth-topbar-item {
+  text-decoration: none;
+  flex-shrink: 0;
+}
+@media (min-width: 900px) {
+  .foleio-auth-topbar-item {
+    justify-self: start;
+  }
+}
+.foleio-auth-new-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(21, 128, 61, 0.35);
+  color: #86efac;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.2;
 }
 
 /* Two-column layout — always left-aligned inside the centered shell */
@@ -448,7 +493,7 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   border: none;
   border-radius: 10px;
   background: rgba(26, 24, 22, 0.82);
-  color: #f4f4f5;
+  color: #e0ddd8;
   cursor: pointer;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -470,7 +515,7 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
 .foleio-auth-preview-upload:hover,
 .foleio-auth-preview-remove:hover {
   background: rgba(43, 43, 43, 0.95);
-  color: #ffffff;
+  color: #e4e2de;
 }
 .foleio-auth-preview-upload:disabled {
   opacity: 0.7;
@@ -572,7 +617,7 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   margin-bottom: 12px;
 }
 .foleio-auth-verify-email {
-  color: #f4f4f5;
+  color: #e0ddd8;
   font-size: 16.642px;
   font-weight: 500;
   word-break: break-all;
@@ -602,11 +647,11 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   background: #1a1816;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  color: #f4f4f5;
+  color: #e0ddd8;
   font-size: 22px;
   font-weight: 500;
   text-align: center;
-  caret-color: #f4f4f5;
+  caret-color: #e0ddd8;
 }
 .foleio-auth-otp-digit:focus {
   outline: none;
@@ -623,7 +668,7 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   text-align: center;
 }
 .foleio-auth-resend-link:hover:not(:disabled) {
-  color: #fafafa;
+  color: #e4e2de;
   text-decoration: underline;
 }
 .foleio-auth-resend-link:disabled {
@@ -645,7 +690,7 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   background: rgba(255, 255, 255, 0.1);
 }
 .foleio-onboard-progress-seg.is-active {
-  background: #ffffff;
+  background: #e4e2de;
 }
 .foleio-onboard-chips {
   display: flex;
@@ -668,12 +713,12 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .foleio-onboard-chip:hover {
-  color: #f4f4f5;
+  color: #e0ddd8;
   border-color: rgba(255, 255, 255, 0.2);
 }
 .foleio-onboard-chip.is-selected {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: #e4e2de;
+  border-color: #e4e2de;
   color: #001035;
 }
 .foleio-onboard-username {
@@ -698,7 +743,7 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   height: 48px;
   background: transparent;
   border: none;
-  color: #f4f4f5;
+  color: #e0ddd8;
   font-size: 16.642px;
   font-weight: 500;
   padding: 0 14px 0 0;
@@ -740,7 +785,89 @@ body:has(.foleio-auth-root) footer:not(.foleio-auth-legal) {
   cursor: pointer;
 }
 .foleio-onboard-back:hover {
-  color: #fafafa;
+  color: #e4e2de;
   border-color: rgba(255, 255, 255, 0.24);
+}
+.foleio-onboard-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.foleio-onboard-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: #212121;
+  color: #adadad;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.foleio-onboard-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.foleio-onboard-card-check {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #e4e2de;
+  fill: #e4e2de;
+}
+.foleio-onboard-card-check circle {
+  fill: #e4e2de;
+  stroke: #e4e2de;
+}
+.foleio-onboard-card-check path {
+  stroke: #212121;
+  fill: none;
+}
+.foleio-onboard-card:hover {
+  color: #e0ddd8;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.foleio-onboard-card.is-selected {
+  background: #212121;
+  border-color: #e4e2de;
+  color: #e0ddd8;
+}
+.foleio-onboard-card.is-selected:hover {
+  border-color: #e4e2de;
+  color: #e0ddd8;
+}
+.foleio-onboard-card-title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.foleio-onboard-card-desc {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+.foleio-onboard-card-examples {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  opacity: 0.7;
+  font-style: italic;
+}
+.foleio-onboard-card.is-selected .foleio-onboard-card-desc,
+.foleio-onboard-card.is-selected .foleio-onboard-card-examples {
+  opacity: 0.72;
+}
+.foleio-onboard-note {
+  margin: 0 0 14px;
+  color: #adadad;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 `;

@@ -215,7 +215,7 @@ function Time12Field({
           style={{
             display: 'inline-flex',
             borderRadius: 8,
-            border: '1px solid #3a3a3a',
+            border: '1px solid rgba(17, 24, 39, 0.12)',
             overflow: 'hidden',
           }}
           role="group"
@@ -232,8 +232,8 @@ function Time12Field({
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
-                background: value.amPm === period ? '#f4f4f5' : 'transparent',
-                color: value.amPm === period ? '#111' : '#f4f4f5',
+                background: value.amPm === period ? '#f3f1f4' : 'transparent',
+                color: value.amPm === period ? '#111827' : '#6b7280',
               }}
             >
               {period}
@@ -950,7 +950,7 @@ export function AvailabilitySetupForm({
                           alignItems: 'center',
                           gap: 8,
                           cursor: 'pointer',
-                          color: '#f4f4f5',
+                          color: '#111827',
                           fontSize: 13,
                           fontWeight: 500,
                         }}
@@ -996,9 +996,9 @@ export function AvailabilitySetupForm({
                         aria-label="Remove default From–To hours"
                         title="Remove default hours"
                         style={{
-                          border: '1px solid #3a3a3a',
+                          border: '1px solid rgba(17, 24, 39, 0.12)',
                           background: 'transparent',
-                          color: '#fafafa',
+                          color: '#111827',
                           cursor: 'pointer',
                           borderRadius: 8,
                           padding: '8px 10px',
@@ -1032,12 +1032,12 @@ export function AvailabilitySetupForm({
                             type="button"
                             onClick={() => toggleGeneratedSlot(slot.startTime)}
                             style={{
-                              border: '1px solid #3a3a3a',
+                              border: '1px solid rgba(17, 24, 39, 0.12)',
                               borderRadius: 8,
                               padding: '6px 10px',
                               fontSize: 12,
-                              background: slot.isActive ? '#202020' : '#141414',
-                              color: slot.isActive ? '#fafafa' : '#777',
+                              background: slot.isActive ? '#ffffff' : '#f3f1f4',
+                              color: slot.isActive ? '#111827' : '#6b7280',
                               textDecoration: slot.isActive
                                 ? 'none'
                                 : 'line-through',
@@ -1060,7 +1060,7 @@ export function AvailabilitySetupForm({
                       style={{
                         border: 'none',
                         background: 'transparent',
-                        color: '#f4f4f5',
+                        color: '#111827',
                         cursor: 'pointer',
                         padding: 0,
                         marginTop: 8,
@@ -1094,10 +1094,10 @@ export function AvailabilitySetupForm({
                             gap: 10,
                             borderRadius: 8,
                             background:
-                              editingCustomIndex === index ? '#3a3a3a' : '#2b2b2b',
+                              editingCustomIndex === index ? '#ebe8eb' : '#f3f1f4',
                             padding: '0 12px',
                             height: 38,
-                            color: '#fafafa',
+                            color: '#111827',
                             fontSize: 14,
                             fontWeight: 500,
                           }}
@@ -1110,7 +1110,7 @@ export function AvailabilitySetupForm({
                             style={{
                               border: 'none',
                               background: 'transparent',
-                              color: '#fafafa',
+                              color: '#111827',
                               cursor: 'pointer',
                               padding: 0,
                               display: 'inline-flex',
@@ -1136,8 +1136,8 @@ export function AvailabilitySetupForm({
                       style={{
                         border: 'none',
                         borderRadius: 8,
-                        background: '#2b2b2b',
-                        color: '#fff',
+                        background: '#f3f1f4',
+                        color: '#111827',
                         cursor: 'pointer',
                         padding: '8px 12px',
                         fontSize: 13,
@@ -1199,9 +1199,9 @@ export function AvailabilitySetupForm({
                             onClick={() => removeCustomSlot(editingCustomIndex)}
                             aria-label="Delete custom time"
                             style={{
-                              border: '1px solid #3a3a3a',
+                              border: '1px solid rgba(17, 24, 39, 0.12)',
                               background: 'transparent',
-                              color: '#fafafa',
+                              color: '#111827',
                               cursor: 'pointer',
                               borderRadius: 8,
                               padding: '8px 10px',
@@ -1252,7 +1252,7 @@ export function AvailabilitySetupForm({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,
-                        border: '1px solid #3a3a3a',
+                        border: '1px solid rgba(17, 24, 39, 0.12)',
                         borderRadius: 8,
                         padding: '4px 8px',
                       }}
@@ -1304,9 +1304,9 @@ export function AvailabilitySetupForm({
                   style={{
                     flex: 1,
                     borderRadius: 8,
-                    border: '1px solid #3a3a3a',
-                    background: '#151515',
-                    color: '#eee',
+                    border: '1px solid rgba(17, 24, 39, 0.12)',
+                    background: '#ffffff',
+                    color: '#111827',
                     padding: '8px 10px',
                     fontSize: 13,
                   }}

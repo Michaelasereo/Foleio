@@ -50,7 +50,7 @@ type AddonCategoryForm = {
   id: string;
   name: string;
   required: boolean;
-  options: Array<{ id: string; name: string; price: string }>;
+  options: Array<{ id: string; name: string; price: string; stock: string }>;
 };
 
 type PreorderPhaseForm = {
@@ -233,6 +233,7 @@ function categoriesToForm(raw: unknown): AddonCategoryForm[] {
       id: option.id,
       name: option.name,
       price: koboToNairaInput(option.price),
+      stock: option.stock != null ? String(option.stock) : '',
     })),
   }));
 }
@@ -335,7 +336,7 @@ function emptyProductForm() {
     digitalFileName: '',
     stock: '',
     showLimitedStock: false,
-    status: 'draft' as 'draft' | 'active',
+    status: 'active' as 'draft' | 'active',
     isPreorder: false,
     minOrderQuantity: '1',
     prepDaysMin: '',
@@ -1200,6 +1201,10 @@ export function CreatorShopManager({
                 id: option.id,
                 name: option.name,
                 price: koboToNairaInput(nairaInputToKobo(option.price)),
+                stock:
+                  option.stock.trim() === ''
+                    ? null
+                    : Math.max(0, Math.floor(Number(option.stock)) || 0),
               })),
             })),
     };
@@ -1791,7 +1796,7 @@ export function CreatorShopManager({
                   cursor: 'pointer',
                   border:
                     tab === 'orders'
-                      ? '1px solid rgba(250,250,250,0.35)'
+                      ? '1px solid rgba(17, 24, 39, 0.28)'
                       : '1px solid transparent',
                   width: '100%',
                 }}
@@ -1814,7 +1819,7 @@ export function CreatorShopManager({
                 textAlign: 'left',
                 cursor: 'pointer',
                 border: isSelected
-                  ? '1px solid rgba(250,250,250,0.35)'
+                  ? '1px solid rgba(17, 24, 39, 0.28)'
                   : '1px solid transparent',
                 width: '100%',
               }}
@@ -2075,7 +2080,7 @@ export function CreatorShopManager({
                             <Switch
                               checked={product.status === 'active'}
                               onCheckedChange={() => void toggleVisible(product)}
-                              className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                              className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                               aria-label={
                                 product.status === 'active'
                                   ? 'Hide gift card from profile'
@@ -2251,7 +2256,7 @@ export function CreatorShopManager({
                         <Switch
                           checked={coupon.status === 'active'}
                           onCheckedChange={() => void toggleCouponActive(coupon)}
-                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                           aria-label={
                             coupon.status === 'active'
                               ? 'Disable coupon'
@@ -2405,7 +2410,7 @@ export function CreatorShopManager({
                         style={{
                           overflowX: 'auto',
                           marginBottom: 12,
-                          border: '1px solid rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(17, 24, 39, 0.08)',
                           borderRadius: 10,
                         }}
                       >
@@ -2425,9 +2430,9 @@ export function CreatorShopManager({
                             {csvRows.map((row) => (
                               <tr
                                 key={row.rowNumber}
-                                style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                                style={{ borderTop: '1px solid rgba(17, 24, 39, 0.08)' }}
                               >
-                                <td style={{ padding: '8px 10px', color: '#adadad' }}>
+                                <td style={{ padding: '8px 10px', color: '#6b7280' }}>
                                   {row.rowNumber}
                                 </td>
                                 <td style={{ padding: '8px 10px' }}>{row.name || '—'}</td>
@@ -2628,7 +2633,7 @@ export function CreatorShopManager({
                         <Switch
                           checked={product.status === 'active'}
                           onCheckedChange={() => void toggleVisible(product)}
-                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                           aria-label={
                             product.status === 'active'
                               ? 'Hide product from profile'
@@ -2723,8 +2728,8 @@ export function CreatorShopManager({
                         style={{
                           padding: '10px 12px',
                           borderRadius: 10,
-                          background: 'rgba(255,255,255,0.06)',
-                          color: '#f4f4f5',
+                          background: 'rgba(17, 24, 39, 0.06)',
+                          color: '#111827',
                           fontFamily: 'var(--font-body), sans-serif',
                           fontSize: 14,
                           fontWeight: 500,
@@ -2832,9 +2837,9 @@ export function CreatorShopManager({
                     textAlign: 'left',
                     padding: 16,
                     borderRadius: 12,
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    background: 'rgba(255,255,255,0.04)',
-                    color: '#f4f4f5',
+                    border: '1px solid rgba(17, 24, 39, 0.12)',
+                    background: 'rgba(17, 24, 39, 0.04)',
+                    color: '#111827',
                     cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
                     opacity: deliveryAction || deletingTierId ? 0.65 : 1,
                   }}
@@ -2858,9 +2863,9 @@ export function CreatorShopManager({
                       textAlign: 'left',
                       padding: 16,
                       borderRadius: 12,
-                      border: '1px solid rgba(255,255,255,0.14)',
-                      background: 'rgba(255,255,255,0.04)',
-                      color: '#f4f4f5',
+                      border: '1px solid rgba(17, 24, 39, 0.12)',
+                      background: 'rgba(17, 24, 39, 0.04)',
+                      color: '#111827',
                       cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
                       opacity: deliveryAction || deletingTierId ? 0.65 : 1,
                     }}
@@ -2898,9 +2903,9 @@ export function CreatorShopManager({
                       textAlign: 'left',
                       padding: 16,
                       borderRadius: 12,
-                      border: '1px solid rgba(255,255,255,0.14)',
-                      background: 'rgba(255,255,255,0.04)',
-                      color: '#f4f4f5',
+                      border: '1px solid rgba(17, 24, 39, 0.12)',
+                      background: 'rgba(17, 24, 39, 0.04)',
+                      color: '#111827',
                       cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
                       opacity: deliveryAction || deletingTierId ? 0.65 : 1,
                     }}
@@ -2938,9 +2943,9 @@ export function CreatorShopManager({
                       textAlign: 'left',
                       padding: 16,
                       borderRadius: 12,
-                      border: '1px solid rgba(255,255,255,0.14)',
-                      background: 'rgba(255,255,255,0.04)',
-                      color: '#f4f4f5',
+                      border: '1px solid rgba(17, 24, 39, 0.12)',
+                      background: 'rgba(17, 24, 39, 0.04)',
+                      color: '#111827',
                       cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
                       opacity: deliveryAction || deletingTierId ? 0.65 : 1,
                     }}
@@ -2984,9 +2989,9 @@ export function CreatorShopManager({
                     textAlign: 'left',
                     padding: 16,
                     borderRadius: 12,
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    background: 'rgba(255,255,255,0.04)',
-                    color: limits.canUseConditionalDelivery ? '#f4f4f5' : '#828282',
+                    border: '1px solid rgba(17, 24, 39, 0.12)',
+                    background: 'rgba(17, 24, 39, 0.04)',
+                    color: limits.canUseConditionalDelivery ? '#111827' : '#6b7280',
                     cursor:
                       deliveryAction || deletingTierId
                         ? 'not-allowed'
@@ -3010,7 +3015,7 @@ export function CreatorShopManager({
                       fontSize: 14,
                       fontWeight: 600,
                       lineHeight: 1.3,
-                      color: limits.canUseConditionalDelivery ? '#f4f4f5' : '#adadad',
+                      color: limits.canUseConditionalDelivery ? '#111827' : '#6b7280',
                     }}
                   >
                     {!limits.canUseConditionalDelivery ? (
@@ -3133,7 +3138,7 @@ export function CreatorShopManager({
                         background: 'none',
                         border: 'none',
                         padding: 0,
-                        color: '#fafafa',
+                        color: '#111827',
                         textDecoration: 'underline',
                         cursor: 'pointer',
                       }}
@@ -3575,7 +3580,7 @@ export function CreatorShopManager({
                       fontSize:
                         productDrawerView === 'details' ? 14 : undefined,
                       fontWeight: productDrawerView === 'details' ? 500 : undefined,
-                      color: productDrawerView === 'details' ? '#adadad' : undefined,
+                      color: productDrawerView === 'details' ? '#6b7280' : undefined,
                       lineHeight: 1.3,
                     }}
                     className={
@@ -3612,8 +3617,8 @@ export function CreatorShopManager({
                           : 400,
                       color:
                         productDrawerView === 'details' && productForm.id
-                          ? '#fafafa'
-                          : '#adadad',
+                          ? '#111827'
+                          : '#6b7280',
                       lineHeight: 1.25,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -3644,7 +3649,7 @@ export function CreatorShopManager({
                       cursor: 'pointer',
                     }}
                   >
-                    <span style={{ fontSize: 13, color: '#adadad', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>
                       {productForm.status === 'active' ? 'Active' : 'Draft'}
                     </span>
                     <Switch
@@ -3655,7 +3660,7 @@ export function CreatorShopManager({
                           status: checked ? 'active' : 'draft',
                         }))
                       }
-                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                       aria-label="Active on profile"
                     />
                   </label>
@@ -3898,7 +3903,7 @@ export function CreatorShopManager({
                             marginTop: 10,
                             padding: 10,
                             borderRadius: 10,
-                            background: 'rgba(255,255,255,0.04)',
+                            background: 'rgba(17, 24, 39, 0.04)',
                           }}
                         >
                           <div
@@ -4151,7 +4156,7 @@ export function CreatorShopManager({
                   {isGiftCardProduct ? (
                     <p
                       className="foleio-dash-panel-meta"
-                      style={{ margin: '8px 0 0', color: '#fafafa' }}
+                      style={{ margin: '8px 0 0', color: '#111827' }}
                     >
                       Gift card
                     </p>
@@ -4173,7 +4178,7 @@ export function CreatorShopManager({
                       }
                       style={{
                         borderColor:
-                          productForm.type === 'physical' ? '#fafafa' : undefined,
+                          productForm.type === 'physical' ? '#111827' : undefined,
                       }}
                       onClick={() => setProductType('physical')}
                     >
@@ -4213,7 +4218,7 @@ export function CreatorShopManager({
                         }
                         style={{
                           borderColor:
-                            productForm.type === 'digital' ? '#fafafa' : undefined,
+                            productForm.type === 'digital' ? '#111827' : undefined,
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -4273,8 +4278,8 @@ export function CreatorShopManager({
                             position: 'relative',
                             aspectRatio: '1',
                             borderRadius: 8,
-                            border: '1px dashed rgba(255,255,255,0.18)',
-                            background: '#2b2b2b',
+                            border: '1px dashed rgba(17, 24, 39, 0.12)',
+                            background: '#f3f1f4',
                             overflow: 'hidden',
                           }}
                         >
@@ -4343,7 +4348,7 @@ export function CreatorShopManager({
                                     height: '100%',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    color: '#adadad',
+                                    color: '#6b7280',
                                     position: 'relative',
                                   }}
                                 >
@@ -4373,7 +4378,7 @@ export function CreatorShopManager({
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: 6,
-                                    color: '#adadad',
+                                    color: '#6b7280',
                                     fontSize: 12,
                                   }}
                                 >
@@ -4397,6 +4402,13 @@ export function CreatorShopManager({
                     onChange={(event) =>
                       setProductForm((prev) => ({ ...prev, name: event.target.value }))
                     }
+                    placeholder={
+                      isGiftCardProduct
+                        ? 'e.g. ₦10,000 gift card'
+                        : isDigitalProduct
+                          ? 'e.g. Brand photography preset pack'
+                          : 'e.g. Soft leather journal'
+                    }
                     required
                     autoFocus
                   />
@@ -4415,6 +4427,13 @@ export function CreatorShopManager({
                         description: event.target.value,
                       }))
                     }
+                    placeholder={
+                      isGiftCardProduct
+                        ? 'What buyers should know about this gift card'
+                        : isDigitalProduct
+                          ? 'What buyers get after they pay'
+                          : 'Short details buyers see on your shop'
+                    }
                   />
                 </label>
 
@@ -4427,6 +4446,7 @@ export function CreatorShopManager({
                     type="number"
                     min="1000"
                     step="1"
+                    placeholder="e.g. 15000"
                     value={
                       isGiftCardProduct
                         ? productForm.price
@@ -4511,6 +4531,7 @@ export function CreatorShopManager({
                       type="number"
                       min="0"
                       step="1"
+                      placeholder="e.g. 25"
                       value={productForm.stock}
                       onChange={(event) =>
                         setProductForm((prev) => ({ ...prev, stock: event.target.value }))
@@ -4525,6 +4546,7 @@ export function CreatorShopManager({
                       type="number"
                       min="0"
                       step="0.01"
+                      placeholder="e.g. 0.5"
                       value={productForm.weight}
                       onChange={(event) =>
                         setProductForm((prev) => ({ ...prev, weight: event.target.value }))
@@ -4562,7 +4584,7 @@ export function CreatorShopManager({
                           showLimitedStock: checked,
                         }))
                       }
-                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                       aria-label="Show as limited stock"
                     />
                   </div>
@@ -4579,6 +4601,7 @@ export function CreatorShopManager({
                           type="number"
                           min="1"
                           step="1"
+                          placeholder="e.g. 1"
                           value={productForm.minOrderQuantity}
                           onChange={(event) =>
                             setProductForm((prev) => ({
@@ -4654,7 +4677,7 @@ export function CreatorShopManager({
                               requiresCustomDelivery: checked,
                             }))
                           }
-                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                           aria-label="Needs custom delivery details"
                         />
                       </div>
@@ -4686,7 +4709,7 @@ export function CreatorShopManager({
                               id: crypto.randomUUID(),
                               name: '',
                               required: false,
-                              options: [{ id: crypto.randomUUID(), name: '', price: '' }],
+                              options: [{ id: crypto.randomUUID(), name: '', price: '', stock: '' }],
                             },
                           ],
                         }))
@@ -4697,8 +4720,8 @@ export function CreatorShopManager({
                     </button>
                   </div>
                   <p className="foleio-dash-panel-meta" style={{ margin: '4px 0 0' }}>
-                    e.g. Flavours — add types under each category with a price. Toggle required if
-                    buyers must choose one.
+                    e.g. Flavours — add types under each category with a price and qty.
+                    Leave qty blank for unlimited. Toggle required if buyers must choose one.
                   </p>
                   {productForm.addons.map((category, categoryIndex) => (
                     <div
@@ -4710,7 +4733,7 @@ export function CreatorShopManager({
                         marginTop: 10,
                         padding: 10,
                         borderRadius: 10,
-                        background: 'rgba(255,255,255,0.04)',
+                        background: 'rgba(17, 24, 39, 0.04)',
                       }}
                     >
                       <div
@@ -4742,7 +4765,7 @@ export function CreatorShopManager({
                             alignItems: 'center',
                             gap: 6,
                             fontSize: 12,
-                            color: '#adadad',
+                            color: '#6b7280',
                             whiteSpace: 'nowrap',
                           }}
                         >
@@ -4781,7 +4804,7 @@ export function CreatorShopManager({
                           key={option.id}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 100px auto',
+                            gridTemplateColumns: '1fr 88px 72px auto',
                             gap: 8,
                           }}
                         >
@@ -4828,6 +4851,29 @@ export function CreatorShopManager({
                               })
                             }
                           />
+                          <input
+                            className="foleio-dash-input"
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="Qty"
+                            value={option.stock}
+                            onChange={(event) =>
+                              setProductForm((prev) => {
+                                const addons = [...prev.addons];
+                                const options = [...addons[categoryIndex].options];
+                                options[optionIndex] = {
+                                  ...options[optionIndex],
+                                  stock: event.target.value,
+                                };
+                                addons[categoryIndex] = {
+                                  ...addons[categoryIndex],
+                                  options,
+                                };
+                                return { ...prev, addons };
+                              })
+                            }
+                          />
                           <button
                             type="button"
                             className="foleio-dash-btn-ghost"
@@ -4843,7 +4889,14 @@ export function CreatorShopManager({
                                   options:
                                     options.length > 0
                                       ? options
-                                      : [{ id: crypto.randomUUID(), name: '', price: '' }],
+                                      : [
+                                          {
+                                            id: crypto.randomUUID(),
+                                            name: '',
+                                            price: '',
+                                            stock: '',
+                                          },
+                                        ],
                                 };
                                 return { ...prev, addons };
                               })
@@ -4865,7 +4918,12 @@ export function CreatorShopManager({
                               ...addons[categoryIndex],
                               options: [
                                 ...addons[categoryIndex].options,
-                                { id: crypto.randomUUID(), name: '', price: '' },
+                                {
+                                  id: crypto.randomUUID(),
+                                  name: '',
+                                  price: '',
+                                  stock: '',
+                                },
                               ],
                             };
                             return { ...prev, addons };
@@ -4960,7 +5018,7 @@ export function CreatorShopManager({
                           marginTop: 8,
                           padding: 10,
                           borderRadius: 10,
-                          background: 'rgba(255,255,255,0.04)',
+                          background: 'rgba(17, 24, 39, 0.04)',
                         }}
                       >
                         <div
@@ -5056,7 +5114,7 @@ export function CreatorShopManager({
                                     width: 40,
                                     height: 40,
                                     padding: 0,
-                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    border: '1px solid rgba(17, 24, 39, 0.12)',
                                     borderRadius: 8,
                                     background: 'transparent',
                                     cursor: 'pointer',
@@ -5183,7 +5241,7 @@ export function CreatorShopManager({
                       <Switch
                         checked={productForm.isPreorder}
                         onCheckedChange={setPreorderEnabled}
-                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                         aria-label="Enable preorder"
                       />
                     </div>
@@ -5247,7 +5305,7 @@ export function CreatorShopManager({
                         }
                         onCheckedChange={setDiscountEnabled}
                         disabled={productForm.isPreorder}
-                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                         aria-label="Enable discount"
                       />
                     </div>
@@ -5416,7 +5474,7 @@ export function CreatorShopManager({
                         }
                         style={{
                           borderColor:
-                            couponForm.type === 'percent' ? '#fafafa' : undefined,
+                            couponForm.type === 'percent' ? '#111827' : undefined,
                         }}
                         onClick={() =>
                           setCouponForm((prev) => ({ ...prev, type: 'percent' }))
@@ -5433,7 +5491,7 @@ export function CreatorShopManager({
                         }
                         style={{
                           borderColor:
-                            couponForm.type === 'fixed' ? '#fafafa' : undefined,
+                            couponForm.type === 'fixed' ? '#111827' : undefined,
                         }}
                         onClick={() =>
                           setCouponForm((prev) => ({ ...prev, type: 'fixed' }))
@@ -5554,7 +5612,7 @@ export function CreatorShopManager({
                           status: checked ? 'active' : 'disabled',
                         }))
                       }
-                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#3a3a3a] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#adadad]"
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
                     />
                   </div>
 

@@ -92,7 +92,7 @@ export function SupportChatSettings({
             marginTop: 16,
             padding: 14,
             borderRadius: 12,
-            background: '#1a1816',
+            background: '#f3f1f4',
           }}
         >
           <div
@@ -103,8 +103,8 @@ export function SupportChatSettings({
               width: 36,
               height: 36,
               borderRadius: 10,
-              background: '#2a2a2a',
-              color: '#f4f4f5',
+              background: '#ebe8eb',
+              color: '#111827',
               flexShrink: 0,
             }}
           >
@@ -119,7 +119,7 @@ export function SupportChatSettings({
               style={{
                 display: 'inline-block',
                 marginTop: 4,
-                color: '#f4f4f5',
+                color: '#111827',
                 fontSize: 15,
                 fontWeight: 600,
                 textDecoration: 'none',

@@ -14,6 +14,7 @@ import { payoutConfirmationEmail } from './templates/payout-confirmation';
 import { foundingCreatorResetEmailTemplate } from './templates/founding-creator-reset';
 import { understandYourFeesEmail } from './templates/understand-your-fees';
 import { developerSupportInviteEmail } from './templates/developer-support-invite';
+import { quoteSentEmail } from './templates/quote-sent';
 import { baseEmailTemplate } from './base-template';
 import { getFoleioLogoAttachment } from './foleio-dark-email';
 import type { BalanceReminderKind } from '@/lib/booking/deposit';
@@ -541,6 +542,34 @@ export async function sendDeveloperSupportInviteEmail(data: {
     return await sendEmail({ to: data.to, subject, html, withLogo: true });
   } catch (error) {
     console.error('sendDeveloperSupportInviteEmail failed:', error);
+    return { success: false };
+  }
+}
+
+export async function sendQuoteSentEmail(data: {
+  customerEmail: string;
+  customerName: string;
+  creatorName: string;
+  quoteTitle: string;
+  totalAmount: number;
+  depositAmount: number;
+  balanceAmount: number;
+  validUntilLabel: string;
+  quoteUrl: string;
+  isUpdate?: boolean;
+  sampleTo?: string;
+}) {
+  try {
+    const { subject, html } = quoteSentEmail(data);
+    return await sendEmail({
+      to: data.customerEmail,
+      subject,
+      html,
+      withLogo: true,
+      sampleTo: data.sampleTo,
+    });
+  } catch (error) {
+    console.error('sendQuoteSentEmail failed:', error);
     return { success: false };
   }
 }

@@ -86,6 +86,8 @@ body:has(.foleio-mkt-root) .foleio-site-footer {
 .foleio-mkt-main {
   flex: 1;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .foleio-mkt-eyebrow {
@@ -296,6 +298,80 @@ body:has(.foleio-mkt-root) .foleio-site-footer {
   margin: 0 auto;
   width: 100%;
 }
+
+/* Home hero — full-bleed first viewport */
+.foleio-mkt-home-hero {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: calc(100vh - 140px);
+  padding: 48px 24px 64px;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 40%, rgba(255, 255, 255, 0.04), transparent 55%),
+    #1a1816;
+}
+.foleio-mkt-home-hero-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  width: 100%;
+  display: grid;
+  gap: 40px;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .foleio-mkt-home-hero-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+    gap: clamp(32px, 5vw, 64px);
+  }
+}
+.foleio-mkt-home-copy {
+  max-width: 32rem;
+}
+.foleio-mkt-home-brand {
+  margin: 0 0 1.25rem;
+  font-size: clamp(2.75rem, 7vw, 4.5rem);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: #fafafa;
+}
+.foleio-mkt-home-headline {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: #fafafa;
+}
+.foleio-mkt-home-sub {
+  margin: 0 0 1.75rem;
+  color: #8b8f9a;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  max-width: 28rem;
+}
+.foleio-mkt-home-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.foleio-mkt-home-ctas .foleio-mkt-btn-ghost {
+  margin-left: 0;
+}
+.foleio-mkt-home-visual {
+  width: 100%;
+  max-width: 360px;
+  justify-self: center;
+}
+@media (min-width: 900px) {
+  .foleio-mkt-home-visual {
+    justify-self: end;
+  }
+}
+.foleio-mkt-home-visual .foleio-auth-left {
+  max-width: none;
+}
 `;
 
 export const BRAND_CLAIM =
@@ -305,14 +381,14 @@ export const MARKETING_NAV = [
   { href: '/product/link', label: 'Link' },
   { href: '/product/shop', label: 'Shop' },
   { href: '/product/bookings', label: 'Bookings' },
-  { href: '/creators', label: 'Top Creators' },
+  { href: '/creators', label: 'Creators' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/about', label: 'About' },
 ] as const;
 
 export const MARKETING_FOOTER_LINKS = [
   { href: '/about', label: 'About' },
-  { href: '/creators', label: 'Top Creators' },
+  { href: '/creators', label: 'Creators' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/legal/privacy', label: 'Privacy' },
   { href: '/legal/terms', label: 'Terms' },

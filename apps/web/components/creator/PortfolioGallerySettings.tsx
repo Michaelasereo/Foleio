@@ -445,8 +445,8 @@ export function PortfolioGallerySettings({
                 borderRadius: 8,
                 padding: '8px 12px',
                 cursor: 'pointer',
-                background: selected ? '#fafafa' : 'rgba(255,255,255,0.08)',
-                color: selected ? '#18181b' : '#fafafa',
+                background: selected ? '#111827' : '#f3f1f4',
+                color: selected ? '#ffffff' : '#111827',
                 fontSize: 13,
                 fontWeight: 600,
               }}
@@ -647,9 +647,9 @@ export function PortfolioGallerySettings({
                 borderRadius: 12,
                 border:
                   state === 'locked'
-                    ? '1px dashed rgba(255,255,255,0.08)'
-                    : '1px dashed rgba(255,255,255,0.18)',
-                background: state === 'locked' ? '#1a1a1a' : '#2b2b2b',
+                    ? '1px dashed rgba(17, 24, 39, 0.08)'
+                    : '1px dashed rgba(17, 24, 39, 0.12)',
+                background: state === 'locked' ? '#ebe8eb' : '#f3f1f4',
                 overflow: 'hidden',
                 cursor: state === 'locked' ? 'not-allowed' : 'pointer',
                 padding: 0,
@@ -674,7 +674,7 @@ export function PortfolioGallerySettings({
                     height: '100%',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#adadad',
+                    color: '#6b7280',
                     position: 'relative',
                   }}
                 >
@@ -720,7 +720,7 @@ export function PortfolioGallerySettings({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 6,
-                    color: '#adadad',
+                    color: '#6b7280',
                     fontSize: 12,
                   }}
                 >
@@ -773,7 +773,7 @@ export function PortfolioGallerySettings({
               position: 'relative',
               maxWidth: 560,
               width: '100%',
-              background: '#212121',
+              background: '#ffffff',
               borderRadius: 14,
               padding: 16,
             }}

@@ -8,6 +8,7 @@ import {
   flattenAddonOptions,
   parseAddonCategories,
   validateRequiredAddons,
+  validateAddonStock,
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
@@ -207,6 +208,17 @@ export async function POST(request: Request) {
         if (requiredError) {
           return NextResponse.json(
             { error: `${requiredError} for ${product.name}` },
+            { status: 400 }
+          );
+        }
+        const stockError = validateAddonStock(
+          addonCategories,
+          requestedAddonIds,
+          quantity
+        );
+        if (stockError) {
+          return NextResponse.json(
+            { error: `${stockError} on ${product.name}` },
             { status: 400 }
           );
         }

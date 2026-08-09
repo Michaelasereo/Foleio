@@ -29,6 +29,9 @@ export default async function CreatorLayout({
     platformPlan: string | null;
     availableBalance: number;
     isBanned: boolean;
+    fixedBookingsEnabled: boolean;
+    customQuotesEnabled: boolean;
+    shopEnabled: boolean;
     creatorLinks: { id: string; label: string; url: string }[];
   } | null = null;
 
@@ -43,6 +46,9 @@ export default async function CreatorLayout({
         platformPlan: true,
         availableBalance: true,
         isBanned: true,
+        fixedBookingsEnabled: true,
+        customQuotesEnabled: true,
+        shopEnabled: true,
         creatorLinks: {
           where: { isActive: true },
           select: {
@@ -73,6 +79,9 @@ export default async function CreatorLayout({
             platformPlan: null,
             availableBalance: 0,
             isBanned: false,
+            fixedBookingsEnabled: true,
+            customQuotesEnabled: false,
+            shopEnabled: true,
             creatorLinks: [],
           }
         : null;
@@ -105,12 +114,12 @@ export default async function CreatorLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-[#F3F1F4]">
       <CreatorSidebar creator={serializeForClient(creator)} />
-      <main className="h-screen flex-1 overflow-y-auto lg:ml-0">
-          <div className="flex min-h-full flex-col px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex-1">{children}</div>
-          <div className="creator-legal-footer mt-10 border-t border-border pt-6">
+      <main className="h-screen flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
+        <div className="flex min-h-full flex-col rounded-[20px] border border-black/5 bg-[#FCFAFB] px-4 py-6 shadow-[0_12px_40px_rgba(80,60,90,0.08)] sm:px-6 lg:px-8">
+          <div className="flex-1 text-[#111827]">{children}</div>
+          <div className="creator-legal-footer mt-10 border-t border-black/10 pt-6">
             <AuthLegalFooter tone="light" />
           </div>
         </div>

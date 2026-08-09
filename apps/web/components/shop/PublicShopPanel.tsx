@@ -7,6 +7,8 @@ import {
   flattenAddonOptions,
   parseAddonCategories,
   validateRequiredAddons,
+  validateAddonStock,
+  isAddonOptionAvailable,
   type AddonOption,
 } from '@/lib/shop/product-addons';
 import { resolveProductPricing } from '@/lib/shop/preorder';
@@ -583,6 +585,15 @@ export function PublicShopPanel({
       const requiredError = validateRequiredAddons(addonCategories, selectedAddonIds);
       if (requiredError) {
         setError(requiredError);
+        return;
+      }
+      const stockError = validateAddonStock(
+        addonCategories,
+        selectedAddonIds,
+        quantity
+      );
+      if (stockError) {
+        setError(stockError);
         return;
       }
     }
@@ -1239,6 +1250,7 @@ export function PublicShopPanel({
                           <div style={{ display: 'grid', gap: 8 }}>
                             {category.options.map((option) => {
                               const checked = selectedAddonIds.includes(option.id);
+                              const available = isAddonOptionAvailable(option);
                               return (
                                 <label
                                   key={option.id}
@@ -1247,6 +1259,8 @@ export function PublicShopPanel({
                                     justifyContent: 'space-between',
                                     gap: 12,
                                     fontSize: 14,
+                                    opacity: available ? 1 : 0.45,
+                                    cursor: available ? 'pointer' : 'not-allowed',
                                   }}
                                 >
                                   <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1258,7 +1272,9 @@ export function PublicShopPanel({
                                           : undefined
                                       }
                                       checked={checked}
+                                      disabled={!available}
                                       onChange={() => {
+                                        if (!available) return;
                                         if (category.required) {
                                           const otherIds = category.options.map((row) => row.id);
                                           setSelectedAddonIds((prev) => [
@@ -1275,6 +1291,19 @@ export function PublicShopPanel({
                                       }}
                                     />
                                     {option.name}
+                                    {option.stock != null ? (
+                                      <span
+                                        style={{
+                                          fontSize: 12,
+                                          opacity: 0.65,
+                                          fontWeight: 400,
+                                        }}
+                                      >
+                                        {option.stock <= 0
+                                          ? '· Out of stock'
+                                          : `· ${option.stock} left`}
+                                      </span>
+                                    ) : null}
                                   </span>
                                   <span>+{formatNaira(option.price)}</span>
                                 </label>
