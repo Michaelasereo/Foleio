@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Camera, Copy, ExternalLink, Globe, Loader2 } from 'lucide-react';
+import { Camera, Copy, ExternalLink, Globe, Loader2, BadgeCheck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { broadcastAvatarUpdated } from '@/lib/creator/profile-live';
+import { BusinessCoverCard } from '@/components/creator/BusinessCoverCard';
 import { CreatorLinksManager } from '@/components/creator/CreatorLinksManager';
 import { PortfolioGallerySettings } from '@/components/creator/PortfolioGallerySettings';
 import {
@@ -14,6 +15,7 @@ import {
 import { BillingPage } from '@/components/creator/BillingPage';
 import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
 import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
+import { OfferingsSettings } from '@/components/creator/OfferingsSettings';
 import { BIO_MAX_WORDS, countBioWords, trimBioToMaxWords } from '@/lib/creator/bio';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { parseSocialUrl } from '@/lib/creator/social-urls';
@@ -27,6 +29,7 @@ type SettingsTab =
   | 'billing'
   | 'support'
   | 'security'
+  | 'offerings'
   | 'developer-support';
 
 type SettingsSegment = 'general' | 'admin' | 'developer-support';
@@ -39,6 +42,7 @@ const GENERAL_TABS: Array<{ id: SettingsTab; label: string }> = [
 ];
 
 const ADMIN_TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'offerings', label: 'Modules' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'policy', label: 'Deposits & policy' },
   { id: 'support', label: 'Chat with us' },
@@ -81,6 +85,7 @@ interface AccountSettingsTabsProps {
     bio?: string | null;
     category?: string | null;
     avatarUrl?: string | null;
+    bannerUrl?: string | null;
     instagramHandle?: string | null;
     tiktokHandle?: string | null;
     twitterUrl?: string | null;
@@ -127,6 +132,7 @@ export function AccountSettingsTabs({
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(creator.avatarUrl || null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(creator.bannerUrl || null);
   const [username, setUsername] = useState(creator.username || '');
   const [displayName, setDisplayName] = useState(creator.displayName || '');
   const [bio, setBio] = useState(creator.bio || '');
@@ -282,6 +288,7 @@ export function AccountSettingsTabs({
         setTwitterUrl(profile.twitterUrl ?? creator.twitterUrl ?? '');
         setPortfolioUrl(profile.portfolioUrl ?? creator.portfolioUrl ?? '');
         setAvatarUrl(profile.avatarUrl ?? creator.avatarUrl ?? null);
+        setBannerUrl(profile.bannerUrl ?? creator.bannerUrl ?? null);
       } catch {
         // Keep existing server-provided values if profile fetch fails.
       }
@@ -292,6 +299,7 @@ export function AccountSettingsTabs({
     };
   }, [
     creator.avatarUrl,
+    creator.bannerUrl,
     creator.bio,
     creator.category,
     creator.displayName,
@@ -646,6 +654,71 @@ export function AccountSettingsTabs({
       {activeTab === 'profile' ? (
         <div className="foleio-dash-settings">
           <div className="foleio-dash-panel">
+            <h2 className="foleio-dash-panel-title">Cover image</h2>
+            <p className="foleio-dash-panel-meta" style={{ marginBottom: 14 }}>
+              Cover, photo, and how clients recognise you on your public page
+            </p>
+            <BusinessCoverCard
+              bannerUrl={bannerUrl}
+              editable
+              onBannerChange={setBannerUrl}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                width: '100%',
+                marginTop: 14,
+              }}
+            >
+              <h2
+                className="foleio-dash-panel-title"
+                style={{
+                  margin: 0,
+                  minWidth: 0,
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {displayName || creator.displayName || 'Your profile'}
+              </h2>
+              <span
+                className={`foleio-auth-stub-badge${
+                  Boolean(creator.platformSubscriptionActive) &&
+                  ['PRO', 'GROWTH', 'PREMIUM'].includes(
+                    (creator.platformPlan || '').toUpperCase()
+                  )
+                    ? ' is-pro'
+                    : ''
+                }`}
+                aria-label={
+                  Boolean(creator.platformSubscriptionActive) &&
+                  ['PRO', 'GROWTH', 'PREMIUM'].includes(
+                    (creator.platformPlan || '').toUpperCase()
+                  )
+                    ? 'Pro verified'
+                    : 'Verified'
+                }
+                title={
+                  Boolean(creator.platformSubscriptionActive) &&
+                  ['PRO', 'GROWTH', 'PREMIUM'].includes(
+                    (creator.platformPlan || '').toUpperCase()
+                  )
+                    ? 'Pro verified'
+                    : 'Verified'
+                }
+                style={{ flexShrink: 0 }}
+              >
+                <BadgeCheck className="h-5 w-5" strokeWidth={1.5} />
+              </span>
+            </div>
+          </div>
+
+          <div className="foleio-dash-panel">
             <h2 className="foleio-dash-panel-title">Profile photo</h2>
             <p className="foleio-dash-panel-meta">
               JPG, PNG or WebP · Max 5MB · Square, at least 400×400px
@@ -957,6 +1030,8 @@ export function AccountSettingsTabs({
 
       {activeTab === 'policy' ? <BookingPolicySettings /> : null}
 
+      {activeTab === 'offerings' ? <OfferingsSettings /> : null}
+
       {activeTab === 'support' ? (
         <SupportChatSettings
           creatorName={displayName || creator.displayName}
@@ -1050,7 +1125,7 @@ export function AccountSettingsTabs({
           </p>
           <p className="foleio-dash-panel-meta" style={{ marginBottom: 12 }}>
             Status:{' '}
-            <strong style={{ color: '#f4f4f5' }}>
+            <strong style={{ color: '#111827' }}>
               {devSupportLoading ? 'Loading…' : devSupportStatus}
             </strong>
             {devSupportExpiresAt && devSupportStatus === 'active' ? (

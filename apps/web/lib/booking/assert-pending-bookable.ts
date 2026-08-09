@@ -16,7 +16,13 @@ export async function assertPendingBookingStillBookable(booking: {
   bookingDate: Date;
   startTime: string | null;
   endTime: string | null;
+  source?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Quote-origin bookings skip calendar slot / capacity checks
+  if (booking.source === 'quote') {
+    return { ok: true };
+  }
+
   const dateOnly = new Date(booking.bookingDate);
   dateOnly.setUTCHours(0, 0, 0, 0);
 
@@ -86,6 +92,7 @@ export async function assertPendingBookingStillBookable(booking: {
         id: { not: booking.id },
         status: { notIn: ['cancelled', 'canceled', 'refunded'] },
         startTime: { not: null },
+        source: { not: 'quote' },
       },
       select: { startTime: true, endTime: true },
     });
@@ -105,6 +112,7 @@ export async function assertPendingBookingStillBookable(booking: {
         bookingDate: dateOnly,
         id: { not: booking.id },
         status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+        source: { not: 'quote' },
       },
     });
     if (existingBookings >= capacity) {

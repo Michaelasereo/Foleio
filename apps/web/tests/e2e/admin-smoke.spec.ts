@@ -4,8 +4,10 @@ test.describe('Admin smoke', () => {
   test('admin gate is reachable', async ({ page }) => {
     await page.goto('/admin');
     // Either login gate or already-authed dashboard
-    const gate = page.getByText('Admin Access');
-    const overview = page.getByText(/Creator Health|Total Creators|Transactions|Welcome/i);
+    const gate = page.getByRole('heading', { name: /Admin sign in|Admin Access/i });
+    const overview = page.getByText(
+      /Creator Health|Total Creators|Transactions|Welcome|Operator console/i
+    );
     await expect(gate.or(overview).first()).toBeVisible({ timeout: 30_000 });
   });
 

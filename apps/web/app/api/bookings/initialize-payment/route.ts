@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
         bookingDate: booking.bookingDate,
         startTime: booking.startTime,
         endTime: booking.endTime,
+        source: booking.source,
       });
       if (!slotCheck.ok) {
         return NextResponse.json({ error: slotCheck.error }, { status: 409 });

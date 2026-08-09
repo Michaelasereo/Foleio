@@ -19,6 +19,7 @@ import { PublicShopPanel, prefetchPublicShop } from '@/components/shop/PublicSho
 import { productCardCss } from '@/components/shop/product-card-styles';
 import { PublicGalleryPanel } from '@/components/creator/public/PublicGalleryPanel';
 import { resolveBookingPolicyHref } from '@/lib/booking/booking-policy-document';
+import { QuoteRequestModal } from '@/components/quotes/QuoteRequestModal';
 
 interface CreatorLink {
   id: string;
@@ -47,6 +48,7 @@ interface PriceListItem {
   depositValue?: number | null;
   allowPayInFull?: boolean | null;
   minNoticeDays?: number | null;
+  pricingType?: string | null;
 }
 
 interface PortfolioSectionPublic {
@@ -126,6 +128,10 @@ interface Creator {
   bookingPolicyFileUrl?: string | null;
   bookingPolicyFileName?: string | null;
   bookingPolicyLinkUrl?: string | null;
+  fixedBookingsEnabled?: boolean | null;
+  customQuotesEnabled?: boolean | null;
+  shopEnabled?: boolean | null;
+  quoteWhatsappPhone?: string | null;
 }
 
 interface PublicCreatorProfileProps {
@@ -628,6 +634,8 @@ export function PublicCreatorProfile({
 }: PublicCreatorProfileProps) {
   const [priceListOpen, setPriceListOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [quoteRequestOpen, setQuoteRequestOpen] = useState(false);
+  const [quoteService, setQuoteService] = useState<PriceListItem | null>(null);
   const [selectedService, setSelectedService] = useState<PriceListItem | null>(null);
   const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null);
   const [offeringsTab, setOfferingsTab] = useState<'services' | 'shop' | 'reviews'>(
@@ -645,8 +653,12 @@ export function PublicCreatorProfile({
       currency: 'NGN',
     }).format(priceInKobo / 100);
 
+  const fixedBookingsOn = creator.fixedBookingsEnabled !== false;
+  const customQuotesOn = Boolean(creator.customQuotesEnabled);
+  const shopOn = creator.shopEnabled !== false;
+
   const hasRealServices = groupedPriceList.length > 0 || hasServicesHint;
-  const hasShop = Boolean(hasActiveProducts);
+  const hasShop = Boolean(hasActiveProducts) && shopOn;
   const hasReviews = reviews.length > 0;
   const displayGrouped = groupedPriceList;
   const displayPriceListItems = displayGrouped.flatMap((group) => group.items);
@@ -661,6 +673,7 @@ export function PublicCreatorProfile({
     hasRealServices ||
     hasShop ||
     hasReviews ||
+    customQuotesOn ||
     !hasServicesHint;
 
   const offeringsTabOptions = [
@@ -743,6 +756,11 @@ export function PublicCreatorProfile({
   }
 
   function openServiceDrawer(serviceId?: string) {
+    if (!fixedBookingsOn && customQuotesOn && !serviceId) {
+      setQuoteService(null);
+      setQuoteRequestOpen(true);
+      return;
+    }
     if (offeringsSlot) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -758,7 +776,26 @@ export function PublicCreatorProfile({
     setPriceListOpen(true);
   }
 
+  function openQuoteRequest(service?: PriceListItem | null) {
+    setQuoteService(service || null);
+    setQuoteRequestOpen(true);
+  }
+
   const handleServiceSelect = (item: PriceListItem) => {
+    if (item.pricingType === 'quote' || (!fixedBookingsOn && customQuotesOn)) {
+      setQuoteService(item);
+      setPriceListOpen(false);
+      setQuoteRequestOpen(true);
+      return;
+    }
+    if (!fixedBookingsOn) {
+      if (customQuotesOn) {
+        setQuoteService(item);
+        setPriceListOpen(false);
+        setQuoteRequestOpen(true);
+      }
+      return;
+    }
     setSelectedService(item);
     setPriceListOpen(false);
     setPreselectedServiceId(null);
@@ -778,13 +815,15 @@ export function PublicCreatorProfile({
   const paymentsReady = isPaymentsReady(creator, {
     requireKyc: requireDojahKyc,
   });
-  // Show Book when services + payments are ready. Past-only availability
-  // still opens the drawer (calendar shows "No available dates right now").
+  // Show Book when fixed bookings + services + payments are ready.
+  // Past-only availability still opens the drawer (calendar shows "No available dates right now").
   // hasServicesHint covers shell mode while offerings stream in.
-  const canBook = (hasPriceList || hasServicesHint) && paymentsReady;
-  const shopOnly = hasShop && !canBook;
-  const showBookAndShop = canBook && hasShop;
-  const showPrimaryCta = shopOnly || canBook;
+  const canBook =
+    fixedBookingsOn && (hasPriceList || hasServicesHint) && paymentsReady;
+  const canRequestQuote = customQuotesOn && paymentsReady;
+  const shopOnly = hasShop && !canBook && !canRequestQuote;
+  const showBookAndShop = (canBook || canRequestQuote) && hasShop;
+  const showPrimaryCta = shopOnly || canBook || canRequestQuote;
   const bookingPolicyHref = canBook
     ? resolveBookingPolicyHref({
         bookingPolicyType: creator.bookingPolicyType,
@@ -1065,13 +1104,29 @@ export function PublicCreatorProfile({
                         </div>
                         <div className="foleio-public-service-side">
                           <span className="foleio-public-service-price">{formatPrice(item.price)}</span>
-                          {canBook ? (
+                          {item.pricingType === 'quote' && canRequestQuote ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openQuoteRequest(item)}
+                            >
+                              Request quote
+                            </button>
+                          ) : canBook ? (
                             <button
                               type="button"
                               className="foleio-public-btn-outline"
                               onClick={() => openServiceDrawer(item.id)}
                             >
                               Book
+                            </button>
+                          ) : canRequestQuote ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openQuoteRequest(item)}
+                            >
+                              Request quote
                             </button>
                           ) : null}
                         </div>
@@ -1179,6 +1234,15 @@ export function PublicCreatorProfile({
             isPreview={false}
           />
         ) : null}
+        <QuoteRequestModal
+          open={quoteRequestOpen}
+          onOpenChange={setQuoteRequestOpen}
+          creatorId={creator.id}
+          creatorName={creator.displayName}
+          merchantPhone={creator.quoteWhatsappPhone}
+          linkedServiceId={quoteService?.id}
+          linkedServiceName={quoteService?.name}
+        />
       </>
     );
   }
@@ -1225,10 +1289,12 @@ export function PublicCreatorProfile({
                     <button
                       type="button"
                       className="foleio-public-cta"
-                      onClick={() => openServiceDrawer()}
+                      onClick={() =>
+                        canBook ? openServiceDrawer() : openQuoteRequest()
+                      }
                     >
                       <Calendar strokeWidth={1.75} />
-                      Book a service
+                      {canBook ? 'Book a service' : 'Request a quote'}
                     </button>
                     <button
                       type="button"
@@ -1256,7 +1322,13 @@ export function PublicCreatorProfile({
                   <button
                     type="button"
                     className="foleio-public-cta"
-                    onClick={() => (shopOnly ? openShopPanel() : openServiceDrawer())}
+                    onClick={() =>
+                      shopOnly
+                        ? openShopPanel()
+                        : canBook
+                          ? openServiceDrawer()
+                          : openQuoteRequest()
+                    }
                   >
                     {shopOnly ? (
                       <>
@@ -1266,7 +1338,7 @@ export function PublicCreatorProfile({
                     ) : (
                       <>
                         <Calendar strokeWidth={1.75} />
-                        Book a service
+                        {canBook ? 'Book a service' : 'Request a quote'}
                       </>
                     )}
                   </button>
@@ -1498,13 +1570,29 @@ export function PublicCreatorProfile({
                           <span className="foleio-public-service-price">
                             {formatPrice(item.price)}
                           </span>
-                          {canBook ? (
+                          {item.pricingType === 'quote' && canRequestQuote ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openQuoteRequest(item)}
+                            >
+                              Request quote
+                            </button>
+                          ) : canBook ? (
                             <button
                               type="button"
                               className="foleio-public-btn-outline"
                               onClick={() => openServiceDrawer(item.id)}
                             >
                               Book
+                            </button>
+                          ) : canRequestQuote ? (
+                            <button
+                              type="button"
+                              className="foleio-public-btn-outline"
+                              onClick={() => openQuoteRequest(item)}
+                            >
+                              Request quote
                             </button>
                           ) : null}
                         </div>
@@ -1616,6 +1704,18 @@ export function PublicCreatorProfile({
           availableDates={displayAvailability}
           onBack={handleBackToServices}
           isPreview={false}
+        />
+      ) : null}
+
+      {offeringsSlot == null ? (
+        <QuoteRequestModal
+          open={quoteRequestOpen}
+          onOpenChange={setQuoteRequestOpen}
+          creatorId={creator.id}
+          creatorName={creator.displayName}
+          merchantPhone={creator.quoteWhatsappPhone}
+          linkedServiceId={quoteService?.id}
+          linkedServiceName={quoteService?.name}
         />
       ) : null}
     </div>

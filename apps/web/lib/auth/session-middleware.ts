@@ -186,6 +186,7 @@ export function requiresCreatorAccess(pathname: string): boolean {
     '/content',
     '/collections',
     '/bookings',
+    '/invoices',
     '/earnings',
     '/payouts',
     '/settings',

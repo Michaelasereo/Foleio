@@ -273,7 +273,7 @@ export function BillingPage({
           className="foleio-dash-panel-meta"
           style={{
             marginBottom: 0,
-            color: '#fafafa',
+            color: '#111827',
             fontWeight: 600,
             display: 'flex',
             flexWrap: 'wrap',
@@ -294,7 +294,7 @@ export function BillingPage({
           ) : null}
           <span>
             {priceForPaidPlan(plan)}
-            <span style={{ fontWeight: 400, color: '#adadad' }}>
+            <span style={{ fontWeight: 400, color: '#6b7280' }}>
               {' '}
               / {intervalLabel.toLowerCase()}
             </span>
@@ -386,7 +386,7 @@ export function BillingPage({
             <div key={plan.key} className="foleio-dash-panel" style={{ margin: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <h3 className="foleio-dash-panel-title">{plan.title}</h3>
-                <span style={{ color: '#fafafa', fontWeight: 600 }}>{plan.fee}</span>
+                <span style={{ color: '#111827', fontWeight: 600 }}>{plan.fee}</span>
               </div>
 
               {isPaidCard ? (
@@ -401,7 +401,7 @@ export function BillingPage({
                       marginTop: 12,
                       padding: 4,
                       borderRadius: 10,
-                      background: 'rgba(255,255,255,0.06)',
+                      background: 'rgba(17, 24, 39, 0.06)',
                     }}
                   >
                     {(
@@ -441,7 +441,7 @@ export function BillingPage({
                 </p>
               )}
 
-              <ul style={{ margin: '12px 0', paddingLeft: 18, color: '#adadad', fontSize: 13 }}>
+              <ul style={{ margin: '12px 0', paddingLeft: 18, color: '#6b7280', fontSize: 13 }}>
                 {plan.features.map((feature) => (
                   <li key={feature} style={{ marginBottom: 6 }}>
                     <Check className="inline h-3.5 w-3.5" style={{ marginRight: 6 }} />
@@ -492,7 +492,7 @@ export function BillingPage({
               </thead>
               <tbody>
                 {billingHistory.map((entry) => (
-                  <tr key={entry.id} className="border-t border-white/5 text-[#adadad]">
+                  <tr key={entry.id} className="border-t border-black/5 text-[#6b7280]">
                     <td className="py-3 pr-4 capitalize">
                       {entry.plan === 'starter' ? 'Free' : entry.plan}
                       {entry.billingInterval ? ` · ${entry.billingInterval}` : ''}
@@ -516,7 +516,7 @@ export function BillingPage({
         >
           <div
             className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: '#212121', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: '#ffffff', border: '1px solid rgba(17, 24, 39, 0.08)' }}
           >
             <h3 className="foleio-dash-panel-title">Upgrade to Pro</h3>
             <p className="foleio-dash-panel-meta" style={{ marginTop: 8 }}>
@@ -559,7 +559,7 @@ export function BillingPage({
         >
           <div
             className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: '#212121', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: '#ffffff', border: '1px solid rgba(17, 24, 39, 0.08)' }}
           >
             <h3 className="foleio-dash-panel-title">
               Cancel {currentPlan === 'growth' ? 'Growth' : 'Pro'}?

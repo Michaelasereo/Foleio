@@ -8,22 +8,17 @@ import { usePathname } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
-import { formatNaira } from '@foleio/utils';
-import { CreatorAvatar } from '@/components/creator/CreatorAvatar';
 import {
   LayoutDashboard,
   Calendar as CalendarIcon,
+  FileText,
   ShoppingBag,
   Wallet,
   Settings2,
-  ExternalLink,
   LogOut,
-  ChevronDown,
-  Link2,
   type LucideIcon,
 } from 'lucide-react';
 import foleioLogo from '../../../../foleio-logo.png';
-import { getCreatorPlan } from '@/lib/utils/plan-limits';
 
 interface CreatorSidebarProps {
   creator: {
@@ -33,6 +28,9 @@ interface CreatorSidebarProps {
     avatarUrl: string | null;
     platformPlan?: string | null;
     availableBalance?: number;
+    fixedBookingsEnabled?: boolean;
+    customQuotesEnabled?: boolean;
+    shopEnabled?: boolean;
     creatorLinks?: Array<{
       id: string;
       label: string;
@@ -74,16 +72,12 @@ const navGroups: { title: string; items: NavItem[] }[] = [
         ],
       },
       {
-        label: 'Shop',
-        href: '/shop',
-        icon: ShoppingBag,
-        tourId: 'shop',
+        label: 'Quotes & Invoice',
+        href: '/invoices',
+        icon: FileText,
+        tourId: 'invoices',
       },
-    ],
-  },
-  {
-    title: 'Payments',
-    items: [
+      { label: 'Shop', href: '/shop', icon: ShoppingBag, tourId: 'shop' },
       {
         label: 'Earnings',
         href: '/earnings',
@@ -106,20 +100,37 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({
-    Bookings: pathname.startsWith('/bookings') || pathname.startsWith('/price-list'),
-    Earnings: pathname.startsWith('/earnings') || pathname.startsWith('/analytics'),
-  });
+  const fixedOn = creator.fixedBookingsEnabled !== false;
+  const quotesOn = Boolean(creator.customQuotesEnabled);
+  const shopOn = creator.shopEnabled !== false;
   const currentTab = searchParams.get('tab');
 
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .filter((item) => {
+          if (item.label === 'Shop') return shopOn;
+          return true;
+        })
+        .map((item) => {
+          if (item.label !== 'Bookings' || !item.subItems) return item;
+          return {
+            ...item,
+            subItems: item.subItems.filter((sub) => {
+              if (sub.queryTab === 'availability') return fixedOn;
+              if (sub.matchPath === '/price-list') return fixedOn || quotesOn;
+              return true;
+            }),
+          };
+        }),
+    }))
+    .filter((group) => group.items.length > 0);
+
   useEffect(() => {
-    if (pathname.startsWith('/bookings') || pathname.startsWith('/price-list')) {
-      setExpandedNav((prev) => ({ ...prev, Bookings: true }));
-    }
-    if (pathname.startsWith('/earnings') || pathname.startsWith('/analytics')) {
-      setExpandedNav((prev) => ({ ...prev, Earnings: true }));
-    }
-  }, [pathname]);
+    // keep searchParams dependency for route awareness
+    void currentTab;
+  }, [pathname, currentTab]);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
@@ -127,6 +138,15 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
     }
     if (href === '/bookings') {
       return pathname.startsWith('/bookings') || pathname.startsWith('/price-list');
+    }
+    if (href === '/invoices') {
+      return pathname.startsWith('/invoices');
+    }
+    if (href === '/shop') {
+      return pathname === '/shop' || pathname.startsWith('/services/shop');
+    }
+    if (href === '/earnings') {
+      return pathname.startsWith('/earnings') || pathname.startsWith('/analytics');
     }
     return pathname === href || pathname.startsWith(`${href}/`);
   };
@@ -145,211 +165,73 @@ export function CreatorSidebar({ creator }: CreatorSidebarProps) {
   }
 
   const settingsActive = isActive('/settings');
-  const availableBalance = Number(creator.availableBalance || 0);
-  const creatorPlan = getCreatorPlan(creator.platformPlan ?? null);
-
-  const planBadgeClass =
-    creatorPlan === 'GROWTH'
-      ? 'bg-blue-100 text-blue-700 border border-blue-200'
-      : creatorPlan === 'PRO'
-        ? 'bg-orange-100 text-orange-700 border border-orange-200'
-        : 'bg-slate-100 text-slate-700 border border-slate-200';
-
-  const planLabel =
-    creatorPlan === 'GROWTH'
-      ? 'Growth ✦'
-      : creatorPlan === 'PRO'
-        ? 'Pro ✦'
-        : 'Starter';
-  const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
   return (
-    <aside className="hidden h-screen w-64 overflow-y-auto border-r border-border/70 bg-card lg:flex lg:flex-col">
-      <div className="border-b border-border/60 p-6">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <Image
-            src={foleioLogo}
-            alt="Foleio"
-            className="h-11 w-auto"
-            priority
-          />
-        </Link>
-      </div>
-
-      {/* Creator Profile Quick View */}
-      <div className="border-b border-border/60 p-4" data-tour="creator-profile">
-        <div className="flex items-center gap-3">
-          <CreatorAvatar
-            src={creator.avatarUrl}
-            name={creator.displayName}
-            size={40}
-            className="border border-border/60"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-body font-medium text-foreground">
-              {creator.displayName}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">@{creator.username}</p>
-            <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${planBadgeClass}`}>
-              {planLabel}
-            </span>
-          </div>
-        </div>
-        <Link
-          href={`/creator/${creator.username}`}
-          target="_blank"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
-        >
-          <ExternalLink className="h-3 w-3" />
-          View Public Page
-        </Link>
-        {Array.isArray(creator.creatorLinks) && creator.creatorLinks.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 px-1">
-            {creator.creatorLinks
-              .filter((link) => link.url && link.url !== '#price-list')
-              .map((link) => (
-                <a
-                  key={link.id}
-                  href={normalizeUrl(link.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
-                >
-                  <Link2 className="h-3 w-3 flex-shrink-0" />
-                  <span>{link.label || 'Link'}</span>
-                </a>
-              ))}
-          </div>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-4 p-4">
-        {navGroups.map((group) => (
-          <div key={group.title} className="space-y-1">
-            <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-              {group.title}
-            </p>
-            {group.items.map((item) => {
+    <aside className="hidden h-screen w-[72px] flex-shrink-0 overflow-y-auto bg-transparent lg:flex lg:flex-col">
+      <div className="flex flex-1 flex-col items-center justify-between px-2 py-5">
+        <div className="flex flex-col items-center gap-1.5">
+          <Link
+            href="/dashboard"
+            className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl"
+            aria-label="Foleio home"
+          >
+            <Image
+              src={foleioLogo}
+              alt="Foleio"
+              className="h-8 w-auto"
+              priority
+            />
+          </Link>
+          {visibleGroups.flatMap((group) =>
+            group.items.map((item) => {
+              if (item.disabled || !item.href) return null;
               const Icon = item.icon;
-              const active = item.href ? isActive(item.href) : false;
-
-              if (item.disabled) {
-                return (
-                  <div
-                    key={item.label}
-                    title={item.tooltip}
-                    className="flex cursor-not-allowed items-center gap-3 border-l-[3px] border-transparent px-4 py-2.5 text-muted-foreground opacity-50"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="font-medium">{item.label}</span>
-                    <span className="ml-auto rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
-                      Soon
-                    </span>
-                  </div>
-                );
-              }
-
+              const active = isActive(item.href);
               return (
-                <div key={item.href}>
-                  <div
-                    className={cn(
-                      'flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors',
-                      active
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                    )}
-                  >
-                  <Link
-                    href={item.href!}
-                    data-tour={item.tourId}
-                    className="flex min-w-0 flex-1 items-center gap-3"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="font-medium">{item.label}</span>
-                  </Link>
-                  {item.href === '/earnings' && availableBalance > 0 ? (
-                    <span className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                      {formatNaira(availableBalance / 100)}
-                    </span>
-                  ) : null}
-                  {item.subItems?.length ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedNav((prev) => ({
-                          ...prev,
-                          [item.label]: !prev[item.label],
-                        }))
-                      }
-                      className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted"
-                      aria-label={`Toggle ${item.label} sub-navigation`}
-                    >
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 transition-transform',
-                          expandedNav[item.label] ? 'rotate-180' : ''
-                        )}
-                      />
-                    </button>
-                  ) : null}
-                </div>
-                  {item.subItems?.length && expandedNav[item.label]
-                    ? item.subItems.map((subItem) => {
-                        const subActive = subItem.matchPath
-                          ? pathname === subItem.matchPath ||
-                            pathname.startsWith(`${subItem.matchPath}/`)
-                          : Boolean(subItem.queryTab) &&
-                            subItem.queryTab === currentTab &&
-                            (pathname.startsWith('/bookings') ||
-                              pathname.startsWith('/earnings'));
-                        return (
-                          <Link
-                            key={subItem.href}
-                            href={subItem.href}
-                            className={cn(
-                              'ml-8 mt-1 flex items-center border-l-[3px] px-4 py-1.5 text-sm transition-colors',
-                              subActive
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            {subItem.label}
-                          </Link>
-                        );
-                      })
-                    : null}
-                </div>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-tour={item.tourId}
+                  title={item.label}
+                  aria-label={item.label}
+                  className={cn(
+                    'inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
+                    active
+                      ? 'bg-black/10 text-[#111827]'
+                      : 'text-[#6b7280] hover:bg-black/[0.06] hover:text-[#111827]'
+                  )}
+                >
+                  <Icon className="h-5 w-5" strokeWidth={1.5} />
+                </Link>
               );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      <div className="border-t border-border/60 p-4 space-y-1">
-        <Link
-          href="/settings"
-          className={cn(
-            'flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors',
-            settingsActive
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+            })
           )}
-        >
-          <Settings2 className="h-4 w-4" />
-          <span className="font-medium">Account Settings</span>
-        </Link>
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          className="flex w-full items-center gap-3 border-l-[3px] border-transparent px-4 py-2.5 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground disabled:opacity-60"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="font-medium">
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
-          </span>
-        </button>
+        </div>
+        <div className="flex flex-col items-center gap-1.5">
+          <Link
+            href="/settings"
+            title="Settings"
+            aria-label="Settings"
+            className={cn(
+              'inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
+              settingsActive
+                ? 'bg-black/10 text-[#111827]'
+                : 'text-[#6b7280] hover:bg-black/[0.06] hover:text-[#111827]'
+            )}
+          >
+            <Settings2 className="h-5 w-5" strokeWidth={1.5} />
+          </Link>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={isLoggingOut}
+            title="Log out"
+            aria-label="Log out"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-[#6b7280] transition-colors hover:bg-black/[0.06] hover:text-[#111827] disabled:opacity-50"
+          >
+            <LogOut className="h-5 w-5" strokeWidth={1.5} />
+          </button>
+        </div>
       </div>
     </aside>
   );

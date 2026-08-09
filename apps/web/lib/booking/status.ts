@@ -120,6 +120,13 @@ export type CreatorBookingRow = {
   trackingToken?: string | null;
   createdAt: string;
   updatedAt?: string;
+  source?: string | null;
+  milestones?: Array<{
+    id: string;
+    label: string;
+    dueDate?: string | null;
+    status: 'pending' | 'done';
+  }> | null;
   /** Computed client-side or from load helper */
   balanceDueDateLabel?: string | null;
   priceListItem: {

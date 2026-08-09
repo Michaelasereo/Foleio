@@ -22,14 +22,14 @@ const locationOptionSchema = z.object({
 });
 
 const priceListItemSchema = z.object({
-  serviceType: z.enum(['general', 'coaching', 'consultation']).default('general'),
+  serviceType: z.enum(['general', 'coaching', 'consultation', 'quote']).default('general'),
   category: z.string().optional().nullable(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().nullable(),
   location: z.string().max(500).optional().nullable(),
   sessionDescription: z.string().optional().nullable(),
   calendlyLink: z.string().url('Enter a valid URL').optional().nullable().or(z.literal('')),
-  price: z.number().min(MIN_PAYABLE_KOBO, MIN_PAYABLE_PRICE_ERROR),
+  price: z.number().min(0),
   durationMinutes: z.number().optional().nullable(),
   addons: z.array(addonSchema).optional(),
   locationOptions: z.array(locationOptionSchema).optional(),
@@ -39,8 +39,18 @@ const priceListItemSchema = z.object({
   depositValue: z.number().int().min(0).optional().nullable(),
   allowPayInFull: z.boolean().optional(),
   minNoticeDays: z.number().int().min(0).optional().nullable(),
+  pricingType: z.enum(['fixed', 'quote']).optional(),
   orderIndex: z.number().optional(),
   categoryOrderIndex: z.number().optional(),
+}).superRefine((data, ctx) => {
+  const pricingType = data.pricingType || 'fixed';
+  if (pricingType !== 'quote' && data.price < MIN_PAYABLE_KOBO) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: MIN_PAYABLE_PRICE_ERROR,
+      path: ['price'],
+    });
+  }
 });
 
 type PriceListItemInput = z.infer<typeof priceListItemSchema>;
@@ -153,6 +163,7 @@ export async function createPriceListItem(data: PriceListItemInput) {
           data.minNoticeDays != null && data.minNoticeDays > 0
             ? data.minNoticeDays
             : null,
+        pricingType: data.pricingType || 'fixed',
         orderIndex: data.orderIndex ?? (maxOrder?.orderIndex || 0) + 1,
         categoryOrderIndex: categoryOrderIndex || 0,
       },
@@ -223,6 +234,7 @@ export async function updatePriceListItem(itemId: string, data: Partial<PriceLis
               ? data.minNoticeDays
               : null,
         }),
+        ...(data.pricingType !== undefined && { pricingType: data.pricingType }),
         ...(data.orderIndex !== undefined && { orderIndex: data.orderIndex }),
         ...(data.categoryOrderIndex !== undefined && { categoryOrderIndex: data.categoryOrderIndex }),
       },

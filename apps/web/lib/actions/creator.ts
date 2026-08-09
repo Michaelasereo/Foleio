@@ -43,6 +43,12 @@ const onboardingStep1Schema = z.object({
   useCases: z.array(z.string()).optional(),
   instagramHandle: z.string().optional(),
   tiktokHandle: z.string().optional(),
+  merchantType: z
+    .enum(['services_shop', 'custom_projects'])
+    .default('services_shop'),
+  fixedBookingsEnabled: z.boolean().optional(),
+  customQuotesEnabled: z.boolean().optional(),
+  shopEnabled: z.boolean().optional(),
 });
 
 const profileUpdateSchema = z.object({
@@ -134,6 +140,21 @@ export async function createCreatorProfile(
 
     const autoPremium = shouldAutoUpgradeToPremium(session.user.email);
     const selectedPlan = autoPremium ? 'premium' : step4Data.platformPlan;
+    const isCustomProjects = step1Data.merchantType === 'custom_projects';
+    const offerings = {
+      fixedBookingsEnabled:
+        typeof step1Data.fixedBookingsEnabled === 'boolean'
+          ? step1Data.fixedBookingsEnabled
+          : !isCustomProjects,
+      customQuotesEnabled:
+        typeof step1Data.customQuotesEnabled === 'boolean'
+          ? step1Data.customQuotesEnabled
+          : isCustomProjects,
+      shopEnabled:
+        typeof step1Data.shopEnabled === 'boolean'
+          ? step1Data.shopEnabled
+          : !isCustomProjects,
+    };
     const creatorData = {
       displayName: step1Data.displayName,
       bio: step1Data.bio,
@@ -145,6 +166,7 @@ export async function createCreatorProfile(
       platformSubscriptionEndsAt: autoPremium
         ? null
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+      ...offerings,
     };
 
     const creator = existingCreatorForUser

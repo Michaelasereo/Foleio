@@ -136,15 +136,15 @@ function ChartTooltip({
   return (
     <div
       style={{
-        background: '#2b2b2b',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: '#ffffff',
+        border: '1px solid rgba(17, 24, 39, 0.08)',
         borderRadius: 8,
         padding: '8px 10px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
       }}
     >
-      <p style={{ margin: 0, color: '#adadad', fontSize: 12 }}>{label}</p>
-      <p style={{ margin: '4px 0 0', color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
+      <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>{label}</p>
+      <p style={{ margin: '4px 0 0', color: '#111827', fontSize: 14, fontWeight: 500 }}>
         {formatNaira(income / 100)}
       </p>
     </div>
@@ -176,23 +176,23 @@ function IncomeTrendChart({
                   <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <CartesianGrid stroke="rgba(17, 24, 39, 0.08)" vertical={false} />
               <XAxis
                 dataKey="month"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#828282', fontSize: 12 }}
+                tick={{ fill: '#6b7280', fontSize: 12 }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
                 width={56}
-                tick={{ fill: '#828282', fontSize: 12 }}
+                tick={{ fill: '#6b7280', fontSize: 12 }}
                 tickFormatter={(value) => `₦${Math.round(Number(value) / 100000)}k`}
               />
               <Tooltip
                 content={<ChartTooltip />}
-                cursor={{ stroke: 'rgba(255,255,255,0.12)' }}
+                cursor={{ stroke: 'rgba(17, 24, 39, 0.12)' }}
               />
               <Area
                 type="monotone"
@@ -246,7 +246,7 @@ function RankingBars({
                 <div style={{ minWidth: 0 }}>
                   <p
                     style={{
-                      color: '#f4f4f5',
+                      color: '#111827',
                       fontSize: 14,
                       fontWeight: 500,
                       margin: 0,
@@ -254,13 +254,13 @@ function RankingBars({
                   >
                     {row.name}
                   </p>
-                  <p style={{ color: '#828282', fontSize: 12, margin: '2px 0 0' }}>
+                  <p style={{ color: '#6b7280', fontSize: 12, margin: '2px 0 0' }}>
                     {row.countLabel}
                   </p>
                 </div>
                 <span
                   style={{
-                    color: '#adadad',
+                    color: '#6b7280',
                     fontSize: 13,
                     fontWeight: 500,
                     whiteSpace: 'nowrap',
@@ -273,7 +273,7 @@ function RankingBars({
                 style={{
                   height: 6,
                   borderRadius: 999,
-                  background: '#2b2b2b',
+                  background: '#ebe8eb',
                   overflow: 'hidden',
                 }}
               >
@@ -545,7 +545,7 @@ export function CreatorAnalyticsClient({
                           {new Date(booking.bookingDate).toLocaleDateString()}
                         </p>
                       </div>
-                      <span style={{ color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
+                      <span style={{ color: '#111827', fontSize: 14, fontWeight: 500 }}>
                         {formatNaira(booking.totalAmount / 100)}
                       </span>
                     </div>
@@ -585,7 +585,7 @@ export function CreatorAnalyticsClient({
                           {new Date(order.createdAt).toLocaleDateString()}
                         </p>
                       </div>
-                      <span style={{ color: '#f4f4f5', fontSize: 14, fontWeight: 500 }}>
+                      <span style={{ color: '#111827', fontSize: 14, fontWeight: 500 }}>
                         {formatNaira(order.totalAmount / 100)}
                       </span>
                     </div>

@@ -46,7 +46,7 @@ export function PayoutSetupFlow({
                 fontWeight: 600,
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
+                color: '#6b7280',
               }}
             >
               Step 1
@@ -75,7 +75,7 @@ export function PayoutSetupFlow({
               fontWeight: 600,
               letterSpacing: '0.04em',
               textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.45)',
+              color: '#6b7280',
             }}
           >
             {bankStepLabel}

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { serializeForClient } from '@/lib/utils';
 import { CreatorAppShell } from '@/components/creator/CreatorAppShell';
 import { resolveCreatorShellContext } from '@/lib/creator/shell-context';
@@ -34,8 +35,14 @@ export async function CreatorToolShellLayout({
   }
 
   return (
-    <CreatorAppShell creator={serializeForClient(creator)} supportMode={supportMode}>
-      {children}
-    </CreatorAppShell>
+    <Suspense fallback={<div className="foleio-auth-root min-h-screen">{children}</div>}>
+      <CreatorAppShell
+        creator={serializeForClient(creator)}
+        supportMode={supportMode}
+        title={label}
+      >
+        {children}
+      </CreatorAppShell>
+    </Suspense>
   );
 }

@@ -160,7 +160,7 @@ export function BankSetupForm({
               maxHeight: 180,
               overflowY: 'auto',
               borderRadius: 10,
-              background: '#1a1816',
+              background: '#f3f1f4',
             }}
           >
             {filteredBanks.map((bank) => {
@@ -181,9 +181,9 @@ export function BankSetupForm({
                     width: '100%',
                     padding: '11px 14px',
                     border: 'none',
-                    borderBottom: '1px solid #2b2b2b',
-                    background: selected ? '#2b2b2b' : 'transparent',
-                    color: selected ? '#f4f4f5' : '#adadad',
+                    borderBottom: '1px solid rgba(17, 24, 39, 0.08)',
+                    background: selected ? '#ebe8eb' : 'transparent',
+                    color: selected ? '#111827' : '#6b7280',
                     fontFamily: 'var(--font-body), sans-serif',
                     fontSize: 14,
                     fontWeight: 500,
@@ -247,7 +247,7 @@ export function BankSetupForm({
             style={{ color: '#86efac', marginTop: 2 }}
           />
           <div>
-            <p style={{ margin: 0, color: '#f4f4f5', fontSize: 14, fontWeight: 600 }}>
+            <p style={{ margin: 0, color: '#111827', fontSize: 14, fontWeight: 600 }}>
               {verifiedName}
             </p>
             <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>

@@ -197,17 +197,17 @@ export function BookingPolicyDocumentSettings({ initial = null }: Props) {
               minHeight: 140,
               padding: '28px 20px',
               borderRadius: 12,
-              border: '1px dashed rgba(255,255,255,0.22)',
-              background: 'rgba(255,255,255,0.03)',
-              color: '#f4f4f5',
+              border: '1px dashed rgba(17, 24, 39, 0.12)',
+              background: '#f3f1f4',
+              color: '#111827',
               cursor: saving ? 'wait' : 'pointer',
               fontFamily: 'inherit',
             }}
           >
             {saving ? (
-              <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#adadad' }} />
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#6b7280' }} />
             ) : (
-              <Upload className="h-6 w-6" style={{ color: '#adadad' }} />
+              <Upload className="h-6 w-6" style={{ color: '#6b7280' }} />
             )}
             <span
               style={{
@@ -289,20 +289,20 @@ export function BookingPolicyDocumentSettings({ initial = null }: Props) {
             marginTop: 18,
             padding: '16px 16px',
             borderRadius: 12,
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(17, 24, 39, 0.04)',
+            border: '1px solid rgba(17, 24, 39, 0.08)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <FileText
               className="h-5 w-5 shrink-0"
-              style={{ color: '#adadad', marginTop: 2 }}
+              style={{ color: '#6b7280', marginTop: 2 }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <p
                 style={{
                   margin: 0,
-                  color: '#f4f4f5',
+                  color: '#111827',
                   fontSize: 14,
                   fontWeight: 600,
                   lineHeight: 1.4,
@@ -328,7 +328,7 @@ export function BookingPolicyDocumentSettings({ initial = null }: Props) {
                     alignItems: 'center',
                     gap: 6,
                     marginTop: 8,
-                    color: '#adadad',
+                    color: '#6b7280',
                     fontSize: 13,
                   }}
                 >

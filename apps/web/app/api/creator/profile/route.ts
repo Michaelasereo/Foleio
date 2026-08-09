@@ -399,7 +399,10 @@ export async function PUT(request: Request) {
       tiktokHandle,
       subscriptionPrice,
       avatarUrl,
-      bannerUrl
+      bannerUrl,
+      fixedBookingsEnabled,
+      customQuotesEnabled,
+      shopEnabled,
     } = body;
 
     // 3. Validate required fields
@@ -437,6 +440,14 @@ export async function PUT(request: Request) {
         tiktokHandle,
         avatarUrl,
         bannerUrl,
+        hasCompletedOnboarding: true,
+        ...(typeof fixedBookingsEnabled === 'boolean'
+          ? { fixedBookingsEnabled }
+          : {}),
+        ...(typeof customQuotesEnabled === 'boolean'
+          ? { customQuotesEnabled }
+          : {}),
+        ...(typeof shopEnabled === 'boolean' ? { shopEnabled } : {}),
         // Set default platform plan and pricing
         platformPlan: 'starter',
         platformSubscriptionActive: true

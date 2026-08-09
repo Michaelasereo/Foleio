@@ -29,6 +29,13 @@ interface OnboardingFlowProps {
 
 const steps = [
   {
+    id: 'merchantType',
+    title: 'Which creator are you?',
+    description: 'Pick how you mainly work — you can change this later in Settings',
+    icon: Palette,
+    fields: ['merchantType'],
+  },
+  {
     id: 'basics',
     title: 'Basic Information',
     description: 'Set up your creator profile basics',
@@ -70,7 +77,8 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
     tiktokHandle: initialData.tiktokHandle || '',
     subscriptionPrice: 5000, // Default 50 NGN
     avatarUrl: '',
-    bannerUrl: ''
+    bannerUrl: '',
+    merchantType: 'services_shop' as 'services_shop' | 'custom_projects',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
@@ -119,12 +127,25 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      const offerings =
+        formData.merchantType === 'custom_projects'
+          ? {
+              fixedBookingsEnabled: false,
+              customQuotesEnabled: true,
+              shopEnabled: false,
+            }
+          : {
+              fixedBookingsEnabled: true,
+              customQuotesEnabled: false,
+              shopEnabled: true,
+            };
+
       const response = await fetch('/api/creator/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, ...offerings }),
       });
 
       if (response.status === 403) {
@@ -161,6 +182,43 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
 
   const renderStepContent = () => {
     switch (currentStepData.id) {
+      case 'merchantType':
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This sets your defaults. You can change modules later in Settings.
+            </p>
+            <button
+              type="button"
+              className={`w-full rounded-lg border p-4 text-left transition ${
+                formData.merchantType === 'services_shop'
+                  ? 'border-foreground bg-muted/40'
+                  : 'border-border'
+              }`}
+              onClick={() => handleInputChange('merchantType', 'services_shop')}
+            >
+              <div className="font-medium">Services &amp; shop</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fixed booking packages with a calendar, plus a product shop.
+              </p>
+            </button>
+            <button
+              type="button"
+              className={`w-full rounded-lg border p-4 text-left transition ${
+                formData.merchantType === 'custom_projects'
+                  ? 'border-foreground bg-muted/40'
+                  : 'border-border'
+              }`}
+              onClick={() => handleInputChange('merchantType', 'custom_projects')}
+            >
+              <div className="font-medium">Custom projects</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Negotiate on WhatsApp, then send a custom quote with a pay link.
+              </p>
+            </button>
+          </div>
+        );
+
       case 'basics':
         return (
           <div className="space-y-4">

@@ -4,6 +4,8 @@ export type AddonOption = {
   id: string;
   name: string;
   price: number; // kobo
+  /** Remaining units; null = unlimited */
+  stock: number | null;
 };
 
 export type AddonCategory = {
@@ -17,6 +19,8 @@ type RawOption = {
   id?: string;
   name?: string;
   price?: number | string;
+  stock?: number | string | null;
+  qty?: number | string | null;
 };
 
 type RawCategory = {
@@ -36,12 +40,20 @@ function isCategorized(raw: unknown[]): boolean {
   );
 }
 
+function parseStock(raw: RawOption): number | null {
+  const value = raw?.stock ?? raw?.qty;
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.floor(n));
+}
+
 function parseOptionKobo(raw: RawOption): AddonOption | null {
   const id = String(raw?.id || '').trim() || crypto.randomUUID();
   const name = String(raw?.name || '').trim();
   if (!name) return null;
   const price = Math.max(0, Math.round(Number(raw?.price) || 0));
-  return { id, name, price };
+  return { id, name, price, stock: parseStock(raw) };
 }
 
 function parseOptionNaira(raw: RawOption): AddonOption | null {
@@ -49,7 +61,7 @@ function parseOptionNaira(raw: RawOption): AddonOption | null {
   const name = String(raw?.name || '').trim();
   if (!name) return null;
   const price = Math.max(0, nairaInputToKobo(raw?.price));
-  return { id, name, price };
+  return { id, name, price, stock: parseStock(raw) };
 }
 
 /** Parse product.addons JSON from DB (prices in kobo). Supports legacy flat list. */
@@ -154,4 +166,49 @@ export function validateRequiredAddons(
     }
   }
   return null;
+}
+
+export function validateAddonStock(
+  categories: AddonCategory[],
+  selectedOptionIds: string[],
+  quantity: number
+): string | null {
+  const qty = Math.max(1, Math.floor(quantity) || 1);
+  const selected = new Set(selectedOptionIds);
+  const options = flattenAddonOptions(categories);
+  for (const option of options) {
+    if (!selected.has(option.id)) continue;
+    if (option.stock == null) continue;
+    if (option.stock < qty) {
+      return option.stock <= 0
+        ? `${option.name} is out of stock`
+        : `Only ${option.stock} left for ${option.name}`;
+    }
+  }
+  return null;
+}
+
+/** Decrement option stock for selected add-ons (null stock = unlimited). */
+export function decrementAddonCategoriesStock(
+  raw: unknown,
+  selectedOptionIds: string[],
+  quantity: number
+): AddonCategory[] {
+  const qty = Math.max(1, Math.floor(quantity) || 1);
+  const selected = new Set(selectedOptionIds);
+  const categories = parseAddonCategories(raw);
+  return categories.map((category) => ({
+    ...category,
+    options: category.options.map((option) => {
+      if (!selected.has(option.id) || option.stock == null) return option;
+      return {
+        ...option,
+        stock: Math.max(0, option.stock - qty),
+      };
+    }),
+  }));
+}
+
+export function isAddonOptionAvailable(option: AddonOption): boolean {
+  return option.stock == null || option.stock > 0;
 }

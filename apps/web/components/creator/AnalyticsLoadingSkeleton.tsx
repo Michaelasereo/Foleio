@@ -16,7 +16,8 @@ export function AnalyticsLoadingSkeleton() {
 }
 .foleio-dash-loading-card,
 .foleio-dash-loading-panel {
-  background: #212121;
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: 10px;
 }
 .foleio-dash-loading-card {
@@ -34,7 +35,7 @@ export function AnalyticsLoadingSkeleton() {
 }
 .foleio-dash-loading-bar {
   border-radius: 6px;
-  background: #2c2c2c;
+  background: #ebe8eb;
   animation: foleio-dash-pulse 1.4s ease-in-out infinite;
 }
 @keyframes foleio-dash-pulse {
@@ -74,7 +75,7 @@ export function AnalyticsLoadingSkeleton() {
               justifyContent: 'space-between',
               gap: 12,
               paddingTop: 8,
-              borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+              borderTop: i === 0 ? 'none' : '1px solid rgba(17, 24, 39, 0.08)',
             }}
           >
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>

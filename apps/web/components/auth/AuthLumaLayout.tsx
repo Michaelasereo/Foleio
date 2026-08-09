@@ -1,12 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import {
-  BadgeCheck,
   BarChart3,
   CalendarDays,
+  Compass,
   Wallet,
 } from 'lucide-react';
 import { AuthLegalFooter } from './AuthLegalFooter';
+import { AuthPreviewVisual } from './AuthPreviewVisual';
 import { authCss } from './styles';
 
 interface AuthLumaLayoutProps {
@@ -28,46 +30,36 @@ export function AuthLumaLayout({
 
       <div className="foleio-auth-shell">
         <header className="foleio-auth-topbar relative z-10">
-          <nav className="foleio-auth-topbar-nav" aria-hidden>
-            <span>
-              <CalendarDays strokeWidth={1.5} />
-              Bookings
-            </span>
-            <span>
-              <Wallet strokeWidth={1.5} />
-              Earnings
-            </span>
-            <span>
-              <BarChart3 strokeWidth={1.5} />
-              Analytics
-            </span>
-          </nav>
+          <div className="foleio-auth-topbar-row">
+            <nav className="foleio-auth-topbar-nav" aria-hidden>
+              <span>
+                <CalendarDays strokeWidth={1.5} />
+                Bookings
+              </span>
+              <span>
+                <Wallet strokeWidth={1.5} />
+                Earnings
+              </span>
+              <span>
+                <BarChart3 strokeWidth={1.5} />
+                Analytics
+              </span>
+            </nav>
+            <Link
+              href="/creators"
+              className="foleio-auth-topbar-item"
+              aria-label="Creator marketplace"
+            >
+              <Compass strokeWidth={1.5} />
+              Creator marketplace
+              <span className="foleio-auth-new-badge">New</span>
+            </Link>
+          </div>
         </header>
 
         <main className="foleio-auth-main relative z-10 flex-1">
           <div className="foleio-auth-columns">
-            <div className="foleio-auth-left">
-              <div className="foleio-auth-preview" aria-hidden>
-                <div className="foleio-auth-preview-bars">
-                  <div className="foleio-auth-preview-bar" />
-                  <div className="foleio-auth-preview-bar" />
-                  <div className="foleio-auth-preview-bar" />
-                </div>
-              </div>
-              <div className="foleio-auth-stub" aria-hidden>
-                <div className="foleio-auth-stub-main">
-                  <div className="foleio-auth-stub-thumb" />
-                  <div className="foleio-auth-stub-lines">
-                    <div className="foleio-auth-stub-line" />
-                    <div className="foleio-auth-stub-line" />
-                    <div className="foleio-auth-stub-line" />
-                  </div>
-                </div>
-                <div className="foleio-auth-stub-badge">
-                  <BadgeCheck className="h-6 w-6" strokeWidth={1.5} />
-                </div>
-              </div>
-            </div>
+            <AuthPreviewVisual />
 
             <div className="foleio-auth-right">
               <h1 className="foleio-auth-title">{title}</h1>

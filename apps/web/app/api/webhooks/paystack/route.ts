@@ -310,6 +310,53 @@ async function handleChargeSuccess(eventData: any) {
       return;
     }
 
+    // Custom quote deposit → Booking
+    if (metadata?.type === 'quote' && metadata?.quoteId) {
+      console.log(`🎯 Processing quote payment: ${reference} for quote ${metadata.quoteId}`);
+      try {
+        const quote = await prisma.quote.findUnique({
+          where: { id: String(metadata.quoteId) },
+        });
+        if (!quote) {
+          console.log(`⚠️ Quote not found: ${metadata.quoteId}`);
+          return;
+        }
+
+        const expectedAmount =
+          quote.balanceAmount > 0 && quote.depositAmount > 0
+            ? quote.depositAmount
+            : quote.totalAmount;
+        const paidAmount = Number(eventData?.amount || 0);
+        if (paidAmount > 0 && Math.abs(paidAmount - expectedAmount) > 1) {
+          console.error(
+            `Quote amount mismatch: paid=${paidAmount} expected=${expectedAmount}`
+          );
+          if (process.env.NODE_ENV === 'production') {
+            throw new Error('Quote payment amount mismatch');
+          }
+        }
+
+        const { convertPaidQuote } = await import('@/lib/quotes/convert-paid-quote');
+        const result = await convertPaidQuote({
+          quoteId: quote.id,
+          reference: String(reference || ''),
+          gatewayResponse: eventData,
+        });
+        if ('error' in result && result.error) {
+          throw new Error(result.error);
+        }
+        console.log(
+          `✅ Quote payment processed: ${reference} → booking ${result.bookingId || '—'} order ${result.orderId || '—'}`
+        );
+      } catch (error: any) {
+        console.error(`❌ Error processing quote payment: ${error.message}`);
+        if (process.env.NODE_ENV === 'production') {
+          throw error;
+        }
+      }
+      return;
+    }
+
     // Handle booking payments specifically
     if (metadata?.type === 'booking' && metadata?.bookingId) {
       console.log(`🎯 Processing booking payment: ${reference} for booking ${metadata.bookingId}`);
@@ -430,6 +477,34 @@ async function handleChargeSuccess(eventData: any) {
 
     // Fallback when metadata.type is missing but we stored the Paystack reference.
     if (reference) {
+      const quoteByRef = await prisma.quote.findFirst({
+        where: { paystackReference: String(reference) },
+        select: {
+          id: true,
+          status: true,
+          convertedBookingId: true,
+          convertedOrderId: true,
+          lineItems: true,
+          linkedServiceId: true,
+        },
+      });
+      if (quoteByRef) {
+        try {
+          const { convertPaidQuote } = await import(
+            '@/lib/quotes/convert-paid-quote'
+          );
+          const result = await convertPaidQuote({
+            quoteId: quoteByRef.id,
+            reference: String(reference),
+            gatewayResponse: eventData,
+          });
+          console.log('[webhook] quote confirm by reference:', quoteByRef.id, result);
+        } catch (err) {
+          console.error('[webhook] quote confirm-by-ref failed:', err);
+        }
+        return;
+      }
+
       const orderByRef = await prisma.order.findFirst({
         where: { paystackReference: String(reference) },
         select: { id: true, status: true },

@@ -18,6 +18,7 @@ import {
   shopFreeOrderReference,
 } from '@/lib/shop/record-shop-transaction';
 import { FOLEIO_ADMIN_OPS_EMAIL } from '@/lib/config/support';
+import { decrementAddonCategoriesStock } from '@/lib/shop/product-addons';
 
 export { recordShopOrderPaymentTransaction, shopFreeOrderReference };
 
@@ -95,15 +96,39 @@ export async function applyConfirmedShopOrderSideEffects(orderId: string) {
     for (const item of order.items) {
       const product = await tx.product.findUnique({
         where: { id: item.productId },
-        select: { id: true, stock: true, status: true, type: true },
+        select: { id: true, stock: true, status: true, type: true, addons: true },
       });
       if (!product) continue;
-      if (
+
+      const skipProductStock =
         (product.type === 'digital' || product.type === 'gift_card') &&
-        product.stock == null
-      ) {
+        product.stock == null;
+
+      const selectedAddons = Array.isArray(item.addonsSelected)
+        ? (item.addonsSelected as Array<{ id?: string }>)
+        : [];
+      const selectedIds = selectedAddons
+        .map((row) => String(row?.id || '').trim())
+        .filter(Boolean);
+      const nextAddons =
+        selectedIds.length > 0
+          ? decrementAddonCategoriesStock(
+              product.addons,
+              selectedIds,
+              item.quantity
+            )
+          : null;
+
+      if (skipProductStock) {
+        if (nextAddons) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: { addons: nextAddons },
+          });
+        }
         continue;
       }
+
       const nextStock = Math.max(0, (product.stock ?? 0) - item.quantity);
       await tx.product.update({
         where: { id: product.id },
@@ -112,6 +137,7 @@ export async function applyConfirmedShopOrderSideEffects(orderId: string) {
           ...(nextStock <= 0 && product.type !== 'gift_card'
             ? { status: 'draft' }
             : {}),
+          ...(nextAddons ? { addons: nextAddons } : {}),
         },
       });
     }
