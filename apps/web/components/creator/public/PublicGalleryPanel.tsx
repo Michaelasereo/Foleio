@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
 import { RemoteImage } from '@/components/creator/RemoteImage';
-import {
-  applyGalleryVisibility,
-  isHomeSection,
-} from '@/lib/creator/portfolio-gallery';
+import { applyGalleryVisibility, isHomeSection } from '@/lib/creator/portfolio-gallery';
+import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 type PortfolioSectionPublic = {
   id: string;
@@ -25,9 +22,12 @@ type PortfolioSectionPublic = {
 export function PublicGalleryPanel({
   username,
   initialSections,
+  refresh = true,
 }: {
   username: string;
   initialSections: PortfolioSectionPublic[];
+  /** When false, keep the sections passed in and do not refetch. */
+  refresh?: boolean;
 }) {
   const [liveSections, setLiveSections] = useState(initialSections);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -43,16 +43,13 @@ export function PublicGalleryPanel({
 
   useEffect(() => {
     let cancelled = false;
-    if (!username) return;
+    if (!refresh || !username) return;
 
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/public/creators/${encodeURIComponent(username)}/gallery`,
-          {
-            cache: 'no-store',
-          }
-        );
+        const res = await fetch(`/api/public/creators/${encodeURIComponent(username)}/gallery`, {
+          cache: 'no-store',
+        });
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as {
           sections?: PortfolioSectionPublic[];
@@ -68,7 +65,7 @@ export function PublicGalleryPanel({
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, refresh]);
 
   useEffect(() => {
     if (!galleryLightbox) return;
@@ -80,9 +77,7 @@ export function PublicGalleryPanel({
   }, [galleryLightbox]);
 
   const visibleSections = useMemo(() => {
-    const ordered = [...liveSections].sort(
-      (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
-    );
+    const ordered = [...liveSections].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
     return ordered
       .map((section) => ({
         ...section,
@@ -105,9 +100,7 @@ export function PublicGalleryPanel({
   }, [visibleSections]);
 
   const activeSection =
-    visibleSections.find((s) => s.id === activeSectionId) ||
-    visibleSections[0] ||
-    null;
+    visibleSections.find((s) => s.id === activeSectionId) || visibleSections[0] || null;
   const galleryItems = activeSection?.visibleItems ?? [];
 
   if (galleryItems.length === 0) return null;

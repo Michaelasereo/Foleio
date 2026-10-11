@@ -1,23 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
-import { ArrowLeft, X } from 'lucide-react';
-import {
-  flattenAddonOptions,
-  parseAddonCategories,
-  validateRequiredAddons,
-  validateAddonStock,
-  isAddonOptionAvailable,
-  type AddonOption,
-} from '@/lib/shop/product-addons';
-import { resolveProductPricing } from '@/lib/shop/preorder';
-import { resolveDeliveryFeeKobo, isAddressOptionalDeliveryType } from '@/lib/shop/delivery-fee';
-import {
-  formatPrepEstimateLabel,
-  groupByPrepEstimate,
-} from '@/lib/shop/prep-estimate';
 import { productCardCss } from '@/components/shop/product-card-styles';
+import { isAddressOptionalDeliveryType, resolveDeliveryFeeKobo } from '@/lib/shop/delivery-fee';
+import { resolveProductPricing } from '@/lib/shop/preorder';
+import { formatPrepEstimateLabel, groupByPrepEstimate } from '@/lib/shop/prep-estimate';
+import {
+  type AddonOption,
+  flattenAddonOptions,
+  isAddonOptionAvailable,
+  parseAddonCategories,
+  validateAddonStock,
+  validateRequiredAddons,
+} from '@/lib/shop/product-addons';
+import { ArrowLeft, X } from 'lucide-react';
+import Image from 'next/image';
+import { useEffect, useMemo, useState } from 'react';
 
 type ProductVariant = {
   id: string;
@@ -80,7 +77,7 @@ type DrawerStep = 'catalog' | 'product' | 'cart' | 'checkout';
 
 const PUBLIC_SHOP_PREVIEW = 4;
 
-type ShopCatalogPayload = {
+export type ShopCatalogPayload = {
   creatorId: string;
   merchantPhone: string | null;
   products: ShopProduct[];
@@ -359,18 +356,19 @@ const shopDrawerCss = `
 export function PublicShopPanel({
   username,
   embedded = false,
+  catalog = null,
 }: {
   username: string;
   embedded?: boolean;
+  /** When set, render this catalog and skip the shop request. */
+  catalog?: ShopCatalogPayload | null;
 }) {
-  const cachedCatalog = shopCatalogCache.get(username);
+  const cachedCatalog = catalog || shopCatalogCache.get(username);
   const [creatorId, setCreatorId] = useState(cachedCatalog?.creatorId || '');
   const [merchantPhone, setMerchantPhone] = useState<string | null>(
     cachedCatalog?.merchantPhone || null
   );
-  const [products, setProducts] = useState<ShopProduct[]>(
-    cachedCatalog?.products || []
-  );
+  const [products, setProducts] = useState<ShopProduct[]>(cachedCatalog?.products || []);
   const [deliveryTiers, setDeliveryTiers] = useState<ShopDeliveryTier[]>(
     cachedCatalog?.deliveryTiers || []
   );
@@ -410,6 +408,7 @@ export function PublicShopPanel({
   const [giftCardSendToEmail, setGiftCardSendToEmail] = useState('');
 
   useEffect(() => {
+    if (catalog) return;
     let cancelled = false;
     const apply = (payload: ShopCatalogPayload) => {
       setCreatorId(payload.creatorId);
@@ -442,17 +441,14 @@ export function PublicShopPanel({
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, catalog]);
 
   const addonCategories = useMemo(
     () => (selectedProduct ? parseAddonCategories(selectedProduct.addons) : []),
     [selectedProduct]
   );
 
-  const catalogAddons = useMemo(
-    () => flattenAddonOptions(addonCategories),
-    [addonCategories]
-  );
+  const catalogAddons = useMemo(() => flattenAddonOptions(addonCategories), [addonCategories]);
 
   const livePricing = useMemo(() => {
     if (!selectedProduct) {
@@ -489,10 +485,7 @@ export function PublicShopPanel({
     [deliveryTiers, deliveryTierId]
   );
 
-  const cartSubtotal = cart.reduce(
-    (sum, item) => sum + item.unitPrice * item.quantity,
-    0
-  );
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
   const deliveryFee =
     needsDelivery && selectedTier
@@ -570,9 +563,7 @@ export function PublicShopPanel({
   function addSelectedToCart() {
     if (!selectedProduct || !variantsReady(selectedProduct)) {
       setError(
-        selectedProduct?.variants.length
-          ? 'Select all variants first'
-          : 'Could not add to cart'
+        selectedProduct?.variants.length ? 'Select all variants first' : 'Could not add to cart'
       );
       return;
     }
@@ -587,19 +578,13 @@ export function PublicShopPanel({
         setError(requiredError);
         return;
       }
-      const stockError = validateAddonStock(
-        addonCategories,
-        selectedAddonIds,
-        quantity
-      );
+      const stockError = validateAddonStock(addonCategories, selectedAddonIds, quantity);
       if (stockError) {
         setError(stockError);
         return;
       }
     }
-    const selectedAddons = catalogAddons.filter((addon) =>
-      selectedAddonIds.includes(addon.id)
-    );
+    const selectedAddons = catalogAddons.filter((addon) => selectedAddonIds.includes(addon.id));
     setCart((prev) => [
       ...prev,
       {
@@ -674,7 +659,10 @@ export function PublicShopPanel({
       return;
     }
     const needsCustomDeliveryBlock = cart.some(
-      (item) => item.product.type !== 'digital' && item.product.type !== 'gift_card' && item.product.requiresCustomDelivery
+      (item) =>
+        item.product.type !== 'digital' &&
+        item.product.type !== 'gift_card' &&
+        item.product.requiresCustomDelivery
     );
     if (needsCustomDeliveryBlock && !customDelivery.phone.trim()) {
       setError('Custom delivery phone is required');
@@ -743,9 +731,7 @@ export function PublicShopPanel({
   }, [deliveryTiers, deliveryTierId]);
 
   if (loading) {
-    return embedded ? (
-      <p className="foleio-public-empty">Loading shop…</p>
-    ) : null;
+    return embedded ? <p className="foleio-public-empty">Loading shop…</p> : null;
   }
 
   if (products.length === 0) {
@@ -781,9 +767,7 @@ export function PublicShopPanel({
           const thumb = productImages(product)[0];
           const stockCount = product.stock ?? 0;
           const inStock =
-            product.type === 'digital' ||
-            product.type === 'gift_card' ||
-            stockCount > 0;
+            product.type === 'digital' || product.type === 'gift_card' || stockCount > 0;
           const stockLabel =
             product.type === 'digital'
               ? 'Digital'
@@ -803,13 +787,7 @@ export function PublicShopPanel({
             >
               <div className="foleio-product-card-media">
                 {thumb ? (
-                  <Image
-                    src={thumb}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
+                  <Image src={thumb} alt={product.name} fill className="object-cover" unoptimized />
                 ) : null}
                 {pct ? (
                   <div className="foleio-product-card-badges">
@@ -822,17 +800,12 @@ export function PublicShopPanel({
                   <p className="foleio-product-card-title">
                     {product.name}
                     {pricing.isPreorderActive ? (
-                      <span
-                        className="foleio-shop-chip is-preorder"
-                        style={{ marginLeft: 8 }}
-                      >
+                      <span className="foleio-shop-chip is-preorder" style={{ marginLeft: 8 }}>
                         Preorder
                       </span>
                     ) : null}
                   </p>
-                  <span
-                    className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
-                  >
+                  <span className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}>
                     {stockLabel}
                   </span>
                 </div>
@@ -841,12 +814,9 @@ export function PublicShopPanel({
                 </p>
                 <div className="foleio-product-card-footer">
                   <p className="foleio-product-card-price">
-                    {pricing.compareAtPrice &&
-                    pricing.compareAtPrice > pricing.price ? (
+                    {pricing.compareAtPrice && pricing.compareAtPrice > pricing.price ? (
                       <>
-                        <span className="is-compare">
-                          {formatNaira(pricing.compareAtPrice)}
-                        </span>
+                        <span className="is-compare">{formatNaira(pricing.compareAtPrice)}</span>
                         {formatNaira(pricing.price)}
                       </>
                     ) : (
@@ -864,20 +834,13 @@ export function PublicShopPanel({
       </div>
       {products.length > PUBLIC_SHOP_PREVIEW ? (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-          <button
-            type="button"
-            className="foleio-shop-btn-ghost"
-            onClick={openCatalog}
-          >
+          <button type="button" className="foleio-shop-btn-ghost" onClick={openCatalog}>
             View all
           </button>
         </div>
       ) : null}
 
-      {selectedProduct ||
-      step === 'cart' ||
-      step === 'checkout' ||
-      step === 'catalog' ? (
+      {selectedProduct || step === 'cart' || step === 'checkout' || step === 'catalog' ? (
         <>
           <div className="foleio-shop-drawer-backdrop" onClick={closeDrawer} />
           <div
@@ -949,9 +912,7 @@ export function PublicShopPanel({
                     const thumb = productImages(product)[0];
                     const stockCount = product.stock ?? 0;
                     const inStock =
-                      product.type === 'digital' ||
-                      product.type === 'gift_card' ||
-                      stockCount > 0;
+                      product.type === 'digital' || product.type === 'gift_card' || stockCount > 0;
                     const stockLabel =
                       product.type === 'digital'
                         ? 'Digital'
@@ -981,9 +942,7 @@ export function PublicShopPanel({
                           ) : null}
                           {pct ? (
                             <div className="foleio-product-card-badges">
-                              <span className="foleio-product-card-discount">
-                                {pct}% off
-                              </span>
+                              <span className="foleio-product-card-discount">{pct}% off</span>
                             </div>
                           ) : null}
                         </div>
@@ -1001,9 +960,7 @@ export function PublicShopPanel({
                               ) : null}
                             </p>
                             <span
-                              className={`foleio-product-card-stock${
-                                inStock ? '' : ' is-out'
-                              }`}
+                              className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
                             >
                               {stockLabel}
                             </span>
@@ -1013,8 +970,7 @@ export function PublicShopPanel({
                           </p>
                           <div className="foleio-product-card-footer">
                             <p className="foleio-product-card-price">
-                              {pricing.compareAtPrice &&
-                              pricing.compareAtPrice > pricing.price ? (
+                              {pricing.compareAtPrice && pricing.compareAtPrice > pricing.price ? (
                                 <>
                                   <span className="is-compare">
                                     {formatNaira(pricing.compareAtPrice)}
@@ -1025,10 +981,7 @@ export function PublicShopPanel({
                                 formatNaira(pricing.price)
                               )}
                             </p>
-                            <span
-                              className="foleio-product-card-shop-btn"
-                              aria-hidden="true"
-                            >
+                            <span className="foleio-product-card-shop-btn" aria-hidden="true">
                               Shop
                             </span>
                           </div>
@@ -1042,10 +995,7 @@ export function PublicShopPanel({
                 <div style={{ display: 'grid', gap: 16 }}>
                   {(() => {
                     const images = productImages(selectedProduct);
-                    const pct = discountPercent(
-                      livePricing.price,
-                      livePricing.compareAtPrice
-                    );
+                    const pct = discountPercent(livePricing.price, livePricing.compareAtPrice);
                     return (
                       <div style={{ display: 'grid', gap: 8 }}>
                         <button
@@ -1063,9 +1013,7 @@ export function PublicShopPanel({
                             display: 'block',
                             width: '100%',
                           }}
-                          aria-label={
-                            images[0] ? `View ${selectedProduct.name} photo` : undefined
-                          }
+                          aria-label={images[0] ? `View ${selectedProduct.name} photo` : undefined}
                         >
                           {images[0] ? (
                             <Image
@@ -1078,7 +1026,9 @@ export function PublicShopPanel({
                           ) : null}
                           {pct ? (
                             <div className="foleio-shop-image-badges">
-                              <span className="foleio-shop-image-badge is-discount">{pct}% off</span>
+                              <span className="foleio-shop-image-badge is-discount">
+                                {pct}% off
+                              </span>
                             </div>
                           ) : null}
                         </button>
@@ -1156,72 +1106,72 @@ export function PublicShopPanel({
 
                   {selectedProduct && !isGiftCardProduct(selectedProduct)
                     ? selectedProduct.variants.map((variant) => {
-                    const showSwatches =
-                      isColorVariantName(variant.name) ||
-                      variant.options.every((option) => isHexColor(option));
-                    return (
-                      <div key={variant.id}>
-                        <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>
-                          {variant.name}
-                        </p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                          {variant.options.map((option) => {
-                            const selected = selectedVariants[variant.name] === option;
-                            if (showSwatches && isHexColor(option)) {
-                              return (
-                                <button
-                                  key={option}
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedVariants((prev) => ({
-                                      ...prev,
-                                      [variant.name]: option,
-                                    }))
-                                  }
-                                  aria-label={option}
-                                  title={option}
-                                  style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 999,
-                                    border: selected
-                                      ? '2px solid #fafafa'
-                                      : '2px solid rgba(255,255,255,0.2)',
-                                    background: option,
-                                    boxShadow: selected
-                                      ? '0 0 0 2px rgba(250,250,250,0.35)'
-                                      : 'none',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                  }}
-                                />
-                              );
-                            }
-                            return (
-                              <button
-                                key={option}
-                                type="button"
-                                className="foleio-shop-btn-ghost"
-                                style={{
-                                  background: selected
-                                    ? 'rgba(250,250,250,0.12)'
-                                    : 'transparent',
-                                }}
-                                onClick={() =>
-                                  setSelectedVariants((prev) => ({
-                                    ...prev,
-                                    [variant.name]: option,
-                                  }))
+                        const showSwatches =
+                          isColorVariantName(variant.name) ||
+                          variant.options.every((option) => isHexColor(option));
+                        return (
+                          <div key={variant.id}>
+                            <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>
+                              {variant.name}
+                            </p>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {variant.options.map((option) => {
+                                const selected = selectedVariants[variant.name] === option;
+                                if (showSwatches && isHexColor(option)) {
+                                  return (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedVariants((prev) => ({
+                                          ...prev,
+                                          [variant.name]: option,
+                                        }))
+                                      }
+                                      aria-label={option}
+                                      title={option}
+                                      style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 999,
+                                        border: selected
+                                          ? '2px solid #fafafa'
+                                          : '2px solid rgba(255,255,255,0.2)',
+                                        background: option,
+                                        boxShadow: selected
+                                          ? '0 0 0 2px rgba(250,250,250,0.35)'
+                                          : 'none',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                      }}
+                                    />
+                                  );
                                 }
-                              >
-                                {option}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })
+                                return (
+                                  <button
+                                    key={option}
+                                    type="button"
+                                    className="foleio-shop-btn-ghost"
+                                    style={{
+                                      background: selected
+                                        ? 'rgba(250,250,250,0.12)'
+                                        : 'transparent',
+                                    }}
+                                    onClick={() =>
+                                      setSelectedVariants((prev) => ({
+                                        ...prev,
+                                        [variant.name]: option,
+                                      }))
+                                    }
+                                  >
+                                    {option}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })
                     : null}
 
                   {selectedProduct &&
@@ -1266,11 +1216,7 @@ export function PublicShopPanel({
                                   <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                     <input
                                       type={category.required ? 'radio' : 'checkbox'}
-                                      name={
-                                        category.required
-                                          ? `addon-${category.id}`
-                                          : undefined
-                                      }
+                                      name={category.required ? `addon-${category.id}` : undefined}
                                       checked={checked}
                                       disabled={!available}
                                       onChange={() => {
@@ -1346,10 +1292,7 @@ export function PublicShopPanel({
                       }
                       value={quantity}
                       onChange={(event) => {
-                        const minQty = Math.max(
-                          1,
-                          Number(selectedProduct?.minOrderQuantity) || 1
-                        );
+                        const minQty = Math.max(1, Number(selectedProduct?.minOrderQuantity) || 1);
                         setQuantity(
                           Math.max(
                             minQty,
@@ -1427,9 +1370,7 @@ export function PublicShopPanel({
                                 }}
                               >
                                 <div style={{ minWidth: 0, flex: 1 }}>
-                                  <p style={{ margin: 0, fontWeight: 600 }}>
-                                    {item.product.name}
-                                  </p>
+                                  <p style={{ margin: 0, fontWeight: 600 }}>{item.product.name}</p>
                                   <p
                                     style={{
                                       margin: '4px 0 0',
@@ -1469,9 +1410,7 @@ export function PublicShopPanel({
 
                   {cart.length > 0 && needsDelivery ? (
                     <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
-                        Choose delivery
-                      </p>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Choose delivery</p>
                       {deliveryTiers.length === 0 ? (
                         <p style={{ margin: 0, fontSize: 13, color: '#fca5a5' }}>
                           This shop has no delivery options yet. Please contact the creator.
@@ -1605,9 +1544,7 @@ export function PublicShopPanel({
                         }}
                       >
                         <span>Total</span>
-                        <span>
-                          {deliverySelected ? formatNaira(payableTotal) : '—'}
-                        </span>
+                        <span>{deliverySelected ? formatNaira(payableTotal) : '—'}</span>
                       </div>
                     </div>
                   ) : null}
@@ -1673,37 +1610,25 @@ export function PublicShopPanel({
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <button
                         type="button"
-                        className={
-                          !address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'
-                        }
+                        className={!address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'}
                         style={{
                           padding: '10px 12px',
                           fontSize: 13,
-                          background: !address.isGift
-                            ? 'rgba(250,250,250,0.12)'
-                            : undefined,
+                          background: !address.isGift ? 'rgba(250,250,250,0.12)' : undefined,
                         }}
-                        onClick={() =>
-                          setAddress((prev) => ({ ...prev, isGift: false }))
-                        }
+                        onClick={() => setAddress((prev) => ({ ...prev, isGift: false }))}
                       >
                         For me
                       </button>
                       <button
                         type="button"
-                        className={
-                          address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'
-                        }
+                        className={address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'}
                         style={{
                           padding: '10px 12px',
                           fontSize: 13,
-                          background: address.isGift
-                            ? 'rgba(250,250,250,0.12)'
-                            : undefined,
+                          background: address.isGift ? 'rgba(250,250,250,0.12)' : undefined,
                         }}
-                        onClick={() =>
-                          setAddress((prev) => ({ ...prev, isGift: true }))
-                        }
+                        onClick={() => setAddress((prev) => ({ ...prev, isGift: true }))}
                       >
                         This is a gift
                       </button>
@@ -1739,9 +1664,7 @@ export function PublicShopPanel({
                                   ? '1px solid rgba(255,255,255,0.35)'
                                   : undefined,
                             }}
-                            onClick={() =>
-                              setAddress((prev) => ({ ...prev, occasion: value }))
-                            }
+                            onClick={() => setAddress((prev) => ({ ...prev, occasion: value }))}
                           >
                             {label}
                           </button>
@@ -1942,8 +1865,7 @@ export function PublicShopPanel({
                             color: 'rgba(250,250,250,0.72)',
                           }}
                         >
-                          {group.label}:{' '}
-                          {group.items.map((item) => item.product.name).join(', ')}
+                          {group.label}: {group.items.map((item) => item.product.name).join(', ')}
                         </p>
                       ))}
                     </div>
@@ -1980,9 +1902,7 @@ export function PublicShopPanel({
                       >
                         <span>Delivery · {selectedTier.name}</span>
                         <span>
-                          {selectedTier.type === 'paid'
-                            ? formatNaira(deliveryFee)
-                            : 'Free'}
+                          {selectedTier.type === 'paid' ? formatNaira(deliveryFee) : 'Free'}
                         </span>
                       </div>
                     ) : null}
@@ -2040,9 +1960,7 @@ export function PublicShopPanel({
                     }
                   >
                     Checkout
-                    {deliverySelected || !needsDelivery
-                      ? ` · ${formatNaira(payableTotal)}`
-                      : ''}
+                    {deliverySelected || !needsDelivery ? ` · ${formatNaira(payableTotal)}` : ''}
                   </button>
                 </div>
               ) : null}

@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const YEAR = new Date().getFullYear();
 
@@ -11,6 +14,9 @@ const LINKS = [
 ] as const;
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  if (pathname === '/' || pathname?.startsWith('/demo')) return null;
+
   return (
     <footer className="foleio-site-footer">
       <style
