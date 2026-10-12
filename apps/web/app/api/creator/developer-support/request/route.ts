@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
+import { z } from 'zod';
 import { assertCreatorApiAccess } from '@/lib/creator/api-session';
 import { sendDeveloperSupportInviteEmail } from '@/lib/email/send';
 import {
   createSupportToken,
   hashSupportToken,
 } from '@/lib/developer-support/session';
+import { toWhatsAppDigits, whatsappChatUrl } from '@/lib/quotes/helpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,11 @@ function buildWhatsappUrl(creatorName: string, creatorUsername: string) {
   );
   return `https://wa.me/${phone}?text=${message}`;
 }
+
+const requestSchema = z.object({
+  merchantWhatsappPhone: z.string().trim().min(5).max(32),
+  supportNote: z.string().trim().max(500).optional().nullable(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -31,10 +38,29 @@ export async function POST(request: Request) {
       );
     }
 
+    const body = await request.json().catch(() => null);
+    const parsed = requestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid request' },
+        { status: 400 }
+      );
+    }
+
+    const merchantWhatsappPhone =
+      toWhatsAppDigits(parsed.data.merchantWhatsappPhone) || null;
+    if (!merchantWhatsappPhone) {
+      return NextResponse.json(
+        { error: 'Enter a valid WhatsApp number' },
+        { status: 400 }
+      );
+    }
+    const supportNote = parsed.data.supportNote?.trim() || null;
+
     const { creator } = auth.access;
     const creatorProfile = await prisma.creator.findUnique({
       where: { id: creator.id },
-      select: { displayName: true, username: true },
+      select: { displayName: true, username: true, user: { select: { email: true } } },
     });
     if (!creatorProfile) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
@@ -55,7 +81,7 @@ export async function POST(request: Request) {
     const tokenHash = hashSupportToken(rawToken);
     const inviteEmail =
       process.env.FOLEIO_DEVELOPER_SUPPORT_EMAIL || 'asereopeyemimichael@gmail.com';
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://foleio.com').replace(/\/$/, '');
+    const appUrl = new URL(request.url).origin.replace(/\/$/, '');
     const acceptUrl = `${appUrl}/support/accept?token=${encodeURIComponent(rawToken)}`;
 
     await prisma.developerSupportGrant.create({
@@ -72,10 +98,14 @@ export async function POST(request: Request) {
       creatorName: creatorProfile.displayName,
       creatorUsername: creatorProfile.username,
       acceptUrl,
+      merchantWhatsappPhone,
+      supportNote,
+      merchantEmail: creatorProfile.user?.email || null,
     });
 
     return NextResponse.json({
       whatsappUrl: buildWhatsappUrl(creatorProfile.displayName, creatorProfile.username),
+      merchantWhatsappPhone,
       status: 'pending',
     });
   } catch (error) {

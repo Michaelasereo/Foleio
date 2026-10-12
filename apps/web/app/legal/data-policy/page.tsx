@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { LegalDocument } from '@/components/legal/LegalDocument';
+import { Italic } from '@/components/landing/ui';
 
 export const metadata = {
   title: 'Data Policy · Foleio',
@@ -8,15 +10,15 @@ export const metadata = {
 
 export default function DataPolicyPage() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
-        Data Policy
-      </h1>
-      <p className="text-muted-foreground text-sm mb-10">
-        Effective Date: March 2026 · Compliant with the Nigeria Data Protection
-        Act (NDPA) 2023
-      </p>
-      <div className="legal-content">
+    <LegalDocument
+      active="/legal/data-policy"
+      title={
+        <>
+          Data <Italic>Policy</Italic>
+        </>
+      }
+      effective="Effective March 2026 · Last updated 12 October 2026 · Compliant with the Nigeria Data Protection Act (NDPA) 2023"
+    >
         <p>
           This Data Policy explains how Foleio collects, uses, stores, shares,
           and protects personal data when you use our platform. It applies to
@@ -83,7 +85,6 @@ export default function DataPolicyPage() {
           For the complete statement of our privacy practices, see our{' '}
           <Link href="/legal/privacy">Privacy Policy</Link>.
         </p>
-      </div>
-    </div>
+    </LegalDocument>
   );
 }

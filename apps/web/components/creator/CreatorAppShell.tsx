@@ -1,25 +1,24 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell,
   CalendarDays,
+  ChevronDown,
   FileText,
+  House,
+  Landmark,
   LayoutDashboard,
-  Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Search,
   Settings,
   ShoppingBag,
-  UserRound,
+  User,
   Wallet,
-  X,
 } from 'lucide-react';
-import { AuthLegalFooter } from '@/components/auth/AuthLegalFooter';
+import { createClient } from '@/lib/supabase/client';
 import { authCss } from '@/components/auth/styles';
-import { CreatorSetupTourCard } from '@/components/creator/CreatorSetupTourCard';
+import styles from '@/components/demo/demo-dashboard.module.css';
 
 const creatorShellCss = `
 ${authCss}
@@ -33,7 +32,7 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
-  background: #f5f3f4 !important;
+  background: #f6f6f4 !important;
   color: #1a1816;
 }
 .foleio-creator-root .foleio-auth-shell {
@@ -55,17 +54,104 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   flex-direction: column;
   align-items: stretch;
   justify-content: space-between;
-  width: 220px;
+  width: 260px;
   flex-shrink: 0;
-  /* Match Creator Dashboard strip (32) + main gap (4) so Workspace lines up with the content panel */
-  padding: 36px 14px 18px;
+  padding: 14px 12px 16px;
   box-sizing: border-box;
   transition: width 0.18s ease;
 }
 .foleio-creator-rail.is-collapsed {
   width: 72px;
-  padding: 36px 10px 16px;
+  padding: 14px 10px 16px;
   align-items: center;
+}
+.foleio-creator-rail-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 4px 4px 12px 8px;
+  box-sizing: border-box;
+}
+.foleio-creator-rail-brand-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #1c1c1c;
+  text-decoration: none;
+}
+.foleio-creator-rail-logo {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.foleio-creator-rail-name {
+  color: #1c1c1c;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.foleio-creator-rail-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: #1faa59;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.foleio-creator-rail-plan.is-free {
+  color: #b3b3b3;
+  letter-spacing: 0.06em;
+}
+.foleio-creator-rail-plan svg {
+  width: 12px;
+  height: 12px;
+}
+.foleio-creator-rail-brand-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.foleio-creator-rail-bell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: #1c1c1c;
+  text-decoration: none;
+}
+.foleio-creator-rail-bell:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.foleio-creator-rail-bell svg {
+  width: 18px;
+  height: 18px;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-brand {
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 2px 0 10px;
+  gap: 8px;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-name,
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-plan,
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-bell {
+  display: none;
+}
+.foleio-creator-rail.is-collapsed .foleio-creator-rail-brand-actions {
+  margin-left: 0;
 }
 .foleio-creator-rail-toggle {
   display: inline-flex;
@@ -76,34 +162,20 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: #6b7280;
+  color: #1c1c1c;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .foleio-creator-rail-toggle:hover {
-  color: #111827;
-  background: rgba(17, 24, 39, 0.06);
+  color: #1c1c1c;
+  background: rgba(0, 0, 0, 0.04);
 }
 .foleio-creator-rail-toggle svg {
   width: 16px;
   height: 16px;
-}
-.foleio-creator-rail-section-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 28px;
-  margin: 0 4px 8px;
-  box-sizing: border-box;
-}
-.foleio-creator-rail.is-collapsed .foleio-creator-rail-section-row {
-  justify-content: center;
-  margin: 0 0 8px;
-  width: 100%;
 }
 .foleio-creator-rail.is-collapsed .foleio-creator-rail-section,
 .foleio-creator-rail.is-collapsed .foleio-creator-rail-link-label {
@@ -139,15 +211,12 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   flex: 1;
 }
 .foleio-creator-rail-section {
-  margin: 0;
-  color: #9ca3af;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.foleio-creator-rail-footer > .foleio-creator-rail-section {
   margin: 14px 10px 6px;
+  color: #bdbdbd;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .foleio-creator-rail-link {
   display: flex;
@@ -156,8 +225,8 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   width: 100%;
   min-height: 36px;
   padding: 7px 10px;
-  border-radius: 6px;
-  color: #6b7280;
+  border-radius: 10px;
+  color: #1c1c1c;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.2;
@@ -165,21 +234,22 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   box-sizing: border-box;
 }
 .foleio-creator-rail-link:hover {
-  color: #374151;
-  background: rgba(17, 24, 39, 0.04);
+  color: #1c1c1c;
+  background: rgba(0, 0, 0, 0.04);
 }
 .foleio-creator-rail-link.is-active {
-  color: #1f2937;
-  background: #eceaef;
+  color: #1c1c1c;
+  background: #ffffff;
   font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 .foleio-creator-rail-link.is-active:hover {
-  color: #1f2937;
-  background: #eceaef;
+  color: #1c1c1c;
+  background: #ffffff;
 }
 .foleio-creator-rail-link svg {
   width: 18px;
@@ -2705,6 +2775,277 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   padding-top: 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+.foleio-creator-root {
+  height: auto !important;
+  min-height: 100dvh;
+  overflow: visible !important;
+  background: #fcfcfb !important;
+}
+.foleio-live-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #fcfcfb;
+  color: #171717;
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+.foleio-live-side {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  width: 248px;
+  height: 100vh;
+  flex-shrink: 0;
+  padding: 18px 12px 16px;
+  background: #f5f5f4;
+  border-right: 1px solid #e7e5e4;
+  color: #404040;
+  overflow: auto;
+}
+.foleio-live-account { position: relative; margin: 0 4px 10px; }
+.foleio-live-account-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fff;
+  color: #404040;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.foleio-live-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #1a1816;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+}
+.foleio-live-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.foleio-live-account-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+.foleio-live-menu {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 6px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(26, 24, 22, 0.08);
+}
+.foleio-live-menu a,
+.foleio-live-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #404040;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.foleio-live-menu a:hover,
+.foleio-live-menu button:hover { background: #f5f5f4; }
+.foleio-live-group {
+  margin: 18px 10px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #404040;
+}
+.foleio-live-group:first-of-type { margin-top: 4px; }
+.foleio-live-link,
+.foleio-live-sublink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #404040;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.foleio-live-link svg { width: 16px; height: 16px; flex-shrink: 0; }
+.foleio-live-link:hover,
+.foleio-live-sublink:hover { background: rgba(255, 255, 255, 0.7); }
+.foleio-live-link.is-active,
+.foleio-live-sublink.is-active {
+  background: #fff;
+  box-shadow: 0 0 0 1px #e7e5e4;
+}
+.foleio-live-subnav {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 4px 26px;
+  padding-left: 8px;
+  border-left: 1px solid #e4e4e7;
+}
+.foleio-live-sublink { padding: 6px 10px; font-size: 13px; }
+.foleio-live-chevron { margin-left: auto; width: 14px; height: 14px; }
+.foleio-live-chevron.is-open { transform: rotate(180deg); }
+.foleio-live-main { min-width: 0; flex: 1; background: #fcfcfb; }
+.foleio-live-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 28px 4px;
+}
+.foleio-live-search { position: relative; max-width: 440px; }
+.foleio-live-search label {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 14px 0 16px;
+  border: 1px solid #e4e4e7;
+  border-radius: 999px;
+  background: #fff;
+}
+.foleio-live-search input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: #171717;
+}
+.foleio-live-search svg { width: 16px; height: 16px; color: #a1a1aa; flex-shrink: 0; }
+.foleio-live-results {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 6px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+}
+.foleio-live-results a {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.foleio-live-results a:hover { background: #f5f5f4; }
+.foleio-live-results strong { font-size: 13px; font-weight: 500; }
+.foleio-live-results span { font-size: 12px; color: #71717a; }
+.foleio-live-share { display: flex; align-items: center; gap: 8px; }
+.foleio-live-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid #e7e5e4;
+  border-radius: 999px;
+  background: #fff;
+  color: #404040;
+  font-size: 13px;
+}
+.foleio-live-chip button,
+.foleio-live-share > button {
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.foleio-live-chip span {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foleio-live-chip button {
+  height: 28px;
+  padding: 0 10px;
+  background: #f5f5f4;
+  color: #404040;
+}
+.foleio-live-share > button {
+  padding: 0 14px;
+  background: #1a1816;
+  color: #fff;
+}
+.foleio-live-note { margin: 6px 0 0; font-size: 12px; color: #71717a; text-align: right; }
+.foleio-creator-root .foleio-creator-content-body {
+  max-width: 1160px;
+}
+.foleio-creator-root .foleio-creator-content-surface {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tabs {
+  background: #f5f5f4;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  padding: 3px;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab.is-active {
+  border-radius: 999px;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-tab.is-active {
+  background: #fff;
+  box-shadow: 0 0 0 1px #e7e5e4;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-panel,
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-stat {
+  border-radius: 16px;
+  border-color: #e7e5e4;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-header .foleio-auth-title {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+@media (max-width: 900px) {
+  .foleio-live-shell { flex-direction: column; }
+  .foleio-live-side { position: relative; width: 100%; height: auto; }
+  .foleio-live-top { grid-template-columns: 1fr; padding: 12px 16px 0; }
+}
 `;
 
 interface CreatorAppShellProps {
@@ -2726,44 +3067,19 @@ interface CreatorAppShellProps {
   title?: string | null;
 }
 
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, tourId: 'dashboard' },
-  { href: '/bookings', label: 'Bookings', icon: CalendarDays, tourId: 'bookings' },
-  { href: '/invoices', label: 'Quotes & Invoice', icon: FileText, tourId: 'invoices' },
-  { href: '/shop', label: 'Shop', icon: ShoppingBag, tourId: 'shop' },
-  { href: '/earnings', label: 'Earnings', icon: Wallet, tourId: 'earnings' },
+const SEARCH_ITEMS = [
+  { href: '/overview', label: 'Overview', hint: 'Start here' },
+  { href: '/dashboard', label: 'Dashboard', hint: 'Bookings, earnings, and what is coming up', tourId: 'dashboard' },
+  { href: '/bookings', label: 'Bookings', hint: 'Appointments and services', tourId: 'bookings' },
+  { href: '/shop', label: 'Shop', hint: 'Products and orders', shop: true, tourId: 'shop' },
+  { href: '/shop?tab=orders', label: 'Orders', hint: 'Shop orders', shop: true },
+  { href: '/shop/coupons', label: 'Coupons', hint: 'Discount codes', shop: true },
+  { href: '/invoices', label: 'Quotes and invoices', hint: 'Custom pricing', tourId: 'invoices' },
+  { href: '/earnings', label: 'Earnings', hint: 'What you have made', tourId: 'earnings' },
+  { href: '/earnings?tab=payouts', label: 'Payouts', hint: 'Bank settlements' },
+  { href: '/settings', label: 'Profile settings', hint: 'Name, photo, and public page', tourId: 'profile' },
+  { href: '/settings?tab=security', label: 'Account settings', hint: 'Email, password, and security', tourId: 'settings' },
 ] as const;
-
-function isCreatorNavActive(pathname: string, href: string) {
-  if (href === '/dashboard') {
-    return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
-  }
-  if (href === '/shop') {
-    return pathname === '/shop' || pathname.startsWith('/services/shop');
-  }
-  if (href === '/earnings') {
-    return pathname.startsWith('/earnings') || pathname.startsWith('/analytics');
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function CreatorContentHeader() {
-  return (
-    <header className="foleio-creator-content-header">
-      <h1 className="foleio-creator-content-title">Creator Dashboard</h1>
-      <div className="foleio-creator-content-actions">
-        <Link
-          href="/settings?tab=notifications"
-          className="foleio-creator-content-action"
-          aria-label="Notifications"
-          data-tour="notifications"
-        >
-          <Bell strokeWidth={1.5} />
-        </Link>
-      </div>
-    </header>
-  );
-}
 
 export function CreatorAppShell({
   children,
@@ -2773,313 +3089,283 @@ export function CreatorAppShell({
 }: CreatorAppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const navMenuRef = useRef<HTMLDivElement>(null);
-  const navMenuButtonRef = useRef<HTMLButtonElement>(null);
-  const [navMenuOpen, setNavMenuOpen] = useState(false);
-  const [navMenuPos, setNavMenuPos] = useState<{ top: number; left: number } | null>(
-    null
-  );
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
+  const accountRef = useRef<HTMLDivElement>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(pathname.startsWith("/shop"));
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [shareNote, setShareNote] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem('foleio-creator-sidebar-collapsed');
-      if (stored === '1') setSidebarCollapsed(true);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const shopEnabled = creator?.shopEnabled !== false;
+  const settingsTab = searchParams.get("tab");
+  const onSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+  const profileActive = onSettings && (!settingsTab || settingsTab === "profile");
+  const accountActive = onSettings && settingsTab === "security";
+  const payoutsActive = pathname.startsWith("/earnings") && settingsTab === "payouts";
+  const earningsActive = pathname.startsWith("/earnings") && !payoutsActive;
+  const shopActive = pathname === "/shop" || pathname.startsWith("/shop/") || pathname.startsWith("/services/shop");
+  const ordersActive = pathname === "/shop" && settingsTab === "orders";
+  const couponsActive = pathname.startsWith("/shop/coupons");
+  const productsActive = shopActive && !ordersActive && !couponsActive;
 
-  function toggleSidebarCollapsed() {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(
-          'foleio-creator-sidebar-collapsed',
-          next ? '1' : '0'
-        );
-      } catch {
-        // ignore
-      }
-      return next;
+  const displayName = creator?.displayName || "Creator";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "F";
+  const publicPath = creator?.username ? `/creator/${creator.username}` : "/dashboard";
+  const publicUrl = creator?.username
+    ? `${(process.env.NEXT_PUBLIC_APP_URL || "https://foleio.com").replace(/\/+$/, "")}/creator/${creator.username}`
+    : "";
+  const publicLabel = publicUrl.replace(/^https?:\/\//, "");
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return SEARCH_ITEMS.filter((item) => {
+      if ("shop" in item && item.shop && !shopEnabled) return false;
+      if (!q) return true;
+      return item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q);
     });
-  }
-  const visibleNav = NAV.filter((item) => {
-    if (item.href === '/shop') return creator?.shopEnabled !== false;
-    return true;
-  });
-  const settingsTab = searchParams.get('tab');
-  const onSettings =
-    pathname === '/settings' || pathname.startsWith('/settings/');
-  const profileActive = onSettings && (!settingsTab || settingsTab === 'profile');
-  const settingsActive =
-    onSettings && Boolean(settingsTab) && settingsTab !== 'profile';
+  }, [query, shopEnabled]);
 
   useEffect(() => {
-    setNavMenuOpen(false);
+    if (pathname.startsWith("/shop")) setShopOpen(true);
   }, [pathname]);
 
   useEffect(() => {
-    if (!navMenuOpen) {
-      setNavMenuPos(null);
-      return undefined;
+    if (!accountOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
     }
-
-    function placeMenu() {
-      const button = navMenuButtonRef.current;
-      if (!button) return;
-      const rect = button.getBoundingClientRect();
-      const width = 220;
-      const left = Math.min(
-        Math.max(12, rect.left),
-        window.innerWidth - width - 12
-      );
-      setNavMenuPos({
-        top: rect.bottom + 8,
-        left,
-      });
-    }
-
-    placeMenu();
-
-    let removeOutside: (() => void) | undefined;
-    // Defer outside-close so the opening tap doesn't immediately dismiss.
-    const timer = window.setTimeout(() => {
-      function onPointerDown(event: PointerEvent) {
-        const target = event.target as Node | null;
-        if (!target) return;
-        if (navMenuRef.current?.contains(target)) return;
-        if (navMenuButtonRef.current?.contains(target)) return;
-        setNavMenuOpen(false);
-      }
-      document.addEventListener('pointerdown', onPointerDown);
-      removeOutside = () => document.removeEventListener('pointerdown', onPointerDown);
-    }, 0);
-
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setNavMenuOpen(false);
+      if (event.key === "Escape") setAccountOpen(false);
     }
-
-    document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('resize', placeMenu);
-    window.addEventListener('scroll', placeMenu, true);
-
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      window.clearTimeout(timer);
-      removeOutside?.();
-      document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('resize', placeMenu);
-      window.removeEventListener('scroll', placeMenu, true);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
-  }, [navMenuOpen]);
+  }, [accountOpen]);
+
+  async function copyProfile() {
+    const url = publicUrl || `${window.location.origin}${publicPath}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setShareNote("Could not copy the link from this browser.");
+    }
+  }
+
+  async function signOut() {
+    setSigningOut(true);
+    setAccountOpen(false);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Error logging out:", error);
+      setSigningOut(false);
+    }
+  }
+
+  function linkClass(active: boolean) {
+    return {
+      className: styles.navItem,
+      'aria-current': active ? ('page' as const) : undefined,
+    };
+  }
 
   return (
-    <div className="foleio-auth-root foleio-creator-root relative flex min-h-screen flex-col">
-      <style
-        // Large inline CSS can disagree between SSR and the client chunk during HMR;
-        // styles are static and safe to skip attribute reconciliation.
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: creatorShellCss }}
-      />
-
-      <div className="foleio-auth-shell">
-        <aside
-          className={`foleio-creator-rail${sidebarCollapsed ? ' is-collapsed' : ''}`}
-          aria-label="Creator navigation"
-        >
-          <div className="foleio-creator-rail-top">
-            <nav className="foleio-creator-rail-nav">
-              <div className="foleio-creator-rail-section-row">
-                {!sidebarCollapsed ? (
-                  <div className="foleio-creator-rail-section">Workspace</div>
-                ) : null}
-                <button
-                  type="button"
-                  className="foleio-creator-rail-toggle"
-                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                  title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                  aria-expanded={!sidebarCollapsed}
-                  onClick={toggleSidebarCollapsed}
-                >
-                  {sidebarCollapsed ? (
-                    <PanelLeftOpen strokeWidth={1.5} />
-                  ) : (
-                    <PanelLeftClose strokeWidth={1.5} />
-                  )}
+    <div className="foleio-auth-root foleio-creator-root">
+      <style suppressHydrationWarning dangerouslySetInnerHTML={{ __html: creatorShellCss }} />
+      <div className="foleio-live-shell">
+        <aside className={styles.sidebar} aria-label="Creator navigation">
+          <div className={styles.account} ref={accountRef}>
+            <button
+              type="button"
+              className={styles.accountButton}
+              aria-expanded={accountOpen}
+              aria-haspopup="menu"
+              onClick={() => setAccountOpen((open) => !open)}
+            >
+              <span className={styles.accountAvatar} aria-hidden="true">
+                {initials}
+              </span>
+              <span className={styles.accountName}>{displayName}</span>
+              <ChevronDown className={`${styles.chevron} ${accountOpen ? styles.chevronOpen : ''}`} strokeWidth={1.75} />
+            </button>
+            {accountOpen ? (
+              <div className={styles.accountMenu} role="menu">
+                <Link href="/settings" role="menuitem" onClick={() => setAccountOpen(false)}>
+                  Profile
+                </Link>
+                <button type="button" role="menuitem" onClick={() => void signOut()} disabled={signingOut}>
+                  {signingOut ? 'Signing out…' : 'Sign out'}
                 </button>
               </div>
-              {visibleNav.map((item) => {
-                const Icon = item.icon;
-                const active = isCreatorNavActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    data-tour={item.tourId}
-                    className={`foleio-creator-rail-link${active ? ' is-active' : ''}`}
-                    aria-label={item.label}
-                    title={item.label}
-                  >
-                    <Icon strokeWidth={1.5} />
-                    <span className="foleio-creator-rail-link-label">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-          <div className="foleio-creator-rail-footer">
-            {!sidebarCollapsed ? (
-              <div className="foleio-creator-rail-section">Account</div>
             ) : null}
-            <Link
-              href="/settings"
-              className={`foleio-creator-rail-link${profileActive ? ' is-active' : ''}`}
-              data-tour="profile"
-              aria-label="Profile"
-              title="Profile"
-            >
-              <UserRound strokeWidth={1.5} />
-              <span className="foleio-creator-rail-link-label">Profile</span>
-            </Link>
-            <Link
-              href="/settings?tab=offerings"
-              className={`foleio-creator-rail-link${settingsActive ? ' is-active' : ''}`}
-              data-tour="settings"
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings strokeWidth={1.5} />
-              <span className="foleio-creator-rail-link-label">Settings</span>
-            </Link>
           </div>
-        </aside>
 
-        <header className="foleio-auth-topbar relative z-30">
-          <nav className="foleio-auth-topbar-nav" aria-label="Creator">
-            <div className="foleio-auth-topbar-nav-links">
-              {visibleNav.map((item) => {
-                const Icon = item.icon;
-                const active = isCreatorNavActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    data-tour={item.tourId}
-                    className={active ? 'is-active' : undefined}
-                  >
-                    <Icon strokeWidth={1.5} />
-                    {item.label}
-                  </Link>
-                );
-              })}
+          <nav aria-label="Dashboard">
+            <p className={`${styles.groupLabel} ${styles.groupLabelFirst}`}>Overview</p>
+            <div className={styles.nav}>
+              <Link href="/overview" {...linkClass(pathname === '/overview')} data-tour="overview">
+                <House className={styles.navIcon} strokeWidth={1.75} />
+                Overview
+              </Link>
+              <Link href="/dashboard" {...linkClass(pathname === '/dashboard' || pathname.startsWith('/dashboard/'))} data-tour="dashboard">
+                <LayoutDashboard className={styles.navIcon} strokeWidth={1.75} />
+                Dashboard
+              </Link>
             </div>
 
-            <div className="foleio-auth-topbar-mobile-menu">
-              <button
-                ref={navMenuButtonRef}
-                type="button"
-                className="foleio-auth-topbar-icon"
-                aria-label={navMenuOpen ? 'Close menu' : 'Open menu'}
-                aria-haspopup="menu"
-                aria-expanded={navMenuOpen}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  if (navMenuOpen) {
-                    setNavMenuOpen(false);
-                    return;
-                  }
-                  const button = event.currentTarget;
-                  const rect = button.getBoundingClientRect();
-                  const width = 220;
-                  setNavMenuPos({
-                    top: rect.bottom + 8,
-                    left: Math.min(
-                      Math.max(12, rect.left),
-                      window.innerWidth - width - 12
-                    ),
-                  });
-                  setNavMenuOpen(true);
-                }}
-              >
-                {navMenuOpen ? (
-                  <X strokeWidth={1.5} />
-                ) : (
-                  <Menu strokeWidth={1.5} />
-                )}
-              </button>
-              {navMenuOpen ? (
-                <div
-                  ref={navMenuRef}
-                  className="foleio-auth-topbar-mobile-pop"
-                  role="menu"
-                  style={{
-                    top: navMenuPos?.top ?? 56,
-                    left: navMenuPos?.left ?? 12,
+            <p className={styles.groupLabel}>Creator</p>
+            <div className={styles.nav}>
+              <Link href="/bookings" {...linkClass(pathname.startsWith('/bookings'))} data-tour="bookings">
+                <CalendarDays className={styles.navIcon} strokeWidth={1.75} />
+                Bookings
+              </Link>
+              {shopEnabled ? (
+                <>
+                  <button
+                    type="button"
+                    {...linkClass(shopActive)}
+                    aria-expanded={shopOpen}
+                    data-tour="shop"
+                    onClick={() => {
+                      if (shopActive) {
+                        setShopOpen((open) => !open);
+                        return;
+                      }
+                      setShopOpen(true);
+                      router.push('/shop');
+                    }}
+                  >
+                    <ShoppingBag className={styles.navIcon} strokeWidth={1.75} />
+                    Shop
+                    <ChevronDown className={`${styles.chevron} ${shopOpen ? styles.chevronOpen : ''}`} strokeWidth={1.75} />
+                  </button>
+                  {shopOpen ? (
+                    <div className={styles.subNav}>
+                      <Link href="/shop" className={styles.subItem} aria-current={productsActive ? 'page' : undefined}>Products</Link>
+                      <Link href="/shop?tab=orders" className={styles.subItem} aria-current={ordersActive ? 'page' : undefined}>Orders</Link>
+                      <Link href="/shop/coupons" className={styles.subItem} aria-current={couponsActive ? 'page' : undefined}>Coupons</Link>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              <Link href="/invoices" {...linkClass(pathname.startsWith('/invoices'))} data-tour="invoices">
+                <FileText className={styles.navIcon} strokeWidth={1.75} />
+                Quotes and invoices
+              </Link>
+            </div>
+
+            <p className={styles.groupLabel}>Earnings</p>
+            <div className={styles.nav}>
+              <Link href="/earnings" {...linkClass(earningsActive)} data-tour="earnings">
+                <Wallet className={styles.navIcon} strokeWidth={1.75} />
+                Earnings
+              </Link>
+              <Link href="/earnings?tab=payouts" {...linkClass(payoutsActive)}>
+                <Landmark className={styles.navIcon} strokeWidth={1.75} />
+                Payouts
+              </Link>
+            </div>
+
+            <p className={styles.groupLabel}>Accounts</p>
+            <div className={styles.nav}>
+              <Link href="/settings" {...linkClass(profileActive)} data-tour="profile">
+                <User className={styles.navIcon} strokeWidth={1.75} />
+                Profile settings
+              </Link>
+              <Link href="/settings?tab=security" {...linkClass(accountActive)} data-tour="settings">
+                <Settings className={styles.navIcon} strokeWidth={1.75} />
+                Account settings
+              </Link>
+            </div>
+          </nav>
+        </aside>
+
+        <div className="foleio-live-main">
+          <header className="foleio-live-top">
+            <div className="foleio-live-search">
+              <label>
+                <input
+                  value={query}
+                  placeholder="Search bookings, clients, and orders"
+                  aria-label="Search the creator dashboard"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setSearchOpen(true);
                   }}
-                >
-                  {visibleNav.map((item) => {
-                    const Icon = item.icon;
-                    const active = isCreatorNavActive(pathname, item.href);
-                    return (
+                  onFocus={() => setSearchOpen(true)}
+                  onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)}
+                />
+                <Search strokeWidth={1.75} />
+              </label>
+              {searchOpen ? (
+                <div className="foleio-live-results" role="listbox">
+                  {results.length === 0 ? (
+                    <div style={{ padding: "8px 10px", color: "#71717a", fontSize: 13 }}>No matches</div>
+                  ) : (
+                    results.map((item) => (
                       <Link
                         key={item.href}
                         href={item.href}
-                        role="menuitem"
-                        data-tour={item.tourId}
-                        className={active ? 'is-active' : undefined}
-                        onClick={() => setNavMenuOpen(false)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setQuery("");
+                        }}
                       >
-                        <Icon strokeWidth={1.5} />
-                        {item.label}
+                        <strong>{item.label}</strong>
+                        <span>{item.hint}</span>
                       </Link>
-                    );
-                  })}
+                    ))
+                  )}
                 </div>
               ) : null}
             </div>
-          </nav>
-          <div className="foleio-auth-topbar-actions">
-            <Link
-              href="/settings?tab=notifications"
-              className="foleio-auth-topbar-icon"
-              aria-label="Notifications"
-              data-tour="notifications"
-            >
-              <Bell strokeWidth={1.5} />
-            </Link>
-            <Link
-              href="/settings"
-              className={`foleio-auth-topbar-icon${
-                pathname === '/settings' || pathname.startsWith('/settings/')
-                  ? ' is-active'
-                  : ''
-              }`}
-              aria-label="Settings"
-              data-tour="settings"
-            >
-              <Settings strokeWidth={1.5} />
-            </Link>
-          </div>
-        </header>
-
-        <main className="foleio-auth-main relative flex-1">
-          <CreatorContentHeader />
-          <div className="foleio-creator-content-surface">
-            <div className="foleio-creator-content-body">
-              {supportMode ? (
-                <div className="foleio-dev-support-banner" role="status">
-                  Developer support mode — earnings, payouts, billing, and security are blocked.
-                  Access expires 7 days after accept.
+            <div>
+              <div className="foleio-live-share">
+                <div className="foleio-live-chip">
+                  <span title={publicUrl || undefined}>{publicLabel || publicPath.replace(/^\//, "")}</span>
+                  <button type="button" onClick={() => void copyProfile()}>
+                    {copied ? "Copied" : "Copy"}
+                  </button>
                 </div>
-              ) : null}
-              {children}
-              <AuthLegalFooter tone="light" />
+                <button type="button" onClick={() => void copyProfile()}>
+                  Share profile
+                </button>
+              </div>
+              {shareNote ? <p className="foleio-live-note" role="status">{shareNote}</p> : null}
             </div>
-          </div>
-        </main>
+          </header>
+          <main className="foleio-auth-main">
+            <div className="foleio-creator-content-surface">
+              <div className="foleio-creator-content-body">
+                {supportMode ? (
+                  <div className="foleio-dev-support-banner" role="status">
+                    Developer support mode — earnings, payouts, billing, and security are blocked.
+                    Access expires 7 days after accept.
+                  </div>
+                ) : null}
+                {children}
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
-      <CreatorSetupTourCard creatorId={creator?.id} />
     </div>
   );
 }

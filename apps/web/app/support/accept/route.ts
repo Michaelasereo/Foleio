@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const rawToken = url.searchParams.get('token')?.trim();
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || url.origin).replace(/\/$/, '');
+  const appUrl = url.origin.replace(/\/$/, '');
 
   if (!rawToken) {
     return NextResponse.redirect(`${appUrl}/dashboard?support=invalid`);
@@ -45,7 +45,9 @@ export async function GET(request: Request) {
     },
   });
 
-  const response = NextResponse.redirect(`${appUrl}/dashboard?support=active`);
+  const response = NextResponse.redirect(
+    `${appUrl}/dashboard?support=active&creator=${encodeURIComponent(grant.creatorId)}`
+  );
   setDeveloperSupportSession(response, {
     grantId: grant.id,
     creatorId: grant.creatorId,

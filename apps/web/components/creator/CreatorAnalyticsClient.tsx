@@ -1,25 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  CalendarClock,
-  CheckCircle2,
-  Package,
-  ShoppingBag,
-  TrendingUp,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import Link from 'next/link';
+import { ArrowRight, BarChart3, Calendar } from 'lucide-react';
 import { formatNaira } from '@foleio/utils';
+import styles from '@/components/demo/demo-dashboard.module.css';
+import { EmptyState } from '@/components/demo/EmptyState';
+import { EarningsChrome, type EarningsView } from '@/components/creator/earnings-live';
 import { AnalyticsLoadingSkeleton } from '@/components/creator/AnalyticsLoadingSkeleton';
 
 type AnalyticsTab = 'bookings' | 'shop';
@@ -30,6 +17,9 @@ type BookingAnalytics = {
   totalEarnings: number;
   upcomingBookings: number;
   averageBookingValue: number;
+  bookingsLastMonth: number;
+  nextBookingDate: string | null;
+  weekdayCounts: number[];
   percentageChanges: {
     bookings: string | null;
     earnings: string | null;
@@ -60,6 +50,8 @@ type ShopAnalytics = {
   totalRevenue: number;
   productsSold: number;
   averageOrderValue: number;
+  ordersLastMonth: number;
+  weekdayCounts: number[];
   percentageChanges: {
     orders: string | null;
     revenue: string | null;
@@ -95,6 +87,9 @@ const EMPTY_BOOKINGS: BookingAnalytics = {
   totalEarnings: 0,
   upcomingBookings: 0,
   averageBookingValue: 0,
+  bookingsLastMonth: 0,
+  nextBookingDate: null,
+  weekdayCounts: [0, 0, 0, 0, 0, 0, 0],
   percentageChanges: { bookings: null, earnings: null },
   monthlySeries: [],
   topServices: [],
@@ -107,199 +102,20 @@ const EMPTY_SHOP: ShopAnalytics = {
   totalRevenue: 0,
   productsSold: 0,
   averageOrderValue: 0,
+  ordersLastMonth: 0,
+  weekdayCounts: [0, 0, 0, 0, 0, 0, 0],
   percentageChanges: { orders: null, revenue: null },
   monthlySeries: [],
   topProducts: [],
   recentOrders: [],
 };
 
-const CHART_ACCENT = '#3B5FDB';
-
-function changeTone(change: string | null) {
-  if (!change) return '';
-  if (change.startsWith('+')) return 'is-up';
-  if (change.startsWith('-')) return 'is-down';
-  return '';
-}
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value?: number }>;
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  const income = Number(payload[0]?.value || 0);
-  return (
-    <div
-      style={{
-        background: '#ffffff',
-        border: '1px solid rgba(17, 24, 39, 0.08)',
-        borderRadius: 8,
-        padding: '8px 10px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-      }}
-    >
-      <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>{label}</p>
-      <p style={{ margin: '4px 0 0', color: '#111827', fontSize: 14, fontWeight: 500 }}>
-        {formatNaira(income / 100)}
-      </p>
-    </div>
-  );
-}
-
-function IncomeTrendChart({
-  title,
-  data,
-  gradientId,
-}: {
-  title: string;
-  data: Array<{ month: string; income: number }>;
-  gradientId: string;
-}) {
-  return (
-    <div className="foleio-dash-panel" style={{ marginBottom: 14 }}>
-      <h2 className="foleio-dash-panel-title">{title}</h2>
-      <p className="foleio-dash-panel-meta">Last 6 months</p>
-      {data.length === 0 ? (
-        <p className="foleio-dash-empty">No trend data yet.</p>
-      ) : (
-        <div style={{ width: '100%', height: 220, marginTop: 4 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="rgba(17, 24, 39, 0.08)" vertical={false} />
-              <XAxis
-                dataKey="month"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#6b7280', fontSize: 12 }}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                width={56}
-                tick={{ fill: '#6b7280', fontSize: 12 }}
-                tickFormatter={(value) => `₦${Math.round(Number(value) / 100000)}k`}
-              />
-              <Tooltip
-                content={<ChartTooltip />}
-                cursor={{ stroke: 'rgba(17, 24, 39, 0.12)' }}
-              />
-              <Area
-                type="monotone"
-                dataKey="income"
-                stroke={CHART_ACCENT}
-                strokeWidth={2}
-                fill={`url(#${gradientId})`}
-                activeDot={{ r: 4, strokeWidth: 0, fill: CHART_ACCENT }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RankingBars({
-  title,
-  meta,
-  empty,
-  rows,
-}: {
-  title: string;
-  meta: string;
-  empty: string;
-  rows: Array<{
-    id: string;
-    name: string;
-    countLabel: string;
-    revenue: number;
-    percent: number;
-  }>;
-}) {
-  return (
-    <div className="foleio-dash-panel">
-      <h2 className="foleio-dash-panel-title">{title}</h2>
-      <p className="foleio-dash-panel-meta">{meta}</p>
-      {rows.length ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-          {rows.map((row) => (
-            <div key={row.id}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  marginBottom: 6,
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <p
-                    style={{
-                      color: '#111827',
-                      fontSize: 14,
-                      fontWeight: 500,
-                      margin: 0,
-                    }}
-                  >
-                    {row.name}
-                  </p>
-                  <p style={{ color: '#6b7280', fontSize: 12, margin: '2px 0 0' }}>
-                    {row.countLabel}
-                  </p>
-                </div>
-                <span
-                  style={{
-                    color: '#6b7280',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {formatNaira(row.revenue / 100)}
-                </span>
-              </div>
-              <div
-                style={{
-                  height: 6,
-                  borderRadius: 999,
-                  background: '#ebe8eb',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${row.percent}%`,
-                    height: '100%',
-                    borderRadius: 999,
-                    background: 'hsl(var(--accent))',
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="foleio-dash-empty">{empty}</p>
-      )}
-    </div>
-  );
-}
-
 export function CreatorAnalyticsClient({
   hideHeader = false,
+  onView,
 }: {
   hideHeader?: boolean;
+  onView?: (view: EarningsView) => void;
 }) {
   const [tab, setTab] = useState<AnalyticsTab>('bookings');
   const [bookings, setBookings] = useState<BookingAnalytics>(EMPTY_BOOKINGS);
@@ -361,243 +177,181 @@ export function CreatorAnalyticsClient({
     );
   }
 
-  const maxServiceBookings = Math.max(
-    ...bookings.topServices.map((s) => s.bookingCount),
-    1
-  );
-  const maxProductUnits = Math.max(...shop.topProducts.map((p) => p.unitsSold), 1);
-
-  const bookingSummary = [
-    {
-      title: 'Total bookings',
-      value: String(bookings.totalBookings),
-      change: null as string | null,
-      hint: 'All time',
-      icon: Users,
-    },
-    {
-      title: 'This month',
-      value: String(bookings.bookingsThisMonth),
-      change: bookings.percentageChanges.bookings,
-      hint: 'vs last month',
-      icon: CalendarClock,
-    },
-    {
-      title: 'Income',
-      value: formatNaira(bookings.totalEarnings / 100),
-      change: bookings.percentageChanges.earnings,
-      hint: 'vs last month',
-      icon: Wallet,
-    },
-    {
-      title: 'Upcoming',
-      value: String(bookings.upcomingBookings),
-      change: null,
-      hint: 'Confirmed ahead',
-      icon: TrendingUp,
-    },
-    {
-      title: 'Avg booking value',
-      value: formatNaira(bookings.averageBookingValue / 100),
-      change: null,
-      hint: 'Per paid booking',
-      icon: CheckCircle2,
-    },
-  ];
-
-  const shopSummary = [
-    {
-      title: 'Total orders',
-      value: String(shop.totalOrders),
-      change: null as string | null,
-      hint: 'All time',
-      icon: ShoppingBag,
-    },
-    {
-      title: 'This month',
-      value: String(shop.ordersThisMonth),
-      change: shop.percentageChanges.orders,
-      hint: 'vs last month',
-      icon: CalendarClock,
-    },
-    {
-      title: 'Shop revenue',
-      value: formatNaira(shop.totalRevenue / 100),
-      change: shop.percentageChanges.revenue,
-      hint: 'vs last month',
-      icon: Wallet,
-    },
-    {
-      title: 'Products sold',
-      value: String(shop.productsSold),
-      change: null,
-      hint: 'Units fulfilled',
-      icon: Package,
-    },
-    {
-      title: 'Avg order value',
-      value: formatNaira(shop.averageOrderValue / 100),
-      change: null,
-      hint: 'Per paid order',
-      icon: CheckCircle2,
-    },
-  ];
-
-  const summary = tab === 'bookings' ? bookingSummary : shopSummary;
+  const series = tab === 'bookings' ? bookings.monthlySeries : shop.monthlySeries;
+  const income = series.reduce((sum, row) => sum + Number(row.income || 0), 0);
+  const maxIncome = Math.max(...series.map((row) => Number(row.income || 0)), 0);
+  const best = series.reduce<(typeof series)[number] | null>((top, row) => (
+    !top || row.income > top.income ? row : top
+  ), null);
+  const current = series[series.length - 1];
+  const first = series[0];
+  const now = new Date();
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+  const share = best && best.income > 0 && current ? Math.round((current.income / best.income) * 100) : 0;
+  const rangeLabel = first && current ? `${first.month} to ${current.month}` : 'the last six months';
+  const summary = best && current && best.month !== current.month && best.income > 0
+    ? `${best.month} was your best month. ${current.month} has ${daysLeft} day${daysLeft === 1 ? '' : 's'} left and is already at ${share}% of it.`
+    : current && current.income > 0
+      ? `${current.month} is your best month so far.`
+      : 'Recorded payments will show up here.';
+  const counts = (tab === 'bookings' ? bookings.weekdayCounts : shop.weekdayCounts) || [0, 0, 0, 0, 0, 0, 0];
+  const weekdayTotal = counts.reduce((sum, count) => sum + count, 0);
+  const weekend = (counts[0] || 0) + (counts[6] || 0);
+  const quietDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].find((_, index) => counts[index] === 0);
+  const ranked = tab === 'bookings' ? bookings.topServices : shop.topProducts;
+  const topByCount = [...ranked].sort((a, b) => ('bookingCount' in a ? a.bookingCount : a.unitsSold) - ('bookingCount' in b ? b.bookingCount : b.unitsSold)).at(-1);
+  const topByMoney = [...ranked].sort((a, b) => a.revenue - b.revenue).at(-1);
+  const maxRevenue = Math.max(...ranked.map((row) => row.revenue), 1);
+  const nextLabel = nextBookingLabel(bookings.nextBookingDate);
 
   return (
-    <div>
+    <>
       {hideHeader ? null : (
-        <div className="foleio-dash-header">
-          <div>
-            <h1 className="foleio-auth-title">Analytics</h1>
-            <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-              {tab === 'bookings'
-                ? 'Bookings, income, and service performance'
-                : 'Orders, product sales, and shop revenue'}
-            </p>
-          </div>
-        </div>
+        <EarningsChrome
+          title="Analytics"
+          subtitle={tab === 'bookings' ? 'How your bookings are doing over the last six months.' : 'How your shop is doing over the last six months.'}
+          view="analytics"
+          onView={onView}
+          leading={
+            <div className={styles.modeSwitch} role="tablist" aria-label="Analytics source">
+              <button type="button" role="tab" aria-selected={tab === 'bookings'} onClick={() => setTab('bookings')}>Bookings</button>
+              <button type="button" role="tab" aria-selected={tab === 'shop'} onClick={() => setTab('shop')}>Shop</button>
+            </div>
+          }
+        />
       )}
-
-      <div className="foleio-dash-tabs" role="tablist" aria-label="Analytics sections">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'bookings'}
-          className={`foleio-dash-tab${tab === 'bookings' ? ' is-active' : ''}`}
-          onClick={() => setTab('bookings')}
-        >
-          Bookings
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'shop'}
-          className={`foleio-dash-tab${tab === 'shop' ? ' is-active' : ''}`}
-          onClick={() => setTab('shop')}
-        >
-          Shop
-        </button>
-      </div>
-
-      <IncomeTrendChart
-        title={tab === 'bookings' ? 'Income trend' : 'Shop revenue trend'}
-        data={tab === 'bookings' ? bookings.monthlySeries : shop.monthlySeries}
-        gradientId={tab === 'bookings' ? 'analyticsIncomeFill' : 'analyticsShopFill'}
-      />
-
-      <div className="foleio-dash-stats">
-        {summary.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.title} className="foleio-dash-stat">
-              <div className="foleio-dash-stat-top">
-                <span className="foleio-dash-stat-label">{stat.title}</span>
-                <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
+      <div className={styles.earnTop}>
+        <section className={styles.earn}>
+          <div>
+            <p className={styles.eyebrow}>{tab === 'bookings' ? 'Booking income, last 6 months' : 'Shop income, last 6 months'}</p>
+            <p className={styles.big}>{formatNaira(income / 100)}</p>
+            <p className={styles.quiet}>After fees, {rangeLabel}.</p>
+            <p className={styles.quiet}>{summary}</p>
+          </div>
+          <div>
+            <div className={styles.chartHead}>
+              <span>{tab === 'bookings' ? 'Booking income by month' : 'Shop income by month'}</span>
+            </div>
+            {maxIncome === 0 ? (
+              <EmptyState icon={BarChart3} title="No income in this range" body="Recorded payments will show up here." />
+            ) : (
+              <div className={`${styles.chart} ${styles.chartInk}`}>
+                {series.map((row, index) => (
+                  <div key={row.month} className={styles.barCol}>
+                    {row.income > 0 && (row.income === maxIncome || index === series.length - 1) ? (
+                      <span className={styles.barLabel}>{formatNaira(row.income / 100)}</span>
+                    ) : <span />}
+                    <span
+                      className={`${styles.barFill} ${index === series.length - 1 ? styles.barNow : ''}`}
+                      style={{ height: `${Math.max(8, Math.round((row.income / maxIncome) * 100))}%` }}
+                    />
+                    <span className={`${styles.barLabel} ${index === series.length - 1 ? styles.barLabelNow : ''}`}>
+                      {index === series.length - 1 ? `${row.month} so far` : row.month}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div className="foleio-dash-stat-value">{stat.value}</div>
-              {stat.change ? (
-                <p className={`foleio-dash-stat-change ${changeTone(stat.change)}`}>
-                  {stat.change} {stat.hint}
-                </p>
-              ) : (
-                <p className="foleio-dash-stat-change">{stat.hint}</p>
-              )}
-            </div>
-          );
-        })}
+            )}
+          </div>
+        </section>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {tab === 'bookings' ? (
+            <>
+              <article className={styles.summaryCard}><span>Booked this month</span><strong>{bookings.bookingsThisMonth}</strong><em>{bookings.bookingsLastMonth} in all of last month</em></article>
+              <article className={styles.summaryCard}><span>Upcoming</span><strong>{bookings.upcomingBookings}</strong><em>{nextLabel}</em></article>
+              <article className={styles.summaryCard}><span>Average booking</span><strong>{formatNaira(bookings.averageBookingValue / 100)}</strong><em>Before fees</em></article>
+              <article className={styles.summaryCard}><span>All-time bookings</span><strong>{bookings.totalBookings}</strong><em>On this account</em></article>
+            </>
+          ) : (
+            <>
+              <article className={styles.summaryCard}><span>Orders this month</span><strong>{shop.ordersThisMonth}</strong><em>{shop.ordersLastMonth} in all of last month</em></article>
+              <article className={styles.summaryCard}><span>Products sold</span><strong>{shop.productsSold}</strong><em>Units on paid orders</em></article>
+              <article className={styles.summaryCard}><span>Average order</span><strong>{formatNaira(shop.averageOrderValue / 100)}</strong><em>Before fees</em></article>
+              <article className={styles.summaryCard}><span>All-time orders</span><strong>{shop.totalOrders}</strong><em>On this account</em></article>
+            </>
+          )}
+        </div>
       </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gap: 14,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        }}
-      >
-        {tab === 'bookings' ? (
-          <>
-            <RankingBars
-              title="Top services"
-              meta="By booking volume"
-              empty="No booking analytics yet."
-              rows={bookings.topServices.map((service) => ({
-                id: service.id,
-                name: service.name,
-                countLabel: `${service.bookingCount} bookings`,
-                revenue: service.revenue,
-                percent: Math.round((service.bookingCount / maxServiceBookings) * 100),
-              }))}
-            />
-
-            <div className="foleio-dash-panel">
-              <h2 className="foleio-dash-panel-title">Recent paid bookings</h2>
-              <p className="foleio-dash-panel-meta">Latest confirmed bookings</p>
-              {bookings.recentBookings.length ? (
-                <div>
-                  {bookings.recentBookings.map((booking) => (
-                    <div key={booking.id} className="foleio-dash-sub-row">
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <p className="foleio-dash-sub-name">{booking.customerName}</p>
-                        <p className="foleio-dash-sub-date">
-                          {booking.priceListItem?.name || 'Service'} ·{' '}
-                          {new Date(booking.bookingDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <span style={{ color: '#111827', fontSize: 14, fontWeight: 500 }}>
-                        {formatNaira(booking.totalAmount / 100)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="foleio-dash-empty">No paid bookings yet.</p>
-              )}
+      <div className={styles.homeSplit}>
+        <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2>{tab === 'bookings' ? 'Top services' : 'Top products'}</h2>
+            <span className={styles.asideMeta}>By income, last 6 months</span>
+          </div>
+          {ranked.length === 0 ? (
+            <EmptyState icon={BarChart3} title={tab === 'bookings' ? 'No services yet' : 'No products sold yet'} body="Paid sales will show up here." />
+          ) : ranked.map((row) => {
+            const count = 'bookingCount' in row ? row.bookingCount : row.unitsSold;
+            const unit = tab === 'bookings' ? 'booking' : 'sold';
+            return (
+              <div key={row.id} className={styles.mix}>
+                <span style={{ width: 'auto' }}>{row.name} · {count} {unit}{count === 1 ? '' : 's'}</span>
+                <span className={styles.mixBar} aria-hidden="true"><i style={{ width: `${Math.round((row.revenue / maxRevenue) * 100)}%` }} /></span>
+                <b>{formatNaira(row.revenue / 100)}</b>
+              </div>
+            );
+          })}
+          {topByCount && topByMoney ? (
+            <div className={styles.cardFoot}>
+              <span>
+                {topByCount.name} is {tab === 'bookings' ? 'booked' : 'sold'} most often. {topByMoney.name} brings in the most money.
+              </span>
             </div>
-          </>
-        ) : (
-          <>
-            <RankingBars
-              title="Top products"
-              meta="By units sold"
-              empty="No shop analytics yet."
-              rows={shop.topProducts.map((product) => ({
-                id: product.id,
-                name: product.name,
-                countLabel: `${product.unitsSold} sold`,
-                revenue: product.revenue,
-                percent: Math.round((product.unitsSold / maxProductUnits) * 100),
-              }))}
-            />
-
-            <div className="foleio-dash-panel">
-              <h2 className="foleio-dash-panel-title">Recent orders</h2>
-              <p className="foleio-dash-panel-meta">Latest paid shop orders</p>
-              {shop.recentOrders.length ? (
-                <div>
-                  {shop.recentOrders.map((order) => (
-                    <div key={order.id} className="foleio-dash-sub-row">
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <p className="foleio-dash-sub-name">{order.customerName}</p>
-                        <p className="foleio-dash-sub-date">
-                          {order.itemLabel} ·{' '}
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <span style={{ color: '#111827', fontSize: 14, fontWeight: 500 }}>
-                        {formatNaira(order.totalAmount / 100)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="foleio-dash-empty">No paid orders yet.</p>
-              )}
+          ) : null}
+        </section>
+        <section className={styles.collectCard}>
+          <div className={styles.cardHead}>
+            <h2>Busiest days</h2>
+            <span className={styles.asideMeta}>{weekdayTotal} {tab === 'bookings' ? 'bookings' : 'orders'}, last 6 months</span>
+          </div>
+          {weekdayTotal === 0 ? (
+            <EmptyState icon={Calendar} title="No days to chart yet" body="They will show up here once you have some." />
+          ) : (
+            <div className={`${styles.chart} ${styles.chartInk}`}>
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, index) => {
+                const count = counts[[1, 2, 3, 4, 5, 6, 0][index]] || 0;
+                const max = Math.max(...counts, 1);
+                return (
+                  <div key={label} className={styles.barCol}>
+                    {count > 0 ? <span className={styles.barLabel}>{count}</span> : <span />}
+                    <span className={`${styles.barFill} ${count === Math.max(...counts) ? styles.barNow : ''}`} style={{ height: `${Math.max(count === 0 ? 0 : 8, Math.round((count / max) * 100))}%` }} />
+                    <span className={styles.barLabel}>{label}</span>
+                  </div>
+                );
+              })}
             </div>
-          </>
-        )}
+          )}
+          <p className={styles.quiet}>
+            {weekdayTotal === 0
+              ? 'Nothing recorded in the last six months.'
+              : `${weekend} of ${weekdayTotal} fell on a weekend.${quietDay ? ` No one has ${tab === 'bookings' ? 'booked' : 'ordered'} a ${quietDay}.` : ''}`}
+          </p>
+          {tab === 'bookings' ? (
+            <Link href="/bookings?tab=availability" className={styles.textLink}>
+              Edit availability
+              <ArrowRight strokeWidth={1.75} />
+            </Link>
+          ) : (
+            <Link href="/shop" className={styles.textLink}>
+              Open shop
+              <ArrowRight strokeWidth={1.75} />
+            </Link>
+          )}
+        </section>
       </div>
-    </div>
+    </>
   );
+}
+
+function nextBookingLabel(iso: string | null) {
+  if (!iso) return 'None scheduled';
+  const date = new Date(iso);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  const days = Math.round((target.getTime() - today.getTime()) / 86400000);
+  if (days <= 0) return 'Next is today';
+  if (days === 1) return 'Next is tomorrow';
+  return `Next is ${date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`;
 }

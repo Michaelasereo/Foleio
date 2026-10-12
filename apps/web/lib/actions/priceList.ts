@@ -8,6 +8,7 @@ import { getDeveloperSupportSession } from '@/lib/developer-support/session';
 import { z } from 'zod';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 import { MIN_PAYABLE_KOBO, MIN_PAYABLE_PRICE_ERROR } from '@/lib/payments/min-amount';
+import { serviceGalleryUrls } from '@/lib/booking/service-images';
 
 const addonSchema = z.object({
   id: z.string().min(1),
@@ -34,7 +35,7 @@ const priceListItemSchema = z.object({
   addons: z.array(addonSchema).optional(),
   locationOptions: z.array(locationOptionSchema).optional(),
   inclusions: z.array(z.string().min(1)).optional(),
-  coverImageUrl: z.string().url().optional().nullable().or(z.literal('')),
+  coverImageUrl: z.string().max(4000).optional().nullable().or(z.literal('')),
   depositType: z.enum(['percent', 'fixed']).optional().nullable(),
   depositValue: z.number().int().min(0).optional().nullable(),
   allowPayInFull: z.boolean().optional(),
@@ -49,6 +50,25 @@ const priceListItemSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: MIN_PAYABLE_PRICE_ERROR,
       path: ['price'],
+    });
+  }
+  const gallery = (data.coverImageUrl || '').trim();
+  if (!gallery) return;
+  const urls = serviceGalleryUrls(gallery);
+  const invalid =
+    urls.length === 0 ||
+    urls.some((url) => {
+      try {
+        return new URL(url).protocol !== 'https:' && new URL(url).protocol !== 'http:';
+      } catch {
+        return true;
+      }
+    });
+  if (invalid) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Enter a valid image URL',
+      path: ['coverImageUrl'],
     });
   }
 });

@@ -15,7 +15,17 @@ const LINKS = [
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (pathname === '/' || pathname?.startsWith('/demo')) return null;
+  if (
+    pathname === '/' ||
+    pathname === '/creators' ||
+    pathname === '/about' ||
+    pathname === '/pricing' ||
+    pathname?.startsWith('/demo') ||
+    pathname?.startsWith('/product/') ||
+    pathname?.startsWith('/legal')
+  ) {
+    return null;
+  }
 
   return (
     <footer className="foleio-site-footer">

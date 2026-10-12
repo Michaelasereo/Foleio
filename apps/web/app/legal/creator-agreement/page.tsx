@@ -1,4 +1,6 @@
 import { CreatorAgreementContent } from '@/components/legal/CreatorAgreementContent';
+import { LegalDocument } from '@/components/legal/LegalDocument';
+import { Italic } from '@/components/landing/ui';
 
 export const metadata = {
   title: 'Creator Agreement · Foleio',
@@ -8,16 +10,16 @@ export const metadata = {
 
 export default function CreatorAgreementPage() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
-        Creator Agreement
-      </h1>
-      <p className="text-muted-foreground text-sm mb-10">
-        Effective Date: July 2026 · Last Updated: July 2026
-      </p>
-      <div className="legal-content">
-        <CreatorAgreementContent />
-      </div>
-    </div>
+    <LegalDocument
+      active="/legal/creator-agreement"
+      title={
+        <>
+          Creator <Italic>Agreement</Italic>
+        </>
+      }
+      effective="Effective July 2026 · Last updated 12 October 2026"
+    >
+      <CreatorAgreementContent />
+    </LegalDocument>
   );
 }

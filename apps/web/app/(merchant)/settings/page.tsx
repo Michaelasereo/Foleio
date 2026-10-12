@@ -17,6 +17,12 @@ export default async function SettingsPage() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  const userProfile = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { phoneNumber: true },
+      })
+    : null;
 
   if (!session && !supportMode) {
     redirect('/login');
@@ -60,6 +66,7 @@ export default async function SettingsPage() {
     bio: string | null;
     category: string | null;
     avatarUrl: string | null;
+    bannerUrl: string | null;
     instagramHandle: string | null;
     tiktokHandle: string | null;
     growthEligible: boolean;
@@ -255,6 +262,7 @@ export default async function SettingsPage() {
           platformSubscriptionActive: creator.platformSubscriptionActive,
         }}
         userEmail={session?.user?.email || null}
+        userPhone={userProfile?.phoneNumber || null}
         supportMode={supportMode}
         billing={{
           currentSubscription: currentSubscription as any,

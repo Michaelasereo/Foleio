@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
-import { Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { AuthLumaLayout } from '@/components/auth/AuthLumaLayout';
 import { AuthRedirectOverlay } from '@/components/auth/AuthRedirectOverlay';
 import { EmailVerificationCodeStep } from '@/components/auth/EmailVerificationCodeStep';
@@ -47,6 +47,7 @@ export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false);
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState<string | null>(null);
   const [pendingVerifyPassword, setPendingVerifyPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -245,11 +246,25 @@ export default function LoginPage() {
                     <div className="foleio-auth-row">
                       <Lock className="foleio-auth-row-icon h-4 w-4" />
                       <input
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         placeholder="Password"
                         className={authRowInputClass}
+                        autoComplete="current-password"
                         {...field}
                       />
+                      <button
+                        type="button"
+                        className="foleio-auth-eye-btn"
+                        onClick={() => setShowPassword((open) => !open)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+                        ) : (
+                          <Eye className="h-4 w-4" strokeWidth={1.5} />
+                        )}
+                      </button>
                     </div>
                   </FormControl>
                   <FormMessage />

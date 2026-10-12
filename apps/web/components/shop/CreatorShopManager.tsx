@@ -1,10 +1,11 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Download,
   FileEdit,
@@ -12,6 +13,7 @@ import {
   ImagePlus,
   Loader2,
   Lock,
+  MoreHorizontal,
   Package,
   PackageCheck,
   Pencil,
@@ -19,10 +21,13 @@ import {
   ShoppingBag,
   Tag,
   Trash2,
+  Truck,
   Upload,
   X,
 } from 'lucide-react';
 import { RemoteImage } from '@/components/creator/RemoteImage';
+import demoStyles from '@/components/demo/demo-dashboard.module.css';
+import { EmptyState } from '@/components/demo/EmptyState';
 import { MIN_PAYABLE_NAIRA, MIN_PAYABLE_PRICE_ERROR } from '@/lib/payments/min-amount';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from '@/components/ui/switch';
@@ -224,6 +229,31 @@ function formatNaira(kobo: number) {
   return `₦${(Math.round(kobo) / 100).toLocaleString('en-NG')}`;
 }
 
+function nameInitials(name: string) {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '');
+  return letters.join('') || '•';
+}
+
+function orderBuyer(order: Order) {
+  const address = order.deliveryAddress || {};
+  return (
+    [address.firstName, address.lastName].filter(Boolean).join(' ') ||
+    address.name ||
+    'Customer'
+  );
+}
+
+function orderPlace(order: Order) {
+  const address = order.deliveryAddress || {};
+  return [address.address, address.street, address.city, address.state, address.area]
+    .filter(Boolean)
+    .join(', ');
+}
+
 function categoriesToForm(raw: unknown): AddonCategoryForm[] {
   return parseAddonCategories(raw).map((category) => ({
     id: category.id,
@@ -373,6 +403,7 @@ export function CreatorShopManager({
   view?: 'shop' | 'gift-cards' | 'coupons';
 } = {}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
   const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
@@ -389,11 +420,23 @@ export function CreatorShopManager({
     router.push('/settings?tab=billing');
   }
   const [tab, setTab] = useState<'products' | 'gift-cards' | 'orders' | 'delivery'>(
-    isGiftCardsPage || isCouponsPage ? 'gift-cards' : 'products'
+    isGiftCardsPage || isCouponsPage
+      ? 'gift-cards'
+      : searchParams.get('tab') === 'orders'
+        ? 'orders'
+        : 'products'
   );
-  const [productFilter, setProductFilter] = useState<'all' | 'active' | 'draft'>(
+  useEffect(() => {
+    if (isPromosSubpage) return;
+    if (searchParams.get('tab') === 'orders') setTab('orders');
+  }, [isPromosSubpage, searchParams]);
+  const [productFilter, setProductFilter] = useState<'all' | 'active' | 'draft' | 'preorder'>(
     'all'
   );
+  const [productQuery, setProductQuery] = useState('');
+  const [orderBucket, setOrderBucket] = useState<'deliver' | 'preorder' | 'delivered' | 'all'>('deliver');
+  const [orderMenuId, setOrderMenuId] = useState<string | null>(null);
+  const [productMenuId, setProductMenuId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [coupons, setCoupons] = useState<ShopCoupon[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -418,6 +461,7 @@ export function CreatorShopManager({
     'saving' | 'free' | 'pickup' | 'customer_arranged' | null
   >(null);
   const [deletingTierId, setDeletingTierId] = useState<string | null>(null);
+  const [deliveryMenuId, setDeliveryMenuId] = useState<string | null>(null);
   const [productError, setProductError] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [slotPreview, setSlotPreview] = useState<Record<number, string>>({});
@@ -1685,12 +1729,38 @@ export function CreatorShopManager({
   const draftProducts = catalogProducts.filter(
     (product) => product.status === 'draft'
   );
-  const filteredProducts =
+  const preorderProducts = catalogProducts.filter((product) => product.isPreorder);
+  const queryText = productQuery.trim().toLowerCase();
+  const filteredProducts = (
     productFilter === 'active'
       ? activeProducts
       : productFilter === 'draft'
         ? draftProducts
-        : catalogProducts;
+        : productFilter === 'preorder'
+          ? preorderProducts
+          : catalogProducts
+  ).filter((product) => !queryText || product.name.toLowerCase().includes(queryText));
+  const undeliveredOrders = orders.filter(
+    (order) => normalizeOrderStatus(order.status) !== 'delivered'
+  );
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const monthOrders = orders.filter((order) => new Date(order.createdAt) >= monthStart);
+  const monthPaidKobo = monthOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+  const monthDelivered = monthOrders.filter(
+    (order) => normalizeOrderStatus(order.status) === 'delivered'
+  ).length;
+  const visibleOrders = orders.filter((order) => {
+    const status = normalizeOrderStatus(order.status);
+    const hasPreorder = order.items.some((item) =>
+      preorderProducts.some((product) => product.id === item.product?.id)
+    );
+    if (orderBucket === 'deliver') return status !== 'delivered';
+    if (orderBucket === 'delivered') return status === 'delivered';
+    if (orderBucket === 'preorder') return hasPreorder;
+    return true;
+  });
 
   const productStats = [
     {
@@ -1724,47 +1794,65 @@ export function CreatorShopManager({
   ];
 
   return (
-    <div>
-      <div className="foleio-dash-header">
+    <div className={demoStyles.shell} style={{ display: 'block', minHeight: 0, width: '100%', background: 'transparent' }}>
+      <div className={demoStyles.home}>
+      <header className={demoStyles.pageHead}>
         <div>
           {isPromosSubpage ? (
-            <button
-              type="button"
-              className="foleio-dash-btn-ghost"
-              onClick={() => router.push('/shop')}
-              style={{
-                marginBottom: 10,
-                padding: '4px 8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
+            <button type="button" className={demoStyles.textLink} onClick={() => router.push('/shop')}>
               <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
               Back to Shop
             </button>
           ) : null}
-          <h1 className="foleio-auth-title">
+          <h1>{isGiftCardsPage ? 'Gift cards' : isCouponsPage ? 'Coupons' : 'Shop'}</h1>
+          <p>
             {isGiftCardsPage
-              ? 'Gift cards'
+              ? 'Create and manage store credit gift cards.'
               : isCouponsPage
-                ? 'Coupons'
-                : 'Shop'}
-          </h1>
-          <p
-            className="foleio-dash-panel-meta"
-            style={{ marginBottom: 0, marginTop: 6 }}
-          >
-            {isGiftCardsPage
-              ? 'Create and manage store credit gift cards'
-              : isCouponsPage
-                ? 'Create and manage discount codes for your shop'
-                : 'Manage products, gift cards, orders, and delivery'}
+                ? `${coupons.filter((coupon) => coupon.status === 'active').length} active code${coupons.filter((coupon) => coupon.status === 'active').length === 1 ? '' : 's'}.`
+                : tab === 'delivery'
+                  ? `${deliveryTiers.length} delivery option${deliveryTiers.length === 1 ? '' : 's'} ${deliveryTiers.length === 1 ? 'is' : 'are'} live at checkout.`
+                  : `${undeliveredOrders.length} order${undeliveredOrders.length === 1 ? '' : 's'} still to deliver.`}
           </p>
         </div>
-      </div>
+        {isCouponsPage ? (
+          <button type="button" className={demoStyles.solid} onClick={openCreateCoupon}>
+            Create coupon
+          </button>
+        ) : null}
+        {!isPromosSubpage ? (
+          <div className={demoStyles.headTools}>
+          <div className={demoStyles.modeSwitch} role="tablist" aria-label="Shop">
+            <button type="button" role="tab" aria-selected={tab === 'products'} onClick={() => setTab('products')}>
+              Products
+              <span className={demoStyles.tabCount}>{catalogProducts.length}</span>
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'orders'} onClick={() => setTab('orders')}>
+              Orders
+              <span className={demoStyles.tabCount}>{orders.length}</span>
+            </button>
+            <button type="button" role="tab" aria-selected={false} onClick={() => router.push('/shop/coupons')}>
+              Coupons
+              {!limits.canUseCoupons ? <span className={demoStyles.proMark}>PRO</span> : null}
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'delivery'} onClick={() => setTab('delivery')}>
+              Delivery
+            </button>
+          </div>
+          {tab === 'delivery' ? (
+            <button type="button" className={demoStyles.solid} onClick={() => document.getElementById('add-delivery-option')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}>
+              Add option
+            </button>
+          ) : tab === 'products' ? (
+            <button type="button" className={demoStyles.solid} onClick={openCreateProduct}>
+              Add product
+            </button>
+          ) : null}
+          </div>
+        ) : null}
+      </header>
 
-      {!isPromosSubpage ? (
+      {false && !isPromosSubpage && tab !== 'delivery' ? (
       <>
       <div className="foleio-dash-stats">
         {productStats.map((stat) => {
@@ -2030,7 +2118,7 @@ export function CreatorShopManager({
             {loading && giftCardProducts.length === 0 ? (
               <p className="foleio-dash-empty">Loading gift cards…</p>
             ) : giftCardProducts.length === 0 ? (
-              <p className="foleio-dash-empty">No gift cards yet.</p>
+              <EmptyState icon={Gift} title="No gift cards yet" body="Store credit you sell will show up here." />
             ) : (
               <div className="foleio-product-card-list">
                 {giftCardPreview.map((product) => {
@@ -2136,7 +2224,92 @@ export function CreatorShopManager({
           </div>
           ) : null}
 
-          {isCouponsPage || !isGiftCardsPage ? (
+          {isCouponsPage ? (
+            <div className={demoStyles.bookLayout}>
+              <section className={demoStyles.card}>
+                <div className={demoStyles.cardHead}>
+                  <h2>Coupons</h2>
+                  <span className={demoStyles.asideMeta}>{limits.canUseCoupons ? `${coupons.filter((coupon) => coupon.status === 'active').length} active` : 'Pro'}</span>
+                </div>
+                {loading && coupons.length === 0 ? (
+                  <p className={demoStyles.quiet}>Loading coupons…</p>
+                ) : coupons.length === 0 ? (
+                  <EmptyState icon={Tag} title="No coupons yet" body="Discount codes you create will show up here." />
+                ) : coupons.map((coupon) => {
+                  const valueLabel = coupon.type === 'fixed' ? formatNaira(coupon.value) : `${coupon.value}%`;
+                  const usesLabel = coupon.maxUses != null
+                    ? `${coupon.usedCount} / ${coupon.maxUses} uses`
+                    : `${coupon.usedCount} uses`;
+                  return (
+                    <div key={coupon.id} className={demoStyles.goods}>
+                      <span className={demoStyles.markBox}>{nameInitials(coupon.code)}</span>
+                      <button type="button" className={demoStyles.goodsText} onClick={() => openEditCoupon(coupon)} style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+                        <strong>{coupon.code}</strong>
+                        <span>{coupon.type === 'fixed' ? `${valueLabel} off` : `${coupon.value}% off`} · {usesLabel}</span>
+                      </button>
+                      <div className={demoStyles.stock}>
+                        <strong>{valueLabel}</strong>
+                        <span>{coupon.status === 'active' ? 'Shared on your page' : 'Not on your page yet'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`${demoStyles.pill} ${coupon.status === 'active' ? demoStyles.pillPaid : demoStyles.pillWait}`}
+                        onClick={() => void toggleCouponActive(coupon)}
+                      >
+                        {coupon.status === 'active' ? 'Active' : 'Draft'}
+                      </button>
+                      <div className={demoStyles.menu}>
+                        <button
+                          type="button"
+                          className={demoStyles.iconBtn}
+                          aria-label={`More actions for ${coupon.code}`}
+                          onClick={() => openEditCoupon(coupon)}
+                        >
+                          <Pencil strokeWidth={1.75} size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className={demoStyles.iconBtn}
+                          aria-label={`Delete ${coupon.code}`}
+                          onClick={() => void deleteCoupon(coupon.id)}
+                        >
+                          <Trash2 strokeWidth={1.75} size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+              <aside className={demoStyles.bookSide}>
+                <section className={demoStyles.card}>
+                  <h2 className={demoStyles.sideTitle}>How a coupon works</h2>
+                  <ol className={demoStyles.steps}>
+                    <li>
+                      <span className={demoStyles.stepNo}>1</span>
+                      <div>
+                        <strong>Set the discount</strong>
+                        <span>A percent off, or a fixed amount in naira.</span>
+                      </div>
+                    </li>
+                    <li>
+                      <span className={demoStyles.stepNo}>2</span>
+                      <div>
+                        <strong>Share the code</strong>
+                        <span>Clients enter it at checkout. No account needed.</span>
+                      </div>
+                    </li>
+                    <li>
+                      <span className={demoStyles.stepNo}>3</span>
+                      <div>
+                        <strong>You still get paid</strong>
+                        <span>The discount comes off the sale. Fees come off what is left.</span>
+                      </div>
+                    </li>
+                  </ol>
+                </section>
+              </aside>
+            </div>
+          ) : !isGiftCardsPage ? (
           <div className="foleio-dash-panel">
             {isCouponsPage ? (
               <div
@@ -2210,7 +2383,7 @@ export function CreatorShopManager({
             {loading && coupons.length === 0 ? (
               <p className="foleio-dash-empty">Loading coupons…</p>
             ) : coupons.length === 0 ? (
-              <p className="foleio-dash-empty">No coupons yet.</p>
+              <EmptyState icon={Tag} title="No coupons yet" body="Discount codes you create will show up here." />
             ) : (
               <div style={{ display: 'grid', gap: 10 }}>
                 {couponPreview.map((coupon) => {
@@ -2291,8 +2464,8 @@ export function CreatorShopManager({
       ) : null}
 
       {!isPromosSubpage && tab === 'products' ? (
-        <>
-          <div style={{ display: 'grid', gap: 14 }}>
+          <div className={demoStyles.bookLayout}>
+          <div className={demoStyles.stack}>
             <div className="foleio-dash-panel">
               <div
                 style={{
@@ -2496,546 +2669,310 @@ export function CreatorShopManager({
               ) : null}
             </div>
 
-            <div className="foleio-dash-panel">
-              <style dangerouslySetInnerHTML={{ __html: productCardCss }} />
-              <div style={{ marginBottom: filteredProducts.length > 0 || loading ? 4 : 0 }}>
-                <h2 className="foleio-dash-panel-title">Product list</h2>
-                <p className="foleio-dash-panel-meta">
-                  {productFilter === 'active'
-                    ? 'Active products in your shop'
-                    : productFilter === 'draft'
-                      ? 'Draft products not yet published'
-                      : 'All products in your shop'}
-                </p>
+            <section className={demoStyles.card}>
+              <div className={demoStyles.bookTools}>
+                <div className={demoStyles.modeSwitch} role="tablist" aria-label="Product status">
+                  {(
+                    [
+                      ['all', 'All', catalogProducts.length],
+                      ['active', 'Listed', activeProducts.length],
+                      ['preorder', 'Preorder', preorderProducts.length],
+                      ['draft', 'Draft', draftProducts.length],
+                    ] as const
+                  ).map(([id, label, count]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={productFilter === id}
+                      onClick={() => setProductFilter(id)}
+                    >
+                      {label}
+                      <span className={demoStyles.tabCount}>{count}</span>
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className={demoStyles.bookSearch}
+                  value={productQuery}
+                  placeholder="Filter products"
+                  aria-label="Filter products"
+                  onChange={(event) => setProductQuery(event.target.value)}
+                />
               </div>
-          {loading && products.length === 0 ? (
-            <p className="foleio-dash-empty">Loading products…</p>
-          ) : filteredProducts.length === 0 ? (
-            <p className="foleio-dash-empty">
-              {catalogProducts.length === 0
-                ? 'No products yet. Add one or import a CSV.'
-                : productFilter === 'active'
-                  ? 'No active products yet.'
-                  : productFilter === 'draft'
-                    ? 'No draft products.'
-                    : 'No products yet. Add one or import a CSV.'}
-            </p>
-          ) : (
-            <div className="foleio-product-card-list">
-            {filteredProducts.map((product) => {
-              const index = products.findIndex((item) => item.id === product.id);
-              const pricing = resolveProductPricing({
-                price: product.price,
-                compareAtPrice: product.compareAtPrice,
-                isPreorder: product.isPreorder,
-                preorderSettings: product.preorderSettings,
-                discountStartsAt: product.discountStartsAt,
-                discountEndsAt: product.discountEndsAt,
-              });
-              const pct = discountPercent(pricing.price, pricing.compareAtPrice);
-              const thumb = productImages(product)[0];
-              const stockCount = product.stock ?? 0;
-              const isDigital = product.type === 'digital';
-              const isGiftCard = product.type === 'gift_card';
-              const inStock = isDigital || isGiftCard || stockCount > 0;
-              const stockLabel = isDigital
-                ? 'Digital'
-                : isGiftCard
-                  ? 'Gift card'
-                  : !inStock
-                    ? 'Out of stock'
-                    : product.showLimitedStock
-                      ? 'Limited stock'
-                      : `In Stock : ${stockCount}`;
-              return (
-                <div key={product.id} className="foleio-product-card">
-                  <div className="foleio-product-card-media">
-                    {thumb ? (
-                      <RemoteImage
-                        src={thumb}
-                        alt=""
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          display: 'block',
-                        }}
-                      />
-                    ) : null}
-                    {pct ? (
-                      <div className="foleio-product-card-badges">
-                        <span className="foleio-product-card-discount">{pct}% off</span>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="foleio-product-card-body">
-                    <div className="foleio-product-card-top">
-                      <div style={{ minWidth: 0 }}>
-                        <p className="foleio-product-card-title">
-                          {product.name}
-                          {isDigital ? (
-                            <span
-                              className="foleio-dash-badge is-muted"
-                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
-                            >
-                              Digital
-                            </span>
-                          ) : isGiftCard ? (
-                            <span
-                              className="foleio-dash-badge is-muted"
-                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
-                            >
-                              Gift card
-                            </span>
-                          ) : pricing.isPreorderActive ? (
-                            <span
-                              className="foleio-dash-badge is-warning"
-                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
-                            >
-                              Preorder
-                            </span>
-                          ) : product.isPreorder ? (
-                            <span
-                              className="foleio-dash-badge is-muted"
-                              style={{ marginLeft: 8, verticalAlign: 'middle' }}
-                            >
-                              Preorder ended
-                            </span>
-                          ) : null}
-                        </p>
-                      </div>
-                      <span
-                        className={`foleio-product-card-stock${inStock ? '' : ' is-out'}`}
-                      >
-                        {stockLabel}
-                      </span>
-                    </div>
-                    {product.description ? (
-                      <p className="foleio-product-card-desc">{product.description}</p>
-                    ) : (
-                      <p className="foleio-product-card-desc">No description yet.</p>
-                    )}
-                    <div className="foleio-product-card-footer">
-                      <p className="foleio-product-card-price">
-                        {pricing.compareAtPrice &&
-                        pricing.compareAtPrice > pricing.price ? (
-                          <>
-                            <span className="is-compare">
-                              {formatNaira(pricing.compareAtPrice)}
-                            </span>
-                            {formatNaira(pricing.price)}
-                          </>
+              {loading && catalogProducts.length === 0 ? (
+                <p className={demoStyles.quiet}>Loading products…</p>
+              ) : filteredProducts.length === 0 ? (
+                <EmptyState icon={Package} title="No products match that filter" body="Try another filter, or add a product." />
+              ) : (
+                filteredProducts.map((product) => {
+                  const pricing = resolveProductPricing({
+                    price: product.price,
+                    compareAtPrice: product.compareAtPrice,
+                    isPreorder: product.isPreorder,
+                    preorderSettings: product.preorderSettings,
+                    discountStartsAt: product.discountStartsAt,
+                    discountEndsAt: product.discountEndsAt,
+                  });
+                  const thumb = productImages(product)[0];
+                  const stockCount = product.stock ?? 0;
+                  const isDigital = product.type === 'digital';
+                  const stockNote = isDigital
+                    ? 'Digital'
+                    : stockCount <= 0
+                      ? 'Out of stock'
+                      : `${stockCount} in stock`;
+                  const statusLabel = product.status === 'draft'
+                    ? 'Draft'
+                    : pricing.isPreorderActive || product.isPreorder
+                      ? 'Preorder'
+                      : 'Listed';
+                  const statusPill = product.status === 'draft'
+                    ? demoStyles.pillWait
+                    : product.isPreorder
+                      ? demoStyles.pillDeliver
+                      : demoStyles.pillPaid;
+                  const catalogIndex = catalogProducts.findIndex((item) => item.id === product.id);
+                  return (
+                    <div key={product.id} className={demoStyles.goods}>
+                      <span className={demoStyles.markBox} style={thumb ? { padding: 0, overflow: 'hidden' } : undefined}>
+                        {thumb ? (
+                          <RemoteImage src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                         ) : (
-                          formatNaira(pricing.price)
+                          nameInitials(product.name)
                         )}
-                      </p>
-                      <div className="foleio-product-card-actions">
-                        <Switch
-                          checked={product.status === 'active'}
-                          onCheckedChange={() => void toggleVisible(product)}
-                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-[#ebe8eb] [&>span]:bg-white data-[state=unchecked]:[&>span]:bg-[#6b7280]"
-                          aria-label={
-                            product.status === 'active'
-                              ? 'Hide product from profile'
-                              : 'Show product on profile'
-                          }
-                        />
+                      </span>
+                      <button type="button" className={demoStyles.goodsText} onClick={() => openEditProduct(product)} style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+                        <strong>{product.name}</strong>
+                        <span>{product.description || 'No description yet.'}</span>
+                      </button>
+                      <div className={demoStyles.stock}>
+                        <strong>{formatNaira(pricing.price)}</strong>
+                        <span>{stockNote}</span>
+                      </div>
+                      <span className={`${demoStyles.pill} ${statusPill}`}>{statusLabel}</span>
+                      <div className={demoStyles.menu}>
                         <button
                           type="button"
-                          className="foleio-product-card-icon-btn is-ghost"
-                          disabled={index === 0}
-                          onClick={() => void moveProduct(product.id, -1)}
-                          aria-label="Move up"
+                          className={demoStyles.iconBtn}
+                          aria-label={`More actions for ${product.name}`}
+                          aria-expanded={productMenuId === product.id}
+                          onClick={() => setProductMenuId((current) => (current === product.id ? null : product.id))}
                         >
-                          <ArrowUp strokeWidth={1.75} />
+                          <MoreHorizontal strokeWidth={1.75} size={16} />
                         </button>
-                        <button
-                          type="button"
-                          className="foleio-product-card-icon-btn is-ghost"
-                          disabled={index === products.length - 1}
-                          onClick={() => void moveProduct(product.id, 1)}
-                          aria-label="Move down"
-                        >
-                          <ArrowDown strokeWidth={1.75} />
-                        </button>
-                        <button
-                          type="button"
-                          className="foleio-product-card-icon-btn"
-                          onClick={() => openEditProduct(product)}
-                          aria-label={`Edit ${product.name}`}
-                        >
-                          <Pencil strokeWidth={1.75} />
-                        </button>
-                        <button
-                          type="button"
-                          className="foleio-product-card-icon-btn is-danger"
-                          onClick={() => void deleteProduct(product.id)}
-                          aria-label={`Delete ${product.name}`}
-                        >
-                          <Trash2 strokeWidth={1.75} />
-                        </button>
+                        {productMenuId === product.id ? (
+                          <div className={demoStyles.menuPop}>
+                            <button type="button" onClick={() => { setProductMenuId(null); openEditProduct(product); }}>Edit</button>
+                            <button type="button" onClick={() => { setProductMenuId(null); void toggleVisible(product); }}>
+                              {product.status === 'active' ? 'Hide from shop' : 'List on shop'}
+                            </button>
+                            <button type="button" disabled={catalogIndex <= 0} onClick={() => { setProductMenuId(null); void moveProduct(product.id, -1); }}>Move up</button>
+                            <button type="button" disabled={catalogIndex === catalogProducts.length - 1} onClick={() => { setProductMenuId(null); void moveProduct(product.id, 1); }}>Move down</button>
+                            <button type="button" onClick={() => { setProductMenuId(null); void deleteProduct(product.id); }}>Delete</button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
+                  );
+                })
+              )}
+              <div className={demoStyles.cardFoot}>
+                <span>
+                  {Number.isFinite(limits.maxProducts)
+                    ? `${catalogProducts.length} of the ${limits.maxProducts} products you can list on Free`
+                    : `${catalogProducts.length} products listed`}
+                </span>
+                <button type="button" className={`${demoStyles.textLink} ${demoStyles.inlineLink}`} onClick={() => setTab('delivery')}>
+                  Delivery settings
+                  <ArrowRight strokeWidth={1.75} />
+                </button>
+              </div>
+            </section>
+          </div>
+          <aside className={demoStyles.bookSide}>
+            <section className={demoStyles.ink}>
+              <div className={demoStyles.cardHead}>
+                <h2>To deliver</h2>
+                <button type="button" className={demoStyles.inkLink} onClick={() => setTab('orders')}>
+                  All orders
+                  <ArrowRight strokeWidth={1.75} />
+                </button>
+              </div>
+              {undeliveredOrders.length === 0 ? (
+                <EmptyState icon={ShoppingBag} title="No orders waiting" body="Orders still to deliver will show up here." />
+              ) : undeliveredOrders.slice(0, 4).map((order) => (
+                <div key={order.id} className={demoStyles.deliverRow}>
+                  <div>
+                    <strong>{orderBuyer(order)}</strong>
+                    <span>{order.items.map((item) => `${item.quantity}× ${item.product?.name || 'Product'}`).join(', ')}</span>
+                  </div>
+                  <button type="button" className={demoStyles.onInk} onClick={() => void updateOrderStatus(order.id, 'delivered')}>
+                    Mark as sent
+                  </button>
+                </div>
+              ))}
+            </section>
+            <section className={demoStyles.card}>
+              <div className={demoStyles.cardHead}>
+                <h2>Preorders to make</h2>
+              </div>
+              {preorderProducts.length === 0 ? (
+                <EmptyState icon={Package} title="No preorders yet" body="Preorder products will show up here." />
+              ) : preorderProducts.map((product) => {
+                const qty = undeliveredOrders.reduce((sum, order) => (
+                  sum + order.items.filter((item) => item.product?.id === product.id).reduce((count, item) => count + item.quantity, 0)
+                ), 0);
+                const release = parsePreorderSettings(product.preorderSettings)?.releaseAt;
+                return (
+                  <div key={product.id} className={demoStyles.splitRow}>
+                    <div>
+                      <strong>{product.name}{qty ? ` × ${qty}` : ''}</strong>
+                      <span>{release ? `Ships ${new Date(release).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' })}` : 'Release date not set'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+            <button type="button" className={demoStyles.textLink} onClick={() => router.push('/shop/gift-cards')}>
+              Gift cards
+              <ArrowRight strokeWidth={1.75} />
+            </button>
+          </aside>
+          </div>
+      ) : null}
+
+      {!isPromosSubpage && tab === 'orders' ? (
+        <div className={demoStyles.bookLayout}>
+          <section className={demoStyles.card}>
+            <div className={demoStyles.bookTools}>
+              <div className={demoStyles.modeSwitch} role="tablist" aria-label="Order status">
+                {(
+                  [
+                    ['deliver', 'To deliver', undeliveredOrders.length],
+                    ['preorder', 'Preorders', orders.filter((order) => order.items.some((item) => preorderProducts.some((product) => product.id === item.product?.id))).length],
+                    ['delivered', 'Delivered', orders.filter((order) => normalizeOrderStatus(order.status) === 'delivered').length],
+                    ['all', 'All', orders.length],
+                  ] as const
+                ).map(([id, label, count]) => (
+                  <button key={id} type="button" role="tab" aria-selected={orderBucket === id} onClick={() => setOrderBucket(id)}>
+                    {label}
+                    <span className={demoStyles.tabCount}>{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {visibleOrders.length === 0 ? (
+              <EmptyState
+                icon={ShoppingBag}
+                title={orders.length === 0 ? 'No orders yet' : 'No orders in this view'}
+                body={orders.length === 0 ? 'Paid orders will show up here.' : 'Nothing matches this filter.'}
+              />
+            ) : visibleOrders.map((order) => {
+              const created = new Date(order.createdAt);
+              const waitingDays = Math.max(0, Math.floor((Date.now() - created.getTime()) / 86400000));
+              const delivered = normalizeOrderStatus(order.status) === 'delivered';
+              const place = orderPlace(order);
+              return (
+                <div key={order.id} className={demoStyles.orderRow}>
+                  <span className={demoStyles.dateBox}>
+                    <span>{created.toLocaleDateString('en-NG', { weekday: 'short' })}</span>
+                    <strong>{created.getDate()}</strong>
+                  </span>
+                  <div className={demoStyles.schedWho}>
+                    <strong>{orderBuyer(order)}</strong>
+                    <span>{order.items.map((item) => `${item.product?.name || 'Product'} × ${item.quantity}`).join(', ')}</span>
+                    {place ? <span>{place}</span> : null}
+                  </div>
+                  <div className={demoStyles.schedAmount}>
+                    <strong>{formatNaira(order.total)}</strong>
+                    <span>{delivered ? 'Delivered' : waitingDays === 0 ? 'Paid today' : `Waiting ${waitingDays} day${waitingDays === 1 ? '' : 's'}`}</span>
+                  </div>
+                  <span className={`${demoStyles.pill} ${delivered ? demoStyles.pillPaid : demoStyles.pillDeliver}`}>
+                    {delivered ? 'Delivered' : 'To deliver'}
+                  </span>
+                  {delivered ? (
+                    <span />
+                  ) : (
+                    <button type="button" className={demoStyles.ghost} onClick={() => void updateOrderStatus(order.id, 'delivered')}>
+                      Mark delivered
+                    </button>
+                  )}
+                  <div className={demoStyles.menu}>
+                    <button
+                      type="button"
+                      className={demoStyles.iconBtn}
+                      aria-label={`More actions for order`}
+                      aria-expanded={orderMenuId === order.id}
+                      onClick={() => setOrderMenuId((current) => (current === order.id ? null : order.id))}
+                    >
+                      <MoreHorizontal strokeWidth={1.75} size={16} />
+                    </button>
+                    {orderMenuId === order.id ? (
+                      <div className={demoStyles.menuPop}>
+                        {ORDER_STATUS_OPTIONS.map((status) => (
+                          <button
+                            key={status.value}
+                            type="button"
+                            onClick={() => { setOrderMenuId(null); void updateOrderStatus(order.id, status.value); }}
+                          >
+                            {status.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );
             })}
-            </div>
-          )}
-            </div>
-          </div>
-        </>
-      ) : null}
-
-      {!isPromosSubpage && tab === 'orders' ? (
-        <div className="foleio-dash-panel">
-          {orders.length === 0 ? (
-            <p className="foleio-dash-empty">No orders yet.</p>
-          ) : (
-            orders.map((order) => (
-              <div key={order.id} className="foleio-dash-booking-row">
-                <div className="foleio-dash-booking-main">
-                  <div className="foleio-dash-booking-top">
-                    <span className="foleio-dash-sub-name">
-                      {order.deliveryAddress?.firstName || order.deliveryAddress?.lastName
-                        ? `${order.deliveryAddress?.firstName || ''} ${order.deliveryAddress?.lastName || ''}`.trim()
-                        : order.deliveryAddress?.name || 'Customer'}
-                    </span>
-                    <span className="foleio-dash-badge is-muted">
-                      {order.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="foleio-dash-booking-meta">
-                    <span className="foleio-dash-sub-date">
-                      {new Date(order.createdAt).toLocaleString()}
-                    </span>
-                    {order.deliveryTier ? (
-                      <span className="foleio-dash-sub-date">
-                        {order.deliveryTier.name} · {order.deliveryTier.type}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gap: 8,
-                      marginTop: 8,
-                    }}
-                  >
-                    {order.items.map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          background: 'rgba(17, 24, 39, 0.06)',
-                          color: '#111827',
-                          fontFamily: 'var(--font-body), sans-serif',
-                          fontSize: 14,
-                          fontWeight: 500,
-                          lineHeight: 1.35,
-                        }}
-                      >
-                        {item.quantity}× {item.product?.name || 'Product'} ·{' '}
-                        {formatNaira(item.unitPrice)}
-                      </div>
-                    ))}
-                  </div>
-                  {order.deliveryAddress?.notes ? (
-                    <p className="foleio-dash-booking-notes" style={{ margin: '0 0 6px' }}>
-                      Notes: {order.deliveryAddress.notes}
-                    </p>
-                  ) : null}
-                  <div className="foleio-dash-booking-actions">
-                    <label className="foleio-dash-field" style={{ margin: 0, minWidth: 160 }}>
-                      <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
-                        Status
-                      </span>
-                      <select
-                        className="foleio-dash-input"
-                        value={normalizeOrderStatus(order.status)}
-                        onChange={(event) =>
-                          void updateOrderStatus(order.id, event.target.value)
-                        }
-                        aria-label="Order status"
-                      >
-                        {ORDER_STATUS_OPTIONS.map((status) => (
-                          <option key={status.value} value={status.value}>
-                            {status.label}
-                          </option>
-                        ))}
-                        {!ORDER_STATUS_OPTIONS.some(
-                          (status) => status.value === normalizeOrderStatus(order.status)
-                        ) ? (
-                          <option value={order.status}>{order.status}</option>
-                        ) : null}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-                <div className="foleio-dash-booking-amount">{formatNaira(order.total)}</div>
+          </section>
+          <aside className={demoStyles.bookSide}>
+            <section className={demoStyles.collectCard}>
+              <p className={demoStyles.eyebrow}>Paid for orders this month</p>
+              <p className={demoStyles.big}>{formatNaira(monthPaidKobo)}</p>
+              <p className={demoStyles.quiet}>{monthOrders.length} order{monthOrders.length === 1 ? '' : 's'} · {monthDelivered} delivered</p>
+              <div className={demoStyles.track} aria-hidden="true">
+                <span style={{ width: monthOrders.length ? `${Math.round((monthDelivered / monthOrders.length) * 100)}%` : '0%' }} />
               </div>
-            ))
-          )}
+            </section>
+            <section className={demoStyles.card}>
+              <div className={demoStyles.cardHead}>
+                <h2>Preorders to make</h2>
+              </div>
+              {preorderProducts.length === 0 ? (
+                <EmptyState icon={Package} title="No preorders yet" body="Preorder products will show up here." />
+              ) : preorderProducts.map((product) => {
+                const qty = undeliveredOrders.reduce((sum, order) => (
+                  sum + order.items.filter((item) => item.product?.id === product.id).reduce((count, item) => count + item.quantity, 0)
+                ), 0);
+                const release = parsePreorderSettings(product.preorderSettings)?.releaseAt;
+                const days = release ? Math.ceil((new Date(release).getTime() - Date.now()) / 86400000) : null;
+                return (
+                  <div key={product.id} className={demoStyles.splitRow}>
+                    <div>
+                      <strong>{product.name}{qty ? ` × ${qty}` : ''}</strong>
+                      <span>{release ? new Date(release).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Release date not set'}</span>
+                    </div>
+                    {days != null ? <b>{days > 0 ? `${days} days` : 'Due'}</b> : null}
+                  </div>
+                );
+              })}
+              <button type="button" className={demoStyles.textLink} onClick={() => setTab('delivery')}>
+                Delivery
+                <ArrowRight strokeWidth={1.75} />
+              </button>
+            </section>
+          </aside>
         </div>
       ) : null}
 
       {!isPromosSubpage && tab === 'delivery' ? (
-        <div style={{ display: 'grid', gap: 14 }}>
-          <div className="foleio-dash-panel">
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between',
-                gap: 12,
-                flexWrap: 'wrap',
-              }}
-            >
-              <div>
-                <h3 className="foleio-dash-panel-title">Delivery</h3>
-                <p className="foleio-dash-panel-meta">
-                  Add flat-rate, free, pickup, or conditional delivery options for checkout.
-                </p>
-              </div>
-              {deliveryComposer === 'idle' ? (
-                <button
-                  type="button"
-                  className="foleio-dash-btn-primary"
-                  onClick={startAddDelivery}
-                  disabled={Boolean(deliveryAction || deletingTierId)}
-                >
-                  <Plus className="h-4 w-4" strokeWidth={1.5} />
-                  Add
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="foleio-dash-btn-ghost"
-                  onClick={cancelDeliveryComposer}
-                  disabled={Boolean(deliveryAction || deletingTierId)}
-                >
-                  Cancel
-                </button>
-              )}
+        <div className={demoStyles.svcLayout}>
+          <section className={demoStyles.card}>
+            <div className={demoStyles.svcHead}>
+              <h2>Delivery options</h2>
+              <span>Buyers see the live ones, in this order</span>
             </div>
-
-            {deliveryComposer === 'choose' ? (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: 12,
-                  marginTop: 16,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => chooseDeliveryType('paid')}
-                  disabled={Boolean(deliveryAction || deletingTierId)}
-                  style={{
-                    textAlign: 'left',
-                    padding: 16,
-                    borderRadius: 12,
-                    border: '1px solid rgba(17, 24, 39, 0.12)',
-                    background: 'rgba(17, 24, 39, 0.04)',
-                    color: '#111827',
-                    cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
-                    opacity: deliveryAction || deletingTierId ? 0.65 : 1,
-                  }}
-                >
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>
-                    Flat rate
-                  </p>
-                  <p
-                    className="foleio-dash-panel-meta"
-                    style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
-                  >
-                    Charge a fixed fee. You can add multiple regions or options.
-                  </p>
-                </button>
-                {!deliveryTiers.some((tier) => tier.type === 'free') ? (
-                  <button
-                    type="button"
-                    onClick={() => chooseDeliveryType('free')}
-                    disabled={Boolean(deliveryAction || deletingTierId)}
-                    style={{
-                      textAlign: 'left',
-                      padding: 16,
-                      borderRadius: 12,
-                      border: '1px solid rgba(17, 24, 39, 0.12)',
-                      background: 'rgba(17, 24, 39, 0.04)',
-                      color: '#111827',
-                      cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
-                      opacity: deliveryAction || deletingTierId ? 0.65 : 1,
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {deliveryAction === 'free' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                      ) : null}
-                      Free delivery
-                    </p>
-                    <p
-                      className="foleio-dash-panel-meta"
-                      style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
-                    >
-                      Enable free delivery at checkout in one tap.
-                    </p>
-                  </button>
-                ) : null}
-                {!deliveryTiers.some((tier) => tier.type === 'pickup') ? (
-                  <button
-                    type="button"
-                    onClick={() => chooseDeliveryType('pickup')}
-                    disabled={Boolean(deliveryAction || deletingTierId)}
-                    style={{
-                      textAlign: 'left',
-                      padding: 16,
-                      borderRadius: 12,
-                      border: '1px solid rgba(17, 24, 39, 0.12)',
-                      background: 'rgba(17, 24, 39, 0.04)',
-                      color: '#111827',
-                      cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
-                      opacity: deliveryAction || deletingTierId ? 0.65 : 1,
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {deliveryAction === 'pickup' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                      ) : null}
-                      Pickup
-                    </p>
-                    <p
-                      className="foleio-dash-panel-meta"
-                      style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
-                    >
-                      Let buyers collect in person — no delivery fee.
-                    </p>
-                  </button>
-                ) : null}
-                {!deliveryTiers.some((tier) => tier.type === 'customer_arranged') ? (
-                  <button
-                    type="button"
-                    onClick={() => chooseDeliveryType('customer_arranged')}
-                    disabled={Boolean(deliveryAction || deletingTierId)}
-                    style={{
-                      textAlign: 'left',
-                      padding: 16,
-                      borderRadius: 12,
-                      border: '1px solid rgba(17, 24, 39, 0.12)',
-                      background: 'rgba(17, 24, 39, 0.04)',
-                      color: '#111827',
-                      cursor: deliveryAction || deletingTierId ? 'not-allowed' : 'pointer',
-                      opacity: deliveryAction || deletingTierId ? 0.65 : 1,
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {deliveryAction === 'customer_arranged' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                      ) : null}
-                      Customer arranges delivery
-                    </p>
-                    <p
-                      className="foleio-dash-panel-meta"
-                      style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
-                    >
-                      Buyer handles logistics — ₦0 fee, no street address required.
-                    </p>
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!limits.canUseConditionalDelivery) {
-                      showUpgradeModal('conditionalDelivery');
-                      return;
-                    }
-                    chooseDeliveryType('paid');
-                  }}
-                  disabled={Boolean(deliveryAction || deletingTierId)}
-                  aria-disabled={!limits.canUseConditionalDelivery}
-                  style={{
-                    textAlign: 'left',
-                    padding: 16,
-                    borderRadius: 12,
-                    border: '1px solid rgba(17, 24, 39, 0.12)',
-                    background: 'rgba(17, 24, 39, 0.04)',
-                    color: limits.canUseConditionalDelivery ? '#111827' : '#6b7280',
-                    cursor:
-                      deliveryAction || deletingTierId
-                        ? 'not-allowed'
-                        : limits.canUseConditionalDelivery
-                          ? 'pointer'
-                          : 'not-allowed',
-                    opacity:
-                      deliveryAction || deletingTierId
-                        ? 0.65
-                        : limits.canUseConditionalDelivery
-                          ? 1
-                          : 0.55,
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      lineHeight: 1.3,
-                      color: limits.canUseConditionalDelivery ? '#111827' : '#6b7280',
-                    }}
-                  >
-                    {!limits.canUseConditionalDelivery ? (
-                      <Lock className="h-4 w-4" strokeWidth={1.5} />
-                    ) : null}
-                    Conditional delivery
-                    {!limits.canUseConditionalDelivery ? (
-                      <span className="foleio-dash-badge is-warning">Pro</span>
-                    ) : null}
-                  </p>
-                  <p
-                    className="foleio-dash-panel-meta"
-                    style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.4 }}
-                  >
-                    Free delivery when spend or quantity hits a threshold.
-                  </p>
-                </button>
-              </div>
-            ) : null}
-
             {deliveryComposer === 'flat' ? (
               <form
                 onSubmit={saveTier}
@@ -3162,11 +3099,7 @@ export function CreatorShopManager({
                     type="button"
                     className="foleio-dash-btn-ghost"
                     disabled={Boolean(deliveryAction || deletingTierId)}
-                    onClick={() =>
-                      tierForm.id
-                        ? cancelDeliveryComposer()
-                        : setDeliveryComposer('choose')
-                    }
+                    onClick={cancelDeliveryComposer}
                   >
                     {tierForm.id ? 'Cancel' : 'Back'}
                   </button>
@@ -3220,329 +3153,166 @@ export function CreatorShopManager({
                     type="button"
                     className="foleio-dash-btn-ghost"
                     disabled={Boolean(deliveryAction || deletingTierId)}
-                    onClick={() =>
-                      tierForm.id
-                        ? cancelDeliveryComposer()
-                        : setDeliveryComposer('choose')
-                    }
+                    onClick={cancelDeliveryComposer}
                   >
                     {tierForm.id ? 'Cancel' : 'Back'}
                   </button>
                 </div>
               </form>
             ) : null}
-          </div>
 
-          <div className="foleio-dash-panel">
             {deliveryTiers.length === 0 && deliveryComposer === 'idle' ? (
-              <p className="foleio-dash-empty">
-                No delivery options yet. Tap Add to create flat-rate, free delivery, or pickup.
-              </p>
+              <EmptyState icon={Truck} title="No delivery options yet" body="Add one from the list on the right." />
             ) : null}
-
-            {(() => {
-              const flatTiers = deliveryTiers.filter((tier) => tier.type === 'paid');
-              const freeTiers = deliveryTiers.filter((tier) => tier.type === 'free');
-              const pickupTiers = deliveryTiers.filter((tier) => tier.type === 'pickup');
-              const customerArrangedTiers = deliveryTiers.filter(
-                (tier) => tier.type === 'customer_arranged'
-              );
-              if (
-                flatTiers.length === 0 &&
-                freeTiers.length === 0 &&
-                pickupTiers.length === 0 &&
-                customerArrangedTiers.length === 0
-              ) {
-                return null;
-              }
+            {deliveryTiers.length > 0 ? <p className={demoStyles.bookGroup}>Live at checkout</p> : null}
+            {deliveryTiers.map((tier) => {
+              const kind = tier.type === 'pickup'
+                ? { badge: 'Pickup', price: 'Free', note: 'No delivery fee' }
+                : tier.type === 'free'
+                  ? { badge: 'Free', price: 'Free', note: 'No delivery fee' }
+                  : tier.type === 'customer_arranged'
+                    ? { badge: 'Buyer arranges', price: '₦0', note: 'Buyer pays the rider' }
+                    : { badge: 'Flat rate', price: formatNaira(tier.flatRate), note: 'Added at checkout' };
               return (
-                <div style={{ display: 'grid', gap: 18 }}>
-                  {flatTiers.length > 0 ? (
-                    <div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 8,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <h4
-                          className="foleio-dash-panel-title"
-                          style={{ margin: 0, fontSize: 15 }}
-                        >
-                          Flat rate
-                        </h4>
-                        <button
-                          type="button"
-                          className="foleio-dash-btn-ghost"
-                          onClick={() => chooseDeliveryType('paid')}
-                          disabled={Boolean(deliveryAction || deletingTierId)}
-                        >
-                          <Plus className="h-4 w-4" strokeWidth={1.5} />
-                          Add
+                <div key={tier.id} className={demoStyles.svcRow}>
+                  <div>
+                    <p className={demoStyles.svcName}>
+                      {tier.name}{' '}
+                      <span className={demoStyles.chip}>{kind.badge}</span>
+                    </p>
+                    <p className={demoStyles.svcMeta}>
+                      {tier.description || (tier.type === 'customer_arranged'
+                        ? 'The buyer books and pays the rider. No street address needed.'
+                        : tier.type === 'pickup'
+                          ? 'Buyers collect in person.'
+                          : tier.type === 'free'
+                            ? 'You deliver and the buyer pays nothing extra.'
+                            : 'A fixed fee for this area.')}
+                    </p>
+                  </div>
+                  <div className={demoStyles.svcPrice}>
+                    <strong>{kind.price}</strong>
+                    <span>{kind.note}</span>
+                  </div>
+                  <span className={demoStyles.liveLabel}>
+                    Live
+                    <span className={`${demoStyles.switch} ${demoStyles.switchOn}`} aria-hidden="true">
+                      <i />
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className={demoStyles.ghost}
+                    onClick={() => editTier(tier)}
+                    disabled={tier.type === 'free' || tier.type === 'pickup' || Boolean(deliveryAction || deletingTierId)}
+                  >
+                    Edit
+                  </button>
+                  <div className={demoStyles.menu}>
+                    <button
+                      type="button"
+                      className={demoStyles.iconBtn}
+                      aria-label={`More actions for ${tier.name}`}
+                      aria-expanded={deliveryMenuId === tier.id}
+                      onClick={() => setDeliveryMenuId((current) => (current === tier.id ? null : tier.id))}
+                    >
+                      <MoreHorizontal strokeWidth={1.75} size={16} />
+                    </button>
+                    {deliveryMenuId === tier.id ? (
+                      <div className={demoStyles.menuPop}>
+                        <button type="button" onClick={() => { setDeliveryMenuId(null); void deleteTier(tier.id); }}>
+                          Delete
                         </button>
                       </div>
-                      {flatTiers.map((tier) => (
-                        <div key={tier.id} className="foleio-dash-booking-row">
-                          <div className="foleio-dash-booking-main">
-                            <div
-                              className="foleio-dash-booking-top"
-                              style={{
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: 12,
-                                width: '100%',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  minWidth: 0,
-                                }}
-                              >
-                                <span className="foleio-dash-sub-name">{tier.name}</span>
-                                <span className="foleio-dash-badge is-muted">
-                                  {formatNaira(tier.flatRate)}
-                                </span>
-                              </div>
-                              <div
-                                className="foleio-dash-booking-actions"
-                                style={{ margin: 0, flexShrink: 0, gap: 6 }}
-                              >
-                                <button
-                                  type="button"
-                                  className="foleio-dash-btn-outline"
-                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
-                                  onClick={() => editTier(tier)}
-                                  disabled={Boolean(deliveryAction || deletingTierId)}
-                                  aria-label="Edit delivery option"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="foleio-dash-btn-danger"
-                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
-                                  onClick={() => void deleteTier(tier.id)}
-                                  disabled={Boolean(deliveryAction || deletingTierId)}
-                                  aria-label="Delete delivery option"
-                                >
-                                  {deletingTierId === tier.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                                  ) : (
-                                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                            {tier.description ? (
-                              <p className="foleio-dash-booking-notes">{tier.description}</p>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {freeTiers.length > 0 ? (
-                    <div style={{ display: 'grid', gap: 0 }}>
-                      {freeTiers.map((tier) => (
-                        <div key={tier.id} className="foleio-dash-booking-row">
-                          <div className="foleio-dash-booking-main">
-                            <div
-                              className="foleio-dash-booking-top"
-                              style={{
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: 12,
-                                width: '100%',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  minWidth: 0,
-                                }}
-                              >
-                                <span className="foleio-dash-sub-name">Free delivery</span>
-                                <span className="foleio-dash-badge is-muted">Enabled</span>
-                              </div>
-                              <div
-                                className="foleio-dash-booking-actions"
-                                style={{ margin: 0, flexShrink: 0, gap: 6 }}
-                              >
-                                <button
-                                  type="button"
-                                  className="foleio-dash-btn-danger"
-                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
-                                  onClick={() => void deleteTier(tier.id)}
-                                  disabled={Boolean(deliveryAction || deletingTierId)}
-                                  aria-label="Delete free delivery"
-                                >
-                                  {deletingTierId === tier.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                                  ) : (
-                                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {pickupTiers.length > 0 ? (
-                    <div style={{ display: 'grid', gap: 0 }}>
-                      {pickupTiers.map((tier) => (
-                        <div key={tier.id} className="foleio-dash-booking-row">
-                          <div className="foleio-dash-booking-main">
-                            <div
-                              className="foleio-dash-booking-top"
-                              style={{
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: 12,
-                                width: '100%',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  minWidth: 0,
-                                }}
-                              >
-                                <span className="foleio-dash-sub-name">Pickup</span>
-                                <span className="foleio-dash-badge is-muted">Enabled</span>
-                              </div>
-                              <div
-                                className="foleio-dash-booking-actions"
-                                style={{ margin: 0, flexShrink: 0, gap: 6 }}
-                              >
-                                <button
-                                  type="button"
-                                  className="foleio-dash-btn-danger"
-                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
-                                  onClick={() => void deleteTier(tier.id)}
-                                  disabled={Boolean(deliveryAction || deletingTierId)}
-                                  aria-label="Delete pickup"
-                                >
-                                  {deletingTierId === tier.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                                  ) : (
-                                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {customerArrangedTiers.length > 0 ? (
-                    <div style={{ display: 'grid', gap: 0 }}>
-                      {customerArrangedTiers.map((tier) => (
-                        <div key={tier.id} className="foleio-dash-booking-row">
-                          <div className="foleio-dash-booking-main">
-                            <div
-                              className="foleio-dash-booking-top"
-                              style={{
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: 12,
-                                width: '100%',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: 4,
-                                  minWidth: 0,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                  }}
-                                >
-                                  <span className="foleio-dash-sub-name">
-                                    Customer arranges delivery
-                                  </span>
-                                  <span className="foleio-dash-badge is-muted">Enabled</span>
-                                </div>
-                                {tier.contactPhone ? (
-                                  <span
-                                    className="foleio-dash-panel-meta"
-                                    style={{ margin: 0, fontSize: 13 }}
-                                  >
-                                    Call {tier.contactPhone}
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="foleio-dash-panel-meta"
-                                    style={{ margin: 0, fontSize: 13, color: '#f97316' }}
-                                  >
-                                    Add a contact phone
-                                  </span>
-                                )}
-                              </div>
-                              <div
-                                className="foleio-dash-booking-actions"
-                                style={{ margin: 0, flexShrink: 0, gap: 6 }}
-                              >
-                                <button
-                                  type="button"
-                                  className="foleio-dash-btn-ghost"
-                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
-                                  onClick={() => editTier(tier)}
-                                  disabled={Boolean(deliveryAction || deletingTierId)}
-                                  aria-label="Edit contact phone"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="foleio-dash-btn-danger"
-                                  style={{ padding: 6, minWidth: 0, height: 'auto' }}
-                                  onClick={() => void deleteTier(tier.id)}
-                                  disabled={Boolean(deliveryAction || deletingTierId)}
-                                  aria-label="Delete customer arranges delivery"
-                                >
-                                  {deletingTierId === tier.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                                  ) : (
-                                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
               );
-            })()}
-          </div>
+            })}
+            <div className={demoStyles.svcFoot}>
+              <span>Deleting an option takes it off checkout. Orders already placed stay.</span>
+              <button type="button" className={demoStyles.textLink} onClick={() => setTab('orders')}>
+                See orders to deliver
+              </button>
+            </div>
+          </section>
+          <aside className={demoStyles.bookSide}>
+            <section className={demoStyles.softCard}>
+              <h2>What buyers see at checkout</h2>
+              <div className={demoStyles.checkoutPreview}>
+                <p className={demoStyles.quiet}>How would you like to get your order?</p>
+                {deliveryTiers.length === 0 ? (
+                  <p className={demoStyles.quiet}>No live options yet.</p>
+                ) : deliveryTiers.map((tier, index) => (
+                  <div key={tier.id} className={demoStyles.checkoutChoice}>
+                    <span>
+                      <i className={index === 0 ? demoStyles.radioOn : demoStyles.radioOff} />
+                      {tier.name}
+                    </span>
+                    <strong>
+                      {tier.type === 'paid' ? formatNaira(tier.flatRate) : tier.type === 'customer_arranged' ? '₦0' : 'Free'}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className={demoStyles.textLink} onClick={() => setTab('products')}>
+                Preview your shop
+                <ArrowRight strokeWidth={1.75} />
+              </button>
+            </section>
+            <section className={demoStyles.card} id="add-delivery-option">
+              <h2 className={demoStyles.sideTitle}>Add a delivery option</h2>
+              <div className={demoStyles.optionList}>
+              {[
+                { key: 'paid', title: 'Flat rate', body: 'A fixed fee for an area. Add one for each area you deliver to.', added: false },
+                { key: 'free', title: 'Free delivery', body: 'You deliver and the buyer pays nothing extra.', added: deliveryTiers.some((tier) => tier.type === 'free') },
+                { key: 'pickup', title: 'Pickup', body: 'Buyers collect in person. No fee.', added: deliveryTiers.some((tier) => tier.type === 'pickup') },
+                { key: 'customer_arranged', title: 'Buyer arranges delivery', body: 'The buyer sends a rider. No fee, no street address.', added: deliveryTiers.some((tier) => tier.type === 'customer_arranged') },
+              ].map((option) => (
+                <div key={option.key} className={demoStyles.optionRow}>
+                  <div>
+                    <strong>{option.title}</strong>
+                    <p>{option.body}</p>
+                  </div>
+                  {option.added ? (
+                    <span className={demoStyles.addedMark}>✓ Added</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={demoStyles.ghost}
+                      disabled={Boolean(deliveryAction || deletingTierId)}
+                      onClick={() => chooseDeliveryType(option.key as 'paid' | 'free' | 'pickup' | 'customer_arranged')}
+                    >
+                      {deliveryAction === option.key ? 'Adding…' : 'Add'}
+                    </button>
+                  )}
+                </div>
+              ))}
+              <div className={demoStyles.optionRow}>
+                <div>
+                  <strong>
+                    Conditional delivery
+                    {!limits.canUseConditionalDelivery ? <span className={demoStyles.proMark}>PRO</span> : null}
+                  </strong>
+                  <p>Free delivery once an order passes an amount or a quantity.</p>
+                </div>
+                <button
+                  type="button"
+                  className={demoStyles.ghost}
+                  onClick={() => {
+                    if (!limits.canUseConditionalDelivery) {
+                      showUpgradeModal('conditionalDelivery');
+                      return;
+                    }
+                    chooseDeliveryType('paid');
+                  }}
+                >
+                  {limits.canUseConditionalDelivery ? 'Add' : 'See Pro'}
+                </button>
+              </div>
+              </div>
+            </section>
+          </aside>
         </div>
       ) : null}
 
@@ -5657,6 +5427,7 @@ export function CreatorShopManager({
           currentPlan={currentPlan}
         />
       ) : null}
+      </div>
     </div>
   );
 }

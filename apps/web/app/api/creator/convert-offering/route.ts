@@ -3,6 +3,7 @@ import { prisma } from '@foleio/database';
 import { assertCreatorApiAccess } from '@/lib/creator/api-session';
 import { getEffectiveCreatorPlanLimits } from '@/lib/billing/effective-plan-limits';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
+import { serviceGalleryUrls } from '@/lib/booking/service-images';
 import {
   isBelowMinPayableKobo,
   MIN_PAYABLE_PRICE_ERROR,
@@ -183,7 +184,8 @@ export async function POST(request: Request) {
         service.minNoticeDays != null && service.minNoticeDays > 0
           ? service.minNoticeDays
           : null;
-      const imageUrl = service.coverImageUrl || null;
+      const images = serviceGalleryUrls(service.coverImageUrl);
+      const imageUrl = images[0] || null;
 
       const result = await prisma.$transaction(async (tx) => {
         const product = await tx.product.create({
@@ -195,7 +197,7 @@ export async function POST(request: Request) {
             price: service.price,
             type: 'physical',
             imageUrl,
-            imageUrls: imageUrl ? [imageUrl] : [],
+            imageUrls: images,
             stock: 0,
             status: 'draft',
             orderIndex: (maxOrder?.orderIndex ?? -1) + 1,

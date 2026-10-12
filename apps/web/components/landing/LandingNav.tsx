@@ -5,9 +5,9 @@ import { useEffect, useState } from 'react';
 import { LogoMark, Pill, frame } from './ui';
 
 const LINKS = [
-  { href: '#product', label: 'Link' },
-  { href: '#product', label: 'Bookings' },
-  { href: '#product', label: 'Shop' },
+  { href: '/product/link', label: 'Link' },
+  { href: '/product/bookings', label: 'Bookings' },
+  { href: '/product/shop', label: 'Shop' },
 ] as const;
 
 export function LandingNav() {
@@ -85,8 +85,11 @@ function NavLinks({ compact = false }: { compact?: boolean }) {
           {itemLink.label}
         </a>
       ))}
-      <Link href="/creators" className={item}>
+      <Link href="/creators" className={`${item} inline-flex items-center gap-1.5`}>
         Creators
+        <span className="inline-flex items-center rounded-full bg-[rgba(21,128,61,0.12)] px-[5px] py-px text-[9px] font-medium uppercase leading-[1.2] tracking-[0.04em] text-[#15803d]">
+          New
+        </span>
       </Link>
       <a href="#pricing" className={item}>
         Pricing

@@ -1,3 +1,6 @@
+import { LegalDocument } from '@/components/legal/LegalDocument';
+import { Italic } from '@/components/landing/ui';
+
 export const metadata = {
   title: 'Privacy Policy · Foleio',
   description: 'Privacy Policy for the Foleio platform - NDPA 2023 compliant.',
@@ -5,15 +8,15 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
-        Privacy Policy
-      </h1>
-      <p className="text-muted-foreground text-sm mb-10">
-        Effective Date: March 2026 · Compliant with the Nigeria Data Protection
-        Act (NDPA) 2023
-      </p>
-      <div className="legal-content">
+    <LegalDocument
+      active="/legal/privacy"
+      title={
+        <>
+          Privacy <Italic>Policy</Italic>
+        </>
+      }
+      effective="Effective March 2026 · Last updated 12 October 2026 · Compliant with the Nigeria Data Protection Act (NDPA) 2023"
+    >
         <p>
           At Foleio, we take your privacy seriously. This Privacy Policy explains
           how we collect, use, store, and protect your personal data when you
@@ -264,7 +267,6 @@ export default function PrivacyPage() {
           a complaint with the Nigeria Data Protection Commission (NDPC) at
           ndpc.gov.ng.
         </p>
-      </div>
-    </div>
+    </LegalDocument>
   );
 }

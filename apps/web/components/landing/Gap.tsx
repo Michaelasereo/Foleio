@@ -1,3 +1,4 @@
+import { Link2 } from 'lucide-react';
 import { Italic, frame } from './ui';
 
 export function Gap() {
@@ -38,9 +39,14 @@ export function Gap() {
             Price list, updated last month
           </div>
           <div className="my-1.5 self-center text-[18px] text-[#a9a7a0]">↓</div>
-          <div className="flex min-h-12 items-center justify-between gap-3 self-stretch rounded-full bg-[#f2f1ec] px-[18px] text-[#131210]">
-            <span className="font-semibold">foleio.com/creator/adaeze</span>
-            <span className="whitespace-nowrap text-[12px] text-[#55544f]">One link</span>
+          <div className="flex items-center justify-between gap-3 self-stretch rounded-[16px] bg-[#f2f1ec] py-2.5 pl-[14px] pr-2.5 text-[#131210]">
+            <div className="min-w-0">
+              <div className="text-[11px] text-[#6b6a64]">One link</div>
+              <span className="font-medium">foleio.com/creator/adaeze</span>
+            </div>
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#131210] text-[#f2f1ec]">
+              <Link2 aria-hidden="true" size={16} strokeWidth={2} />
+            </span>
           </div>
         </div>
       </div>

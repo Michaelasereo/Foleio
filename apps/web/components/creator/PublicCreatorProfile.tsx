@@ -15,6 +15,7 @@ import {
 } from '@/components/shop/PublicShopPanel';
 import { productCardCss } from '@/components/shop/product-card-styles';
 import { resolveBookingPolicyHref } from '@/lib/booking/booking-policy-document';
+import { serviceCoverUrl } from '@/lib/booking/service-images';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { cleanSocialUrl, resolveInstagramHref, resolveTiktokHref } from '@/lib/creator/social-urls';
@@ -1036,9 +1037,9 @@ export function PublicCreatorProfile({
                         return (
                           <div key={item.id} className="foleio-public-service">
                             <div className="foleio-public-service-main">
-                              {item.coverImageUrl ? (
+                              {serviceCoverUrl(item.coverImageUrl) ? (
                                 <RemoteImage
-                                  src={item.coverImageUrl}
+                                  src={serviceCoverUrl(item.coverImageUrl) || ''}
                                   alt=""
                                   style={{
                                     width: '100%',
@@ -1498,9 +1499,9 @@ export function PublicCreatorProfile({
                             return (
                               <div key={item.id} className="foleio-public-service">
                                 <div className="foleio-public-service-main">
-                                  {item.coverImageUrl ? (
+                                  {serviceCoverUrl(item.coverImageUrl) ? (
                                     <RemoteImage
-                                      src={item.coverImageUrl}
+                                      src={serviceCoverUrl(item.coverImageUrl) || ''}
                                       alt=""
                                       style={{
                                         width: '100%',

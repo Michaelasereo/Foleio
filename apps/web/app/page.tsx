@@ -8,7 +8,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { Pillars } from '@/components/landing/Pillars';
 import { Pricing } from '@/components/landing/Pricing';
-import { ProductGrid } from '@/components/landing/ProductGrid';
+import { Reveal } from '@/components/landing/Reveal';
 import { Setup } from '@/components/landing/Setup';
 import { Steps } from '@/components/landing/Steps';
 import { landingSans, landingSerif } from '@/components/landing/fonts';
@@ -60,23 +60,42 @@ export default function HomePage() {
     >
       <header className="bg-[linear-gradient(#f2f1ec_0px,#f2f1ec_72%,#ffffff_100%)]">
         <LandingNav />
-        <Hero />
+        <Reveal>
+          <Hero />
+        </Reveal>
       </header>
       <main>
-        <AudienceLine />
-        <FeatureList />
-        <Steps />
-        <Gap />
-        <Pillars />
-        <ProductGrid />
-        <Setup />
-        <Pricing />
-        <Faq />
-        <ClosingCta />
+        <Reveal>
+          <AudienceLine />
+        </Reveal>
+        <Reveal>
+          <FeatureList />
+        </Reveal>
+        <Reveal>
+          <Steps />
+        </Reveal>
+        <Reveal>
+          <Gap />
+        </Reveal>
+        <Reveal>
+          <Pillars />
+        </Reveal>
+        <Reveal>
+          <Setup />
+        </Reveal>
+        <Reveal>
+          <Pricing />
+        </Reveal>
+        <Reveal>
+          <Faq />
+        </Reveal>
+        <Reveal>
+          <ClosingCta />
+        </Reveal>
       </main>
-      <footer>
+      <Reveal as="footer">
         <LandingFooter />
-      </footer>
+      </Reveal>
     </div>
   );
 }

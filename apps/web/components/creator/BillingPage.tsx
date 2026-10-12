@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Receipt } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import { useToast } from '@/components/ui/use-toast';
 import {
   LEGACY_PRO_MONTHLY_KOBO,
@@ -477,9 +478,7 @@ export function BillingPage({
       <div className="foleio-dash-panel">
         <h2 className="foleio-dash-panel-title">Billing history</h2>
         {billingHistory.length === 0 ? (
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
-            No billing history yet.
-          </p>
+          <EmptyState icon={Receipt} title="No billing history yet" body="Plan payments will show up here." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="w-full text-sm">

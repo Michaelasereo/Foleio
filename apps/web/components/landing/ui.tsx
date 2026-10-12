@@ -27,10 +27,10 @@ export function Serif({
 export function LogoMark({ className }: { className: string }) {
   return (
     <img
-      src="/Foleio-logo.svg"
+      src="/Foleio%20Logo/New-Foleio-Logo.png"
       alt=""
-      width={553}
-      height={553}
+      width={622}
+      height={622}
       className={`inline-block shrink-0 object-contain ${className}`}
     />
   );

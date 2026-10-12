@@ -114,7 +114,7 @@ export default async function CreatorLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F3F1F4]">
+    <div className="flex h-screen overflow-hidden bg-[#F6F6F4]">
       <CreatorSidebar creator={serializeForClient(creator)} />
       <main className="h-screen flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
         <div className="flex min-h-full flex-col rounded-[20px] border border-black/5 bg-[#FCFAFB] px-4 py-6 shadow-[0_12px_40px_rgba(80,60,90,0.08)] sm:px-6 lg:px-8">

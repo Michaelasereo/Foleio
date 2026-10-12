@@ -4,69 +4,37 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CreatorAnalyticsClient } from '@/components/creator/CreatorAnalyticsClient';
 import { EarningsDashboard } from '@/components/creator/EarningsDashboard';
-
-type PrimaryView = 'earnings' | 'analytics';
+import styles from '@/components/demo/demo-dashboard.module.css';
+import type { EarningsView } from '@/components/creator/earnings-live';
 
 export function EarningsHub() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const initialView: PrimaryView =
-    tabParam === 'analytics' ? 'analytics' : 'earnings';
-  const [primaryView, setPrimaryView] = useState<PrimaryView>(initialView);
+  const initialView: EarningsView =
+    tabParam === 'analytics' ? 'analytics' : tabParam === 'payouts' ? 'payouts' : 'earnings';
+  const [primaryView, setPrimaryView] = useState<EarningsView>(initialView);
 
   useEffect(() => {
-    setPrimaryView(tabParam === 'analytics' ? 'analytics' : 'earnings');
+    setPrimaryView(
+      tabParam === 'analytics' ? 'analytics' : tabParam === 'payouts' ? 'payouts' : 'earnings'
+    );
   }, [tabParam]);
 
-  function setView(view: PrimaryView) {
+  function setView(view: EarningsView) {
     setPrimaryView(view);
-    router.replace(view === 'earnings' ? '/earnings' : '/earnings?tab=analytics');
+    router.replace(view === 'earnings' ? '/earnings' : `/earnings?tab=${view}`);
   }
 
   return (
-    <div>
-      <div className="foleio-dash-header">
-        <div>
-          <h1 className="foleio-auth-title">
-            {primaryView === 'analytics' ? 'Analytics' : 'Earnings'}
-          </h1>
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-            {primaryView === 'analytics'
-              ? 'Bookings and shop performance over time.'
-              : 'Full payments and deposits, your share after platform fee.'}
-          </p>
-        </div>
+    <div className={styles.shell} style={{ display: 'block', minHeight: 0, width: '100%', background: 'transparent' }}>
+      <div className={styles.home}>
+        {primaryView === 'analytics' ? (
+          <CreatorAnalyticsClient onView={setView} />
+        ) : (
+          <EarningsDashboard presentation={primaryView} onView={setView} />
+        )}
       </div>
-
-      <div className="foleio-dash-tabs" role="tablist" aria-label="Earnings views">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'earnings'}
-          className={`foleio-dash-tab${primaryView === 'earnings' ? ' is-active' : ''}`}
-          onClick={() => setView('earnings')}
-          data-tour="earnings-tab"
-        >
-          Earnings
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'analytics'}
-          className={`foleio-dash-tab${primaryView === 'analytics' ? ' is-active' : ''}`}
-          onClick={() => setView('analytics')}
-          data-tour="analytics"
-        >
-          Analytics
-        </button>
-      </div>
-
-      {primaryView === 'analytics' ? (
-        <CreatorAnalyticsClient hideHeader />
-      ) : (
-        <EarningsDashboard hideHeader />
-      )}
     </div>
   );
 }
