@@ -18,6 +18,7 @@ import { quoteSentEmail } from './templates/quote-sent';
 import { baseEmailTemplate } from './base-template';
 import { getFoleioLogoAttachment } from './foleio-dark-email';
 import type { BalanceReminderKind } from '@/lib/booking/deposit';
+import { whatsappChatUrl } from '@/lib/quotes/helpers';
 
 function canSendEmails() {
   return (
@@ -536,9 +537,19 @@ export async function sendDeveloperSupportInviteEmail(data: {
   creatorName: string;
   creatorUsername: string;
   acceptUrl: string;
+  merchantWhatsappPhone?: string | null;
+  supportNote?: string | null;
+  merchantEmail?: string | null;
 }) {
   try {
-    const { subject, html } = developerSupportInviteEmail(data);
+    const merchantWhatsappUrl = whatsappChatUrl(
+      data.merchantWhatsappPhone,
+      `Hi ${data.creatorName}, this is Foleio support. I’m here to help with your setup request.`
+    );
+    const { subject, html } = developerSupportInviteEmail({
+      ...data,
+      merchantWhatsappUrl,
+    });
     return await sendEmail({ to: data.to, subject, html, withLogo: true });
   } catch (error) {
     console.error('sendDeveloperSupportInviteEmail failed:', error);

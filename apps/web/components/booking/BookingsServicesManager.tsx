@@ -1,9 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ImagePlus, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowRight, Briefcase, ImagePlus, Loader2, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
+import styles from '@/components/demo/demo-dashboard.module.css';
 import { formatNaira } from '@foleio/utils';
+import { serializeServiceGallery, serviceGalleryUrls } from '@/lib/booking/service-images';
 import {
   createPriceListItem,
   deletePriceListItem,
@@ -63,7 +67,7 @@ type FormState = {
   addons: AddonDraft[];
   locationOptions: AddonDraft[];
   inclusionsText: string;
-  coverImageUrl: string;
+  galleryUrls: string[];
   depositEnabled: boolean;
   depositType: 'percent' | 'fixed';
   depositValue: string;
@@ -81,7 +85,7 @@ const EMPTY_FORM: FormState = {
   addons: [],
   locationOptions: [],
   inclusionsText: '',
-  coverImageUrl: '',
+  galleryUrls: [],
   depositEnabled: false,
   depositType: 'percent',
   depositValue: '40',
@@ -109,6 +113,25 @@ function newLocationId() {
   return `loc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function formatDuration(minutes: number | null | undefined) {
+  if (!minutes || minutes < 1) return '';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  const hourLabel = hours ? `${hours} hour${hours === 1 ? '' : 's'}` : '';
+  const minuteLabel = mins ? `${mins} minute${mins === 1 ? '' : 's'}` : '';
+  return [hourLabel, minuteLabel].filter(Boolean).join(' ');
+}
+
+function depositLine(item: ServiceItem) {
+  if (item.pricingType === 'quote') return 'Request a quote';
+  if (!item.depositType || item.depositValue == null) return 'Paid in full to book';
+  if (item.depositType === 'percent') {
+    const amount = Math.round((item.price * Number(item.depositValue)) / 100);
+    return `${formatNaira(amount / 100)} deposit to book`;
+  }
+  return `${formatNaira(Number(item.depositValue) / 100)} deposit to book`;
+}
+
 function parseAddons(raw: unknown): ServiceAddon[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -129,11 +152,17 @@ export function BookingsServicesManager({
   initialPriceList,
   platformPlan = null,
   platformSubscriptionActive = false,
+  upcomingCounts = {},
+  publicPath = '/dashboard',
+  onItemsChange,
 }: {
   creatorId: string;
   initialPriceList: ServiceItem[];
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
+  upcomingCounts?: Record<string, number>;
+  publicPath?: string;
+  onItemsChange?: (items: ServiceItem[]) => void;
 }) {
   const router = useRouter();
   const [items, setItems] = useState<ServiceItem[]>(initialPriceList);
@@ -145,9 +174,12 @@ export function BookingsServicesManager({
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [slotPreview, setSlotPreview] = useState<string | null>(null);
+  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadSlotRef = useRef(0);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [addonsOpenId, setAddonsOpenId] = useState<string | null>(null);
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
   const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
   const limits = getCreatorPlanLimits({
@@ -160,12 +192,16 @@ export function BookingsServicesManager({
   }, [initialPriceList]);
 
   useEffect(() => {
+    onItemsChange?.(items);
+  }, [items, onItemsChange]);
+
+  useEffect(() => {
     return () => {
-      if (imagePreview?.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      if (slotPreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(slotPreview);
       }
     };
-  }, [imagePreview]);
+  }, [slotPreview]);
 
   async function reload() {
     setLoading(true);
@@ -180,7 +216,7 @@ export function BookingsServicesManager({
   }
 
   function resetImagePreview() {
-    setImagePreview((prev) => {
+    setSlotPreview((prev) => {
       if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
       return null;
     });
@@ -221,7 +257,7 @@ export function BookingsServicesManager({
         priceNaira: String(Math.round(opt.price / 100)),
       })),
       inclusionsText: inclusions.join('\n'),
-      coverImageUrl: item.coverImageUrl || '',
+      galleryUrls: serviceGalleryUrls(item.coverImageUrl),
       depositEnabled: Boolean(item.depositType),
       depositType: item.depositType === 'fixed' ? 'fixed' : 'percent',
       depositValue:
@@ -240,7 +276,7 @@ export function BookingsServicesManager({
   }
 
   function closeModal() {
-    if (saving || uploadingImage) return;
+    if (saving || uploadingSlot != null) return;
     setModalOpen(false);
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -321,10 +357,11 @@ export function BookingsServicesManager({
       return;
     }
 
+    const slot = uploadSlotRef.current;
     const previewUrl = URL.createObjectURL(file);
     resetImagePreview();
-    setImagePreview(previewUrl);
-    setUploadingImage(true);
+    setSlotPreview(previewUrl);
+    setUploadingSlot(slot);
     setError('');
 
     try {
@@ -340,32 +377,39 @@ export function BookingsServicesManager({
         throw new Error(payload?.error || 'Upload failed');
       }
       const url = payload.url as string;
-      setForm((f) => ({ ...f, coverImageUrl: url }));
-      setImagePreview((prev) => {
+      setForm((current) => {
+        const next = [...current.galleryUrls];
+        next[slot] = url;
+        return { ...current, galleryUrls: next.slice(0, 3) };
+      });
+      setSlotPreview((prev) => {
         if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
         return null;
       });
     } catch (err) {
-      setImagePreview((prev) => {
+      setSlotPreview((prev) => {
         if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
         return null;
       });
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
-      setUploadingImage(false);
+      setUploadingSlot(null);
     }
   }
 
-  function clearCoverImage() {
+  function removeGalleryImage(index: number) {
     resetImagePreview();
-    setForm((f) => ({ ...f, coverImageUrl: '' }));
+    setForm((current) => ({
+      ...current,
+      galleryUrls: current.galleryUrls.filter((_, itemIndex) => itemIndex !== index),
+    }));
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
-    if (uploadingImage) {
+    if (uploadingSlot != null) {
       setError('Wait for the image upload to finish.');
       return;
     }
@@ -474,7 +518,7 @@ export function BookingsServicesManager({
       addons,
       locationOptions,
       inclusions,
-      coverImageUrl: form.coverImageUrl.trim() || null,
+      coverImageUrl: serializeServiceGallery(form.galleryUrls),
       depositType,
       depositValue,
       allowPayInFull: form.allowPayInFull,
@@ -574,114 +618,134 @@ export function BookingsServicesManager({
     }
   }
 
-  const activeCount = items.filter((item) => item.isActive).length;
-
   return (
     <div>
-      <div className="foleio-dash-panel" style={{ marginBottom: 14 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
-          <div>
-            <h2 className="foleio-dash-panel-title">Your services</h2>
-            <p className="foleio-dash-panel-meta" style={{ marginBottom: 0 }}>
-              {items.length === 0
-                ? 'Add services clients can book'
-                : `${activeCount} active · ${items.length} total`}
-            </p>
-          </div>
-          <button type="button" className="foleio-dash-btn-primary" onClick={openCreate}>
-            <Plus className="h-4 w-4" strokeWidth={1.5} />
+      <section className={styles.card}>
+        <div className={styles.svcHead}>
+          <h2>Your services</h2>
+          <button type="button" className={styles.solid} onClick={openCreate}>
             Add service
           </button>
         </div>
-      </div>
-
-      <div className="foleio-dash-panel">
         {loading && items.length === 0 ? (
-          <p className="foleio-dash-empty">Loading services…</p>
+          <p className={styles.quiet}>Loading services…</p>
         ) : items.length === 0 ? (
-          <p className="foleio-dash-empty">
-            No services yet. Add one to start taking bookings.
-          </p>
+          <EmptyState icon={Briefcase} title="No services yet" body="Add one to start taking bookings." />
         ) : (
           items.map((item) => {
-            const addons = parseAddons(item.addons);
-            const locationOptions = parseAddons(item.locationOptions);
+            const addons = [...parseAddons(item.addons), ...parseAddons(item.locationOptions)];
+            const [firstAddon, ...moreAddons] = addons;
+            const upcoming = upcomingCounts[item.name] || 0;
+            const duration = formatDuration(item.durationMinutes);
+            const meta = [
+              duration,
+              item.isActive
+                ? upcoming > 0
+                  ? `${upcoming} upcoming booking${upcoming === 1 ? '' : 's'}`
+                  : ''
+                : 'turned off',
+            ].filter(Boolean).join(' · ');
             return (
-              <div key={item.id} className="foleio-dash-booking-row">
-                <div className="foleio-dash-booking-main">
-                  <div className="foleio-dash-booking-top">
-                    <span className="foleio-dash-sub-name">{item.name}</span>
-                    <span
-                      className={`foleio-dash-badge ${item.isActive ? 'is-success' : 'is-muted'}`}
-                    >
-                      {item.isActive ? 'Active' : 'Off'}
-                    </span>
-                  </div>
-                  <div className="foleio-dash-booking-meta">
-                    {item.durationMinutes ? (
-                      <span className="foleio-dash-sub-date">
-                        {item.durationMinutes} min
-                      </span>
-                    ) : null}
-                    {addons.length > 0 ? (
-                      <span className="foleio-dash-sub-date">
-                        {addons.length} add-on{addons.length === 1 ? '' : 's'}
-                      </span>
-                    ) : null}
-                    {locationOptions.length > 0 ? (
-                      <span className="foleio-dash-sub-date">
-                        {locationOptions.length} location
-                        {locationOptions.length === 1 ? '' : 's'}
-                      </span>
-                    ) : null}
-                  </div>
-                  {item.description ? (
-                    <p className="foleio-dash-booking-notes">{item.description}</p>
+              <div key={item.id} className={styles.svcRow}>
+                <div>
+                  <p className={styles.svcName}>{item.name}</p>
+                  {meta ? <p className={styles.svcMeta}>{meta}</p> : null}
+                </div>
+                <div className={styles.svcPrice}>
+                  <strong>{item.pricingType === 'quote' ? 'Quote' : formatNaira(item.price / 100)}</strong>
+                  <span>{depositLine(item)}</span>
+                </div>
+                <span className={styles.liveLabel}>
+                  {item.isActive ? 'Live' : 'Off'}
+                  <button
+                    type="button"
+                    className={`${styles.switch} ${item.isActive ? styles.switchOn : ''}`}
+                    aria-pressed={item.isActive}
+                    aria-label={item.isActive ? `Turn off ${item.name}` : `Turn on ${item.name}`}
+                    onClick={() => void handleToggle(item.id)}
+                    disabled={togglingId === item.id}
+                  >
+                    <i />
+                  </button>
+                </span>
+                <button type="button" className={styles.ghost} onClick={() => openEdit(item)} disabled={togglingId === item.id}>
+                  Edit
+                </button>
+                <div className={styles.menu}>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    aria-label={`More actions for ${item.name}`}
+                    aria-expanded={menuId === item.id}
+                    onClick={() => {
+                      setAddonsOpenId(null);
+                      setMenuId((current) => (current === item.id ? null : item.id));
+                    }}
+                  >
+                    <MoreHorizontal strokeWidth={1.75} size={16} />
+                  </button>
+                  {menuId === item.id ? (
+                    <div className={styles.menuPop}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuId(null);
+                          void handleDelete(item.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   ) : null}
                 </div>
-                <div className="foleio-dash-booking-amount">
-                  {formatNaira(item.price / 100)}
-                </div>
-                <div className="foleio-dash-booking-actions">
-                  <button
-                    type="button"
-                    className="foleio-dash-btn-ghost"
-                    onClick={() => handleToggle(item.id)}
-                    disabled={togglingId === item.id}
-                  >
-                    {item.isActive ? 'Turn off' : 'Turn on'}
-                  </button>
-                  <button
-                    type="button"
-                    className="foleio-dash-btn-outline"
-                    onClick={() => openEdit(item)}
-                    disabled={togglingId === item.id}
-                    aria-label={`Edit ${item.name}`}
-                  >
-                    <Pencil className="h-4 w-4" strokeWidth={1.5} />
-                  </button>
-                  <button
-                    type="button"
-                    className="foleio-dash-btn-danger"
-                    onClick={() => handleDelete(item.id)}
-                    disabled={togglingId === item.id}
-                    aria-label={`Delete ${item.name}`}
-                  >
-                    <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                  </button>
-                </div>
+                {firstAddon ? (
+                  <div className={styles.addonLine}>
+                    <span className={styles.addonLabel}>Add-ons</span>
+                    <span className={styles.addonChip}>
+                      {firstAddon.name}
+                      <b>+{formatNaira(firstAddon.price / 100)}</b>
+                    </span>
+                    {moreAddons.length > 0 ? (
+                      <span className={styles.addonMore}>
+                        <button
+                          type="button"
+                          className={styles.addonMoreBtn}
+                          aria-expanded={addonsOpenId === item.id}
+                          onClick={() => {
+                            setMenuId(null);
+                            setAddonsOpenId((current) => (current === item.id ? null : item.id));
+                          }}
+                        >
+                          More
+                        </button>
+                        {addonsOpenId === item.id ? (
+                          <span className={styles.addonPop}>
+                            {moreAddons.map((addon) => (
+                              <span key={addon.id} className={styles.addonChip}>
+                                {addon.name}
+                                <b>+{formatNaira(addon.price / 100)}</b>
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             );
           })
         )}
-      </div>
+        {items.length > 0 ? (
+          <div className={styles.svcFoot}>
+            <span>Turning a service off hides it from your page. Bookings already made stay.</span>
+            <Link href={publicPath} className={styles.textLink}>
+              Preview your page
+              <ArrowRight strokeWidth={1.75} />
+            </Link>
+          </div>
+        ) : null}
+      </section>
 
       {modalOpen ? (
         <>
@@ -709,7 +773,7 @@ export function BookingsServicesManager({
                     type="button"
                     className="foleio-dash-drawer-close"
                     onClick={closeModal}
-                    disabled={saving || uploadingImage}
+                    disabled={saving || uploadingSlot != null}
                     aria-label="Close"
                   >
                 <X className="h-4 w-4" strokeWidth={1.5} />
@@ -721,6 +785,175 @@ export function BookingsServicesManager({
                 onSubmit={handleSave}
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
               >
+                <div className="foleio-dash-field">
+                  <span>Photos</span>
+                  <p className="foleio-dash-field-hint" style={{ marginTop: 4 }}>
+                    Add up to 3 photos. The first photo is the cover.
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={handleCoverImageSelected}
+                  />
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      gap: 8,
+                      marginTop: 10,
+                    }}
+                  >
+                    {Array.from({ length: 3 }).map((_, index) => {
+                      const url = form.galleryUrls[index];
+                      const busy = uploadingSlot === index;
+                      const canAdd =
+                        !url &&
+                        !busy &&
+                        (index === 0 || form.galleryUrls.length >= index);
+                      return (
+                        <div
+                          key={index}
+                          style={{
+                            position: 'relative',
+                            aspectRatio: '1',
+                            borderRadius: 12,
+                            border: '1px dashed rgba(17, 24, 39, 0.12)',
+                            background: '#f3f1f4',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {url ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  uploadSlotRef.current = index;
+                                  fileInputRef.current?.click();
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  inset: 0,
+                                  padding: 0,
+                                  border: 'none',
+                                  background: 'transparent',
+                                  cursor: 'pointer',
+                                }}
+                                aria-label={`Replace photo ${index + 1}`}
+                              >
+                                <RemoteImage
+                                  src={url}
+                                  alt={`Service photo ${index + 1}`}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    display: 'block',
+                                  }}
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeGalleryImage(index)}
+                                aria-label={`Remove photo ${index + 1}`}
+                                disabled={uploadingSlot != null}
+                                style={{
+                                  position: 'absolute',
+                                  top: 6,
+                                  right: 6,
+                                  zIndex: 1,
+                                  width: 24,
+                                  height: 24,
+                                  border: 'none',
+                                  borderRadius: 999,
+                                  background: 'rgba(23, 23, 23, 0.72)',
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: 0,
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={!canAdd || uploadingSlot != null}
+                              onClick={() => {
+                                uploadSlotRef.current = index;
+                                fileInputRef.current?.click();
+                              }}
+                              aria-label={`Upload photo ${index + 1}`}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: canAdd ? 'pointer' : 'not-allowed',
+                                opacity: canAdd || busy ? 1 : 0.45,
+                                padding: 0,
+                              }}
+                            >
+                              {busy ? (
+                                <span
+                                  style={{
+                                    display: 'flex',
+                                    height: '100%',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#6b7280',
+                                    position: 'relative',
+                                  }}
+                                >
+                                  {slotPreview ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={slotPreview}
+                                      alt=""
+                                      style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'cover',
+                                        opacity: 0.55,
+                                      }}
+                                    />
+                                  ) : null}
+                                  <Loader2 className="h-5 w-5 animate-spin" />
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    height: '100%',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 6,
+                                    color: '#6b7280',
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <ImagePlus className="h-5 w-5" />
+                                  Add
+                                </span>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="foleio-dash-field-hint">
+                    JPG, PNG, or WebP · max 5MB.
+                  </p>
+                </div>
+
                 <label className="foleio-dash-field">
                   <span>Service name</span>
                   <input
@@ -729,7 +962,6 @@ export function BookingsServicesManager({
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. Brand Photoshoot"
                     required
-                    autoFocus
                   />
                 </label>
 
@@ -832,102 +1064,6 @@ export function BookingsServicesManager({
                     placeholder={'Trial session\nTravel within Lagos'}
                   />
                 </label>
-
-                <div className="foleio-dash-field">
-                  <span>Cover image (optional)</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    style={{ display: 'none' }}
-                    onChange={handleCoverImageSelected}
-                  />
-                  {(imagePreview || form.coverImageUrl) ? (
-                    <div style={{ marginTop: 8 }}>
-                      {imagePreview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={imagePreview}
-                          alt=""
-                          style={{
-                            width: '100%',
-                            maxWidth: 240,
-                            aspectRatio: '16/10',
-                            objectFit: 'cover',
-                            borderRadius: 10,
-                            opacity: uploadingImage ? 0.7 : 1,
-                          }}
-                        />
-                      ) : (
-                        <RemoteImage
-                          src={form.coverImageUrl}
-                          alt=""
-                          style={{
-                            width: '100%',
-                            maxWidth: 240,
-                            aspectRatio: '16/10',
-                            objectFit: 'cover',
-                            borderRadius: 10,
-                          }}
-                        />
-                      )}
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 8,
-                          marginTop: 10,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="foleio-dash-btn-outline"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={uploadingImage}
-                        >
-                          {uploadingImage ? (
-                            <Loader2
-                              className="h-4 w-4 animate-spin"
-                              strokeWidth={1.5}
-                            />
-                          ) : (
-                            <ImagePlus className="h-4 w-4" strokeWidth={1.5} />
-                          )}
-                          {uploadingImage ? 'Uploading…' : 'Replace'}
-                        </button>
-                        <button
-                          type="button"
-                          className="foleio-dash-btn-ghost"
-                          onClick={clearCoverImage}
-                          disabled={uploadingImage}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="foleio-dash-btn-outline"
-                      style={{ marginTop: 8, width: 'fit-content' }}
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingImage}
-                    >
-                      {uploadingImage ? (
-                        <Loader2
-                          className="h-4 w-4 animate-spin"
-                          strokeWidth={1.5}
-                        />
-                      ) : (
-                        <ImagePlus className="h-4 w-4" strokeWidth={1.5} />
-                      )}
-                      {uploadingImage ? 'Uploading…' : 'Upload image'}
-                    </button>
-                  )}
-                  <p className="foleio-dash-field-hint">
-                    JPG, PNG, or WebP · max 5MB. Shows on your public services.
-                  </p>
-                </div>
 
                 <div className="foleio-dash-field">
                   <label
@@ -1241,7 +1377,7 @@ export function BookingsServicesManager({
                       className="foleio-dash-btn-outline"
                       style={{ width: '100%' }}
                       onClick={() => void convertServiceToProduct()}
-                      disabled={saving || uploadingImage || isConverting}
+                      disabled={saving || uploadingSlot != null || isConverting}
                     >
                       {isConverting ? (
                         <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
@@ -1260,14 +1396,14 @@ export function BookingsServicesManager({
                     type="button"
                     className="foleio-dash-btn-ghost"
                     onClick={closeModal}
-                    disabled={saving || uploadingImage || isConverting}
+                    disabled={saving || uploadingSlot != null || isConverting}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     className="foleio-dash-btn-primary"
-                    disabled={saving || uploadingImage || isConverting}
+                    disabled={saving || uploadingSlot != null || isConverting}
                   >
                     {saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />

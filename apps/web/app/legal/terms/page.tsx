@@ -1,3 +1,6 @@
+import { LegalDocument } from '@/components/legal/LegalDocument';
+import { Italic } from '@/components/landing/ui';
+
 export const metadata = {
   title: 'Terms of Service · Foleio',
   description: 'Terms of Service for the Foleio platform.',
@@ -5,14 +8,15 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="mb-2 text-4xl font-medium tracking-tight text-foreground">
-        Terms of Service
-      </h1>
-      <p className="text-muted-foreground text-sm mb-10">
-        Effective Date: March 2026 · Last Updated: March 2026
-      </p>
-      <div className="legal-content">
+    <LegalDocument
+      active="/legal/terms"
+      title={
+        <>
+          Terms of <Italic>Service</Italic>
+        </>
+      }
+      effective="Effective March 2026 · Last updated 12 October 2026"
+    >
         <p>
           Welcome to Foleio. These Terms of Service (&quot;Terms&quot;) govern your
           access to and use of the Foleio platform, website, and services
@@ -273,7 +277,6 @@ export default function TermsPage() {
         <p>Email: legal@foleio.com</p>
         <p>Website: www.foleio.com</p>
         <p>[Insert registered business address once CAC registration is complete]</p>
-      </div>
-    </div>
+    </LegalDocument>
   );
 }

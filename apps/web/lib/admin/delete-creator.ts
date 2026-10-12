@@ -158,13 +158,13 @@ export async function deleteE2eCreatorByEmail(email: string): Promise<{
   const user = await prisma.user.findUnique({
     where: { email: normalized },
     select: {
-      creator: { select: { id: true } },
+      creatorProfile: { select: { id: true } },
     },
   });
 
   let deletedCreator: DeletedCreatorSummary | null = null;
-  if (user?.creator?.id) {
-    deletedCreator = await deleteCreatorById(user.creator.id);
+  if (user?.creatorProfile?.id) {
+    deletedCreator = await deleteCreatorById(user.creatorProfile.id);
   }
 
   const waitlistDeleted = await deleteE2eWaitlistEntries([normalized]);

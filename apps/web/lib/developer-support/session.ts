@@ -2,8 +2,9 @@ import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@foleio/database';
+import { DEVELOPER_SUPPORT_COOKIE } from '@/lib/developer-support/constants';
 
-export const DEVELOPER_SUPPORT_COOKIE = 'foleio_dev_support';
+export { DEVELOPER_SUPPORT_COOKIE };
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7;
 
 export type DeveloperSupportSession = {

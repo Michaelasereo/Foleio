@@ -64,6 +64,7 @@ async function getLeanDashboardAnalytics(creatorId: string) {
     contentCount: 0,
     subscriberCount: 0,
     totalRevenue: earnings.totalEarnings,
+    currentMonth: earnings.currentMonth,
     recentTransactions: [],
     percentageChanges: {
       earnings: null as string | null,
@@ -163,6 +164,7 @@ export default async function DashboardPage({
     contentCount: 0,
     subscriberCount: 0,
     totalRevenue: 0,
+    currentMonth: 0,
     recentTransactions: [],
     percentageChanges: {
       earnings: null as string | null,
@@ -180,51 +182,202 @@ export default async function DashboardPage({
     id: string;
     customerName: string;
     bookingDate: Date;
+    startTime: string | null;
     totalAmount: number;
+    balanceAmount: number;
     status: string;
+    customerAddress: string;
     priceListItem: { name: string } | null;
   }> = [];
+  let quotesResult: Array<{
+    id: string;
+    title: string;
+    customerName: string;
+    totalAmount: number;
+    status: string;
+    serviceDate: Date | null;
+  }> = [];
+  let ordersResult: Array<{
+    id: string;
+    status: string;
+    total: number;
+    createdAt: Date;
+    deliveryAddress: unknown;
+    items: Array<{ product: { name: string } | null }>;
+  }> = [];
+  let paymentsResult: Array<{
+    id: string;
+    createdAt: Date;
+    type: string;
+    creatorEarnings: number;
+    platformFee: number;
+    metadata: unknown;
+  }> = [];
+  let weeksResult: Array<{ label: string; amount: number }> = [];
+  let lowStockResult: Array<{ id: string; name: string; stock: number | null; price: number }> = [];
+  let preordersResult: Array<{ id: string; name: string; price: number }> = [];
+  let bankLabel: string | null = null;
 
   if (creator.id !== 'preview') {
-    const [analytics, upcomingBookings, totalBookings] = await Promise.all([
-      withTimeout(getLeanDashboardAnalytics(creator.id), 8000).catch(() => emptyAnalytics),
-      withTimeout(
-        prisma.booking.findMany({
-          where: {
-            creatorId: creator.id,
-            bookingDate: { gte: today, lte: monthEnd },
-            status: { notIn: ['cancelled', 'canceled', 'refunded'] },
-          },
-          orderBy: { bookingDate: 'asc' },
-          take: 2,
-          select: {
-            id: true,
-            customerName: true,
-            bookingDate: true,
-            totalAmount: true,
-            status: true,
-            priceListItem: {
-              select: { name: true },
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+    weekStart.setHours(0, 0, 0, 0);
+    const seriesStart = new Date(weekStart);
+    seriesStart.setDate(seriesStart.getDate() - 7 * 7);
+
+    const [analytics, upcomingBookings, totalBookings, upcomingCount, quotes, orders, payments, lowStock, preorders, bank] =
+      await Promise.all([
+        withTimeout(getLeanDashboardAnalytics(creator.id), 8000).catch(() => emptyAnalytics),
+        withTimeout(
+          prisma.booking.findMany({
+            where: {
+              creatorId: creator.id,
+              bookingDate: { gte: today },
+              status: { notIn: ['cancelled', 'canceled', 'refunded'] },
             },
-          },
-        }),
-        5000
-      ).catch(() => []),
-      withTimeout(
-        prisma.booking.count({
-          where: {
-            creatorId: creator.id,
-            status: { in: activeBookingStatuses },
-          },
-        }),
-        5000
-      ).catch(() => 0),
-    ]);
+            orderBy: { bookingDate: 'asc' },
+            take: 8,
+            select: {
+              id: true,
+              customerName: true,
+              bookingDate: true,
+              startTime: true,
+              totalAmount: true,
+              balanceAmount: true,
+              status: true,
+              customerAddress: true,
+              priceListItem: { select: { name: true } },
+            },
+          }),
+          5000
+        ).catch(() => []),
+        withTimeout(
+          prisma.booking.count({
+            where: { creatorId: creator.id, status: { in: activeBookingStatuses } },
+          }),
+          5000
+        ).catch(() => 0),
+        withTimeout(
+          prisma.booking.count({
+            where: {
+              creatorId: creator.id,
+              bookingDate: { gte: today, lte: monthEnd },
+              status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+            },
+          }),
+          5000
+        ).catch(() => 0),
+        withTimeout(
+          prisma.quote.findMany({
+            where: { creatorId: creator.id },
+            orderBy: { createdAt: 'desc' },
+            take: 4,
+            select: {
+              id: true,
+              title: true,
+              customerName: true,
+              totalAmount: true,
+              status: true,
+              serviceDate: true,
+            },
+          }),
+          5000
+        ).catch(() => []),
+        withTimeout(
+          prisma.order.findMany({
+            where: { creatorId: creator.id },
+            orderBy: { createdAt: 'desc' },
+            take: 8,
+            select: {
+              id: true,
+              status: true,
+              total: true,
+              createdAt: true,
+              deliveryAddress: true,
+              items: { take: 1, select: { product: { select: { name: true } } } },
+            },
+          }),
+          5000
+        ).catch(() => []),
+        withTimeout(
+          prisma.transaction.findMany({
+            where: {
+              creatorId: creator.id,
+              createdAt: { gte: seriesStart },
+              type: { notIn: ['payout', 'platform_fee'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 80,
+            select: {
+              id: true,
+              createdAt: true,
+              type: true,
+              creatorEarnings: true,
+              platformFee: true,
+              metadata: true,
+            },
+          }),
+          5000
+        ).catch(() => []),
+        withTimeout(
+          prisma.product.findMany({
+            where: { creatorId: creator.id, status: 'active', stock: { not: null, lte: 4 } },
+            orderBy: { stock: 'asc' },
+            take: 4,
+            select: { id: true, name: true, stock: true, price: true },
+          }),
+          5000
+        ).catch(() => []),
+        withTimeout(
+          prisma.product.findMany({
+            where: { creatorId: creator.id, status: 'active', isPreorder: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 4,
+            select: { id: true, name: true, price: true },
+          }),
+          5000
+        ).catch(() => []),
+        withTimeout(
+          prisma.bankAccount.findUnique({
+            where: { creatorId: creator.id },
+            select: { bankName: true, accountNumber: true },
+          }),
+          5000
+        ).catch(() => null),
+      ]);
 
     analyticsResult = analytics;
     upcomingBookingsResult = upcomingBookings || [];
-    upcomingCountResult = upcomingBookingsResult.length;
+    upcomingCountResult = upcomingCount || 0;
     totalBookingsResult = totalBookings || 0;
+    quotesResult = quotes || [];
+    ordersResult = orders || [];
+    paymentsResult = (payments || []).map((row) => ({
+      id: row.id,
+      createdAt: row.createdAt,
+      type: row.type,
+      creatorEarnings: Number(row.creatorEarnings || 0),
+      platformFee: Number(row.platformFee || 0),
+      metadata: row.metadata,
+    }));
+    lowStockResult = lowStock || [];
+    preordersResult = preorders || [];
+    bankLabel = bank
+      ? `${bank.bankName} ··${bank.accountNumber.slice(-4)}`
+      : null;
+    weeksResult = Array.from({ length: 8 }, (_, index) => {
+      const start = new Date(weekStart);
+      start.setDate(start.getDate() - (7 - index) * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      const amount = paymentsResult
+        .filter((row) => row.createdAt >= start && row.createdAt < end)
+        .reduce((sum, row) => sum + row.creatorEarnings, 0);
+      return {
+        label: start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        amount,
+      };
+    });
   }
 
   return (
@@ -237,6 +390,13 @@ export default async function DashboardPage({
         upcomingBookings: upcomingCountResult || 0,
       }}
       upcomingBookings={upcomingBookingsResult || []}
+      quotes={quotesResult}
+      orders={ordersResult}
+      payments={paymentsResult.slice(0, 6)}
+      weeks={weeksResult}
+      lowStock={lowStockResult}
+      preorders={preordersResult}
+      bankLabel={bankLabel}
     />
   );
 }

@@ -16,6 +16,7 @@ import { BillingPage } from '@/components/creator/BillingPage';
 import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
 import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
 import { OfferingsSettings } from '@/components/creator/OfferingsSettings';
+import { RightSideDrawer } from '@/components/creator/RightSideDrawer';
 import { BIO_MAX_WORDS, countBioWords, trimBioToMaxWords } from '@/lib/creator/bio';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { parseSocialUrl } from '@/lib/creator/social-urls';
@@ -110,6 +111,7 @@ interface AccountSettingsTabsProps {
   reviews?: CreatorReviewRow[];
   reviewsEnabled?: boolean;
   userEmail?: string | null;
+  userPhone?: string | null;
   supportMode?: boolean;
 }
 
@@ -120,6 +122,7 @@ export function AccountSettingsTabs({
   reviews,
   reviewsEnabled = true,
   userEmail,
+  userPhone,
   supportMode = false,
 }: AccountSettingsTabsProps) {
   const router = useRouter();
@@ -146,10 +149,20 @@ export function AccountSettingsTabs({
   const [devSupportLoading, setDevSupportLoading] = useState(true);
   const [devSupportRequesting, setDevSupportRequesting] = useState(false);
   const [devSupportRevoking, setDevSupportRevoking] = useState(false);
+  const [supportDrawerOpen, setSupportDrawerOpen] = useState(false);
+  const [supportWhatsappInput, setSupportWhatsappInput] = useState(userPhone || '');
+  const [supportNoteInput, setSupportNoteInput] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordDrawerOpen, setPasswordDrawerOpen] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState('');
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [emailDrawerOpen, setEmailDrawerOpen] = useState(false);
+  const [supportPhone, setSupportPhone] = useState(userPhone || '');
+  const [savingSupportPhone, setSavingSupportPhone] = useState(false);
   const [urlErrors, setUrlErrors] = useState<{
     instagramUrl?: string;
     tiktokUrl?: string;
@@ -208,17 +221,59 @@ export function AccountSettingsTabs({
     };
   }, []);
 
+  useEffect(() => {
+    setSupportPhone(userPhone || '');
+    if (!supportDrawerOpen) {
+      setSupportWhatsappInput(userPhone || '');
+    }
+  }, [userPhone, supportDrawerOpen]);
+
+  function openSupportDrawer() {
+    setSupportWhatsappInput((supportPhone || userPhone || '').trim());
+    setSupportNoteInput('');
+    setSupportDrawerOpen(true);
+  }
+
+  function openEmailDrawer() {
+    setPendingEmail('');
+    setEmailCurrentPassword('');
+    setEmailDrawerOpen(true);
+  }
+
+  function openPasswordDrawer() {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordDrawerOpen(true);
+  }
+
   async function handleRequestDeveloperSupport() {
+    const digits = supportWhatsappInput.replace(/\D/g, '');
+    if (!digits) {
+      toast({
+        title: 'WhatsApp number required',
+        description: 'Add a WhatsApp number so support can reach you quickly.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setDevSupportRequesting(true);
     try {
       const response = await fetch('/api/creator/developer-support/request', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantWhatsappPhone: supportWhatsappInput,
+          supportNote: supportNoteInput,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || 'Request failed');
       }
       setDevSupportStatus('pending');
+      setSupportDrawerOpen(false);
+      setSupportPhone(data.merchantWhatsappPhone || supportPhone);
       if (data.whatsappUrl) {
         window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
       }
@@ -234,6 +289,94 @@ export function AccountSettingsTabs({
       });
     } finally {
       setDevSupportRequesting(false);
+    }
+  }
+
+  async function handleChangeEmail() {
+    if (supportMode) {
+      toast({
+        title: 'Unavailable',
+        description: 'This area is unavailable in developer support mode.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!pendingEmail.trim() || !emailCurrentPassword.trim()) {
+      toast({
+        title: 'Missing fields',
+        description: 'Enter a new email and your current password.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setChangingEmail(true);
+    try {
+      const response = await fetch('/api/creator/account/change-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newEmail: pendingEmail,
+          currentPassword: emailCurrentPassword,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Could not start email change');
+      }
+      setPendingEmail('');
+      setEmailCurrentPassword('');
+      setEmailDrawerOpen(false);
+      toast({
+        title: 'Email update started',
+        description:
+          data?.message || 'Check your new email inbox to confirm the change.',
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: 'Could not update email',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setChangingEmail(false);
+    }
+  }
+
+  async function handleSaveSupportPhone() {
+    if (supportMode) {
+      toast({
+        title: 'Unavailable',
+        description: 'This area is unavailable in developer support mode.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSavingSupportPhone(true);
+    try {
+      const response = await fetch('/api/creator/account/contact', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: supportPhone }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Could not save support WhatsApp');
+      }
+      setSupportPhone(data?.phoneNumber || '');
+      toast({
+        title: 'Support WhatsApp saved',
+        description: 'Support can now reach you on this number.',
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: 'Could not save number',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingSupportPhone(false);
     }
   }
 
@@ -405,6 +548,7 @@ export function AccountSettingsTabs({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setPasswordDrawerOpen(false);
       toast({
         title: 'Password updated',
         description: 'Your password has been changed.',
@@ -608,9 +752,15 @@ export function AccountSettingsTabs({
     <>
       <div className="foleio-dash-header">
         <div>
-          <h1 className="foleio-auth-title">Settings</h1>
+          <h1 className="foleio-auth-title">
+            {activeTab === 'security' ? 'Account settings' : activeTab === 'profile' ? 'Profile settings' : 'Settings'}
+          </h1>
           <p className="foleio-dash-panel-meta" style={{ marginTop: 6, marginBottom: 0 }}>
-            Manage your profile, privacy and account preferences
+            {activeTab === 'security'
+              ? 'Email, password, and sign-in. Nothing here changes how you get paid.'
+              : activeTab === 'profile'
+                ? 'What clients see on your public page.'
+                : 'Manage your profile, privacy and account preferences'}
           </p>
         </div>
       </div>
@@ -1043,7 +1193,7 @@ export function AccountSettingsTabs({
         <div className="foleio-dash-panel" style={{ maxWidth: 560 }}>
           <h2 className="foleio-dash-panel-title">Security</h2>
           <p className="foleio-dash-panel-meta">
-            Change the password for your Foleio account.
+            Manage your account contact details and password.
           </p>
           {userEmail ? (
             <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
@@ -1060,57 +1210,59 @@ export function AccountSettingsTabs({
               />
             </div>
           ) : null}
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            onClick={openEmailDrawer}
+            disabled={changingEmail}
+          >
+            {changingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {changingEmail ? 'Updating…' : 'Update email'}
+          </button>
+          <p className="foleio-dash-field-hint" style={{ marginTop: 10, marginBottom: 18 }}>
+            We will send a confirmation link to your new email before it becomes active.
+          </p>
+
           <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
-            <label className="foleio-dash-label" htmlFor="security-current-password">
-              Current password
+            <label className="foleio-dash-label" htmlFor="security-support-phone">
+              Support WhatsApp number
             </label>
             <input
-              id="security-current-password"
-              type="password"
+              id="security-support-phone"
+              type="tel"
               className="foleio-dash-input"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Current password"
+              value={supportPhone}
+              onChange={(e) => setSupportPhone(e.target.value)}
+              placeholder="08141294589 or 2348141294589"
             />
-          </div>
-          <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
-            <label className="foleio-dash-label" htmlFor="security-new-password">
-              New password
-            </label>
-            <input
-              id="security-new-password"
-              type="password"
-              className="foleio-dash-input"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="New password (min 8)"
-            />
-          </div>
-          <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
-            <label className="foleio-dash-label" htmlFor="security-confirm-password">
-              Confirm new password
-            </label>
-            <input
-              id="security-confirm-password"
-              type="password"
-              className="foleio-dash-input"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-            />
+            <p className="foleio-dash-field-hint">
+              Foleio can use this to reach you about account setup and support.
+            </p>
           </div>
           <button
             type="button"
             className="foleio-dash-btn-primary"
-            onClick={() => void handleChangePassword()}
+            onClick={() => void handleSaveSupportPhone()}
+            disabled={savingSupportPhone}
+            style={{ marginBottom: 20 }}
+          >
+            {savingSupportPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {savingSupportPhone ? 'Saving…' : 'Save support WhatsApp'}
+          </button>
+
+          <h3 className="foleio-dash-panel-title" style={{ fontSize: 18, marginBottom: 6 }}>
+            Change password
+          </h3>
+          <p className="foleio-dash-field-hint" style={{ marginBottom: 14 }}>
+            Use your current password and set a new password (min 8 characters).
+          </p>
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            onClick={openPasswordDrawer}
             disabled={changingPassword}
           >
-            {changingPassword ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : null}
+            {changingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {changingPassword ? 'Updating…' : 'Update password'}
           </button>
         </div>
@@ -1143,7 +1295,7 @@ export function AccountSettingsTabs({
             <button
               type="button"
               className="foleio-dash-btn-primary"
-              onClick={() => void handleRequestDeveloperSupport()}
+              onClick={openSupportDrawer}
               disabled={devSupportRequesting || devSupportRevoking}
             >
               {devSupportRequesting ? (
@@ -1167,6 +1319,187 @@ export function AccountSettingsTabs({
           </div>
         </div>
       ) : null}
+      <RightSideDrawer
+        open={supportDrawerOpen}
+        onClose={() => setSupportDrawerOpen(false)}
+        title="Request developer support"
+        description="Add your WhatsApp and an optional note so support can reach you quickly."
+        busy={devSupportRequesting}
+      >
+        <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
+          <label className="foleio-dash-label" htmlFor="support-whatsapp-phone">
+            Your WhatsApp number
+          </label>
+          <input
+            id="support-whatsapp-phone"
+            type="tel"
+            className="foleio-dash-input"
+            value={supportWhatsappInput}
+            onChange={(e) => setSupportWhatsappInput(e.target.value)}
+            placeholder="08141294589 or 2348141294589"
+          />
+        </div>
+        <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
+          <label className="foleio-dash-label" htmlFor="support-note">
+            Note for support (optional)
+          </label>
+          <textarea
+            id="support-note"
+            className="foleio-dash-input"
+            value={supportNoteInput}
+            onChange={(e) => setSupportNoteInput(e.target.value)}
+            placeholder="Share what you need help with."
+            rows={5}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            onClick={() => void handleRequestDeveloperSupport()}
+            disabled={devSupportRequesting}
+          >
+            {devSupportRequesting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            {devSupportRequesting ? 'Requesting…' : 'Send request'}
+          </button>
+          <button
+            type="button"
+            className="foleio-dash-btn"
+            onClick={() => setSupportDrawerOpen(false)}
+            disabled={devSupportRequesting}
+          >
+            Cancel
+          </button>
+        </div>
+      </RightSideDrawer>
+
+      <RightSideDrawer
+        open={emailDrawerOpen}
+        onClose={() => setEmailDrawerOpen(false)}
+        title="Update email"
+        description="Enter your new email and current password to start confirmation."
+        busy={changingEmail}
+      >
+        <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
+          <label className="foleio-dash-label" htmlFor="security-new-email">
+            New email
+          </label>
+          <input
+            id="security-new-email"
+            type="email"
+            className="foleio-dash-input"
+            autoComplete="email"
+            value={pendingEmail}
+            onChange={(e) => setPendingEmail(e.target.value)}
+            placeholder="name@example.com"
+          />
+        </div>
+        <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
+          <label className="foleio-dash-label" htmlFor="security-email-password">
+            Current password
+          </label>
+          <input
+            id="security-email-password"
+            type="password"
+            className="foleio-dash-input"
+            autoComplete="current-password"
+            value={emailCurrentPassword}
+            onChange={(e) => setEmailCurrentPassword(e.target.value)}
+            placeholder="Current password"
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            onClick={() => void handleChangeEmail()}
+            disabled={changingEmail}
+          >
+            {changingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {changingEmail ? 'Updating…' : 'Update email'}
+          </button>
+          <button
+            type="button"
+            className="foleio-dash-btn"
+            onClick={() => setEmailDrawerOpen(false)}
+            disabled={changingEmail}
+          >
+            Cancel
+          </button>
+        </div>
+      </RightSideDrawer>
+
+      <RightSideDrawer
+        open={passwordDrawerOpen}
+        onClose={() => setPasswordDrawerOpen(false)}
+        title="Change password"
+        description="Use your current password and set a new password (min 8 characters)."
+        busy={changingPassword}
+      >
+        <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
+          <label className="foleio-dash-label" htmlFor="security-current-password">
+            Current password
+          </label>
+          <input
+            id="security-current-password"
+            type="password"
+            className="foleio-dash-input"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Current password"
+          />
+        </div>
+        <div className="foleio-dash-field" style={{ marginBottom: 12 }}>
+          <label className="foleio-dash-label" htmlFor="security-new-password">
+            New password
+          </label>
+          <input
+            id="security-new-password"
+            type="password"
+            className="foleio-dash-input"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="New password (min 8)"
+          />
+        </div>
+        <div className="foleio-dash-field" style={{ marginBottom: 16 }}>
+          <label className="foleio-dash-label" htmlFor="security-confirm-password">
+            Confirm new password
+          </label>
+          <input
+            id="security-confirm-password"
+            type="password"
+            className="foleio-dash-input"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirm new password"
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="foleio-dash-btn-primary"
+            onClick={() => void handleChangePassword()}
+            disabled={changingPassword}
+          >
+            {changingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {changingPassword ? 'Updating…' : 'Update password'}
+          </button>
+          <button
+            type="button"
+            className="foleio-dash-btn"
+            onClick={() => setPasswordDrawerOpen(false)}
+            disabled={changingPassword}
+          >
+            Cancel
+          </button>
+        </div>
+      </RightSideDrawer>
     </>
   );
 }

@@ -70,6 +70,12 @@ jobs:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           PAYSTACK_PRO_PLAN_CODE: ${{ secrets.PAYSTACK_PRO_PLAN_CODE }}
           PAYSTACK_PREMIUM_PLAN_CODE: ${{ secrets.PAYSTACK_PREMIUM_PLAN_CODE }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          NEXT_PUBLIC_ENV: production
+          PAYSTACK_PRO_MONTHLY_PLAN_CODE: ${{ secrets.PAYSTACK_PRO_MONTHLY_PLAN_CODE }}
+          PAYSTACK_PRO_QUARTERLY_PLAN_CODE: ${{ secrets.PAYSTACK_PRO_QUARTERLY_PLAN_CODE }}
+          ADMIN_NOTIFICATION_EMAIL: ${{ secrets.ADMIN_NOTIFICATION_EMAIL }}
+          MANUAL_PAYOUTS_ENABLED: ${{ secrets.MANUAL_PAYOUTS_ENABLED }}
 
       - name: Block if failed
         if: failure()

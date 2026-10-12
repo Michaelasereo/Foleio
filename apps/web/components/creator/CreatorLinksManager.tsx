@@ -42,6 +42,7 @@ import {
   Twitter,
   FileText,
 } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import {
   createCreatorLink,
   updateCreatorLink,
@@ -291,9 +292,7 @@ export function CreatorLinksManager() {
       {isLoading ? (
         <p className="foleio-dash-empty">Loading…</p>
       ) : links.length === 0 ? (
-        <p className="foleio-dash-empty">
-          No links yet. Add social profiles and important pages.
-        </p>
+        <EmptyState icon={Link} title="No links yet" body="Add social profiles and important pages." />
       ) : (
         <div className="foleio-dash-settings-stack" style={{ marginTop: 12 }}>
           {links.map((link) => (

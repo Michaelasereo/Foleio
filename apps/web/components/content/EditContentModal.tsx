@@ -21,6 +21,7 @@ type ContentItem = {
   collectionId?: string | null;
   thumbnailUrl?: string | null;
   isPublished?: boolean;
+  type?: string | null;
 };
 
 type CollectionItem = { id: string; title: string };

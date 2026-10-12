@@ -73,6 +73,15 @@ function percentageChange(current: number, previous: number): string | null {
   return `${sign}${change.toFixed(1)}%`;
 }
 
+function weekdayCounts(dates: Date[]) {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (const date of dates) {
+    const day = date.getDay();
+    if (day >= 0 && day <= 6) counts[day] += 1;
+  }
+  return counts;
+}
+
 function customerNameFromAddress(address: unknown): string {
   if (!address || typeof address !== 'object') return 'Customer';
   const row = address as Record<string, unknown>;
@@ -143,6 +152,7 @@ export async function GET() {
       recentOrders,
       orderItemsByProduct,
       paidOrdersForSeries,
+      nextBooking,
     ] = await Promise.all([
       prisma.booking.count({
         where: {
@@ -211,7 +221,7 @@ export async function GET() {
           status: { in: PAID_BOOKING_STATUSES },
           createdAt: { gte: seriesStart },
         },
-        select: { createdAt: true, totalAmount: true },
+        select: { createdAt: true, totalAmount: true, bookingDate: true },
       }),
       prisma.order.count({
         where: {
@@ -312,6 +322,15 @@ export async function GET() {
         },
         select: { createdAt: true, total: true },
       }),
+      prisma.booking.findFirst({
+        where: {
+          creatorId: creator.id,
+          bookingDate: { gte: today },
+          status: { notIn: ['cancelled', 'refunded'] },
+        },
+        orderBy: { bookingDate: 'asc' },
+        select: { bookingDate: true },
+      }),
     ]);
 
     const serviceIds = bookingsByService
@@ -402,6 +421,11 @@ export async function GET() {
         totalEarnings: earnings.totalEarnings,
         upcomingBookings,
         averageBookingValue: Math.round(Number(avgBooking._avg.totalAmount || 0)),
+        bookingsLastMonth: prevMonthBookings,
+        nextBookingDate: nextBooking?.bookingDate?.toISOString() ?? null,
+        weekdayCounts: weekdayCounts(
+          paidBookingsForSeries.map((booking) => new Date(booking.bookingDate))
+        ),
         percentageChanges: {
           bookings: percentageChange(bookingsThisMonth, prevMonthBookings),
           earnings: percentageChange(earnings.currentMonth, earnings.prevMonth),
@@ -431,6 +455,8 @@ export async function GET() {
         totalRevenue: creatorShareFromGross(shopGrossAll, feePct).creatorEarnings,
         productsSold: productsSoldAgg._sum.quantity || 0,
         averageOrderValue: Math.round(Number(avgOrder._avg.total || 0)),
+        ordersLastMonth: prevMonthOrders,
+        weekdayCounts: weekdayCounts(paidOrdersForSeries.map((order) => order.createdAt)),
         percentageChanges: {
           orders: percentageChange(ordersThisMonth, prevMonthOrders),
           revenue: percentageChange(

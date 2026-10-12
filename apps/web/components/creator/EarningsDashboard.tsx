@@ -5,14 +5,18 @@ import {
   AlertCircle,
   CheckCircle2,
   Download,
+  Landmark,
   Loader2,
+  Receipt,
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import { formatNaira } from '@foleio/utils';
 import { type BankAccount } from '@/components/creator/BankSetupForm';
 import { PayoutSetupFlow } from '@/components/creator/PayoutSetupFlow';
 import { EarningsLoadingSkeleton } from '@/components/creator/EarningsLoadingSkeleton';
+import { EarningsLive, PayoutsLive, type EarningsView } from '@/components/creator/earnings-live';
 
 type EarningsPayload = {
   creator: {
@@ -125,7 +129,15 @@ function normalizeBank(raw: any): BankAccount | null {
   };
 }
 
-export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean }) {
+export function EarningsDashboard({
+  hideHeader = false,
+  presentation = 'earnings',
+  onView,
+}: {
+  hideHeader?: boolean;
+  presentation?: 'earnings' | 'payouts';
+  onView?: (view: EarningsView) => void;
+}) {
   const [data, setData] = useState<EarningsPayload | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [retryKey, setRetryKey] = useState(0);
@@ -136,6 +148,7 @@ export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean
   const [identityVerified, setIdentityVerified] = useState(false);
   const [requireDojahKyc, setRequireDojahKyc] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [period, setPeriod] = useState<'all' | 'month' | 'quarter'>('all');
 
   const loadEarnings = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch('/api/creator/earnings', {
@@ -207,6 +220,17 @@ export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean
     }));
   }, [data]);
 
+  const visibleTransactions = useMemo(() => {
+    const rows = data?.transactions || [];
+    if (period === 'all') return rows;
+    const now = new Date();
+    const start =
+      period === 'month'
+        ? new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+        : now.getTime() - 90 * 24 * 60 * 60 * 1000;
+    return rows.filter((transaction) => new Date(transaction.createdAt).getTime() >= start);
+  }, [data, period]);
+
   if (state === 'loading' && !data) {
     return <EarningsLoadingSkeleton />;
   }
@@ -255,304 +279,68 @@ export function EarningsDashboard({ hideHeader = false }: { hideHeader?: boolean
     }
   }
 
-  const stats = [
-    {
-      title: 'Total earnings',
-      value: formatNaira(totalEarned / 100),
-      hint: 'Full payments + deposits after fees',
-      icon: TrendingUp,
-    },
-    {
-      title: 'Full payments',
-      value: formatNaira(fullPayments / 100),
-      hint: 'Fully paid bookings',
-      icon: CheckCircle2,
-    },
-    {
-      title: 'Deposits',
-      value: formatNaira(deposits / 100),
-      hint: 'Paid now · balance still due',
-      icon: Wallet,
-    },
-    {
-      title: 'Outstanding',
-      value: formatNaira(outstanding / 100),
-      hint: 'Balances clients still owe',
-      icon: AlertCircle,
-    },
-  ];
+  const view: EarningsView = presentation === 'payouts' ? 'payouts' : 'earnings';
+  const bankEditor = earnings.creator.id && earnings.creator.userId && (!creatorBank || editingBank) ? (
+    <div style={{ marginTop: 16 }}>
+      <PayoutSetupFlow
+        creatorId={earnings.creator.id}
+        userId={earnings.creator.userId}
+        email={earnings.creator.email}
+        firstName={earnings.creator.displayName?.split(/\s+/)[0] || null}
+        lastName={earnings.creator.displayName?.split(/\s+/).slice(1).join(' ') || null}
+        identityVerified={identityVerified}
+        requireDojahKyc={requireDojahKyc}
+        bankAccount={creatorBank}
+        editingBank={editingBank || !creatorBank}
+        onIdentityVerified={() => {
+          setIdentityVerified(true);
+          setData((prev) =>
+            prev
+              ? { ...prev, creator: { ...prev.creator, bvnVerified: true } }
+              : prev
+          );
+          void loadEarnings();
+        }}
+        onBankSaved={(bank) => {
+          setCreatorBank(bank);
+          setEditingBank(false);
+          setData((prev) =>
+            prev
+              ? { ...prev, creator: { ...prev.creator, bankAccount: bank } }
+              : prev
+          );
+          void loadEarnings();
+        }}
+        onCancelBankEdit={creatorBank ? () => setEditingBank(false) : undefined}
+      />
+    </div>
+  ) : null;
 
-  const tabs: Array<{ id: TabId; label: string; count?: number }> = [
-    {
-      id: 'transactions',
-      label: 'Transactions',
-      count: earnings.transactions.length,
-    },
-    { id: 'account', label: 'Payout account' },
-  ];
+  if (view === 'payouts') {
+    return (
+      <PayoutsLive
+        view={view}
+        onView={onView}
+        transactions={earnings.transactions}
+        bank={creatorBank}
+        onEditBank={() => setEditingBank(true)}
+        bankEditor={bankEditor}
+        onExport={() => void handleExport()}
+        exporting={exporting}
+      />
+    );
+  }
 
   return (
-    <div>
-      {hideHeader ? null : (
-        <div className="foleio-dash-header">
-          <div>
-            <h1 className="foleio-auth-title">Earnings</h1>
-            <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-              Full payments and deposits, your share after platform fee.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {state === 'error' ? (
-        <p className="foleio-dash-panel-meta" style={{ color: '#fca5a5', marginBottom: 12 }}>
-          Some earnings data could not be refreshed.{' '}
-          <button
-            type="button"
-            className="foleio-dash-btn-ghost"
-            style={{ display: 'inline', padding: 0, height: 'auto' }}
-            onClick={() => setRetryKey((prev) => prev + 1)}
-          >
-            Retry
-          </button>
-        </p>
-      ) : null}
-
-      <div
-        className="foleio-dash-stats"
-        style={{ gridTemplateColumns: '1fr 1fr' }}
-      >
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.title} className="foleio-dash-stat">
-              <div className="foleio-dash-stat-top">
-                <span className="foleio-dash-stat-label">{stat.title}</span>
-                <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
-              </div>
-              <div className="foleio-dash-stat-value">{stat.value}</div>
-              <p className="foleio-dash-stat-change">{stat.hint}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {streamRows.length > 0 ? (
-        <div className="foleio-dash-panel" style={{ marginBottom: 14 }}>
-          <h2 className="foleio-dash-panel-title">Earnings by stream</h2>
-          <p className="foleio-dash-panel-meta">Last 6 months</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-            {streamRows.map((row) => (
-              <div key={row.type}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    marginBottom: 6,
-                  }}
-                >
-                  <span style={{ color: '#111827', fontSize: 14, fontWeight: 500 }}>
-                    {row.label}
-                  </span>
-                  <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 500 }}>
-                    {formatNaira(Number(row.amount) / 100)} · {row.percent}%
-                  </span>
-                </div>
-                <div
-                  style={{
-                    height: 6,
-                    borderRadius: 999,
-                    background: '#ebe8eb',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${row.percent}%`,
-                      height: '100%',
-                      borderRadius: 999,
-                      background: 'hsl(var(--accent))',
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="foleio-dash-tabs" role="tablist" aria-label="Earnings sections">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            className={`foleio-dash-tab${tab === item.id ? ' is-active' : ''}`}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-            {typeof item.count === 'number' ? (
-              <span className="foleio-dash-tab-count">{item.count}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'transactions' ? (
-        <div className="foleio-dash-panel">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <div>
-              <h2 className="foleio-dash-panel-title">Recent transactions</h2>
-              <p className="foleio-dash-panel-meta">
-                {earnings.transactions.length === 0
-                  ? 'Nothing here yet'
-                  : `${earnings.transactions.length} recent`}
-              </p>
-            </div>
-            {earnings.transactions.length > 0 ? (
-              <button
-                type="button"
-                className="foleio-dash-btn-outline"
-                onClick={handleExport}
-                disabled={exporting}
-              >
-                {exporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                ) : (
-                  <Download className="h-4 w-4" strokeWidth={1.5} />
-                )}
-                Export
-              </button>
-            ) : null}
-          </div>
-
-          {earnings.transactions.length === 0 ? (
-            <p className="foleio-dash-empty">No transactions yet.</p>
-          ) : (
-            earnings.transactions.slice(0, 20).map((transaction) => {
-              const serviceName =
-                transaction.metadata?.service ||
-                streamLabel(String(transaction.type || 'payment'));
-              const customerName = transaction.metadata?.customerName;
-              return (
-                <div key={transaction.id} className="foleio-dash-booking-row">
-                  <div className="foleio-dash-booking-main">
-                    <p className="foleio-dash-booking-name">{serviceName}</p>
-                    <div className="foleio-dash-booking-meta">
-                      <span
-                        className={`foleio-dash-badge ${badgeTone(String(transaction.status || 'PENDING'))}`}
-                      >
-                        {String(transaction.status || 'PENDING')}
-                      </span>
-                      {customerName ? <span>{customerName}</span> : null}
-                      <span>
-                        {new Date(transaction.createdAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="foleio-dash-booking-amount">
-                    {formatNaira(Number(transaction.creatorEarnings || 0) / 100)}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      ) : null}
-
-      {tab === 'account' ? (
-        <div className="foleio-dash-panel" id="payout-account">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <div>
-              <h2 className="foleio-dash-panel-title">Unlock payouts</h2>
-              <p className="foleio-dash-panel-meta">
-                {requireDojahKyc
-                  ? 'Step 1: verify identity with Dojah. Step 2: add your bank account. Book appears on your public page only after both are done.'
-                  : 'Add your bank account so clients can book and you can get paid.'}
-              </p>
-            </div>
-            {(!requireDojahKyc || identityVerified) && creatorBank && !editingBank ? (
-              <button
-                type="button"
-                className="foleio-dash-btn-ghost"
-                onClick={() => setEditingBank(true)}
-              >
-                Change bank
-              </button>
-            ) : null}
-          </div>
-
-          {earnings.creator.id && earnings.creator.userId ? (
-            <div style={{ marginTop: 16 }}>
-              <PayoutSetupFlow
-                creatorId={earnings.creator.id}
-                userId={earnings.creator.userId}
-                email={earnings.creator.email}
-                firstName={earnings.creator.displayName?.split(/\s+/)[0] || null}
-                lastName={
-                  earnings.creator.displayName?.split(/\s+/).slice(1).join(' ') || null
-                }
-                identityVerified={identityVerified}
-                requireDojahKyc={requireDojahKyc}
-                bankAccount={creatorBank}
-                editingBank={editingBank}
-                onIdentityVerified={() => {
-                  setIdentityVerified(true);
-                  setData((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          creator: { ...prev.creator, bvnVerified: true },
-                        }
-                      : prev
-                  );
-                  void loadEarnings();
-                }}
-                onBankSaved={(bank) => {
-                  setCreatorBank(bank);
-                  setEditingBank(false);
-                  setData((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          creator: { ...prev.creator, bankAccount: bank },
-                        }
-                      : prev
-                  );
-                  void loadEarnings();
-                }}
-                onCancelBankEdit={
-                  creatorBank ? () => setEditingBank(false) : undefined
-                }
-              />
-            </div>
-          ) : (
-            <p className="foleio-dash-panel-meta" style={{ marginTop: 12 }}>
-              Could not load creator account details. Refresh and try again.
-            </p>
-          )}
-        </div>
-      ) : null}
-    </div>
+    <EarningsLive
+      view={view}
+      onView={onView}
+      transactions={earnings.transactions}
+      monthlyEarnings={earnings.monthlyEarnings}
+      outstanding={outstanding}
+      plan={earnings.creator.platformPlan}
+      onExport={() => void handleExport()}
+      exporting={exporting}
+    />
   );
 }

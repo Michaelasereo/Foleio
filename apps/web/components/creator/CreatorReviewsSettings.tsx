@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Star, Trash2 } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import {
@@ -256,9 +257,7 @@ export function CreatorReviewsSettings({
       ) : null}
 
       {reviews.length === 0 ? (
-        <p className="foleio-dash-empty" style={{ marginTop: 16 }}>
-          No reviews yet. They appear here when customers submit from their email link.
-        </p>
+        <EmptyState icon={Star} title="No reviews yet" body="They appear here when customers submit from their email link." />
       ) : (
         <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
           {reviews.map((review) => (

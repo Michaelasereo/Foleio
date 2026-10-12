@@ -1,8 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import {
-  DEVELOPER_SUPPORT_COOKIE,
-} from '@/lib/developer-support/session';
+import { DEVELOPER_SUPPORT_COOKIE } from '@/lib/developer-support/constants';
 import {
   developerSupportBlockedMessage,
   isDeveloperSupportBlockedApi,

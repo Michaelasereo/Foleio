@@ -2,15 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Calendar,
   ChevronLeft,
   ChevronRight,
-  Globe,
-  Loader2,
-  Pencil,
   Plus,
-  Trash2,
-  X,
 } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import {
   formatSlotLabel,
   generateHourlySlots,
@@ -21,6 +18,7 @@ import {
   type ClockParts12,
   type TimeRange,
 } from '@/lib/booking/slots';
+import styles from '@/components/demo/demo-dashboard.module.css';
 import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import {
@@ -44,11 +42,25 @@ interface AvailabilityItem {
   disabledGeneratedStarts?: string[];
 }
 
+interface DayBooking {
+  bookingDate: string;
+  customerName: string;
+  startTime?: string | null;
+  serviceName?: string | null;
+}
+
+export type AvailabilityDayStatus = {
+  date: string;
+  isAvailable: boolean;
+};
+
 interface AvailabilitySetupFormProps {
   creatorId: string;
   availability: AvailabilityItem[];
+  bookings?: DayBooking[];
   platformPlan?: string | null;
   platformSubscriptionActive?: boolean | null;
+  onAvailabilityChange?: (days: AvailabilityDayStatus[]) => void;
 }
 
 type TimeMode = 'full' | 'hours';
@@ -112,6 +124,17 @@ function toDateKey(date: Date) {
 
 function parseDateKey(key: string) {
   return new Date(`${key}T12:00:00`);
+}
+
+function eachDateKey(from: string, to: string) {
+  const cursor = parseDateKey(from);
+  const end = parseDateKey(to);
+  const keys: string[] = [];
+  while (cursor <= end) {
+    keys.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
 }
 
 function formatChipDate(dateStr: string) {
@@ -245,10 +268,23 @@ function Time12Field({
   );
 }
 
+function shortClock(value?: string | null) {
+  if (!value) return '';
+  const [hourRaw, minuteRaw] = value.split(':');
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw || 0);
+  if (!Number.isFinite(hour)) return value;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return minute ? `${hour12}:${String(minute).padStart(2, '0')} ${period}` : `${hour12} ${period}`;
+}
+
 export function AvailabilitySetupForm({
   availability: initialAvailability,
+  bookings = [],
   platformPlan = null,
   platformSubscriptionActive = false,
+  onAvailabilityChange,
 }: AvailabilitySetupFormProps) {
   const { isOpen, limitType, showUpgradeModal, closeUpgradeModal } = useUpgradeModal();
   const currentPlan: PlatformPlan = getCreatorPlan(platformPlan ?? null);
@@ -306,11 +342,24 @@ export function AvailabilitySetupForm({
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const [rangeSaving, setRangeSaving] = useState(false);
+  const [rangeMessage, setRangeMessage] = useState('');
+  const [rangeTone, setRangeTone] = useState<'ok' | 'err'>('ok');
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState<'ok' | 'err'>('ok');
+  const [rangeFrom, setRangeFrom] = useState(todayKey);
+  const [rangeTo, setRangeTo] = useState(todayKey);
 
   const activeSchedule = isAvailableMode ? availableSchedule : offSchedule;
   const setActiveSchedule = isAvailableMode ? setAvailableSchedule : setOffSchedule;
+
+  useEffect(() => {
+    onAvailabilityChange?.([
+      ...Array.from(selectedDates, (date) => ({ date, isAvailable: true })),
+      ...Array.from(offDates, (date) => ({ date, isAvailable: false })),
+    ]);
+  }, [offDates, onAvailabilityChange, selectedDates]);
 
   useEffect(() => {
     let cancelled = false;
@@ -469,8 +518,7 @@ export function AvailabilitySetupForm({
     }
 
     setIsAvailableMode(false);
-    const schedule = { ...offSchedule };
-    applyStatusToDate(key, false, schedule);
+    setOffSchedule(DEFAULT_OFF);
   };
 
   const handleAvailabilityToggle = () => {
@@ -791,572 +839,433 @@ export function AvailabilitySetupForm({
     }
   };
 
+  const bookingsOn = (key: string) =>
+    bookings.filter((booking) => String(booking.bookingDate).slice(0, 10) === key);
+
+  const dayHours = (key: string) => {
+    if (!selectedDates.has(key) || offDates.has(key)) return 'Off';
+    const schedule = dateSchedules[key];
+    if (!schedule || schedule.timeMode !== 'hours' || !schedule.startTime || !schedule.endTime) return 'Open';
+    return `${shortClock(schedule.startTime)} – ${shortClock(schedule.endTime)}`;
+  };
+
+  const setHourField = (field: 'startTime' | 'endTime', value: string) => {
+    const next: DaySchedule = {
+      ...activeSchedule,
+      timeMode: 'hours',
+      startTime: field === 'startTime' ? value : activeSchedule.startTime || DEFAULT_HOURS_WINDOW.startTime,
+      endTime: field === 'endTime' ? value : activeSchedule.endTime || DEFAULT_HOURS_WINDOW.endTime,
+    };
+    if (!isAvailableMode && activeDate) {
+      setIsAvailableMode(true);
+      setAvailableSchedule(next);
+      applyStatusToDate(activeDate, true, next);
+      return;
+    }
+    syncActiveSchedule(next);
+  };
+
+  const makeOffDay = () => {
+    if (!activeDate) return;
+    setIsAvailableMode(false);
+    applyStatusToDate(activeDate, false, { ...offSchedule });
+  };
+
+  const applyDateRange = async () => {
+    if (!activeDate || !isAvailableMode) {
+      setRangeTone('err');
+      setRangeMessage('Select a day, turn it on, and set its hours first.');
+      return;
+    }
+    if (!rangeFrom || !rangeTo) {
+      setRangeTone('err');
+      setRangeMessage('Choose a from date and a to date.');
+      return;
+    }
+    if (rangeFrom > rangeTo) {
+      setRangeTone('err');
+      setRangeMessage('The to date has to be on or after the from date.');
+      return;
+    }
+
+    const schedule: DaySchedule = {
+      ...availableSchedule,
+      customSlots: [...availableSchedule.customSlots],
+      disabledGeneratedStarts: [...availableSchedule.disabledGeneratedStarts],
+    };
+    if (
+      schedule.timeMode === 'hours' &&
+      (!schedule.startTime || !schedule.endTime || schedule.startTime >= schedule.endTime)
+    ) {
+      setRangeTone('err');
+      setRangeMessage('Set a from time that is earlier than the to time.');
+      return;
+    }
+
+    const keys = eachDateKey(rangeFrom, rangeTo).filter((key) => !isPast(key));
+    if (keys.length === 0) {
+      setRangeTone('err');
+      setRangeMessage('That range is in the past.');
+      return;
+    }
+    if (keys.length > 92) {
+      setRangeTone('err');
+      setRangeMessage('Save up to 92 days at a time.');
+      return;
+    }
+
+    setRangeSaving(true);
+    setRangeMessage('');
+    try {
+      const response = await fetch('/api/availability/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dates: keys,
+          isAvailable: true,
+          mode: schedule.timeMode === 'hours' ? 'hours' : 'full_day',
+          startTime: schedule.startTime || null,
+          endTime: schedule.endTime || null,
+          slotIntervalMinutes: schedule.slotIntervalMinutes,
+          customSlots: schedule.customSlots,
+          disabledGeneratedStarts: schedule.disabledGeneratedStarts,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save availability');
+      }
+
+      setSelectedDates((prev) => {
+        const next = new Set(prev);
+        keys.forEach((key) => next.add(key));
+        return next;
+      });
+      setOffDates((prev) => {
+        if (!keys.some((key) => prev.has(key))) return prev;
+        const next = new Set(prev);
+        keys.forEach((key) => next.delete(key));
+        return next;
+      });
+      setDateSchedules((prev) => {
+        const next = { ...prev };
+        keys.forEach((key) => {
+          next[key] = {
+            ...schedule,
+            customSlots: [...schedule.customSlots],
+            disabledGeneratedStarts: [...schedule.disabledGeneratedStarts],
+          };
+        });
+        return next;
+      });
+      const first = parseDateKey(keys[0]);
+      setViewMonth(new Date(first.getFullYear(), first.getMonth(), 1));
+      setRangeTone('ok');
+      setRangeMessage(`Saved ${keys.length} day${keys.length === 1 ? '' : 's'}.`);
+    } catch (error: unknown) {
+      setRangeTone('err');
+      setRangeMessage(error instanceof Error ? error.message : 'Could not save those days.');
+    } finally {
+      setRangeSaving(false);
+    }
+  };
+
+  const monthPrefix = `${viewMonth.getFullYear()}-${String(viewMonth.getMonth() + 1).padStart(2, '0')}`;
+  const monthOpen = Array.from(selectedDates).filter((key) => key.startsWith(monthPrefix) && key >= todayKey);
+  const monthOff = Array.from(offDates).filter((key) => key.startsWith(monthPrefix) && key >= todayKey).sort();
+  const monthBooked = monthOpen.filter((key) => bookingsOn(key).length > 0).length;
+  const activeBookings = activeDate ? bookingsOn(activeDate) : [];
+  const activeTitle = activeDate
+    ? parseDateKey(activeDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    : 'Select a day';
+
   return (
-    <div className="foleio-avail">
-      <div className="foleio-avail-toolbar">
-        <div className="foleio-avail-tz">
-          <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
-          <span>{timezoneLabel.offset}</span>
-          <span className="foleio-avail-tz-sep" aria-hidden>
-            ·
-          </span>
-          <span>{timezoneLabel.city}</span>
-        </div>
-      </div>
-
-      <h2 className="foleio-avail-title">Availability management</h2>
-
-      <div className="foleio-avail-card foleio-avail-calendar">
-        <div className="foleio-avail-cal-header">
+    <div className={styles.availLayout}>
+      <section className={styles.card}>
+        <div className={styles.calHead}>
+          <button type="button" className={styles.calNav} onClick={() => shiftMonth(-1)} aria-label="Previous month">
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+          <h2>{monthLabel}</h2>
+          <button type="button" className={styles.calNav} onClick={() => shiftMonth(1)} aria-label="Next month">
+            <ChevronRight className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+          <span className={styles.calTz}>Times in {timezoneLabel.offset}, {timezoneLabel.city}</span>
           <button
             type="button"
-            className="foleio-avail-cal-nav"
-            onClick={() => shiftMonth(-1)}
-            aria-label="Previous month"
+            className={styles.todayBtn}
+            onClick={() => setViewMonth(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1))}
           >
-            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
-          </button>
-          <h3 className="foleio-avail-cal-month">{monthLabel}</h3>
-          <button
-            type="button"
-            className="foleio-avail-cal-nav"
-            onClick={() => shiftMonth(1)}
-            aria-label="Next month"
-          >
-            <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+            Today
           </button>
         </div>
-
-        <div className="foleio-avail-cal-weekdays">
-          {WEEKDAY_LABELS.map((label) => (
+        <div className={styles.calWeek}>
+          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((label) => (
             <span key={label}>{label}</span>
           ))}
         </div>
-
-        <div className="foleio-avail-cal-grid">
+        <div className={styles.calGrid}>
           {cells.map((cell, index) => {
-            if (!cell) {
-              return <span key={`pad-${index}`} className="foleio-avail-cal-pad" />;
-            }
-
+            if (!cell) return <span key={`pad-${index}`} className={styles.calPad} />;
             const past = isPast(cell.key);
-            const off = offDates.has(cell.key);
-            const selected = selectedDates.has(cell.key);
+            const off = offDates.has(cell.key) || !selectedDates.has(cell.key);
+            const selected = activeDate === cell.key;
             const isToday = cell.key === todayKey;
-            const isActive = activeDate === cell.key;
-            const hoursMode = dateSchedules[cell.key]?.timeMode === 'hours';
-
+            const count = bookingsOn(cell.key).length;
+            const hours = dayHours(cell.key);
             return (
               <button
                 key={cell.key}
                 type="button"
                 className={[
-                  'foleio-avail-cal-day',
-                  selected ? 'is-selected' : '',
-                  off ? 'is-off' : '',
-                  past ? 'is-past' : '',
-                  isToday ? 'is-today' : '',
-                  isActive ? 'is-active' : '',
-                  hoursMode && selected ? 'is-hours' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                  styles.calDay,
+                  isToday ? styles.calToday : '',
+                  selected ? styles.calOn : '',
+                  !past && off ? styles.calOff : '',
+                  past ? styles.calPast : '',
+                ].filter(Boolean).join(' ')}
                 disabled={past}
                 onClick={() => handleDayClick(cell.key)}
-                aria-pressed={selected || off}
-                aria-current={isActive ? 'date' : undefined}
-                aria-label={`${formatChipDate(cell.key)}${off ? ', off day' : ''}${selected ? ', available' : ''}${hoursMode ? ', hourly' : ''}`}
+                aria-pressed={selected}
+                aria-label={`${formatChipDate(cell.key)}, ${hours}${count ? `, ${count} booked` : ''}`}
               >
-                {cell.day}
+                <b>{cell.day}</b>
+                {count > 0 ? <small className={styles.bookedDot}>{count} booked</small> : null}
+                {!past ? <small>{hours}</small> : null}
               </button>
             );
           })}
         </div>
-
-        <div className="foleio-avail-legend">
-          <span>
-            <i className="foleio-avail-legend-dot is-selected" /> Available
-          </span>
-          <span>
-            <i className="foleio-avail-legend-dot is-off" /> Off day
-          </span>
-          <span>
-            <i className="foleio-avail-legend-dot is-past" /> Past
-          </span>
+        <div className={styles.calLegend}>
+          <span><i className={styles.swatch} /> Open</span>
+          <span><i className={styles.dot} /> Has a booking</span>
+          <span><i className={`${styles.swatch} ${styles.swatchOff}`} /> Off day</span>
+          <span style={{ marginLeft: 'auto' }}>Pick a day to change its hours</span>
         </div>
-      </div>
-
-      {activeDate ? (
-        <div className="foleio-avail-card foleio-avail-mgmt">
-          <p className="foleio-avail-mgmt-date">{formatChipDate(activeDate)}</p>
-          <div className="foleio-avail-mgmt-row">
-            <div className="foleio-avail-mgmt-copy">
-              <p className="foleio-avail-mgmt-label">Available</p>
-              <p className="foleio-avail-mgmt-hint">
-                {isAvailableMode
-                  ? 'This date is bookable'
-                  : 'Off by default — toggle on to make it available'}
-              </p>
+        <button
+          type="button"
+          className={styles.textLink}
+          aria-expanded={rangeOpen}
+          onClick={() => {
+            setRangeOpen((open) => {
+              if (!open) {
+                const start = activeDate && !isPast(activeDate) ? activeDate : todayKey;
+                const end = parseDateKey(start);
+                end.setDate(end.getDate() + 6);
+                setRangeFrom(start);
+                setRangeTo(toDateKey(end));
+                setRangeMessage('');
+              }
+              return !open;
+            });
+          }}
+        >
+          {rangeOpen ? 'Hide date range' : 'Apply these hours to other days'}
+        </button>
+        {rangeOpen ? (
+          <div>
+            <div className={styles.hoursRow}>
+              <input
+                type="date"
+                aria-label="From date"
+                min={todayKey}
+                value={rangeFrom}
+                onChange={(event) => setRangeFrom(event.target.value)}
+              />
+              <span>to</span>
+              <input
+                type="date"
+                aria-label="To date"
+                min={rangeFrom || todayKey}
+                value={rangeTo}
+                onChange={(event) => setRangeTo(event.target.value)}
+              />
             </div>
+            <div className={styles.dayActions}>
+              <button
+                type="button"
+                className={styles.solid}
+                onClick={() => void applyDateRange()}
+                disabled={rangeSaving || isSaving || !activeDate || !isAvailableMode}
+              >
+                {rangeSaving ? 'Saving…' : 'Save these days'}
+              </button>
+            </div>
+            {!activeDate || !isAvailableMode ? (
+              <p className={styles.quiet}>Select a day, turn it on, and set its hours first.</p>
+            ) : null}
+            {rangeMessage ? (
+              <p className={styles.quiet} style={{ color: rangeTone === 'err' ? '#be123c' : '#047857' }}>
+                {rangeMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      <aside className={styles.bookSide}>
+        <section className={`${styles.card} ${styles.dayPanel}`}>
+          <div className={styles.dayTop}>
+            <div>
+              <p className={styles.quiet} style={{ marginTop: 0 }}>Selected day</p>
+              <h2>{activeTitle}</h2>
+            </div>
+            <span className={styles.liveLabel}>
+              Open
+              <button
+                type="button"
+                className={`${styles.switch} ${isAvailableMode ? styles.switchOn : ''}`}
+                aria-pressed={isAvailableMode}
+                aria-label={isAvailableMode ? 'Open' : 'Off'}
+                onClick={handleAvailabilityToggle}
+                disabled={!activeDate}
+              >
+                <i />
+              </button>
+            </span>
+          </div>
+          {activeDate ? (
+          <>
+          <p className={styles.svcMeta}>Hours</p>
+          <div className={styles.hoursRow}>
+            <input
+              type="time"
+              aria-label="From"
+              value={activeSchedule.startTime || ''}
+              onChange={(event) => setHourField('startTime', event.target.value)}
+              disabled={!activeDate}
+            />
+            <span>to</span>
+            <input
+              type="time"
+              aria-label="To"
+              value={activeSchedule.endTime || ''}
+              onChange={(event) => setHourField('endTime', event.target.value)}
+              disabled={!activeDate}
+            />
+          </div>
+          <div className={styles.hoursRow}>
+            <select
+              aria-label="Slot length"
+              value={activeSchedule.slotIntervalMinutes}
+              disabled={!activeDate}
+              onChange={(event) =>
+                updateSlotInterval(Number(event.target.value) === 90 ? 90 : 60)
+              }
+            >
+              <option value={60}>60 minute slots</option>
+              <option value={90}>90 minute slots</option>
+            </select>
+          </div>
+          {!showCustomForm ? (
             <button
               type="button"
-              className={`foleio-avail-toggle${isAvailableMode ? ' is-on' : ''}`}
-              onClick={handleAvailabilityToggle}
-              aria-pressed={isAvailableMode}
-              aria-label={isAvailableMode ? 'Available' : 'Off'}
+              className={styles.textLink}
+              disabled={!activeDate}
+              onClick={() => {
+                setEditingCustomIndex(null);
+                setCustomFrom(DEFAULT_CUSTOM_FROM);
+                setCustomTo(DEFAULT_CUSTOM_TO);
+                setShowCustomForm(true);
+              }}
             >
-              <span />
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Add a second time range
             </button>
-          </div>
-
-          <div className="foleio-avail-time-block">
-            <p className="foleio-avail-mgmt-label">Time</p>
-            <div className="foleio-avail-time-modes">
-              <button
-                type="button"
-                className={`foleio-avail-time-mode${activeSchedule.timeMode === 'full' ? ' is-active' : ''}`}
-                onClick={() => updateTimeMode('full')}
-              >
-                Full day
-              </button>
-              <button
-                type="button"
-                className={`foleio-avail-time-mode${activeSchedule.timeMode === 'hours' ? ' is-active' : ''}`}
-                onClick={() => updateTimeMode('hours')}
-              >
-                Hours
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <Time12Field label="From" value={customFrom} onChange={setCustomFrom} />
+              <Time12Field label="To" value={customTo} onChange={setCustomTo} />
+              <div className={styles.dayActions}>
+                <button type="button" className={styles.solid} onClick={addCustomSlot}>
+                  {editingCustomIndex !== null ? 'Save range' : 'Add range'}
+                </button>
+                <button type="button" className={styles.ghost} onClick={cancelCustomForm}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {activeSchedule.customSlots.map((slot, index) => (
+            <div key={`${slot.startTime}-${slot.endTime}-${index}`} className={styles.dayBooking}>
+              {formatSlotLabel(slot.startTime, slot.endTime)}
+              <button type="button" className={styles.textLink} style={{ marginLeft: 8 }} onClick={() => removeCustomSlot(index)}>
+                Remove
               </button>
             </div>
-
-            {activeSchedule.timeMode === 'hours' ? (
-              <>
-                <div style={{ marginTop: 12 }}>
-                  <p className="foleio-avail-mgmt-label">Slot duration</p>
-                  <div
-                    role="radiogroup"
-                    aria-label="Slot duration"
-                    style={{
-                      display: 'flex',
-                      gap: 16,
-                      marginTop: 8,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {([60, 90] as SlotInterval[]).map((minutes) => (
-                      <label
-                        key={minutes}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          cursor: 'pointer',
-                          color: '#111827',
-                          fontSize: 13,
-                          fontWeight: 500,
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="slot-interval"
-                          checked={activeSchedule.slotIntervalMinutes === minutes}
-                          onChange={() => updateSlotInterval(minutes)}
-                        />
-                        {minutes} minutes
-                      </label>
-                    ))}
-                  </div>
+          ))}
+          {activeBookings.length > 0 ? (
+            <div className={styles.dayBooking}>
+              <span className={styles.bookedDot}>
+                {activeBookings.length === 1 ? '1 booking on this day' : `${activeBookings.length} bookings on this day`}
+              </span>
+              {activeBookings.map((booking) => (
+                <div key={`${booking.customerName}-${booking.startTime || ''}`}>
+                  {[shortClock(booking.startTime), booking.serviceName, booking.customerName].filter(Boolean).join(' · ')}
                 </div>
-
-                {activeSchedule.startTime && activeSchedule.endTime ? (
-                  <>
-                    <div
-                      className="foleio-avail-time-range"
-                      style={{ alignItems: 'flex-end', marginTop: 14 }}
-                    >
-                      <label className="foleio-avail-time-field">
-                        <span>From</span>
-                        <input
-                          type="time"
-                          value={activeSchedule.startTime}
-                          onChange={(e) => updateTime('startTime', e.target.value)}
-                        />
-                      </label>
-                      <span className="foleio-avail-time-to">to</span>
-                      <label className="foleio-avail-time-field">
-                        <span>To</span>
-                        <input
-                          type="time"
-                          value={activeSchedule.endTime}
-                          onChange={(e) => updateTime('endTime', e.target.value)}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={clearDefaultWindow}
-                        aria-label="Remove default From–To hours"
-                        title="Remove default hours"
-                        style={{
-                          border: '1px solid rgba(17, 24, 39, 0.12)',
-                          background: 'transparent',
-                          color: '#111827',
-                          cursor: 'pointer',
-                          borderRadius: 8,
-                          padding: '8px 10px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          height: 38,
-                          marginBottom: 1,
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                      </button>
-                    </div>
-
-                    <p className="foleio-avail-mgmt-hint" style={{ marginTop: 12 }}>
-                      {activeSchedule.slotIntervalMinutes}-minute slots — tap to
-                      disable
-                    </p>
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 8,
-                        marginTop: 8,
-                      }}
-                    >
-                      {previewSlots
-                        .filter((s) => s.source === 'generated')
-                        .map((slot) => (
-                          <button
-                            key={`${slot.startTime}-${slot.endTime}`}
-                            type="button"
-                            onClick={() => toggleGeneratedSlot(slot.startTime)}
-                            style={{
-                              border: '1px solid rgba(17, 24, 39, 0.12)',
-                              borderRadius: 8,
-                              padding: '6px 10px',
-                              fontSize: 12,
-                              background: slot.isActive ? '#ffffff' : '#f3f1f4',
-                              color: slot.isActive ? '#111827' : '#6b7280',
-                              textDecoration: slot.isActive
-                                ? 'none'
-                                : 'line-through',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {formatSlotLabel(slot.startTime, slot.endTime)}
-                          </button>
-                        ))}
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ marginBottom: 4 }}>
-                    <p className="foleio-avail-mgmt-hint" style={{ margin: 0 }}>
-                      Default hours removed — using custom times only.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={restoreDefaultWindow}
-                      style={{
-                        border: 'none',
-                        background: 'transparent',
-                        color: '#111827',
-                        cursor: 'pointer',
-                        padding: 0,
-                        marginTop: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        textDecoration: 'underline',
-                        textUnderlineOffset: 3,
-                      }}
-                    >
-                      Restore From–To hours
-                    </button>
-                  </div>
-                )}
-
-                <div style={{ marginTop: 16 }}>
-                  {activeSchedule.customSlots.length > 0 ? (
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 8,
-                        marginBottom: 10,
-                      }}
-                    >
-                      {activeSchedule.customSlots.map((slot, index) => (
-                        <div
-                          key={`custom-${slot.startTime}-${slot.endTime}-${index}`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 10,
-                            borderRadius: 8,
-                            background:
-                              editingCustomIndex === index ? '#ebe8eb' : '#f3f1f4',
-                            padding: '0 12px',
-                            height: 38,
-                            color: '#111827',
-                            fontSize: 14,
-                            fontWeight: 500,
-                          }}
-                        >
-                          <span>{formatSlotLabel(slot.startTime, slot.endTime)}</span>
-                          <button
-                            type="button"
-                            onClick={() => beginEditCustomSlot(index)}
-                            aria-label={`Edit ${formatSlotLabel(slot.startTime, slot.endTime)}`}
-                            style={{
-                              border: 'none',
-                              background: 'transparent',
-                              color: '#111827',
-                              cursor: 'pointer',
-                              padding: 0,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" strokeWidth={1.75} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {!showCustomForm ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingCustomIndex(null);
-                        setCustomFrom(DEFAULT_CUSTOM_FROM);
-                        setCustomTo(DEFAULT_CUSTOM_TO);
-                        setShowCustomForm(true);
-                      }}
-                      style={{
-                        border: 'none',
-                        borderRadius: 8,
-                        background: '#f3f1f4',
-                        color: '#111827',
-                        cursor: 'pointer',
-                        padding: '8px 12px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      Add custom time
-                    </button>
-                  ) : (
-                    <div>
-                      <p className="foleio-avail-mgmt-label">
-                        {editingCustomIndex !== null
-                          ? 'Edit custom time'
-                          : 'Custom time'}
-                      </p>
-                      <div
-                        className="foleio-avail-time-range"
-                        style={{
-                          marginTop: 8,
-                          flexDirection: 'column',
-                          alignItems: 'stretch',
-                          gap: 12,
-                        }}
-                      >
-                        <Time12Field
-                          label="From"
-                          value={customFrom}
-                          onChange={setCustomFrom}
-                        />
-                        <Time12Field
-                          label="To"
-                          value={customTo}
-                          onChange={setCustomTo}
-                        />
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 10,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="foleio-avail-time-mode is-active"
-                          onClick={addCustomSlot}
-                        >
-                          {editingCustomIndex !== null ? 'Save changes' : 'Save time'}
-                        </button>
-                        {editingCustomIndex !== null ? (
-                          <button
-                            type="button"
-                            onClick={() => removeCustomSlot(editingCustomIndex)}
-                            aria-label="Delete custom time"
-                            style={{
-                              border: '1px solid rgba(17, 24, 39, 0.12)',
-                              background: 'transparent',
-                              color: '#111827',
-                              cursor: 'pointer',
-                              borderRadius: 8,
-                              padding: '8px 10px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={cancelCustomForm}
-                          style={{
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#a1a1aa',
-                            cursor: 'pointer',
-                            padding: '8px 4px',
-                            fontSize: 13,
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="foleio-avail-time-full-hint">
-                {isAvailableMode
-                  ? 'One booking for this whole day'
-                  : 'This date will be off all day'}
-              </p>
-            )}
-          </div>
-
-          {isAvailableMode ? (
-            <div style={{ marginTop: 20 }}>
-              <p className="foleio-avail-mgmt-label">Schedule templates</p>
-              {templates.length > 0 ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                  {templates.map((template) => (
-                    <div
-                      key={template.id}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        border: '1px solid rgba(17, 24, 39, 0.12)',
-                        borderRadius: 8,
-                        padding: '4px 8px',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="foleio-avail-time-mode"
-                        onClick={() => applyTemplate(template.id)}
-                      >
-                        Apply {template.name}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteTemplate(template.id)}
-                        aria-label={`Delete ${template.name}`}
-                        style={{
-                          border: 'none',
-                          background: 'transparent',
-                          color: '#888',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <X className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="foleio-avail-mgmt-hint" style={{ marginTop: 6 }}>
-                  {canUseTemplates
-                    ? 'Save this day’s schedule to reuse on other dates'
-                    : 'Schedule templates are a Pro feature. You can still set each day manually.'}
-                </p>
-              )}
-              {canUseTemplates ? (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  marginTop: 10,
-                  alignItems: 'center',
-                }}
-              >
-                <input
-                  type="text"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="Template name"
-                  style={{
-                    flex: 1,
-                    borderRadius: 8,
-                    border: '1px solid rgba(17, 24, 39, 0.12)',
-                    background: '#ffffff',
-                    color: '#111827',
-                    padding: '8px 10px',
-                    fontSize: 13,
-                  }}
-                />
-                <button
-                  type="button"
-                  className="foleio-avail-time-mode"
-                  onClick={() => void saveTemplate()}
-                >
-                  Save template
-                </button>
-              </div>
-              ) : (
-                <button
-                  type="button"
-                  className="foleio-avail-time-mode"
-                  style={{ marginTop: 10 }}
-                  onClick={() => showUpgradeModal('availabilityTemplates')}
-                >
-                  Unlock templates with Pro
-                </button>
-              )}
+              ))}
             </div>
           ) : null}
-        </div>
-      ) : (
-        <p className="foleio-avail-pick-hint">Click a date to set availability</p>
-      )}
-
-      <button
-        type="button"
-        className="foleio-avail-submit"
-        onClick={handleSave}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-            Saving...
+          <div className={styles.dayActions}>
+            <button type="button" className={styles.solid} onClick={() => void handleSave()} disabled={isSaving || !activeDate}>
+              {isSaving ? 'Saving…' : 'Save hours'}
+            </button>
+            <button type="button" className={styles.ghost} onClick={makeOffDay} disabled={!activeDate || !isAvailableMode}>
+              Make it an off day
+            </button>
+          </div>
+          {message ? (
+            <p className={styles.quiet} style={{ color: messageTone === 'err' ? '#be123c' : '#047857' }}>{message}</p>
+          ) : null}
           </>
-        ) : (
-          'Save availability'
-        )}
-      </button>
+          ) : (
+            <EmptyState icon={Calendar} title="No day selected" body="Pick a day on the calendar to set its hours." />
+          )}
+        </section>
 
-      {message ? (
-        <p className={`foleio-avail-message ${messageTone === 'err' ? 'is-err' : 'is-ok'}`}>
-          {message}
-        </p>
-      ) : null}
+        <section className={styles.softCard}>
+          <h2>Rest of {viewMonth.toLocaleDateString('en-GB', { month: 'long' })}</h2>
+          <div className={styles.statRow}><span>Open days</span><strong>{monthOpen.length}</strong></div>
+          <div className={styles.statRow}><span>With a booking</span><strong>{monthBooked}</strong></div>
+          <div className={styles.statRow}>
+            <span>Off days</span>
+            <strong>{monthOff.length === 0 ? 'None' : monthOff.map((key) => parseDateKey(key).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })).join(', ')}</strong>
+          </div>
+        </section>
+
+        {canUseTemplates ? (
+          <section className={styles.card}>
+            <h2 className={styles.sideTitle}>Weekly template</h2>
+            <p className={styles.quiet}>Save this day’s hours and reuse them on other dates.</p>
+            {templates.map((template) => (
+              <div key={template.id} className={styles.statRow}>
+                <button type="button" className={styles.textLink} style={{ marginTop: 0 }} onClick={() => applyTemplate(template.id)}>
+                  Apply {template.name}
+                </button>
+                <button type="button" className={styles.textLink} style={{ marginTop: 0 }} onClick={() => void deleteTemplate(template.id)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+            <div className={styles.hoursRow}>
+              <input
+                type="text"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="Template name"
+                aria-label="Template name"
+              />
+              <button type="button" className={styles.solid} onClick={() => void saveTemplate()}>Save</button>
+            </div>
+          </section>
+        ) : (
+          <section className={styles.inkCard}>
+            <h2>Weekly template <span className={styles.proMark}>PRO</span></h2>
+            <p>Set your usual hours once and reuse them, so you are not setting each date by hand.</p>
+            <button type="button" className={styles.ghost} onClick={() => showUpgradeModal('availabilityTemplates')}>
+              See Pro
+            </button>
+          </section>
+        )}
+      </aside>
 
       {limitType ? (
         <UpgradeModal

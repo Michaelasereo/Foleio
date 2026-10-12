@@ -121,7 +121,7 @@ export function DashboardCreatorPolicy({
         {showFull ? (
           <div className="foleio-dash-policy-full">
             <p className="foleio-dash-panel-meta" style={{ marginBottom: 16 }}>
-              Full Creator Agreement · Effective July 2026
+              Full Creator Agreement · Last updated 12 October 2026
             </p>
             <CreatorAgreementContent />
             <p style={{ marginTop: 16 }}>

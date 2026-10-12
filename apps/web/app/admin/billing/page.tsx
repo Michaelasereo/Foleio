@@ -77,6 +77,7 @@ export default function AdminBillingPage() {
           previousPercentageCharge?: number | null;
           verifiedPercentageCharge?: number | null;
           creatorSplitPercent?: number | null;
+          updated?: boolean;
           error?: string;
         }>;
       };

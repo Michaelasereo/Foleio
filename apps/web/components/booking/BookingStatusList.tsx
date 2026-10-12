@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Loader2 } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import { processRefund, rejectRefund } from '@/lib/actions/booking';
 import {
   UpcomingBookingsCalendar,
@@ -127,9 +128,11 @@ export function BookingStatusList({ status, bookings }: BookingStatusListProps) 
 
       <div className="foleio-dash-panel">
         {visibleBookings.length === 0 ? (
-          <p className="foleio-dash-empty">
-            {selectedDate ? 'No upcoming bookings on this date.' : meta.empty}
-          </p>
+          <EmptyState
+            icon={Calendar}
+            title={selectedDate ? 'No upcoming bookings on this date' : meta.empty.replace(/\.$/, '')}
+            body="They will show up here."
+          />
         ) : (
           visibleBookings.map((booking) => {
             const actions = renderActions(booking);

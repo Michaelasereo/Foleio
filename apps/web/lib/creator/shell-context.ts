@@ -50,6 +50,9 @@ export async function resolveCreatorShellContext(): Promise<CreatorShellContext>
           authenticated: false,
         };
       }
+      // Support session is active but target creator is unavailable:
+      // never fall back to the logged-in owner's personal creator context.
+      return { creator: null, supportMode: true, lookupFailed: true, authenticated: false };
     } catch {
       return { creator: null, supportMode: true, lookupFailed: true, authenticated: false };
     }

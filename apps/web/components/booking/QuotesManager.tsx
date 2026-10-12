@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Eye, Loader2, Pencil, Plus } from 'lucide-react';
+import { Eye, FileText, Inbox, Loader2, Pencil, Plus } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
 import { formatNaira } from '@foleio/utils';
 import {
   InvoiceCreateDrawer,
   type InvoiceCreateFormValues,
 } from '@/components/booking/InvoiceCreateDrawer';
 import { InvoicePreviewDrawer } from '@/components/booking/InvoicePreviewDrawer';
+import styles from '@/components/demo/demo-dashboard.module.css';
 
 type QuoteLineItem = {
   id: string;
@@ -97,6 +99,17 @@ type CreateInitial = Partial<InvoiceCreateFormValues> & {
 
 function statusLabel(status: string) {
   return status.replace(/_/g, ' ');
+}
+
+function quoteBadge(status: string) {
+  if (status === 'accepted' || status === 'deposit_paid') return 'is-success';
+  if (status === 'sent') return 'is-info';
+  if (status === 'declined' || status === 'expired') return 'is-danger';
+  return 'is-muted';
+}
+
+function isOpenQuote(status: string) {
+  return status === 'draft' || status === 'sent';
 }
 
 function parseInboxTab(raw: string | null): InboxTab {
@@ -358,7 +371,31 @@ export function QuotesManager({
   }
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div className={styles.shell} style={{ display: 'block', minHeight: 0, width: '100%', background: 'transparent' }}>
+    <div className={styles.home}>
+      <header className={styles.pageHead}>
+        <div>
+          <h1>Quotes and invoices</h1>
+          <p>
+            {quotes.filter((quote) => isOpenQuote(quote.status)).length} still open. {quotes.filter((quote) => quote.status === 'accepted' || quote.status === 'deposit_paid').length} accepted.
+          </p>
+        </div>
+        <div className={styles.headTools}>
+          <div className={styles.modeSwitch} role="tablist">
+            <button type="button" role="tab" aria-selected={inbox === 'requests'} onClick={() => setInboxTab('requests')}>
+              Quote requests
+              <span className={styles.tabCount}>{requests.length}</span>
+            </button>
+            <button type="button" role="tab" aria-selected={inbox === 'invoices'} onClick={() => setInboxTab('invoices')}>
+              Invoices
+              <span className={styles.tabCount}>{quotes.length}</span>
+            </button>
+          </div>
+          <button type="button" className={styles.solid} onClick={() => openCreateDrawer()} disabled={saving}>
+            <Plus className="h-4 w-4" /> New quote
+          </button>
+        </div>
+      </header>
       {error ? (
         <p className="foleio-dash-panel-meta" style={{ color: '#f87171' }}>
           {error}
@@ -391,9 +428,7 @@ export function QuotesManager({
       {inbox === 'requests' ? (
         <div className="foleio-dash-panel">
           {requests.length === 0 ? (
-            <p className="foleio-dash-panel-meta" style={{ padding: 20 }}>
-              No quote requests yet. Clients can request from your public profile.
-            </p>
+            <EmptyState icon={Inbox} title="No quote requests yet" body="Clients can request one from your public profile." />
           ) : (
             requests.map((req) => (
               <div
@@ -413,7 +448,7 @@ export function QuotesManager({
                 <div className="foleio-dash-booking-main">
                   <div className="foleio-dash-booking-top">
                     <span className="foleio-dash-sub-name">{req.customerName}</span>
-                    <span className="foleio-dash-badge is-muted">
+                    <span className={`foleio-dash-badge ${quoteBadge(req.status)}`}>
                       {statusLabel(req.status)}
                     </span>
                   </div>
@@ -480,18 +515,46 @@ export function QuotesManager({
             </button>
           </div>
 
+          {quotes.find((quote) => quote.status === 'sent' || quote.status === 'draft') ? (
+            <section className="foleio-dash-panel" style={{ background: '#1a1816', color: '#fff' }}>
+              {(() => {
+                const featured = quotes.find((quote) => quote.status === 'sent' || quote.status === 'draft')!;
+                return (
+                  <>
+                    <p className="foleio-dash-panel-meta" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                      {statusLabel(featured.status)}
+                    </p>
+                    <h2 className="foleio-dash-panel-title" style={{ color: '#fff' }}>{featured.title}</h2>
+                    <p className="foleio-dash-panel-meta" style={{ color: 'rgba(255,255,255,0.82)' }}>
+                      {featured.customerName} · {formatNaira(featured.totalAmount)}
+                    </p>
+                    <div className="foleio-dash-booking-actions">
+                      <button type="button" className="foleio-dash-btn-primary" disabled={saving} onClick={() => void sendInvoice(featured.id)}>
+                        Send
+                      </button>
+                      <button type="button" className="foleio-dash-btn-ghost" disabled={saving} onClick={() => openEditInvoice(featured)}>
+                        Edit
+                      </button>
+                      <button type="button" className="foleio-dash-btn-outline" disabled={saving} onClick={() => openPreviewInvoice(featured)}>
+                        Preview
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </section>
+          ) : null}
+
           <div className="foleio-dash-panel">
             {quotes.length === 0 ? (
-              <p className="foleio-dash-panel-meta" style={{ padding: 20 }}>
-                No invoices yet.
-              </p>
+              <EmptyState icon={FileText} title="No invoices yet" body="Quotes you send will show up here." />
             ) : (
               quotes.map((q) => (
                 <div key={q.id} className="foleio-dash-booking-row">
                   <div className="foleio-dash-booking-main">
                     <div className="foleio-dash-booking-top">
                       <span className="foleio-dash-sub-name">{q.title}</span>
-                      <span className="foleio-dash-badge is-muted">
+                      <span className={`foleio-dash-badge ${quoteBadge(q.status)}`}>
                         {statusLabel(q.status)}
                       </span>
                     </div>
@@ -581,6 +644,7 @@ export function QuotesManager({
             : null
         }
       />
+    </div>
     </div>
   );
 }

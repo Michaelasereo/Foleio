@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { CreatorShopManager } from '@/components/shop/CreatorShopManager';
 import { getCreatorPaidActiveForId } from '@/lib/billing/effective-plan-limits';
@@ -17,9 +18,11 @@ export default async function CreatorShopPage() {
   );
 
   return (
-    <CreatorShopManager
-      platformPlan={creator.platformPlan}
-      platformSubscriptionActive={platformSubscriptionActive}
-    />
+    <Suspense fallback={null}>
+      <CreatorShopManager
+        platformPlan={creator.platformPlan}
+        platformSubscriptionActive={platformSubscriptionActive}
+      />
+    </Suspense>
   );
 }

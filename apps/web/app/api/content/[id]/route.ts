@@ -305,17 +305,17 @@ export async function PUT(
       updatedAt: updatedContent.updatedAt?.toISOString()
     };
 
-    return NextResponse.json({
-      success: true,
-      message: 'Content updated successfully',
-      content: serializedContent
-    });
-
     if (isReplacingVideo && existingContent.muxAssetId) {
       MuxService.deleteAsset(existingContent.muxAssetId).catch((muxError) => {
         console.warn('Failed to delete previous Mux asset during replacement:', muxError);
       });
     }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Content updated successfully',
+      content: serializedContent
+    });
 
   } catch (error: any) {
     console.error('Content update error:', error);

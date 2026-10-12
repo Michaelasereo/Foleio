@@ -1,24 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  AlertTriangle,
-  CalendarClock,
-  CalendarDays,
-  CheckCircle2,
-  Loader2,
-} from 'lucide-react';
+import { ArrowRight, Calendar, Loader2 } from 'lucide-react';
+import { EmptyState } from '@/components/demo/EmptyState';
+import styles from '@/components/demo/demo-dashboard.module.css';
 import { processRefund, rejectRefund } from '@/lib/actions/booking';
-import { AvailabilitySetupForm } from '@/components/booking/AvailabilitySetupForm';
+import { AvailabilitySetupForm, type AvailabilityDayStatus } from '@/components/booking/AvailabilitySetupForm';
 import { BookingsServicesManager } from '@/components/booking/BookingsServicesManager';
 import type { ServiceItem } from '@/components/booking/BookingsServicesManager';
 import { BookingPolicyDocumentSettings } from '@/components/booking/BookingPolicyDocumentSettings';
+import { getBookingPaymentPolicy } from '@/lib/actions/booking-policy';
 import type { BookingPolicyDocument } from '@/lib/actions/booking-policy-document';
 import {
   BOOKING_STATUS_LABELS,
-  STATUS_FILTER_META,
   formatBookingDate,
   formatBookingPrice,
   statusTone,
@@ -104,12 +100,27 @@ export function UnifiedBookingsManager({
         : 'bookings';
 
   const [primaryView, setPrimaryView] = useState<PrimaryView>(initialView);
+  const [liveAvailability, setLiveAvailability] = useState(availability);
+  const [liveServices, setLiveServices] = useState(priceList);
+  const onAvailabilityChange = useCallback((days: AvailabilityDayStatus[]) => {
+    setLiveAvailability(
+      days.map((day) => ({
+        id: day.date,
+        date: day.date,
+        isAvailable: day.isAvailable,
+      }))
+    );
+  }, []);
+  const onServicesChange = useCallback((next: ServiceItem[]) => {
+    setLiveServices(next);
+  }, []);
   const [statusTab, setStatusTab] = useState<BookingStatusFilter>('upcoming');
+  const [balanceOnly, setBalanceOnly] = useState(false);
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [refundReason, setRefundReason] = useState('');
-
   useEffect(() => {
     if (tabParam === 'policy') {
       router.replace('/settings?tab=policy');
@@ -131,50 +142,6 @@ export function UnifiedBookingsManager({
           : 'bookings';
     setPrimaryView(nextView);
   }, [tabParam, router]);
-  const totalBookings =
-    upcomingBookings.length + disputedBookings.length + completedBookings.length;
-
-  const stats = [
-    {
-      title: 'Total Bookings',
-      value: totalBookings.toLocaleString(),
-      hint: 'All time',
-      icon: CalendarDays,
-      onSelect: null as BookingStatusFilter | null,
-    },
-    {
-      title: 'Upcoming',
-      value: upcomingBookings.length.toLocaleString(),
-      hint: 'Active services',
-      icon: CalendarClock,
-      onSelect: 'upcoming' as BookingStatusFilter,
-    },
-    {
-      title: 'Completed',
-      value: completedBookings.length.toLocaleString(),
-      hint: 'Finished bookings',
-      icon: CheckCircle2,
-      onSelect: 'completed' as BookingStatusFilter,
-    },
-    {
-      title: 'Disputed',
-      value: disputedBookings.length.toLocaleString(),
-      hint: 'Needs attention',
-      icon: AlertTriangle,
-      onSelect: 'disputed' as BookingStatusFilter,
-    },
-  ];
-
-  const statusTabs: Array<{ id: BookingStatusFilter; label: string; count: number }> =
-    useMemo(
-      () => [
-        { id: 'upcoming', label: 'Upcoming', count: upcomingBookings.length },
-        { id: 'disputed', label: 'Disputed', count: disputedBookings.length },
-        { id: 'completed', label: 'Completed', count: completedBookings.length },
-      ],
-      [upcomingBookings.length, disputedBookings.length, completedBookings.length]
-    );
-
   const setView = (view: PrimaryView) => {
     setPrimaryView(view);
     const url =
@@ -210,97 +177,10 @@ export function UnifiedBookingsManager({
     }
   };
 
-  const renderBookingRow = (booking: Booking, actions?: ReactNode) => (
-    <div key={booking.id} className="foleio-dash-booking-row">
-      <div className="foleio-dash-booking-main">
-        <div className="foleio-dash-booking-top">
-          <span className="foleio-dash-sub-name">{booking.customerName}</span>
-          <span className={`foleio-dash-badge ${statusTone(booking.status)}`}>
-            {BOOKING_STATUS_LABELS[booking.status] || booking.status}
-          </span>
-        </div>
-        <div className="foleio-dash-booking-meta">
-          <span className="foleio-dash-sub-badge">
-            {booking.priceListItem?.name || 'Service'}
-          </span>
-          <span className="foleio-dash-sub-date">
-            {formatBookingDate(booking.bookingDate, booking.startTime, booking.endTime)}
-          </span>
-        </div>
-        {booking.notes ? (
-          <p className="foleio-dash-booking-notes">{booking.notes}</p>
-        ) : null}
-        {booking.disputeReason ? (
-          <div className="foleio-dash-dispute">
-            <p className="foleio-dash-dispute-label">Dispute reason</p>
-            <p className="foleio-dash-booking-notes">{booking.disputeReason}</p>
-          </div>
-        ) : null}
-        {actions ? (
-          <div className="foleio-dash-booking-actions">{actions}</div>
-        ) : null}
-      </div>
-      <div className="foleio-dash-booking-amount">
-        {booking.paymentPlan === 'deposit' &&
-        booking.balanceAmount &&
-        booking.balanceAmount > 0 &&
-        ['deposit_paid', 'balance_overdue'].includes(booking.status) ? (
-          <div style={{ textAlign: 'right' }}>
-            <div>{formatBookingPrice(booking.amountPaid ?? booking.depositAmount ?? 0)}</div>
-            <span
-              className="foleio-dash-badge is-muted"
-              style={{ marginTop: 6, display: 'inline-flex' }}
-            >
-              Deposit paid
-            </span>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: booking.status === 'balance_overdue' ? '#f87171' : '#adadad',
-                marginTop: 6,
-              }}
-            >
-              Balance {formatBookingPrice(booking.balanceAmount)}
-              {booking.balanceDueDateLabel
-                ? ` · due ${booking.balanceDueDateLabel}`
-                : ''}
-            </div>
-            <Link
-              href={`/bookings/detail/${booking.id}`}
-              className="foleio-dash-booking-details"
-            >
-              View details
-            </Link>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'right' }}>
-            <div>{formatBookingPrice(booking.totalAmount)}</div>
-            {booking.paymentPlan === 'deposit' &&
-            (booking.amountPaid ?? 0) > 0 ? (
-              <span
-                className="foleio-dash-badge is-muted"
-                style={{ marginTop: 6, display: 'inline-flex' }}
-              >
-                Deposit paid
-              </span>
-            ) : null}
-            <Link
-              href={`/bookings/detail/${booking.id}`}
-              className="foleio-dash-booking-details"
-            >
-              View details
-            </Link>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const emptyCopy: Record<BookingStatusFilter, string> = {
-    upcoming: STATUS_FILTER_META.upcoming.empty,
-    disputed: STATUS_FILTER_META.disputed.empty,
-    completed: STATUS_FILTER_META.completed.empty,
+  const emptyCopy: Record<BookingStatusFilter, { title: string; body: string }> = {
+    upcoming: { title: 'No upcoming bookings', body: 'New appointments will show up here.' },
+    disputed: { title: 'No disputed bookings', body: 'Disputes will show up here.' },
+    completed: { title: 'No completed bookings yet', body: 'Finished appointments will show up here.' },
   };
 
   const listForTab =
@@ -310,209 +190,264 @@ export function UnifiedBookingsManager({
         ? disputedBookings
         : completedBookings;
 
-  const previewLimit = statusTab === 'upcoming' ? 2 : 5;
-  const previewList = listForTab.slice(0, previewLimit);
+  const previewList = listForTab;
+  const stillToCollect = upcomingBookings.reduce((sum, booking) => {
+    if (booking.paymentPlan === 'deposit' && (booking.balanceAmount || 0) > 0) {
+      return sum + Number(booking.balanceAmount || 0);
+    }
+    return sum;
+  }, 0);
+  const balanceDue = upcomingBookings.filter(
+    (booking) => booking.paymentPlan === 'deposit' && Number(booking.balanceAmount || 0) > 0
+  );
+  const q = query.trim().toLowerCase();
+  const visibleBookings = previewList.filter((booking) => {
+    if (balanceOnly && !(booking.paymentPlan === 'deposit' && Number(booking.balanceAmount || 0) > 0)) {
+      return false;
+    }
+    if (!q) return true;
+    return `${booking.customerName} ${booking.priceListItem?.name || ''}`.toLowerCase().includes(q);
+  });
+  const paidOnUpcoming = upcomingBookings.reduce(
+    (sum, booking) => sum + Number(booking.amountPaid || booking.depositAmount || 0),
+    0
+  );
+  const bookedTotal = upcomingBookings.reduce((sum, booking) => sum + Number(booking.totalAmount || 0), 0);
+  const liveServiceCount = liveServices.filter((item) => item.isActive).length;
+  const upcomingCounts = upcomingBookings.reduce<Record<string, number>>((map, booking) => {
+    const name = booking.priceListItem?.name;
+    if (!name) return map;
+    map[name] = (map[name] || 0) + 1;
+    return map;
+  }, {});
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString('en-GB', { month: 'long' });
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const monthKey = todayKey.slice(0, 7);
+  const horizon = new Date(now);
+  horizon.setDate(horizon.getDate() + 90);
+  const horizonKey = `${horizon.getFullYear()}-${String(horizon.getMonth() + 1).padStart(2, '0')}-${String(horizon.getDate()).padStart(2, '0')}`;
+  const openDays = liveAvailability
+    .filter((slot) => {
+      const key = String(slot.date).slice(0, 10);
+      return slot.isAvailable && key >= todayKey && key <= horizonKey;
+    })
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .slice(0, 4);
+  const openThisMonth = liveAvailability.filter((slot) => {
+    const key = String(slot.date).slice(0, 10);
+    return slot.isAvailable && key >= todayKey && key.startsWith(monthKey);
+  });
+  const bookedDates = new Set(upcomingBookings.map((booking) => String(booking.bookingDate).slice(0, 10)));
+  const openWithBooking = openThisMonth.filter((slot) => bookedDates.has(String(slot.date).slice(0, 10))).length;
+  const pageSubtitle = primaryView === 'services'
+    ? `${liveServices.length} service${liveServices.length === 1 ? '' : 's'}. ${liveServiceCount} ${liveServiceCount === 1 ? 'is' : 'are'} on your page for clients to book.`
+    : primaryView === 'availability'
+      ? `You are open ${openThisMonth.length} more day${openThisMonth.length === 1 ? '' : 's'} in ${monthLabel}.${openWithBooking > 0 ? ` ${openWithBooking} of them ${openWithBooking === 1 ? 'has' : 'have'} a booking.` : ''}`
+      : `${upcomingBookings.length} upcoming${stillToCollect > 0 ? `. ${formatBookingPrice(stillToCollect)} still to collect.` : '.'}`;
 
   return (
-    <div>
-      <div className="foleio-dash-header">
+    <div className={styles.shell} style={{ display: 'block', minHeight: 0, width: '100%', background: 'transparent' }}>
+      <div className={styles.home}>
+      <header className={styles.pageHead}>
         <div>
-          <h1 className="foleio-auth-title">Bookings</h1>
-          <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-            Manage bookings, services, and availability
-          </p>
+          <h1>Bookings</h1>
+          <p>{pageSubtitle}</p>
         </div>
-      </div>
-
-      <div className="foleio-dash-tabs" role="tablist" aria-label="Bookings views">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'bookings'}
-          className={`foleio-dash-tab${primaryView === 'bookings' ? ' is-active' : ''}`}
-          onClick={() => setView('bookings')}
-        >
-          Bookings
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primaryView === 'services'}
-          className={`foleio-dash-tab${primaryView === 'services' ? ' is-active' : ''}`}
-          onClick={() => setView('services')}
-        >
-          Services
-          <span className="foleio-dash-tab-count">{priceList.length}</span>
-        </button>
-        {fixedBookingsEnabled ? (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={primaryView === 'availability'}
-            className={`foleio-dash-tab${primaryView === 'availability' ? ' is-active' : ''}`}
-            onClick={() => setView('availability')}
-          >
-            Manage availability
+        <div className={styles.headTools}>
+        <div className={styles.modeSwitch} role="tablist" aria-label="Bookings views">
+          <button type="button" role="tab" aria-selected={primaryView === 'bookings'} onClick={() => setView('bookings')}>
+            Bookings
           </button>
-        ) : null}
-      </div>
+          <button type="button" role="tab" aria-selected={primaryView === 'services'} onClick={() => setView('services')}>
+            Services
+            <span className={styles.tabCount}>{liveServices.length}</span>
+          </button>
+          {fixedBookingsEnabled ? (
+            <button type="button" role="tab" aria-selected={primaryView === 'availability'} onClick={() => setView('availability')}>
+              Availability
+            </button>
+          ) : null}
+        </div>
+        </div>
+      </header>
 
-      {primaryView === 'availability' && fixedBookingsEnabled ? (
+      {fixedBookingsEnabled ? (
+        <div hidden={primaryView !== 'availability'}>
         <AvailabilitySetupForm
           creatorId={creator.id}
           platformPlan={creator.platformPlan}
           platformSubscriptionActive={creator.platformSubscriptionActive}
           availability={availability as any}
+          onAvailabilityChange={onAvailabilityChange}
+          bookings={upcomingBookings.map((booking) => ({
+            bookingDate: booking.bookingDate,
+            customerName: booking.customerName,
+            startTime: booking.startTime,
+            serviceName: booking.priceListItem?.name || null,
+          }))}
         />
-      ) : primaryView === 'services' ? (
-        <>
+        </div>
+      ) : null}
+      <div hidden={primaryView !== 'services'}>
+        <div className={styles.svcLayout}>
           <BookingsServicesManager
             creatorId={creator.id}
             platformPlan={creator.platformPlan}
             platformSubscriptionActive={creator.platformSubscriptionActive}
             initialPriceList={priceList}
+            onItemsChange={onServicesChange}
+            upcomingCounts={upcomingCounts}
+            publicPath={creator.username ? `/creator/${creator.username}` : '/dashboard'}
           />
-          <BookingPolicyDocumentSettings
-            initial={
-              {
-                bookingPolicyType:
-                  creator.bookingPolicyType === 'file' ||
-                  creator.bookingPolicyType === 'link'
-                    ? creator.bookingPolicyType
-                    : null,
-                bookingPolicyFileUrl: creator.bookingPolicyFileUrl ?? null,
-                bookingPolicyFileName: creator.bookingPolicyFileName ?? null,
-                bookingPolicyLinkUrl: creator.bookingPolicyLinkUrl ?? null,
-              } satisfies BookingPolicyDocument
-            }
-          />
-        </>
-      ) : (
-        <>
-          <div className="foleio-dash-stats">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              const isSelected = stat.onSelect === statusTab;
-              const content = (
-                <>
-                  <div className="foleio-dash-stat-top">
-                    <span className="foleio-dash-stat-label">{stat.title}</span>
-                    <Icon className="foleio-dash-stat-icon h-4 w-4" strokeWidth={1.5} />
-                  </div>
-                  <div className="foleio-dash-stat-value">{stat.value}</div>
-                  <p className="foleio-dash-stat-change">{stat.hint}</p>
-                </>
-              );
-
-              if (!stat.onSelect) {
-                return (
-                  <div key={stat.title} className="foleio-dash-stat">
-                    {content}
-                  </div>
-                );
+          <aside className={styles.bookSide}>
+            <BookingPolicyDocumentSettings
+              initial={
+                {
+                  bookingPolicyType:
+                    creator.bookingPolicyType === 'file' ||
+                    creator.bookingPolicyType === 'link'
+                      ? creator.bookingPolicyType
+                      : null,
+                  bookingPolicyFileUrl: creator.bookingPolicyFileUrl ?? null,
+                  bookingPolicyFileName: creator.bookingPolicyFileName ?? null,
+                  bookingPolicyLinkUrl: creator.bookingPolicyLinkUrl ?? null,
+                } satisfies BookingPolicyDocument
               }
-
-              return (
-                <button
-                  key={stat.title}
-                  type="button"
-                  className={`foleio-dash-stat${isSelected ? ' is-selected' : ''}`}
-                  onClick={() => setStatusTab(stat.onSelect!)}
-                  style={{
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    border: isSelected
-                      ? '1px solid rgba(250,250,250,0.35)'
-                      : '1px solid transparent',
-                    width: '100%',
-                  }}
-                >
-                  {content}
+            />
+            <DepositTimingCard />
+            {fixedBookingsEnabled ? (
+              <section className={styles.softCard}>
+                <h2>When clients can book</h2>
+                <p className={styles.quiet}>
+                  You are open {openThisMonth.length} more day{openThisMonth.length === 1 ? '' : 's'} in {monthLabel}.
+                </p>
+                <button type="button" className={styles.textLink} onClick={() => setView('availability')}>
+                  Edit availability
+                  <ArrowRight strokeWidth={1.75} />
                 </button>
+              </section>
+            ) : null}
+          </aside>
+        </div>
+      </div>
+      <div hidden={primaryView !== 'bookings'}>
+        <div className={styles.bookLayout}>
+          <section className={styles.card}>
+            <div className={styles.bookTools}>
+              <div className={styles.modeSwitch} role="tablist" aria-label="Booking status">
+                <button type="button" role="tab" aria-selected={statusTab === 'upcoming' && !balanceOnly} onClick={() => { setBalanceOnly(false); setStatusTab('upcoming'); }}>
+                  Upcoming
+                  <span className={styles.tabCount}>{upcomingBookings.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected={balanceOnly} onClick={() => { setBalanceOnly(true); setStatusTab('upcoming'); }}>
+                  Balance due
+                  <span className={styles.tabCount}>{balanceDue.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected={statusTab === 'disputed'} onClick={() => { setBalanceOnly(false); setStatusTab('disputed'); }}>
+                  Disputed
+                  <span className={`${styles.tabCount} ${disputedBookings.length > 0 ? styles.tabCountAlert : ''}`}>{disputedBookings.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected={statusTab === 'completed'} onClick={() => { setBalanceOnly(false); setStatusTab('completed'); }}>
+                  Completed
+                  <span className={styles.tabCount}>{completedBookings.length}</span>
+                </button>
+              </div>
+              <input className={styles.bookSearch} value={query} placeholder="Client or service" aria-label="Search clients or services" onChange={(event) => setQuery(event.target.value)} />
+            </div>
+            {visibleBookings.length === 0 ? (
+              <EmptyState
+                icon={Calendar}
+                title={q ? 'No matches' : balanceOnly ? 'No balances due' : emptyCopy[statusTab].title}
+                body={
+                  q
+                    ? 'Try another client or service.'
+                    : balanceOnly
+                      ? 'Upcoming bookings with a balance will show up here.'
+                      : emptyCopy[statusTab].body
+                }
+              />
+            ) : visibleBookings.map((booking) => {
+              const when = new Date(booking.bookingDate);
+              const tone = booking.status === 'disputed' ? styles.pillAlert : booking.paymentPlan === 'deposit' && Number(booking.balanceAmount || 0) > 0 ? styles.pillWait : styles.pillPaid;
+              return (
+                <div key={booking.id} className={styles.sched}>
+                  <div className={styles.dateBox}>
+                    <span>{when.toLocaleDateString('en-GB', { month: 'short' })}</span>
+                    <strong>{when.getDate()}</strong>
+                  </div>
+                  <div className={styles.schedWho}>
+                    <strong>{booking.customerName}</strong>
+                    <span>{booking.priceListItem?.name || 'Service'} · {formatBookingDate(booking.bookingDate, booking.startTime, booking.endTime)}</span>
+                  </div>
+                  <div className={styles.schedAmount}>
+                    <strong>{formatBookingPrice(booking.totalAmount)}</strong>
+                    {Number(booking.balanceAmount || 0) > 0 ? <span>Balance {formatBookingPrice(booking.balanceAmount || 0)}</span> : null}
+                  </div>
+                  <span className={`${styles.pill} ${tone}`}>{BOOKING_STATUS_LABELS[booking.status] || booking.status}</span>
+                  {statusTab === 'disputed' ? (
+                    <span style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" className={styles.darkButton} onClick={() => { setSelectedBooking(booking); setRefundDialogOpen(true); }} disabled={loading === booking.id}>Refund</button>
+                      <button type="button" className={styles.textLink} onClick={() => handleRejectRefund(booking.id)} disabled={loading === booking.id}>Reject</button>
+                    </span>
+                  ) : (
+                    <Link href={`/bookings/detail/${booking.id}`} className={styles.schedArrow} aria-label="View booking">
+                      <ArrowRight strokeWidth={1.75} />
+                    </Link>
+                  )}
+                </div>
               );
             })}
-          </div>
-
-          <div className="foleio-dash-tabs" role="tablist" aria-label="Booking status">
-            {statusTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={statusTab === tab.id}
-                className={`foleio-dash-tab${statusTab === tab.id ? ' is-active' : ''}`}
-                onClick={() => setStatusTab(tab.id)}
-              >
-                {tab.label}
-                <span className="foleio-dash-tab-count">{tab.count}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="foleio-dash-panel">
-            <div className="foleio-dash-header" style={{ marginBottom: 8 }}>
-              <div>
-                <h2 className="foleio-dash-panel-title" style={{ marginBottom: 0 }}>
-                  {statusTabs.find((t) => t.id === statusTab)?.label}
-                </h2>
-                <p className="foleio-dash-panel-meta" style={{ marginBottom: 0, marginTop: 6 }}>
-                  {listForTab.length === 0
-                    ? 'Nothing here yet'
-                    : `${listForTab.length} booking${listForTab.length === 1 ? '' : 's'}${
-                        listForTab.length > previewList.length
-                          ? ` · showing ${previewList.length}`
-                          : ''
-                      }`}
-                </p>
+          </section>
+          <aside className={styles.bookSide}>
+            <section className={styles.collectCard}>
+              <p className={styles.eyebrow}>Paid on upcoming bookings</p>
+              <p className={styles.big}>{formatBookingPrice(paidOnUpcoming)}</p>
+              <p className={styles.quiet}>of {formatBookingPrice(bookedTotal)} booked</p>
+              <div className={styles.track} aria-hidden="true">
+                <span style={{ width: bookedTotal > 0 ? `${Math.min(100, Math.round((paidOnUpcoming / bookedTotal) * 100))}%` : '0%' }} />
               </div>
-              <Link
-                href={STATUS_FILTER_META[statusTab].href}
-                className="foleio-dash-btn-outline"
-              >
-                View more
-              </Link>
-            </div>
-            {previewList.length === 0 ? (
-              <p className="foleio-dash-empty">{emptyCopy[statusTab]}</p>
-            ) : (
-              previewList.map((booking) => {
-                if (statusTab === 'upcoming') {
-                  return renderBookingRow(booking);
-                }
-
-                if (statusTab === 'disputed') {
-                  return renderBookingRow(
-                    booking,
-                    <>
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-outline"
-                        onClick={() => {
-                          setSelectedBooking(booking);
-                          setRefundDialogOpen(true);
-                        }}
-                        disabled={loading === booking.id}
-                      >
-                        Process refund
-                      </button>
-                      <button
-                        type="button"
-                        className="foleio-dash-btn-ghost"
-                        onClick={() => handleRejectRefund(booking.id)}
-                        disabled={loading === booking.id}
-                      >
-                        Reject
-                      </button>
-                    </>
-                  );
-                }
-
-                return renderBookingRow(booking);
-              })
-            )}
-          </div>
-        </>
-      )}
+              <div className={styles.collectRow}>
+                <div>
+                  <strong>Still to collect</strong>
+                  <span>{balanceDue.length === 0 ? 'No deposit balances are waiting.' : balanceDue.slice(0, 2).map((booking) => booking.customerName).join(', ')}</span>
+                </div>
+                <b>{formatBookingPrice(stillToCollect)}</b>
+              </div>
+            </section>
+            {disputedBookings[0] ? (
+              <section className={styles.card}>
+                <p className={styles.disputeLabel}>
+                  <span className={styles.pillAlert}>{disputedBookings.length}</span>
+                  {disputedBookings.length} disputed booking{disputedBookings.length === 1 ? '' : 's'}
+                </p>
+                <h2 className={styles.sideTitle}>{disputedBookings[0].customerName} · {disputedBookings[0].priceListItem?.name || 'Service'}</h2>
+                <p className={styles.quiet}>{formatBookingPrice(disputedBookings[0].totalAmount)} paid</p>
+                <p className={styles.sideCopy}>{disputedBookings[0].disputeReason || 'A client asked for a refund.'}</p>
+                <button type="button" className={styles.darkButton} onClick={() => { setBalanceOnly(false); setStatusTab('disputed'); }}>Review dispute</button>
+              </section>
+            ) : null}
+            {fixedBookingsEnabled ? (
+              <section className={styles.card}>
+                <h2 className={styles.sideTitle}>Open days</h2>
+                <p className={styles.quiet}>{openDays.length === 0 ? 'No open days in the next 90 days.' : 'Clients can still book these from your link.'}</p>
+                <div className={styles.openDays}>
+                  {openDays.map((slot) => (
+                    <span key={slot.id} className={`${styles.pill} ${styles.pillWait}`}>
+                      {new Date(slot.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                  ))}
+                </div>
+                <button type="button" className={styles.textLink} onClick={() => setView('availability')}>
+                  Edit availability
+                  <ArrowRight strokeWidth={1.75} />
+                </button>
+              </section>
+            ) : null}
+          </aside>
+        </div>
+      </div>
+      </div>
 
       {refundDialogOpen ? (
         <div className="foleio-dash-modal-backdrop" role="presentation">
@@ -571,5 +506,38 @@ export function UnifiedBookingsManager({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function DepositTimingCard() {
+  const [days, setDays] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void getBookingPaymentPolicy().then((result) => {
+      if (!mounted || !result.success || !result.data) return;
+      setDays(result.data.balanceDueDaysBefore);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return (
+    <section className={styles.softCard}>
+      <h2>When a client pays a deposit</h2>
+      <div className={styles.statRow}>
+        <span>Balance is due</span>
+        <strong>{days == null ? '—' : `${days} day${days === 1 ? '' : 's'} before`}</strong>
+      </div>
+      <div className={styles.statRow}>
+        <span>Reminder emails</span>
+        <strong>2 days before, and on the day</strong>
+      </div>
+      <Link href="/settings?tab=policy" className={styles.textLink}>
+        Change when balances are due
+        <ArrowRight strokeWidth={1.75} />
+      </Link>
+    </section>
   );
 }
