@@ -18,6 +18,7 @@ const creator = {
   creatorLinks: [],
   priceListItems: [],
   availability: [],
+  creatorPlans: [],
   platformPlan: 'starter',
   platformSubscriptionActive: true,
   paystackSubaccountCode: 'preview',

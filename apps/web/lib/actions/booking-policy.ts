@@ -53,7 +53,7 @@ export async function updateBookingPaymentPolicy(input: z.infer<typeof policySch
 
   const creator = await prisma.creator.findUnique({
     where: { userId: session.user.id },
-    select: { id: true },
+    select: { id: true, username: true },
   });
   if (!creator) return { error: 'Creator not found' };
 

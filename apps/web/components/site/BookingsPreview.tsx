@@ -27,7 +27,7 @@ const BOOKINGS = [
     cost: '₦25,000',
     note: 'Paid in full',
   },
-] as const;
+];
 
 function monthCells(year: number, month: number) {
   const startPad = new Date(year, month, 1).getDay();

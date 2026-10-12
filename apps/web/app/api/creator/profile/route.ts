@@ -149,7 +149,7 @@ export async function PATCH(request: Request) {
       bannerUrl?: string | null;
       instagramHandle?: string | null;
       tiktokHandle?: string | null;
-      category?: string | null;
+      category?: string;
     } = {};
 
     if (typeof body.username === 'string') {
@@ -244,7 +244,7 @@ export async function PATCH(request: Request) {
     if (typeof body.industry === 'string') {
       data.category = body.industry.trim();
     } else if (body.industry === null) {
-      data.category = null;
+      data.category = 'makeup';
     }
 
     const hasTwitterUpdate =

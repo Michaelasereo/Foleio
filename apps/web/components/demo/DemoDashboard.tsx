@@ -1901,7 +1901,10 @@ function DemoBookingsPage({ initialView = 'bookings' }: { initialView?: BookingV
   const source =
     tab === 'completed' ? COMPLETED_ROWS : tab === 'disputed' ? DISPUTED_ROWS : SCHEDULE;
   const rows = source.filter((row) => {
-    const onTab = tab === 'completed' || tab === 'disputed' || row.filters.includes(tab);
+    const onTab =
+      tab === 'completed' ||
+      tab === 'disputed' ||
+      ('filters' in row && (row.filters as readonly string[]).includes(tab));
     const q = query.trim().toLowerCase();
     const matches = !q || `${row.name} ${row.detail}`.toLowerCase().includes(q);
     return onTab && matches;

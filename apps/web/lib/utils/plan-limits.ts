@@ -165,6 +165,12 @@ export const PLAN_LIMIT_MESSAGES = {
       'Create percent or fixed-amount coupon codes for your shop on Pro.',
     feature: 'Shop coupon codes',
   },
+  canCreateCollections: {
+    title: 'Collections are a paid feature',
+    description:
+      'Upgrade to Pro or Premium to create courses and collections.',
+    feature: 'Courses and collections',
+  },
   availabilityTemplates: {
     title: 'Schedule templates are Pro',
     description:
