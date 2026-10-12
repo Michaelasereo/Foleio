@@ -84,3 +84,9 @@ jobs:
           CLOUDFLARE_BUCKET_NAME: placeholder
           CRON_SECRET: placeholder
           ADMIN_SECRET: placeholder
+          NEXTAUTH_URL: https://staging-foleio.netlify.app
+          NEXT_PUBLIC_ENV: staging
+          PAYSTACK_PRO_MONTHLY_PLAN_CODE: placeholder
+          PAYSTACK_PRO_QUARTERLY_PLAN_CODE: placeholder
+          ADMIN_NOTIFICATION_EMAIL: ci@example.com
+          MANUAL_PAYOUTS_ENABLED: 'false'

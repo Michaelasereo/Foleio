@@ -68,6 +68,12 @@ jobs:
           CLOUDFLARE_BUCKET_NAME: ${{ secrets.CLOUDFLARE_BUCKET_NAME }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          NEXTAUTH_URL: https://staging-foleio.netlify.app
+          NEXT_PUBLIC_ENV: staging
+          PAYSTACK_PRO_MONTHLY_PLAN_CODE: ${{ secrets.PAYSTACK_PRO_MONTHLY_PLAN_CODE }}
+          PAYSTACK_PRO_QUARTERLY_PLAN_CODE: ${{ secrets.PAYSTACK_PRO_QUARTERLY_PLAN_CODE }}
+          ADMIN_NOTIFICATION_EMAIL: ${{ secrets.ADMIN_NOTIFICATION_EMAIL }}
+          MANUAL_PAYOUTS_ENABLED: ${{ secrets.MANUAL_PAYOUTS_ENABLED }}
 
       - name: Notify success
         if: success()

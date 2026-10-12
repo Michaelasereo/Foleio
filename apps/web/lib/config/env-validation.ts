@@ -136,12 +136,15 @@ export function validateAndExit(): void {
 
     // Never process.exit in serverless (Netlify/Lambda) — that kills the
     // whole function isolate and surfaces as "An unknown error has occurred".
+    // next build also evaluates this module while NODE_ENV is production.
+    // Exiting there fails CI before any page is generated.
     const isServerless =
       Boolean(process.env.NETLIFY) ||
       Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
       Boolean(process.env.LAMBDA_TASK_ROOT);
+    const isNextBuild = process.env.NEXT_PHASE === 'phase-production-build';
 
-    if (!isDev && !isServerless) {
+    if (!isDev && !isServerless && !isNextBuild) {
       process.exit(1);
     }
     return;
