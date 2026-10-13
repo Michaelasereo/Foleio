@@ -1,5 +1,9 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
+import {
+  e2eCreatorIds,
+  withoutE2eCreatorOrUnassigned,
+} from '@/lib/admin/delete-creator';
 
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
@@ -12,6 +16,7 @@ export async function GET(request: Request) {
   const status = searchParams.get('status') || '';
   const paymentType = searchParams.get('paymentType') || '';
   const q = searchParams.get('q') || '';
+  const excluded = await e2eCreatorIds();
 
   const statusFilter = status
     ? status.toLowerCase() === 'success'
@@ -24,19 +29,26 @@ export async function GET(request: Request) {
     : {};
 
   const where = {
-    ...statusFilter,
-    ...(type ? { type } : {}),
-    ...(paymentType ? { paymentType: paymentType as 'DIRECT_SUBACCOUNT' | 'PLATFORM_HELD' } : {}),
-    ...(q
-      ? {
-          OR: [
-            { creator: { displayName: { contains: q, mode: 'insensitive' as const } } },
-            { creator: { username: { contains: q, mode: 'insensitive' as const } } },
-            { user: { email: { contains: q, mode: 'insensitive' as const } } },
-            { reference: { contains: q, mode: 'insensitive' as const } },
-          ],
-        }
-      : {}),
+    AND: [
+      statusFilter,
+      ...(type ? [{ type }] : []),
+      ...(paymentType
+        ? [{ paymentType: paymentType as 'DIRECT_SUBACCOUNT' | 'PLATFORM_HELD' }]
+        : []),
+      ...(q
+        ? [
+            {
+              OR: [
+                { creator: { displayName: { contains: q, mode: 'insensitive' as const } } },
+                { creator: { username: { contains: q, mode: 'insensitive' as const } } },
+                { user: { email: { contains: q, mode: 'insensitive' as const } } },
+                { reference: { contains: q, mode: 'insensitive' as const } },
+              ],
+            },
+          ]
+        : []),
+      withoutE2eCreatorOrUnassigned(excluded),
+    ],
   };
 
   const [transactions, total] = await Promise.all([

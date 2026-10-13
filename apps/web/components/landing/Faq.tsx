@@ -39,7 +39,7 @@ const QUESTIONS = [
 
 export function Faq() {
   return (
-    <div className={`${frame} flex flex-wrap gap-x-16 gap-y-8 pt-[88px] text-[17px]`}>
+    <div className={`${frame} flex flex-wrap gap-x-16 gap-y-8 pt-14 text-[17px] min-[761px]:pt-[88px]`}>
       <div className="min-w-0 flex-[1_1_360px]">
         <h2 className="m-0 text-[clamp(32px,3.5vw,50px)] font-[450] leading-[1.08] tracking-[-0.035em] text-[#1c1b19]">
           Questions, <Italic>answered.</Italic>

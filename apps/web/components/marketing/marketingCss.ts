@@ -42,8 +42,9 @@ body:has(.foleio-mkt-root) .foleio-site-footer {
 }
 .foleio-mkt-brand img {
   height: 28px;
-  width: auto;
-  filter: brightness(0) invert(1);
+  width: 28px;
+  border-radius: 999px;
+  object-fit: cover;
 }
 .foleio-mkt-nav-links {
   display: none;

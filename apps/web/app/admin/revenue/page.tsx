@@ -36,7 +36,7 @@ import {
 } from '@/lib/admin/format';
 
 type Channel = 'all' | 'shop' | 'services' | 'subscriptions';
-type Range = '7d' | '30d' | '90d';
+type Range = '7d' | '30d' | '90d' | 'all';
 
 type Totals = {
   gmv: number;
@@ -85,6 +85,7 @@ const CHANNEL_TABS: Array<{ id: Channel; label: string }> = [
 ];
 
 const RANGE_OPTIONS: Array<{ id: Range; label: string }> = [
+  { id: 'all', label: 'All' },
   { id: '7d', label: '7d' },
   { id: '30d', label: '30d' },
   { id: '90d', label: '90d' },
@@ -107,7 +108,7 @@ function MetricCards({ totals }: { totals: Totals }) {
       ].map((card) => (
         <div key={card.label} className={adminPanelClass}>
           <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
-          <p className="mt-2 text-2xl font-semibold text-[#f4f4f5]">{card.value}</p>
+          <p className="mt-2 text-2xl font-semibold text-[#1c1b19]">{card.value}</p>
         </div>
       ))}
     </div>
@@ -186,7 +187,7 @@ function RecentTable({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                      className="border-red-200 bg-transparent text-red-700 hover:bg-red-50"
                       disabled={deletingId === tx.id}
                       onClick={() => onDelete(tx)}
                     >
@@ -205,7 +206,7 @@ function RecentTable({
 
 export default function AdminRevenuePage() {
   const [channel, setChannel] = useState<Channel>('all');
-  const [range, setRange] = useState<Range>('30d');
+  const [range, setRange] = useState<Range>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetcher = async (url: string) => {
@@ -266,8 +267,8 @@ export default function AdminRevenuePage() {
   }, [data]);
 
   const chartTooltip = {
-    background: '#212121',
-    border: '1px solid #201e1c',
+    background: '#f3f2ed',
+    border: '1px solid #e7e5e4',
     borderRadius: 8,
   };
 
@@ -277,7 +278,7 @@ export default function AdminRevenuePage() {
 
   if (error || !data) {
     return (
-      <p className={`text-sm text-red-300`}>Could not load revenue data. Refresh and try again.</p>
+      <p className={`text-sm text-red-700`}>Could not load revenue data. Refresh and try again.</p>
     );
   }
 
@@ -336,13 +337,13 @@ export default function AdminRevenuePage() {
                 <button
                   key={item.key}
                   type="button"
-                  className={`${adminPanelClass} text-left transition hover:bg-white/[0.03]`}
+                  className={`${adminPanelClass} text-left transition hover:bg-[#f6f5f1]`}
                   onClick={() => setChannel(item.key)}
                 >
                   <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>
                     {item.label}
                   </p>
-                  <p className="mt-2 text-xl font-semibold text-[#f4f4f5]">
+                  <p className="mt-2 text-xl font-semibold text-[#1c1b19]">
                     {formatMoneyFromKobo(totals.platformFee)}
                   </p>
                   <p className={`mt-1 text-xs ${adminMutedClass}`}>
@@ -355,13 +356,13 @@ export default function AdminRevenuePage() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <div className={`${adminPanelClass} xl:col-span-2`}>
-              <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">
+              <h3 className="mb-4 text-base font-semibold text-[#1c1b19]">
                 GMV by channel
               </h3>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data.dailySeries}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#201e1c" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
                     <XAxis
                       dataKey="date"
                       tick={{ fontSize: 12, fill: '#828282' }}
@@ -408,7 +409,7 @@ export default function AdminRevenuePage() {
             </div>
 
             <div className={adminPanelClass}>
-              <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">
+              <h3 className="mb-4 text-base font-semibold text-[#1c1b19]">
                 Fee mix
               </h3>
               {mixData.length === 0 ? (
@@ -446,13 +447,13 @@ export default function AdminRevenuePage() {
           </div>
 
           <div className={adminPanelClass}>
-            <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">
+            <h3 className="mb-4 text-base font-semibold text-[#1c1b19]">
               Platform fee trend
             </h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.dailySeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#201e1c" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12, fill: '#828282' }}
@@ -483,13 +484,13 @@ export default function AdminRevenuePage() {
         </>
       ) : (
         <div className={adminPanelClass}>
-          <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">
+          <h3 className="mb-4 text-base font-semibold text-[#1c1b19]">
             {CHANNEL_TABS.find((t) => t.id === channel)?.label} trend
           </h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.dailySeries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#201e1c" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 12, fill: '#828282' }}
@@ -534,7 +535,7 @@ export default function AdminRevenuePage() {
       )}
 
       <div>
-        <h3 className="mb-3 text-base font-semibold text-[#f4f4f5]">Recent transactions</h3>
+        <h3 className="mb-3 text-base font-semibold text-[#1c1b19]">Recent transactions</h3>
         <RecentTable
           rows={data.recent}
           onDelete={(tx) => void handleDelete(tx)}

@@ -1,6 +1,11 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
 import {
+  e2eCreatorIds,
+  withoutE2eCreator,
+  withoutE2eCreatorOrUnassigned,
+} from '@/lib/admin/delete-creator';
+import {
   ADMIN_REVENUE_TX_TYPES,
   ADMIN_SUCCESS_TX_STATUSES,
   platformFeeFromTransaction,
@@ -8,7 +13,7 @@ import {
 import { platformFeeFromGross } from '@/lib/billing/platform-fee';
 
 type RevenueChannel = 'all' | 'shop' | 'services' | 'subscriptions';
-type RevenueRange = '7d' | '30d' | '90d';
+type RevenueRange = '7d' | '30d' | '90d' | 'all';
 
 const CHANNEL_TYPES: Record<Exclude<RevenueChannel, 'all'>, string[]> = {
   shop: ['shop_order'],
@@ -20,8 +25,8 @@ const CHANNEL_TYPES: Record<Exclude<RevenueChannel, 'all'>, string[]> = {
 const ALL_REVENUE_TYPES = [...ADMIN_REVENUE_TX_TYPES];
 
 function parseRange(value: string | null): RevenueRange {
-  if (value === '7d' || value === '90d') return value;
-  return '30d';
+  if (value === '7d' || value === '30d' || value === '90d' || value === 'all') return value;
+  return 'all';
 }
 
 function parseChannel(value: string | null): RevenueChannel {
@@ -29,10 +34,11 @@ function parseChannel(value: string | null): RevenueChannel {
   return 'all';
 }
 
-function rangeDays(range: RevenueRange): number {
+function rangeDays(range: RevenueRange): number | null {
   if (range === '7d') return 7;
+  if (range === '30d') return 30;
   if (range === '90d') return 90;
-  return 30;
+  return null;
 }
 
 function channelForType(type: string): Exclude<RevenueChannel, 'all'> | null {
@@ -67,10 +73,14 @@ export async function GET(request: Request) {
   const range = parseRange(searchParams.get('range'));
   const channel = parseChannel(searchParams.get('channel'));
   const days = rangeDays(range);
+  const excluded = await e2eCreatorIds();
 
-  const since = new Date();
-  since.setHours(0, 0, 0, 0);
-  since.setDate(since.getDate() - (days - 1));
+  const since = days == null ? null : new Date();
+  if (since && days != null) {
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
+  }
+  const createdAt = since ? { gte: since } : undefined;
 
   const typesForQuery =
     channel === 'all' ? ALL_REVENUE_TYPES : CHANNEL_TYPES[channel];
@@ -91,7 +101,8 @@ export async function GET(request: Request) {
       where: {
         status: { in: [...ADMIN_SUCCESS_TX_STATUSES] },
         type: { in: typesForQuery },
-        createdAt: { gte: since },
+        ...withoutE2eCreatorOrUnassigned(excluded),
+        ...(createdAt ? { createdAt } : {}),
       },
       select: {
         id: true,
@@ -112,7 +123,8 @@ export async function GET(request: Request) {
       ? prisma.booking.findMany({
           where: {
             status: { in: ['deposit_paid', 'balance_overdue'] },
-            createdAt: { gte: since },
+            ...withoutE2eCreator(excluded),
+            ...(createdAt ? { createdAt } : {}),
           },
           select: {
             id: true,
@@ -139,7 +151,8 @@ export async function GET(request: Request) {
       ? prisma.order.findMany({
           where: {
             status: { in: [...PAID_SHOP_ORDER_STATUSES] },
-            createdAt: { gte: since },
+            ...withoutE2eCreator(excluded),
+            ...(createdAt ? { createdAt } : {}),
           },
           select: {
             id: true,
@@ -285,7 +298,7 @@ export async function GET(request: Request) {
     }
   >();
 
-  for (let i = days - 1; i >= 0; i -= 1) {
+  for (let i = (days ?? 1) - 1; i >= 0 && days != null; i -= 1) {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() - i);
@@ -316,9 +329,23 @@ export async function GET(request: Request) {
       byChannel[ch].count += 1;
     }
 
-    const key = row.createdAt.toISOString().slice(0, 10);
-    const bucket = seriesMap.get(key);
-    if (!bucket) continue;
+    const key =
+      days == null
+        ? row.createdAt.toISOString().slice(0, 7)
+        : row.createdAt.toISOString().slice(0, 10);
+    let bucket = seriesMap.get(key);
+    if (!bucket) {
+      if (days != null) continue;
+      bucket = {
+        shop: 0,
+        services: 0,
+        subscriptions: 0,
+        platformFee: 0,
+        gmv: 0,
+        creatorEarnings: 0,
+      };
+      seriesMap.set(key, bucket);
+    }
 
     bucket.gmv += row.amount;
     bucket.platformFee += row.platformFee;
@@ -328,10 +355,12 @@ export async function GET(request: Request) {
     if (ch === 'subscriptions') bucket.subscriptions += row.amount;
   }
 
-  const dailySeries = Array.from(seriesMap.entries()).map(([date, values]) => ({
-    date,
-    ...values,
-  }));
+  const dailySeries = Array.from(seriesMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, values]) => ({
+      date,
+      ...values,
+    }));
 
   const recent = rows
     .filter((row) => {
@@ -356,7 +385,7 @@ export async function GET(request: Request) {
   return Response.json({
     range,
     channel,
-    since: since.toISOString(),
+    since: since ? since.toISOString() : null,
     summary,
     byChannel,
     dailySeries,

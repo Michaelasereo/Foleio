@@ -198,7 +198,7 @@ export default function AdminSettingsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="foleio-admin-title">Settings</h2>
-        <Badge variant="outline" className="border-white/10 text-[#adadad]">
+        <Badge variant="outline" className="border-[#e7e5e4] text-[#6b6964]">
           Platform
         </Badge>
       </div>
@@ -212,7 +212,7 @@ export default function AdminSettingsPage() {
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-xl space-y-2">
-              <h3 className="text-base font-semibold text-[#f4f4f5]">
+              <h3 className="text-base font-semibold text-[#1c1b19]">
                 Require identity verification (Dojah)
               </h3>
               <p className={`text-sm ${adminMutedClass}`}>
@@ -230,7 +230,7 @@ export default function AdminSettingsPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-white/10 bg-transparent"
+                className="border-[#e7e5e4] bg-transparent"
                 disabled={saving}
                 onClick={() => void saveKyc(!requireDojahKyc)}
               >
@@ -244,7 +244,7 @@ export default function AdminSettingsPage() {
       <div className={`${adminPanelClass} space-y-4`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-semibold text-[#f4f4f5]">Security</h3>
+            <h3 className="text-base font-semibold text-[#1c1b19]">Security</h3>
             <p className={`mt-1 text-sm ${adminMutedClass}`}>
               {adminEmail || 'Admin'} · Authenticator{' '}
               <Badge className={`ml-1 border ${statusBadgeClass(totpEnabled ? 'active' : 'pending')}`}>
@@ -255,8 +255,8 @@ export default function AdminSettingsPage() {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-3 rounded-xl border border-white/5 bg-[#1a1816] p-4">
-            <h4 className="text-sm font-semibold text-[#f4f4f5]">Change password</h4>
+          <div className="space-y-3 rounded-xl border border-[#e7e5e4] bg-[#f3f2ed] p-4">
+            <h4 className="text-sm font-semibold text-[#1c1b19]">Change password</h4>
             <Input
               type="password"
               placeholder="Current password"
@@ -289,7 +289,7 @@ export default function AdminSettingsPage() {
             ) : null}
             <Button
               type="button"
-              className="bg-white/10 text-[#f4f4f5] hover:bg-white/15"
+              className="bg-[#efece6] text-[#1c1b19] hover:bg-[#e7e5e4]"
               disabled={changingPassword}
               onClick={() => void changePassword()}
             >
@@ -297,8 +297,8 @@ export default function AdminSettingsPage() {
             </Button>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-white/5 bg-[#1a1816] p-4">
-            <h4 className="text-sm font-semibold text-[#f4f4f5]">Re-setup Authenticator</h4>
+          <div className="space-y-3 rounded-xl border border-[#e7e5e4] bg-[#f3f2ed] p-4">
+            <h4 className="text-sm font-semibold text-[#1c1b19]">Re-setup Authenticator</h4>
             <p className={`text-xs ${adminMutedClass}`}>
               Requires your current password and a current 6-digit code, then scan a new QR.
             </p>
@@ -321,7 +321,7 @@ export default function AdminSettingsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-white/10 bg-transparent"
+                  className="border-[#e7e5e4] bg-transparent"
                   disabled={setupBusy || !totpEnabled}
                   onClick={() => void startResetup()}
                 >
@@ -346,7 +346,7 @@ export default function AdminSettingsPage() {
                 />
                 <Button
                   type="button"
-                  className="bg-white/10 text-[#f4f4f5] hover:bg-white/15"
+                  className="bg-[#efece6] text-[#1c1b19] hover:bg-[#e7e5e4]"
                   disabled={setupBusy}
                   onClick={() => void confirmResetup()}
                 >

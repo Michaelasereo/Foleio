@@ -32,7 +32,8 @@ export function DemoShot({
     return () => observer.disconnect();
   }, []);
 
-  const sourceWidth = SOURCE_WIDTH[embed];
+  const designWidth = SOURCE_WIDTH[embed];
+  const sourceWidth = width > 0 && width < designWidth ? width : designWidth;
   const scale = width > 0 ? width / sourceWidth : 1;
 
   useLayoutEffect(() => {
@@ -47,7 +48,7 @@ export function DemoShot({
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [embed, width]);
+  }, [embed, width, sourceWidth, section]);
 
   const sliceHeight = frame.current?.clientHeight ?? 0;
   const canvasHeight =
@@ -80,7 +81,7 @@ export function DemoShot({
             transformOrigin: 'top left',
           }}
         >
-          <div className={embed === 'full' ? undefined : 'h-full'}>
+          <div style={{ width: '100%', containerType: 'inline-size', containerName: 'foleio-demo' }}>
             <DemoDashboard initialSection={section} embedded={embed} />
           </div>
         </div>

@@ -2,7 +2,7 @@ import { Italic, Pill, frame } from './ui';
 
 export function Pricing() {
   return (
-    <div id="pricing" className={`${frame} pt-[88px]`}>
+    <div id="pricing" className={`${frame} pt-14 min-[761px]:pt-[88px]`}>
       <h2 className="m-0 text-[clamp(32px,3.5vw,50px)] font-[450] leading-[1.08] tracking-[-0.035em] text-[#1c1b19]">
         Free to start. <Italic>One fee, nothing hidden.</Italic>
       </h2>
@@ -12,7 +12,7 @@ export function Pricing() {
       </p>
 
       <div className="mt-9 flex flex-wrap gap-4">
-        <div className="box-border min-w-0 flex-[1_1_340px] rounded-[28px] bg-[#f3f2ed] p-9">
+        <div className="box-border min-w-0 flex-[1_1_340px] rounded-[28px] bg-[#f3f2ed] p-6 min-[761px]:p-9">
           <div className="text-[22px] font-[450] tracking-[-0.03em]">Free</div>
           <div className="text-[15px] text-[#6b6a64]">Everything you need to get booked.</div>
           <div className="mt-[22px] flex items-baseline gap-2">
@@ -33,7 +33,7 @@ export function Pricing() {
           </div>
         </div>
 
-        <div className="box-border min-w-0 flex-[1_1_340px] rounded-[28px] bg-[#131210] p-9 text-white">
+        <div className="box-border min-w-0 flex-[1_1_340px] rounded-[28px] bg-[#131210] p-6 text-white min-[761px]:p-9">
           <div className="text-[22px] font-[450] tracking-[-0.03em]">Pro</div>
           <div className="text-[15px] text-[#a9a7a0]">A lower fee and more ways to sell.</div>
           <div className="mt-[22px] flex flex-wrap items-baseline gap-x-2 gap-y-1">

@@ -49,9 +49,9 @@ export function Steps() {
   return (
     <div
       id="how"
-      className={`${frame} flex flex-wrap items-center gap-x-[72px] gap-y-12 pt-[88px]`}
+      className={`${frame} flex flex-wrap items-center gap-x-8 gap-y-10 pt-14 min-[761px]:pt-[88px] min-[901px]:gap-x-[72px]`}
     >
-      <div className="min-w-0 flex-[1_1_380px]">
+      <div className="min-w-0 flex-[1_1_100%] min-[901px]:flex-[1_1_380px]">
         <h2 className="m-0 text-[clamp(32px,3.5vw,50px)] font-[450] leading-[1.08] tracking-[-0.035em] text-[#1c1b19]">
           From your bio to your bank <Italic>in three steps.</Italic>
         </h2>
@@ -86,7 +86,7 @@ export function Steps() {
         </div>
       </div>
 
-      <div className="box-border flex min-h-[420px] min-w-0 flex-[1_1_460px] items-center overflow-hidden rounded-[28px] bg-[#f3f2ed] px-8 py-10">
+      <div className="box-border flex min-h-[420px] min-w-0 flex-[1_1_100%] items-center overflow-hidden rounded-[28px] bg-[#f3f2ed] px-8 py-10 min-[901px]:flex-[1_1_460px]">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={active}
@@ -132,31 +132,31 @@ function ShareImage() {
 function SellImage() {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3 rounded-[18px] bg-white p-3 shadow-[0_16px_40px_-28px_rgba(19,18,16,0.45)]">
+      <div className="flex flex-wrap items-center gap-3 rounded-[18px] bg-white p-3 shadow-[0_16px_40px_-28px_rgba(19,18,16,0.45)]">
         <img src={KAFTAN} alt="" className="h-16 w-16 shrink-0 rounded-[12px] object-cover" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-medium tracking-[-0.02em]">Bloom Kaftan</div>
           <div className="mt-0.5 text-[13px] text-[#6b6a64]">Kemi ordered</div>
         </div>
-        <div className="text-right">
+        <div className="ml-auto shrink-0 text-right">
           <div className="text-[14px] font-semibold">₦50,500</div>
           <div className="mt-0.5 text-[12px] text-[#6b6a64]">Physical</div>
         </div>
       </div>
-      <div className="flex items-center gap-3 rounded-[18px] bg-white p-3 shadow-[0_16px_40px_-28px_rgba(19,18,16,0.45)]">
+      <div className="flex flex-wrap items-center gap-3 rounded-[18px] bg-white p-3 shadow-[0_16px_40px_-28px_rgba(19,18,16,0.45)]">
         <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[12px] bg-[#e8efff] text-[#1e54e6]">
           <Calendar aria-hidden="true" size={22} strokeWidth={1.75} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-medium tracking-[-0.02em]">Bridal makeup</div>
-          <div className="mt-0.5 text-[13px] text-[#6b6a64]">Chiamaka booked · Sat 14 Nov</div>
+          <div className="mt-0.5 truncate text-[13px] text-[#6b6a64]">Chiamaka booked · Sat 14 Nov</div>
         </div>
-        <div className="text-right">
+        <div className="ml-auto shrink-0 text-right">
           <div className="text-[14px] font-semibold">₦40,000</div>
           <div className="mt-0.5 text-[12px] text-[#6b6a64]">Booking</div>
         </div>
       </div>
-      <div className="flex items-center gap-3 rounded-[18px] bg-white p-3 shadow-[0_16px_40px_-28px_rgba(19,18,16,0.45)]">
+      <div className="flex flex-wrap items-center gap-3 rounded-[18px] bg-white p-3 shadow-[0_16px_40px_-28px_rgba(19,18,16,0.45)]">
         <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[12px] bg-[#f3e8ff] text-[#7c3aed]">
           <FileDown aria-hidden="true" size={22} strokeWidth={1.75} />
         </span>
@@ -164,7 +164,7 @@ function SellImage() {
           <div className="text-[15px] font-medium tracking-[-0.02em]">Lookbook PDF</div>
           <div className="mt-0.5 text-[13px] text-[#6b6a64]">Ada downloaded</div>
         </div>
-        <div className="text-right">
+        <div className="ml-auto shrink-0 text-right">
           <div className="text-[14px] font-semibold">₦8,000</div>
           <div className="mt-0.5 text-[12px] text-[#6b6a64]">Digital</div>
         </div>

@@ -348,7 +348,7 @@ export default function AdminAccessPage() {
         <Button
           size="sm"
           variant="outline"
-          className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10 hover:text-red-200"
+          className="border-red-200 bg-transparent text-red-700 hover:bg-red-50 hover:text-red-800"
           disabled={deletingE2e || loading || e2eCount === 0}
           onClick={() => void handleDeleteE2e()}
         >
@@ -362,7 +362,7 @@ export default function AdminAccessPage() {
 
       <div className={`${adminPanelClass} space-y-3`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Badge variant="outline" className="border-white/10 text-[#adadad]">
+          <Badge variant="outline" className="border-[#e7e5e4] text-[#6b6964]">
             {counts.pending} pending · {counts.approved} approved · {counts.activated}{' '}
             activated · {counts.all} total
           </Badge>
@@ -376,7 +376,7 @@ export default function AdminAccessPage() {
             <Button
               asChild
               variant="outline"
-              className="border-white/10 bg-transparent text-[#f4f4f5]"
+              className="border-[#e7e5e4] bg-transparent text-[#1c1b19]"
             >
               <a href="/api/admin/waitlist?format=csv">Export CSV</a>
             </Button>
@@ -435,7 +435,7 @@ export default function AdminAccessPage() {
         <Button
           type="submit"
           disabled={adding}
-          className="bg-white/10 text-[#f4f4f5] hover:bg-white/15"
+          className="bg-[#efece6] text-[#1c1b19] hover:bg-[#e7e5e4]"
         >
           {adding ? 'Adding…' : 'Add to pending'}
         </Button>
@@ -446,7 +446,7 @@ export default function AdminAccessPage() {
       ) : null}
 
       {loadError ? (
-        <div className={`${adminPanelClass} py-8 text-center text-sm text-red-300`}>
+        <div className={`${adminPanelClass} py-8 text-center text-sm text-red-700`}>
           {loadError}
         </div>
       ) : null}
@@ -511,7 +511,7 @@ export default function AdminAccessPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="border-white/10 bg-transparent"
+                                className="border-[#e7e5e4] bg-transparent"
                                 disabled={
                                   approvingId === entry.id ||
                                   deletingId === entry.id ||
@@ -528,7 +528,7 @@ export default function AdminAccessPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                                className="border-red-200 bg-transparent text-red-700 hover:bg-red-50"
                                 disabled={
                                   deletingId === entry.id ||
                                   approvingId === entry.id ||
@@ -544,7 +544,7 @@ export default function AdminAccessPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                              className="border-red-200 bg-transparent text-red-700 hover:bg-red-50"
                               disabled={
                                 deletingEmail === entry.email ||
                                 deletingId === entry.id ||

@@ -25,7 +25,7 @@ const STEPS = [
 
 export function Setup() {
   return (
-    <div className="mt-[88px] bg-[#f2f1ec]">
+    <div className="mt-14 bg-[#f2f1ec] min-[761px]:mt-[88px]">
       <div className={`${frame} py-[72px]`}>
         <div className="text-[15px] text-[#55544f]">Live in minutes</div>
         <h2 className="m-0 mt-[14px] text-[clamp(32px,3.5vw,50px)] font-[450] leading-[1.08] tracking-[-0.035em] text-[#1c1b19]">
@@ -41,8 +41,8 @@ export function Setup() {
           ))}
         </div>
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          <div className="flex min-h-[46px] items-center justify-between gap-6 rounded-full bg-white pl-[18px] pr-2 text-[15px] shadow-[0_0_0_1px_rgba(19,18,16,0.06)]">
-            <span className="font-medium">foleio.com/creator/adaeze</span>
+          <div className="flex min-h-[46px] max-w-full min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-full bg-white py-2 pl-[18px] pr-2 text-[15px] shadow-[0_0_0_1px_rgba(19,18,16,0.06)]">
+            <span className="min-w-0 font-medium break-all">foleio.com/creator/adaeze</span>
             <span className="pr-2 text-[12px] font-medium text-[#0b8043]">✓ Ready to share</span>
           </div>
           <Pill href="/signup" className="min-h-[46px] px-[22px] text-[16px] tracking-[-0.01em]">

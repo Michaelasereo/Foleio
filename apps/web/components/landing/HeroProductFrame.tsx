@@ -15,6 +15,7 @@ const TABS = [
 export function HeroProductFrame({ publicLink }: { publicLink: PublicLinkPreview }) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('link');
   const current = TABS.find((item) => item.id === tab) ?? TABS[0];
+  const showLink = current.id === 'link';
 
   return (
     <div className="mt-11">
@@ -54,12 +55,12 @@ export function HeroProductFrame({ publicLink }: { publicLink: PublicLinkPreview
           </div>
           <div className="flex min-w-0 flex-1 justify-center">
             <div className="flex h-[30px] w-[400px] max-w-full items-center justify-center rounded-full border border-[#ebeae5] text-[13px] text-[#55544f]">
-              {current.id === 'link' ? 'foleio.com/creator/amatathelabel' : 'app.foleio.com'}
+              {showLink ? 'foleio.com/creator/amatathelabel' : 'app.foleio.com'}
             </div>
           </div>
           <div className="w-[47px] shrink-0 max-[760px]:hidden" />
         </div>
-        {current.id === 'link' ? (
+        {showLink ? (
           <PublicLinkShot preview={publicLink} />
         ) : (
           <DemoShot

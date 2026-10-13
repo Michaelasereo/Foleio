@@ -3,17 +3,35 @@
 import { PublicCreatorProfile } from '@/components/creator/PublicCreatorProfile';
 import type { PublicLinkPreview } from '@/lib/landing/amata-preview';
 import Link from 'next/link';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from './landing.module.css';
 
 const SOURCE_WIDTH = 1120;
 const MAX_PREVIEW_HEIGHT = 640;
+const COMPACT_PREVIEW_HEIGHT = 520;
+
+function useCompactFrame() {
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 760px)');
+    const update = () => setCompact(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return compact;
+}
 
 export function PublicLinkShot({ preview }: { preview: PublicLinkPreview }) {
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const compact = useCompactFrame();
   const [width, setWidth] = useState(0);
   const [naturalHeight, setNaturalHeight] = useState(0);
+  const sourceWidth = compact && width > 0 ? width : SOURCE_WIDTH;
+  const maxHeight = compact ? COMPACT_PREVIEW_HEIGHT : MAX_PREVIEW_HEIGHT;
 
   useLayoutEffect(() => {
     const node = frame.current;
@@ -25,7 +43,7 @@ export function PublicLinkShot({ preview }: { preview: PublicLinkPreview }) {
     return () => observer.disconnect();
   }, []);
 
-  const scale = width > 0 ? width / SOURCE_WIDTH : 1;
+  const scale = width > 0 ? width / sourceWidth : 1;
 
   useLayoutEffect(() => {
     if (width === 0) return;
@@ -39,7 +57,7 @@ export function PublicLinkShot({ preview }: { preview: PublicLinkPreview }) {
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [width]);
+  }, [width, sourceWidth]);
 
   return (
     <div
@@ -47,8 +65,8 @@ export function PublicLinkShot({ preview }: { preview: PublicLinkPreview }) {
       className={`${styles.publicLink} relative overflow-hidden bg-[#1a1816]`}
       style={
         naturalHeight > 0
-          ? { height: Math.min(Math.ceil(naturalHeight * scale), MAX_PREVIEW_HEIGHT) }
-          : { height: MAX_PREVIEW_HEIGHT }
+          ? { height: Math.min(Math.ceil(naturalHeight * scale), maxHeight) }
+          : { height: maxHeight }
       }
       role="img"
       aria-label="amatathelabel public link"
@@ -58,7 +76,7 @@ export function PublicLinkShot({ preview }: { preview: PublicLinkPreview }) {
           ref={canvas}
           className="pointer-events-none absolute top-0 left-0"
           style={{
-            width: SOURCE_WIDTH,
+            width: sourceWidth,
             height: naturalHeight || undefined,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',

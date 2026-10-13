@@ -31,8 +31,9 @@ body:has(.foleio-status-root) footer:not(.foleio-auth-legal) {
 
 .foleio-status-brand img {
   height: 32px;
-  width: auto;
-  filter: brightness(0) invert(1);
+  width: 32px;
+  border-radius: 999px;
+  object-fit: cover;
 }
 
 .foleio-status-card {
@@ -187,8 +188,8 @@ export function FoleioStatusPage({
           src={foleioLogo}
           alt="Foleio"
           height={32}
-          className="h-8 w-auto"
-          style={{ filter: 'brightness(0) invert(1)' }}
+          width={32}
+          className="h-8 w-8 rounded-full object-cover"
           priority
         />
       </Link>

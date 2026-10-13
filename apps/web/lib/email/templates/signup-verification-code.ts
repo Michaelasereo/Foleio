@@ -44,8 +44,9 @@ export function renderSignupVerificationCodeEmail({
                 <img
                   src="${logoSrc}"
                   alt="Foleio"
-                  width="140"
-                  style="display:block;width:140px;max-width:140px;height:auto;border:0;outline:none;text-decoration:none;"
+                  width="56"
+                  height="56"
+                  style="display:block;width:56px;height:56px;border:0;border-radius:999px;outline:none;text-decoration:none;"
                 />
               </a>
             </td>

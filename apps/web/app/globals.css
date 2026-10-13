@@ -170,6 +170,68 @@
   }
 }
 
+body:has(.foleio-admin-shell) {
+  background: #f6f5f1 !important;
+  color: #1c1b19;
+  font-family: var(--font-body), Inter, system-ui, sans-serif;
+}
+
+body:has(.foleio-admin-shell) footer:not(.foleio-auth-legal) {
+  display: none !important;
+}
+
+.foleio-admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #55544f;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.foleio-admin-nav-link:hover {
+  background: #efece6;
+  color: #1c1b19;
+}
+
+.foleio-admin-nav-link.is-active,
+.foleio-admin-nav-link.is-active:hover {
+  background: #1c1b19;
+  color: #f6f5f1;
+}
+
+.foleio-admin-shell .foleio-admin-tab-active {
+  background: #1c1b19;
+  color: #f6f5f1;
+}
+
+.foleio-admin-panel {
+  background: #f3f2ed;
+  border: 1px solid #e7e5e4 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.foleio-admin-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1c1b19;
+}
+
+.foleio-admin-meta {
+  margin: 6px 0 0;
+  color: #6b6964;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 @media (max-width: 480px) {
   .chat-panel {
     width: 100vw;

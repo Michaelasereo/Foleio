@@ -1,26 +1,35 @@
 import { prisma } from '@foleio/database';
 import { deadLetterQueue, webhookQueue } from '@/lib/queue/queue-manager';
 import { isAdminAuthed } from '@/lib/admin/auth';
-import { isDojahKycRequired } from '@/lib/config/platform-settings';
-import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import {
+  e2eCreatorIds,
+  withoutE2eCreator,
+  withoutE2eCreatorOrUnassigned,
+} from '@/lib/admin/delete-creator';
+import {
+  ADMIN_REVENUE_TX_TYPES,
   ADMIN_SUCCESS_TX_STATUSES,
   platformFeeFromTransaction,
   sumAdminPlatformFees,
 } from '@/lib/admin/stats-helpers';
-
-const successTxWhere = { status: { in: [...ADMIN_SUCCESS_TX_STATUSES] } };
 
 export async function GET(request: Request) {
   if (!isAdminAuthed(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const requireKyc = await isDojahKycRequired();
+  const excluded = await e2eCreatorIds();
+  const hideCreatorRows = excluded.length ? { id: { notIn: excluded } } : {};
+  const hideOwned = withoutE2eCreator(excluded);
+  const hideTx = withoutE2eCreatorOrUnassigned(excluded);
+  const successTxWhere = {
+    status: { in: [...ADMIN_SUCCESS_TX_STATUSES] },
+    ...hideTx,
+  };
 
   const [
     totalCreators,
-    creatorPaymentsSnap,
+    transactionVolume,
     totalTransactions,
     platformFeeTotal,
     totalPayouts,
@@ -32,27 +41,29 @@ export async function GET(request: Request) {
     recentTransactions,
     transactionsLast30Days,
   ] = await Promise.all([
-    prisma.creator.count(),
-    prisma.creator.findMany({
-      select: {
-        bvnVerified: true,
-        paystackSubaccountCode: true,
-        subaccountStatus: true,
+    prisma.creator.count({ where: hideCreatorRows }),
+    prisma.transaction.aggregate({
+      where: {
+        ...successTxWhere,
+        type: { in: [...ADMIN_REVENUE_TX_TYPES] },
       },
+      _sum: { amount: true },
+      _count: { _all: true },
     }),
     prisma.transaction.count({ where: successTxWhere }),
-    // Same fee sources as Admin → Revenue (ledger + deposit booking fallback).
+    // Ledger fees, deposit bookings, and paid shop orders without a ledger row.
     sumAdminPlatformFees(),
     prisma.payout.aggregate({
-      where: { status: 'success' },
+      where: { status: 'success', ...hideOwned },
       _sum: { amount: true },
     }),
     prisma.payout.aggregate({
-      where: { status: { in: ['pending', 'processing'] } },
+      where: { status: { in: ['pending', 'processing'] }, ...hideOwned },
       _sum: { amount: true },
     }),
     prisma.booking.groupBy({
       by: ['status'],
+      where: hideOwned,
       _count: { _all: true },
     }),
     (async () => {
@@ -63,11 +74,12 @@ export async function GET(request: Request) {
       }
     })(),
     prisma.platformSubscription.aggregate({
-      where: { status: { in: ['active', 'trialing'] } },
+      where: { status: { in: ['active', 'trialing'] }, ...hideOwned },
       _sum: { amount: true },
     }),
     prisma.creator.count({
       where: {
+        ...hideCreatorRows,
         platformPlan: { in: ['PRO', 'GROWTH', 'PREMIUM'] },
         platformSubscriptionActive: true,
       },
@@ -95,17 +107,6 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'asc' },
     }),
   ]);
-
-  const paymentsReadyCreators = creatorPaymentsSnap.filter((c) =>
-    isPaymentsReady(
-      {
-        bvnVerified: c.bvnVerified,
-        paystackSubaccountCode: c.paystackSubaccountCode,
-        subaccountStatus: c.subaccountStatus,
-      },
-      { requireKyc }
-    )
-  ).length;
 
   const bookingsByStatus: Record<string, number> = {};
   let totalBookings = 0;
@@ -165,9 +166,8 @@ export async function GET(request: Request) {
 
   return Response.json({
     totalCreators,
-    paymentsReadyCreators,
-    paymentsReadyPct:
-      totalCreators > 0 ? Math.round((paymentsReadyCreators / totalCreators) * 100) : 0,
+    transactionVolume: Number(transactionVolume._sum.amount || 0),
+    transactionVolumeCount: transactionVolume._count._all,
     proCreators,
     totalTransactions,
     platformRevenue: platformFeeTotal,
@@ -180,7 +180,14 @@ export async function GET(request: Request) {
     bookingsByStatus,
     waitlistCount,
     mrr: Number(mrr._sum.amount || 0),
-    recentTransactions,
+    recentTransactions: recentTransactions.map((tx) => ({
+      id: tx.id,
+      type: tx.type,
+      amount: Number(tx.amount || 0),
+      createdAt: tx.createdAt.toISOString(),
+      creator: tx.creator,
+      user: tx.user,
+    })),
     dailySeries,
     webhooks: {
       receivedToday,

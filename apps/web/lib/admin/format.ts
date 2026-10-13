@@ -18,58 +18,58 @@ export function formatRelativeTime(date?: string | Date | null): string {
 export function statusBadgeClass(status?: string | null): string {
   const normalized = String(status || '').toLowerCase();
   if (['active', 'success', 'completed', 'paid', 'healthy'].includes(normalized)) {
-    return 'bg-emerald-500/15 text-emerald-300 border-[#201e1c]';
+    return 'bg-emerald-100 text-emerald-800 border-[#e7e5e4]';
   }
   if (
     ['pending', 'processing', 'trialing', 'deposit_paid', 'first_payout_done', 'service_day'].includes(
       normalized
     )
   ) {
-    return 'bg-amber-500/15 text-amber-300 border-[#201e1c]';
+    return 'bg-amber-100 text-amber-800 border-[#e7e5e4]';
   }
   if (
     ['failed', 'disputed', 'cancelled', 'canceled', 'refunded', 'inactive', 'balance_overdue'].includes(
       normalized
     )
   ) {
-    return 'bg-red-500/15 text-red-300 border-[#201e1c]';
+    return 'bg-red-100 text-red-800 border-[#e7e5e4]';
   }
   if (normalized === 'past_due' || normalized === 'at_risk') {
-    return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
+    return 'bg-orange-100 text-orange-800 border-[#e7e5e4]';
   }
-  return 'bg-white/10 text-[#adadad] border-[#201e1c]';
+  return 'bg-[#efece6] text-[#55544f] border-[#e7e5e4]';
 }
 
 export function transactionTypeBadgeClass(type?: string | null): string {
   const normalized = String(type || '').toLowerCase();
   if (normalized === 'subscription' || normalized === 'platform_subscription') {
-    return 'bg-sky-500/15 text-sky-300 border-[#201e1c]';
+    return 'bg-sky-100 text-sky-800 border-[#e7e5e4]';
   }
   if (normalized === 'booking' || normalized === 'booking_balance') {
-    return 'bg-orange-500/15 text-orange-300 border-[#201e1c]';
+    return 'bg-orange-100 text-orange-800 border-[#e7e5e4]';
   }
   if (normalized === 'deposit' || normalized === 'booking_deposit') {
-    return 'bg-amber-500/15 text-amber-300 border-[#201e1c]';
+    return 'bg-amber-100 text-amber-800 border-[#e7e5e4]';
   }
-  if (normalized === 'shop_order') return 'bg-teal-500/15 text-teal-300 border-[#201e1c]';
-  if (normalized === 'one_time') return 'bg-emerald-500/15 text-emerald-300 border-[#201e1c]';
-  if (normalized === 'payout') return 'bg-violet-500/15 text-violet-300 border-[#201e1c]';
-  if (normalized === 'refund') return 'bg-red-500/15 text-red-300 border-[#201e1c]';
-  return 'bg-white/10 text-[#adadad] border-[#201e1c]';
+  if (normalized === 'shop_order') return 'bg-teal-100 text-teal-800 border-[#e7e5e4]';
+  if (normalized === 'one_time') return 'bg-emerald-100 text-emerald-800 border-[#e7e5e4]';
+  if (normalized === 'payout') return 'bg-violet-100 text-violet-800 border-[#e7e5e4]';
+  if (normalized === 'refund') return 'bg-red-100 text-red-800 border-[#e7e5e4]';
+  return 'bg-[#efece6] text-[#55544f] border-[#e7e5e4]';
 }
 
 export const adminPanelClass = 'foleio-admin-panel';
 export const adminTableContainerClass =
-  'overflow-hidden rounded-[14px] border border-[#201e1c] bg-[#212121]';
+  'overflow-hidden rounded-[14px] border border-[#e7e5e4] bg-[#f3f2ed]';
 export const adminTableScrollClass = 'max-h-[70vh] overflow-auto';
-export const adminTableClass = 'w-full text-sm text-[#f4f4f5]';
-export const adminTableHeadClass = 'sticky top-0 z-10 bg-[#1a1816]';
-export const adminTableHeadingRowClass = 'text-left text-xs uppercase tracking-wide text-[#828282]';
+export const adminTableClass = 'w-full text-sm text-[#1c1b19]';
+export const adminTableHeadClass = 'sticky top-0 z-10 bg-[#efece6]';
+export const adminTableHeadingRowClass = 'text-left text-xs uppercase tracking-wide text-[#6b6964]';
 export const adminTableCellClass = 'px-3 py-2.5';
-export const adminTableRowClass = 'border-t border-[#201e1c] hover:bg-white/[0.03]';
-export const adminMutedClass = 'text-[#828282]';
+export const adminTableRowClass = 'border-t border-[#e7e5e4] hover:bg-[#efece6]';
+export const adminMutedClass = 'text-[#6b6964]';
 export const adminInputClass =
-  'rounded-lg border border-[#201e1c] bg-[#1a1816] px-3 py-2 text-sm text-[#f4f4f5] placeholder:text-[#666] focus:outline-none focus:ring-1 focus:ring-[#2a2826]';
-export const adminTabActiveClass = 'bg-white/10 text-[#f4f4f5]';
+  'rounded-lg border border-[#e7e5e4] bg-white px-3 py-2 text-sm text-[#1c1b19] placeholder:text-[#8a8882] focus:outline-none focus:ring-1 focus:ring-[#1c1b19]';
+export const adminTabActiveClass = 'foleio-admin-tab-active bg-[#1c1b19] text-[#f6f5f1]';
 export const adminTabIdleClass =
-  'border border-[#201e1c] bg-transparent text-[#adadad] hover:bg-white/5';
+  'border border-[#e7e5e4] bg-transparent text-[#55544f] hover:bg-[#efece6]';

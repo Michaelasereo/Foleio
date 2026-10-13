@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
+  Banknote,
   Calendar,
   Clock,
   CreditCard,
   Crown,
-  ShieldCheck,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -23,7 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
-import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import {
   adminMutedClass,
   adminPanelClass,
@@ -31,12 +30,11 @@ import {
   formatRelativeTime,
   transactionTypeBadgeClass,
 } from '@/lib/admin/format';
-import { createClient } from '@/lib/supabase/client';
 
 type StatsPayload = {
   totalCreators: number;
-  paymentsReadyCreators: number;
-  paymentsReadyPct: number;
+  transactionVolume: number;
+  transactionVolumeCount: number;
   proCreators: number;
   totalTransactions: number;
   platformRevenue: number;
@@ -59,6 +57,36 @@ type StatsPayload = {
   }>;
 };
 
+function OverviewSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading overview</span>
+      <div className="h-7 w-36 animate-pulse rounded-md bg-[#e7e5e4]" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <div key={index} className={adminPanelClass}>
+            <div className="h-3 w-24 animate-pulse rounded bg-[#e7e5e4]" />
+            <div className="mt-3 h-7 w-28 animate-pulse rounded bg-[#e7e5e4]" />
+            <div className="mt-2 h-3 w-16 animate-pulse rounded bg-[#efece6]" />
+          </div>
+        ))}
+      </div>
+      <div className={adminPanelClass}>
+        <div className="mb-4 h-5 w-48 animate-pulse rounded bg-[#e7e5e4]" />
+        <div className="h-80 animate-pulse rounded-lg bg-[#efece6]" />
+      </div>
+      <div className={adminPanelClass}>
+        <div className="mb-4 h-5 w-36 animate-pulse rounded bg-[#e7e5e4]" />
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-14 animate-pulse rounded-lg bg-[#efece6]" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminOverviewPage() {
   const fetcher = async (url: string) => {
     const response = await fetch(url, { cache: 'no-store' });
@@ -66,29 +94,10 @@ export default function AdminOverviewPage() {
     return (await response.json()) as StatsPayload;
   };
 
-  const { data: stats, isLoading, mutate } = useSWR('/api/admin/stats', fetcher, {
-    refreshInterval: 30000,
+  const { data: stats, isLoading } = useSWR('/api/admin/stats', fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
   });
-
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel('admin-live-stats')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        void mutate();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payouts' }, () => {
-        void mutate();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        void mutate();
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [mutate]);
 
   const cards = useMemo(
     () => [
@@ -99,12 +108,12 @@ export default function AdminOverviewPage() {
         color: 'text-sky-400',
       },
       {
-        label: 'Payments ready',
-        value: Number(stats?.paymentsReadyPct || 0),
-        formatter: (value: number) => `${value}%`,
-        hint: `${stats?.paymentsReadyCreators || 0} ready`,
-        icon: ShieldCheck,
-        color: 'text-emerald-400',
+        label: 'Total transaction volume',
+        value: Number(stats?.transactionVolume || 0),
+        formatter: (value: number) => formatMoneyFromKobo(value),
+        hint: `${stats?.transactionVolumeCount || 0} payments`,
+        icon: Banknote,
+        color: 'text-emerald-700',
       },
       {
         label: 'Pro MRR',
@@ -112,7 +121,7 @@ export default function AdminOverviewPage() {
         formatter: (value: number) => formatMoneyFromKobo(value),
         hint: `${stats?.proCreators || 0} on Pro`,
         icon: Crown,
-        color: 'text-amber-400',
+        color: 'text-amber-700',
       },
       {
         label: 'Platform fees',
@@ -134,13 +143,13 @@ export default function AdminOverviewPage() {
         label: 'Pending bookings',
         value: Number(stats?.pendingBookings || 0),
         icon: Clock,
-        color: 'text-amber-400',
+        color: 'text-amber-700',
       },
       {
         label: 'Disputed',
         value: Number(stats?.disputedBookings || 0),
         icon: AlertTriangle,
-        color: 'text-red-400',
+        color: 'text-red-700',
       },
       {
         label: 'Invites pending',
@@ -172,18 +181,12 @@ export default function AdminOverviewPage() {
   }, [stats]);
 
   if (isLoading) {
-    return <div className={`p-2 text-sm ${adminMutedClass}`}>Loading admin overview…</div>;
+    return <OverviewSkeleton />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="foleio-admin-title">Overview</h2>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-          Live
-        </span>
-      </div>
+      <h2 className="foleio-admin-title">Overview</h2>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
@@ -191,8 +194,8 @@ export default function AdminOverviewPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
-                <p className="mt-2 text-2xl font-semibold text-[#f4f4f5]">
-                  <AnimatedCount value={card.value} format={card.formatter} />
+                <p className="mt-2 text-2xl font-semibold text-[#1c1b19]">
+                  {card.formatter ? card.formatter(card.value) : card.value.toLocaleString()}
                 </p>
                 {card.hint ? <p className={`mt-1 text-xs ${adminMutedClass}`}>{card.hint}</p> : null}
               </div>
@@ -205,7 +208,7 @@ export default function AdminOverviewPage() {
               <Link
                 key={card.label}
                 href={card.href}
-                className={`${adminPanelClass} block transition hover:bg-white/[0.03]`}
+                className={`${adminPanelClass} block transition hover:bg-[#f6f5f1]`}
               >
                 {content}
               </Link>
@@ -228,7 +231,7 @@ export default function AdminOverviewPage() {
           {statusChips.map((chip) => (
             <span
               key={chip.key}
-              className="rounded-lg bg-[#252321] px-3 py-1.5 text-xs text-[#adadad]"
+              className="rounded-lg bg-[#efece6] px-3 py-1.5 text-xs text-[#6b6964]"
             >
               {chip.key.replace(/_/g, ' ')} · {chip.count}
             </span>
@@ -237,11 +240,11 @@ export default function AdminOverviewPage() {
       ) : null}
 
       <div className={adminPanelClass}>
-        <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">Revenue (last 30 days)</h3>
+        <h3 className="mb-4 text-base font-semibold text-[#1c1b19]">Revenue (last 30 days)</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={stats?.dailySeries || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#201e1c" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 12, fill: '#828282' }}
@@ -253,8 +256,8 @@ export default function AdminOverviewPage() {
               />
               <Tooltip
                 contentStyle={{
-                  background: '#212121',
-                  border: '1px solid #201e1c',
+                  background: '#f3f2ed',
+                  border: '1px solid #e7e5e4',
                   borderRadius: 8,
                 }}
                 formatter={(value: number, name: string) => [
@@ -262,26 +265,38 @@ export default function AdminOverviewPage() {
                   name === 'platformRevenue' ? 'Platform fees' : 'Creator earnings',
                 ]}
               />
-              <Line type="monotone" dataKey="platformRevenue" stroke="#f59e0b" strokeWidth={2} />
-              <Line type="monotone" dataKey="creatorEarnings" stroke="#38bdf8" strokeWidth={2} />
+              <Line
+                type="monotone"
+                dataKey="platformRevenue"
+                stroke="#f59e0b"
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="creatorEarnings"
+                stroke="#38bdf8"
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className={adminPanelClass}>
-        <h3 className="mb-4 text-base font-semibold text-[#f4f4f5]">Recent activity</h3>
+        <h3 className="mb-4 text-base font-semibold text-[#1c1b19]">Recent activity</h3>
         <div className="space-y-2">
           {(stats?.recentTransactions || []).map((tx) => (
             <div
               key={tx.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#252321] p-3"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#efece6] p-3"
             >
               <div className="flex items-center gap-2">
                 <Badge className={`border ${transactionTypeBadgeClass(tx.type)}`}>
                   {tx.type?.replace('_', ' ')}
                 </Badge>
-                <span className="font-medium text-[#f4f4f5]">{formatMoneyFromKobo(tx.amount)}</span>
+                <span className="font-medium text-[#1c1b19]">{formatMoneyFromKobo(tx.amount)}</span>
               </div>
               <div className={`text-sm ${adminMutedClass}`}>
                 {tx.creator?.displayName || 'Unknown creator'} — {tx.user?.email || 'No email'}

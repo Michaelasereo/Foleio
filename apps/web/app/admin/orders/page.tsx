@@ -180,7 +180,7 @@ export default function AdminOrdersPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-white/10 bg-transparent"
+                        className="border-[#e7e5e4] bg-transparent"
                         disabled={resendingId === order.id}
                         onClick={() => void resendEmail(order)}
                       >
@@ -191,7 +191,7 @@ export default function AdminOrdersPage() {
                     )}
                     {resendNotice?.id === order.id ? (
                       <p
-                        className={`mt-1 text-xs ${resendNotice.ok ? 'text-emerald-400' : 'text-red-400'}`}
+                        className={`mt-1 text-xs ${resendNotice.ok ? 'text-emerald-400' : 'text-red-700'}`}
                       >
                         {resendNotice.message}
                       </p>

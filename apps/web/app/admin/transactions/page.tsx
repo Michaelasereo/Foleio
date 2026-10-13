@@ -105,14 +105,14 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
     <div className="space-y-5">
       {!embedded ? <h2 className="foleio-admin-title">Transactions</h2> : null}
 
-      <div className="grid gap-3 rounded-[14px] border border-white/5 bg-[#212121] p-4 md:grid-cols-5">
+      <div className="grid gap-3 rounded-[14px] border border-[#e7e5e4] bg-[#f3f2ed] p-4 md:grid-cols-5">
         <select
           value={type}
           onChange={(e) => {
             setPage(1);
             setType(e.target.value);
           }}
-          className="h-10 rounded-md border border-white/10 bg-[#1a1816] px-3 text-sm text-[#f4f4f5]"
+          className="h-10 rounded-md border border-[#e7e5e4] bg-[#f3f2ed] px-3 text-sm text-[#1c1b19]"
         >
           <option value="">All Types</option>
           <option value="subscription">Subscription</option>
@@ -130,7 +130,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
             setPage(1);
             setPaymentType(e.target.value);
           }}
-          className="h-10 rounded-md border border-white/10 bg-[#1a1816] px-3 text-sm text-[#f4f4f5]"
+          className="h-10 rounded-md border border-[#e7e5e4] bg-[#f3f2ed] px-3 text-sm text-[#1c1b19]"
         >
           <option value="">All splits</option>
           <option value="DIRECT_SUBACCOUNT">Subaccount split</option>
@@ -143,7 +143,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
             setPage(1);
             setStatus(e.target.value);
           }}
-          className="h-10 rounded-md border border-white/10 bg-[#1a1816] px-3 text-sm text-[#f4f4f5]"
+          className="h-10 rounded-md border border-[#e7e5e4] bg-[#f3f2ed] px-3 text-sm text-[#1c1b19]"
         >
           <option value="">All Status</option>
           <option value="success">Success</option>
@@ -152,7 +152,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
         </select>
 
         <Input
-          className="md:col-span-2 border-white/10 bg-[#1a1816] text-[#f4f4f5]"
+          className="md:col-span-2 border-[#e7e5e4] bg-[#f3f2ed] text-[#1c1b19]"
           placeholder="Search creator, fan email, or reference"
           value={query}
           onChange={(e) => {
@@ -228,7 +228,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10"
+                        className="border-red-200 bg-transparent text-red-700 hover:bg-red-50"
                         onClick={() => void handleDeleteTx(tx)}
                       >
                         Delete
@@ -247,7 +247,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="border-white/10 bg-transparent"
+            className="border-[#e7e5e4] bg-transparent"
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
@@ -255,7 +255,7 @@ export default function AdminTransactionsPage({ embedded = false }: { embedded?:
           </Button>
           <Button
             variant="outline"
-            className="border-white/10 bg-transparent"
+            className="border-[#e7e5e4] bg-transparent"
             disabled={!data?.totalPages || page >= data.totalPages}
             onClick={() => setPage((p) => p + 1)}
           >

@@ -2,6 +2,7 @@ import { prisma } from '@foleio/database';
 import { isPaymentsReady } from '@/lib/creator/payments-ready';
 import { isDojahKycRequired } from '@/lib/config/platform-settings';
 import { feePercentForCreator } from '@/lib/billing/platform-fee';
+import { isE2eCreator } from '@/lib/admin/delete-creator';
 
 export type CreatorHealthStatus = 'healthy' | 'at_risk' | 'inactive';
 
@@ -76,7 +77,15 @@ export async function getCreatorHealthRows(): Promise<CreatorHealthRow[]> {
     orderBy: { createdAt: 'desc' },
   });
 
-  return creators.map((creator) => {
+  return creators
+    .filter(
+      (creator) =>
+        !isE2eCreator({
+          username: creator.username,
+          email: creator.user.email,
+        })
+    )
+    .map((creator) => {
     const publishedContent = creator.content.filter((item) => item.isPublished);
     const contentCount = publishedContent.length;
     const activeSubscribers = creator.fanSubscriptions.length;

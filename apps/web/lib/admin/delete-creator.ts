@@ -121,6 +121,25 @@ export async function findE2eCreatorIds(): Promise<
     }));
 }
 
+export async function e2eCreatorIds(): Promise<string[]> {
+  const rows = await findE2eCreatorIds();
+  return rows.map((row) => row.id);
+}
+
+/** Drop rows owned by an e2e creator. */
+export function withoutE2eCreator(ids: string[]): { creatorId?: { notIn: string[] } } {
+  if (!ids.length) return {};
+  return { creatorId: { notIn: ids } };
+}
+
+/** Keep platform rows with no creator, and drop e2e creator rows. */
+export function withoutE2eCreatorOrUnassigned(ids: string[]) {
+  if (!ids.length) return {};
+  return {
+    OR: [{ creatorId: null }, { creatorId: { notIn: ids } }],
+  };
+}
+
 /** Remove waitlist rows that look like e2e / test invites. */
 export async function deleteE2eWaitlistEntries(emails?: string[]): Promise<number> {
   if (emails && emails.length > 0) {

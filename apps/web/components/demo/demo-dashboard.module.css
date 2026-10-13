@@ -3307,6 +3307,10 @@ button.goodsText {
     flex-direction: column;
   }
 
+  .shellEmbedFull .sidebar {
+    display: none;
+  }
+
   .sidebar {
     position: relative;
     width: 100%;
@@ -3368,16 +3372,70 @@ button.goodsText {
   .availLayout,
   .svcRow,
   .addonChip,
-  .sched,
   .orderRow,
   .optionRow,
   .feature,
   .earnTop,
   .earnStats,
   .payoutTop,
-  .rail,
-  .goods {
+  .rail {
     grid-template-columns: 1fr;
+  }
+
+  .sched,
+  .goods {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 6px;
+  }
+
+  .dateBox,
+  .markBox {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .schedWho,
+  .goodsText {
+    display: contents;
+  }
+
+  .schedWho strong,
+  .goodsText strong {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .schedWho span,
+  .goodsText span {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  .schedAmount,
+  .stock {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .sched > .pill,
+  .goods > .pill {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: start;
+  }
+
+  .schedArrow {
+    grid-column: 3;
+    grid-row: 3;
+    justify-self: end;
+    align-self: center;
   }
 
   .shareRow,
@@ -3396,7 +3454,8 @@ button.goodsText {
 
   .heroArt,
   .notifyArt {
-    height: 160px;
+    height: auto;
+    max-height: 220px;
   }
 
   .feedbackRow {
@@ -3404,6 +3463,163 @@ button.goodsText {
   }
 
   .comment {
-    min-width: 180px;
+    min-width: 0;
+  }
+}
+
+@container foleio-demo (max-width: 980px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .shellEmbedFull .sidebar {
+    display: none;
+  }
+
+  .nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .subNav {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sideFoot {
+    margin-top: 12px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+    padding: 12px 16px 0;
+  }
+
+  .searchWrap,
+  .shareSlot {
+    grid-column: auto;
+    justify-self: stretch;
+    max-width: none;
+    align-items: stretch;
+  }
+
+  .shareNote {
+    text-align: left;
+  }
+
+  .content {
+    padding: 16px 16px 40px;
+  }
+
+  .hero,
+  .products,
+  .uses,
+  .tools,
+  .links,
+  .notify,
+  .homeTop,
+  .homeMid,
+  .homeSplit,
+  .homeBottom,
+  .summary,
+  .earn,
+  .line,
+  .bookLayout,
+  .svcLayout,
+  .availLayout,
+  .svcRow,
+  .addonChip,
+  .orderRow,
+  .optionRow,
+  .feature,
+  .earnTop,
+  .earnStats,
+  .payoutTop,
+  .rail {
+    grid-template-columns: 1fr;
+  }
+
+  .sched,
+  .goods {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 6px;
+  }
+
+  .dateBox,
+  .markBox {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .schedWho,
+  .goodsText {
+    display: contents;
+  }
+
+  .schedWho strong,
+  .goodsText strong {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .schedWho span,
+  .goodsText span {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  .schedAmount,
+  .stock {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .sched > .pill,
+  .goods > .pill {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: start;
+  }
+
+  .schedArrow {
+    grid-column: 3;
+    grid-row: 3;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .shareRow,
+  .greetRow,
+  .pageHead {
+    flex-wrap: wrap;
+  }
+
+  .days {
+    gap: 4px;
+  }
+
+  .heroCopy {
+    padding: 24px 20px 8px;
+  }
+
+  .heroArt,
+  .notifyArt {
+    height: auto;
+    max-height: 220px;
+  }
+
+  .feedbackRow {
+    flex-wrap: wrap;
+  }
+
+  .comment {
+    min-width: 0;
   }
 }
