@@ -110,7 +110,7 @@ function CreatorActionsMenu({
   }, [open]);
 
   const itemClass =
-    'block w-full rounded-md px-3 py-2 text-left text-sm text-[#f4f4f5] hover:bg-white/10 disabled:opacity-50';
+    'block w-full rounded-md px-3 py-2 text-left text-sm text-[#1c1b19] hover:bg-[#efece6] disabled:opacity-50';
 
   return (
     <div ref={rootRef} className="relative flex justify-end">
@@ -118,7 +118,7 @@ function CreatorActionsMenu({
         type="button"
         size="sm"
         variant="ghost"
-        className="h-8 w-8 p-0 text-[#a1a1aa] hover:bg-white/10 hover:text-[#f4f4f5]"
+        className="h-8 w-8 p-0 text-[#6b6964] hover:bg-[#efece6] hover:text-[#1c1b19]"
         aria-label={`Actions for @${creator.username}`}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -129,7 +129,7 @@ function CreatorActionsMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-20 mt-1 min-w-[10.5rem] rounded-lg border border-white/10 bg-[#18181b] p-1 shadow-xl"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[10.5rem] rounded-lg border border-[#e7e5e4] bg-[#f3f2ed] p-1 shadow-xl"
         >
           <a
             role="menuitem"
@@ -162,7 +162,7 @@ function CreatorActionsMenu({
           <button
             type="button"
             role="menuitem"
-            className={`${itemClass} text-red-300 hover:bg-red-500/10`}
+            className={`${itemClass} text-red-700 hover:bg-red-50`}
             disabled={deleting || deletingE2e}
             onClick={() => {
               setOpen(false);
@@ -373,7 +373,7 @@ export default function AdminCreatorsPage() {
         <Button
           size="sm"
           variant="outline"
-          className="border-red-500/30 bg-transparent text-red-300 hover:bg-red-500/10 hover:text-red-200"
+          className="border-red-200 bg-transparent text-red-700 hover:bg-red-50 hover:text-red-800"
           disabled={deletingE2e || loading || e2eCount === 0}
           onClick={() => void handleDeleteE2e()}
         >
@@ -394,7 +394,7 @@ export default function AdminCreatorsPage() {
         ].map((card) => (
           <div key={card.label} className={adminPanelClass}>
             <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-[#f4f4f5]">{card.value}</p>
+            <p className="mt-2 text-2xl font-semibold text-[#1c1b19]">{card.value}</p>
           </div>
         ))}
       </div>

@@ -36,7 +36,7 @@ const PILLARS: {
 
 export function Pillars() {
   return (
-    <div className={`${frame} pt-[88px]`}>
+    <div className={`${frame} pt-14 min-[761px]:pt-[88px]`}>
       <div className="text-[15px] text-[#6b6a64]">Why Foleio works</div>
       <h2 className="m-0 mt-[14px] max-w-[760px] text-[clamp(32px,3.5vw,50px)] font-[450] leading-[1.08] tracking-[-0.035em] text-[#1c1b19]">
         Built for creators who are <Italic>done chasing payments.</Italic>

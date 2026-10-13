@@ -203,7 +203,7 @@ export default function AdminBookingsPage() {
                   <td className={adminTableCellClass}>
                     <div className="flex items-center gap-2">
                       {booking.trackingToken ? (
-                        <Button asChild size="sm" variant="outline" className="border-white/10 bg-transparent">
+                        <Button asChild size="sm" variant="outline" className="border-[#e7e5e4] bg-transparent">
                           <Link href={`/tracking/${booking.trackingToken}`} target="_blank">
                             View
                           </Link>
@@ -213,7 +213,7 @@ export default function AdminBookingsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-white/10 bg-transparent"
+                          className="border-[#e7e5e4] bg-transparent"
                           disabled={resendingId === booking.id}
                           onClick={() => void resendEmail(booking)}
                         >
@@ -223,7 +223,7 @@ export default function AdminBookingsPage() {
                     </div>
                     {resendNotice?.id === booking.id ? (
                       <p
-                        className={`mt-1 text-xs ${resendNotice.ok ? 'text-emerald-400' : 'text-red-400'}`}
+                        className={`mt-1 text-xs ${resendNotice.ok ? 'text-emerald-400' : 'text-red-700'}`}
                       >
                         {resendNotice.message}
                       </p>

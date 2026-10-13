@@ -157,7 +157,7 @@ export default function AdminBillingPage() {
             type="button"
             onClick={() => void syncSubaccountFees()}
             disabled={syncingFees}
-            className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-[#f4f4f5] hover:bg-white/10 disabled:opacity-50"
+            className="rounded-lg border border-[#e7e5e4] bg-[#f3f2ed] px-3 py-2 text-sm text-[#1c1b19] hover:bg-[#efece6] disabled:opacity-50"
           >
             {syncingFees ? 'Syncing Paystack fees…' : 'Sync Paystack subaccount fees'}
           </button>
@@ -177,7 +177,7 @@ export default function AdminBillingPage() {
         ].map((card) => (
           <div key={card.label} className={adminPanelClass}>
             <p className={`text-xs uppercase tracking-wide ${adminMutedClass}`}>{card.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-[#f4f4f5]">{card.value}</p>
+            <p className="mt-2 text-2xl font-semibold text-[#1c1b19]">{card.value}</p>
           </div>
         ))}
       </div>
@@ -211,7 +211,7 @@ export default function AdminBillingPage() {
                       <p className={`text-xs ${adminMutedClass}`}>{sub.creator?.user?.email || '—'}</p>
                     </td>
                     <td className={adminTableCellClass}>
-                      <Badge variant="outline" className="border-white/10">
+                      <Badge variant="outline" className="border-[#e7e5e4]">
                         {plan}
                       </Badge>
                     </td>

@@ -49,14 +49,14 @@ export const metadata: Metadata = {
   keywords: ['creator platform', 'Nigeria', 'subscription', 'content creator'],
   icons: {
     icon: [
-      { url: '/favicon-32x32.png?v=3', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16x16.png?v=3', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon-96x96.png?v=3', sizes: '96x96', type: 'image/png' },
-      { url: '/favicon-192x192.png?v=3', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon-512x512.png?v=3', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon-32x32.png?v=4', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png?v=4', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-96x96.png?v=4', sizes: '96x96', type: 'image/png' },
+      { url: '/favicon-192x192.png?v=4', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-512x512.png?v=4', sizes: '512x512', type: 'image/png' },
     ],
-    apple: '/apple-touch-icon.png?v=3',
-    shortcut: '/favicon.ico?v=3',
+    apple: '/apple-touch-icon.png?v=4',
+    shortcut: '/favicon.ico?v=4',
   },
   openGraph: {
     images: [

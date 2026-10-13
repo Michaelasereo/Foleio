@@ -181,8 +181,8 @@ export function AdminLoginGate() {
       <style jsx global>{`
         ${authCss}
         body:has(.foleio-admin-login) {
-          background: #1a1816 !important;
-          color: #f4f4f5 !important;
+          background: #f6f5f1 !important;
+          color: #1c1b19;
         }
         body:has(.foleio-admin-login) footer:not(.foleio-auth-legal) {
           display: none !important;
@@ -191,41 +191,56 @@ export function AdminLoginGate() {
           align-items: center;
           justify-content: center;
           padding: 24px 16px;
-          background: #1a1816;
-          color: #f4f4f5;
+          background: #f6f5f1;
+          color: #1c1b19;
         }
         .foleio-admin-login-card {
           width: 100%;
           max-width: 420px;
           padding: 28px 24px;
           border-radius: 16px;
-          background: #212121;
-          color: #f4f4f5;
+          background: #f3f2ed;
+          border: 1px solid #e7e5e4;
+          color: #1c1b19;
         }
         .foleio-admin-login-title {
           margin: 16px 0 6px;
-          color: #f4f4f5;
+          color: #1c1b19;
           font-size: 22px;
           font-weight: 600;
           letter-spacing: -0.02em;
         }
         .foleio-admin-login-meta {
           margin: 0 0 20px;
-          color: #828282;
+          color: #6b6964;
           font-size: 13px;
           font-weight: 500;
           line-height: 1.45;
         }
         .foleio-admin-login .${authLabelClass} {
           margin-bottom: 12px;
+          color: #55544f;
         }
         .foleio-admin-login .${authButtonClass} {
           width: 100%;
           margin-top: 8px;
+          background: #1c1b19;
+          color: #f6f5f1;
+          border-color: #1c1b19;
+        }
+        .foleio-admin-login .foleio-auth-input,
+        .foleio-admin-login .foleio-auth-row-input {
+          background: #fff;
+          color: #1c1b19;
+          border-color: #e7e5e4;
+        }
+        .foleio-admin-login .foleio-auth-input::placeholder,
+        .foleio-admin-login .foleio-auth-row-input::placeholder {
+          color: #8a8882;
         }
         .foleio-admin-error {
           margin: 0 0 10px;
-          color: #fca5a5;
+          color: #b91c1c;
           font-size: 13px;
         }
         .foleio-admin-qr {
@@ -240,8 +255,9 @@ export function AdminLoginGate() {
           margin: 0 0 14px;
           padding: 10px 12px;
           border-radius: 10px;
-          background: #1a1816;
-          color: #adadad;
+          background: #fff;
+          border: 1px solid #e7e5e4;
+          color: #55544f;
           font-size: 12px;
           word-break: break-all;
           text-align: center;
@@ -253,9 +269,9 @@ export function AdminLoginGate() {
           <Image
             src={foleioLogo}
             alt="Foleio"
-            width={140}
+            width={40}
             height={40}
-            className="h-10 w-auto object-contain"
+            className="h-10 w-10 rounded-full object-cover"
             priority
           />
         </div>

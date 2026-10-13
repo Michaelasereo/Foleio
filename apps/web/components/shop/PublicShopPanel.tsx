@@ -2,6 +2,8 @@
 
 import { productCardCss } from '@/components/shop/product-card-styles';
 import { isAddressOptionalDeliveryType, resolveDeliveryFeeKobo } from '@/lib/shop/delivery-fee';
+import { NIGERIA_STATES, nigeriaCities } from '@/lib/shop/nigeria-locations';
+import { ShopSearchSelect } from '@/components/shop/ShopSearchSelect';
 import { resolveProductPricing } from '@/lib/shop/preorder';
 import { formatPrepEstimateLabel, groupByPrepEstimate } from '@/lib/shop/prep-estimate';
 import {
@@ -14,7 +16,7 @@ import {
 } from '@/lib/shop/product-addons';
 import { ArrowLeft, X } from 'lucide-react';
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type ProductVariant = {
   id: string;
@@ -247,8 +249,109 @@ const shopDrawerCss = `
 }
 .foleio-shop-drawer-body {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 16px 20px 24px;
+}
+.foleio-shop-drawer-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.foleio-shop-checkout-summary {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f2f1ec;
+  color: #18181b;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.foleio-shop-checkout-summary .foleio-shop-field {
+  background: #fff;
+  color: #18181b;
+  border-color: #e7e5e4;
+}
+.foleio-shop-checkout-summary .foleio-shop-field::placeholder {
+  color: #6b6964;
+}
+.foleio-shop-summary-divider {
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(28, 27, 25, 0.12);
+}
+.foleio-shop-summary-lines {
+  display: grid;
+  gap: 8px;
+}
+.foleio-shop-summary-row,
+.foleio-shop-summary-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+}
+.foleio-shop-summary-row {
+  font-size: 14px;
+  line-height: 1.35;
+  color: #55544f;
+}
+.foleio-shop-summary-row span:first-child,
+.foleio-shop-summary-total span:first-child {
+  min-width: 0;
+}
+.foleio-shop-summary-row span:last-child,
+.foleio-shop-summary-total span:last-child {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.foleio-shop-summary-total {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(28, 27, 25, 0.08);
+  font-size: 16px;
+  font-weight: 700;
+  color: #18181b;
+}
+.foleio-shop-summary-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+}
+.foleio-shop-promo-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.foleio-shop-promo-row .foleio-shop-field {
+  flex: 1;
+  min-width: 0;
+}
+.foleio-shop-promo-apply {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: #1c1b19;
+  color: #f6f5f1;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.foleio-shop-promo-apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.foleio-shop-promo-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b42318;
 }
 .foleio-shop-drawer-footer {
   border-top: 1px solid rgba(255,255,255,0.08);
@@ -317,7 +420,54 @@ const shopDrawerCss = `
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 .foleio-shop-field::placeholder {
-  color: #5c6070;
+  color: rgba(250, 250, 250, 0.68);
+  opacity: 1;
+}
+.foleio-shop-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.foleio-shop-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.foleio-shop-select-menu {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: #1c1c1c;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.foleio-shop-select-option {
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #f4f4f5;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: var(--font-body), sans-serif;
+}
+.foleio-shop-select-option:hover,
+.foleio-shop-select-option.is-active {
+  background: rgba(250,250,250,0.12);
+}
+.foleio-shop-select-empty {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: rgba(250,250,250,0.68);
 }
 .foleio-shop-drawer input[type='radio'] {
   accent-color: #fafafa;
@@ -382,6 +532,19 @@ export function PublicShopPanel({
   const [browseFromCatalog, setBrowseFromCatalog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [promo, setPromo] = useState<{
+    code: string;
+    kind: 'coupon' | 'gift_card';
+    couponDiscountKobo: number;
+    giftCardCreditKobo: number;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const promoRef = useRef(promo);
+  const promoRequestRef = useRef(0);
+  const stepRef = useRef(step);
+  promoRef.current = promo;
+  stepRef.current = step;
   const [deliveryTierId, setDeliveryTierId] = useState('');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [address, setAddress] = useState({
@@ -484,6 +647,10 @@ export function PublicShopPanel({
     () => deliveryTiers.find((tier) => tier.id === deliveryTierId),
     [deliveryTiers, deliveryTierId]
   );
+  const needsStreetAddress = Boolean(
+    needsDelivery && selectedTier && !isAddressOptionalDeliveryType(selectedTier.type)
+  );
+  const stateCities = nigeriaCities(address.state);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
@@ -504,8 +671,11 @@ export function PublicShopPanel({
         )
       : 0;
 
-  const cartTotalBeforeCredit = cartSubtotal + deliveryFee;
-  const payableTotal = cartTotalBeforeCredit;
+  const typedPromoCode = address.giftCardCode.trim().toUpperCase().replace(/\s+/g, '');
+  const promoApplied = Boolean(promo && promo.code === typedPromoCode);
+  const couponOff = promoApplied && promo ? promo.couponDiscountKobo : 0;
+  const giftCredit = promoApplied && promo ? promo.giftCardCreditKobo : 0;
+  const payableTotal = Math.max(0, cartSubtotal - couponOff + deliveryFee - giftCredit);
   const deliverySelected = Boolean(selectedTier);
 
   useEffect(() => {
@@ -613,14 +783,70 @@ export function PublicShopPanel({
     setError(null);
   }
 
-  async function pay() {
-    if (!creatorId || cart.length === 0) return;
-    if (!address.firstName.trim() || !address.lastName.trim()) {
-      setError('First name and last name are required');
+  async function applyPromoCode() {
+    const code = address.giftCardCode.trim();
+    if (!code) {
+      setPromo(null);
+      setPromoError('Enter a code');
       return;
     }
-    if (!address.email.trim() || !address.phone.trim()) {
-      setError('Email and phone are required');
+    if (!creatorId) return;
+    const requestId = ++promoRequestRef.current;
+    setPromoLoading(true);
+    setPromoError(null);
+    setError(null);
+    try {
+      const response = await fetch('/api/shop/promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creatorId,
+          code,
+          subtotalKobo: cartSubtotal,
+          deliveryFeeKobo: deliveryFee,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (requestId !== promoRequestRef.current || stepRef.current !== 'checkout') return;
+      if (!response.ok) {
+        setPromo(null);
+        setPromoError(data.error || 'Could not apply this code');
+        return;
+      }
+      setPromo({
+        code: String(data.code || ''),
+        kind: data.kind === 'gift_card' ? 'gift_card' : 'coupon',
+        couponDiscountKobo: Number(data.couponDiscountKobo) || 0,
+        giftCardCreditKobo: Number(data.giftCardCreditKobo) || 0,
+      });
+      setAddress((prev) => ({ ...prev, giftCardCode: String(data.code || code) }));
+    } catch {
+      if (requestId !== promoRequestRef.current || stepRef.current !== 'checkout') return;
+      setPromo(null);
+      setPromoError('Could not apply this code');
+    } finally {
+      if (requestId === promoRequestRef.current) setPromoLoading(false);
+    }
+  }
+
+  function clearPromoCode() {
+    setPromo(null);
+    setPromoError(null);
+    setAddress((prev) => ({ ...prev, giftCardCode: '' }));
+  }
+
+  async function pay() {
+    if (!creatorId || cart.length === 0) return;
+    if (!address.firstName.trim()) {
+      setError('First name is required');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email.trim())) {
+      setError('A valid email is required');
+      return;
+    }
+    if (address.phone.replace(/\D/g, '').length < 7) {
+      setError('A valid phone number is required');
       return;
     }
     if (address.isGift) {
@@ -649,13 +875,12 @@ export function PublicShopPanel({
       setError('Select a delivery option');
       return;
     }
-    if (
-      needsDelivery &&
-      selectedTier &&
-      !isAddressOptionalDeliveryType(selectedTier.type) &&
-      (!address.address.trim() || !address.city.trim() || !address.state.trim())
-    ) {
-      setError('Delivery address, city, and state are required');
+    if (needsStreetAddress && !address.address.trim()) {
+      setError('Address is required');
+      return;
+    }
+    if (address.giftCardCode.trim() && !promoApplied) {
+      setError('Apply the code before paying');
       return;
     }
     const needsCustomDeliveryBlock = cart.some(
@@ -678,7 +903,7 @@ export function PublicShopPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           creatorId,
-          giftCardCode: address.giftCardCode.trim() || null,
+          giftCardCode: promoApplied && promo ? promo.code : null,
           deliveryTierId: needsDelivery ? deliveryTierId || null : null,
           deliveryAddress: {
             ...address,
@@ -729,6 +954,69 @@ export function PublicShopPanel({
     const stillValid = deliveryTiers.some((tier) => tier.id === deliveryTierId);
     if (!stillValid) setDeliveryTierId('');
   }, [deliveryTiers, deliveryTierId]);
+
+  useEffect(() => {
+    if (!promo?.code || !creatorId) return;
+    let cancelled = false;
+    void (async () => {
+      const response = await fetch('/api/shop/promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creatorId,
+          code: promo.code,
+          subtotalKobo: cartSubtotal,
+          deliveryFeeKobo: deliveryFee,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (cancelled || stepRef.current !== 'checkout') return;
+      if (!response.ok) {
+        setPromo(null);
+        setPromoError(data.error || 'This code no longer applies');
+        return;
+      }
+      setPromo((current) => {
+        if (!current || current.code !== data.code) return current;
+        const couponDiscountKobo = Number(data.couponDiscountKobo) || 0;
+        const giftCardCreditKobo = Number(data.giftCardCreditKobo) || 0;
+        if (
+          current.couponDiscountKobo === couponDiscountKobo &&
+          current.giftCardCreditKobo === giftCardCreditKobo
+        ) {
+          return current;
+        }
+        return {
+          code: current.code,
+          kind: data.kind === 'gift_card' ? 'gift_card' : 'coupon',
+          couponDiscountKobo,
+          giftCardCreditKobo,
+        };
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [promo?.code, cartSubtotal, deliveryFee, creatorId]);
+
+  useEffect(() => {
+    if (step === 'checkout') return;
+    promoRequestRef.current += 1;
+    setPromoError(null);
+    setPromoLoading(false);
+    const applied = promoRef.current;
+    setAddress((prev) => {
+      const typed = prev.giftCardCode.trim().toUpperCase().replace(/\s+/g, '');
+      if (applied && typed === applied.code) return prev;
+      if (!prev.giftCardCode) return prev;
+      return { ...prev, giftCardCode: '' };
+    });
+  }, [step]);
+
+  useEffect(() => {
+    if (!error) return;
+    document.getElementById('shop-checkout-error')?.scrollIntoView({ block: 'nearest' });
+  }, [error]);
 
   if (loading) {
     return embedded ? <p className="foleio-public-empty">Loading shop…</p> : null;
@@ -904,6 +1192,76 @@ export function PublicShopPanel({
             </div>
 
             <div className="foleio-shop-drawer-body">
+              <div className="foleio-shop-drawer-scroll">
+              {step === 'checkout' ? (
+                <div className="foleio-shop-checkout-summary">
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <p className="foleio-shop-summary-label">Gift card or coupon code</p>
+                    <div className="foleio-shop-promo-row">
+                      <input
+                        className="foleio-shop-field"
+                        placeholder="Enter code (optional)"
+                        value={address.giftCardCode}
+                        onChange={(event) => {
+                          setPromoError(null);
+                          setAddress((prev) => ({
+                            ...prev,
+                            giftCardCode: event.target.value.toUpperCase(),
+                          }));
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' || promoApplied) return;
+                          event.preventDefault();
+                          void applyPromoCode();
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="foleio-shop-promo-apply"
+                        disabled={promoLoading || (!promoApplied && !address.giftCardCode.trim())}
+                        onClick={() => {
+                          if (promoApplied) clearPromoCode();
+                          else void applyPromoCode();
+                        }}
+                      >
+                        {promoLoading ? 'Applying…' : promoApplied ? 'Remove' : 'Apply'}
+                      </button>
+                    </div>
+                    {promoError ? <p className="foleio-shop-promo-error">{promoError}</p> : null}
+                  </div>
+                  <div className="foleio-shop-summary-divider" />
+                  <div className="foleio-shop-summary-lines">
+                    <div className="foleio-shop-summary-row">
+                      <span>Subtotal</span>
+                      <span>{formatNaira(cartSubtotal)}</span>
+                    </div>
+                    {couponOff > 0 ? (
+                      <div className="foleio-shop-summary-row">
+                        <span>Discount</span>
+                        <span>−{formatNaira(couponOff)}</span>
+                      </div>
+                    ) : null}
+                    {needsDelivery && selectedTier ? (
+                      <div className="foleio-shop-summary-row">
+                        <span>Delivery · {selectedTier.name}</span>
+                        <span>
+                          {selectedTier.type === 'paid' ? formatNaira(deliveryFee) : 'Free'}
+                        </span>
+                      </div>
+                    ) : null}
+                    {giftCredit > 0 ? (
+                      <div className="foleio-shop-summary-row">
+                        <span>Gift card</span>
+                        <span>−{formatNaira(giftCredit)}</span>
+                      </div>
+                    ) : null}
+                    <p className="foleio-shop-summary-total">
+                      <span>Total</span>
+                      <span>{formatNaira(payableTotal)}</span>
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               {step === 'catalog' ? (
                 <div className="foleio-product-card-list">
                   {products.map((product) => {
@@ -1114,58 +1472,46 @@ export function PublicShopPanel({
                             <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>
                               {variant.name}
                             </p>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ display: 'grid', gap: 8 }} role="radiogroup" aria-label={variant.name}>
                               {variant.options.map((option) => {
                                 const selected = selectedVariants[variant.name] === option;
-                                if (showSwatches && isHexColor(option)) {
-                                  return (
-                                    <button
-                                      key={option}
-                                      type="button"
-                                      onClick={() =>
+                                return (
+                                  <label
+                                    key={option}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      fontSize: 14,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`variant-${variant.id}`}
+                                      checked={selected}
+                                      onChange={() =>
                                         setSelectedVariants((prev) => ({
                                           ...prev,
                                           [variant.name]: option,
                                         }))
                                       }
-                                      aria-label={option}
-                                      title={option}
-                                      style={{
-                                        width: 36,
-                                        height: 36,
-                                        borderRadius: 999,
-                                        border: selected
-                                          ? '2px solid #fafafa'
-                                          : '2px solid rgba(255,255,255,0.2)',
-                                        background: option,
-                                        boxShadow: selected
-                                          ? '0 0 0 2px rgba(250,250,250,0.35)'
-                                          : 'none',
-                                        cursor: 'pointer',
-                                        padding: 0,
-                                      }}
                                     />
-                                  );
-                                }
-                                return (
-                                  <button
-                                    key={option}
-                                    type="button"
-                                    className="foleio-shop-btn-ghost"
-                                    style={{
-                                      background: selected
-                                        ? 'rgba(250,250,250,0.12)'
-                                        : 'transparent',
-                                    }}
-                                    onClick={() =>
-                                      setSelectedVariants((prev) => ({
-                                        ...prev,
-                                        [variant.name]: option,
-                                      }))
-                                    }
-                                  >
+                                    {showSwatches && isHexColor(option) ? (
+                                      <span
+                                        aria-hidden
+                                        style={{
+                                          width: 16,
+                                          height: 16,
+                                          borderRadius: 999,
+                                          background: option,
+                                          border: '1px solid rgba(255,255,255,0.35)',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    ) : null}
                                     {option}
-                                  </button>
+                                  </label>
                                 );
                               })}
                             </div>
@@ -1553,6 +1899,48 @@ export function PublicShopPanel({
 
               {step === 'checkout' ? (
                 <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Who is this for?</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={!address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'}
+                        aria-pressed={!address.isGift}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: 13,
+                          background: !address.isGift ? '#fafafa' : 'transparent',
+                          color: !address.isGift ? '#18181b' : 'rgba(250,250,250,0.38)',
+                          border: !address.isGift
+                            ? 'none'
+                            : '1px solid rgba(255,255,255,0.1)',
+                          opacity: !address.isGift ? 1 : 0.55,
+                        }}
+                        onClick={() => setAddress((prev) => ({ ...prev, isGift: false }))}
+                      >
+                        For me
+                      </button>
+                      <button
+                        type="button"
+                        className={address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'}
+                        aria-pressed={address.isGift}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: 13,
+                          background: address.isGift ? '#fafafa' : 'transparent',
+                          color: address.isGift ? '#18181b' : 'rgba(250,250,250,0.38)',
+                          border: address.isGift
+                            ? 'none'
+                            : '1px solid rgba(255,255,255,0.1)',
+                          opacity: address.isGift ? 1 : 0.55,
+                        }}
+                        onClick={() => setAddress((prev) => ({ ...prev, isGift: true }))}
+                      >
+                        This is a gift
+                      </button>
+                    </div>
+                  </div>
+
                   <div
                     style={{
                       display: 'grid',
@@ -1562,7 +1950,10 @@ export function PublicShopPanel({
                   >
                     <input
                       className="foleio-shop-field"
-                      placeholder="First name"
+                      placeholder="First name *"
+                      autoComplete="given-name"
+                      aria-required="true"
+                      required
                       value={address.firstName}
                       onChange={(event) =>
                         setAddress((prev) => ({ ...prev, firstName: event.target.value }))
@@ -1577,23 +1968,38 @@ export function PublicShopPanel({
                       }
                     />
                   </div>
-                  <input
-                    className="foleio-shop-field"
-                    placeholder="Email"
-                    type="email"
-                    value={address.email}
-                    onChange={(event) =>
-                      setAddress((prev) => ({ ...prev, email: event.target.value }))
-                    }
-                  />
-                  <input
-                    className="foleio-shop-field"
-                    placeholder="Phone"
-                    value={address.phone}
-                    onChange={(event) =>
-                      setAddress((prev) => ({ ...prev, phone: event.target.value }))
-                    }
-                  />
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 10,
+                    }}
+                  >
+                    <input
+                      className="foleio-shop-field"
+                      placeholder="Email *"
+                      type="email"
+                      autoComplete="email"
+                      aria-required="true"
+                      required
+                      value={address.email}
+                      onChange={(event) =>
+                        setAddress((prev) => ({ ...prev, email: event.target.value }))
+                      }
+                    />
+                    <input
+                      className="foleio-shop-field"
+                      placeholder="Phone *"
+                      type="tel"
+                      autoComplete="tel"
+                      aria-required="true"
+                      required
+                      value={address.phone}
+                      onChange={(event) =>
+                        setAddress((prev) => ({ ...prev, phone: event.target.value }))
+                      }
+                    />
+                  </div>
                   <textarea
                     className="foleio-shop-field"
                     placeholder="Order notes (optional)"
@@ -1604,36 +2010,6 @@ export function PublicShopPanel({
                     }
                     style={{ resize: 'vertical', minHeight: 72 }}
                   />
-
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Who is this for?</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <button
-                        type="button"
-                        className={!address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'}
-                        style={{
-                          padding: '10px 12px',
-                          fontSize: 13,
-                          background: !address.isGift ? 'rgba(250,250,250,0.12)' : undefined,
-                        }}
-                        onClick={() => setAddress((prev) => ({ ...prev, isGift: false }))}
-                      >
-                        For me
-                      </button>
-                      <button
-                        type="button"
-                        className={address.isGift ? 'foleio-shop-btn' : 'foleio-shop-btn-ghost'}
-                        style={{
-                          padding: '10px 12px',
-                          fontSize: 13,
-                          background: address.isGift ? 'rgba(250,250,250,0.12)' : undefined,
-                        }}
-                        onClick={() => setAddress((prev) => ({ ...prev, isGift: true }))}
-                      >
-                        This is a gift
-                      </button>
-                    </div>
-                  </div>
 
                   {address.isGift ? (
                     <div style={{ display: 'grid', gap: 10 }}>
@@ -1655,14 +2031,12 @@ export function PublicShopPanel({
                             style={{
                               padding: '8px 12px',
                               fontSize: 12,
-                              background:
-                                address.occasion === value
-                                  ? 'rgba(250,250,250,0.12)'
-                                  : 'transparent',
+                              background: address.occasion === value ? '#fafafa' : 'transparent',
+                              color: address.occasion === value ? '#18181b' : '#fafafa',
                               border:
                                 address.occasion === value
-                                  ? '1px solid rgba(255,255,255,0.35)'
-                                  : undefined,
+                                  ? '1px solid #fafafa'
+                                  : '1px solid rgba(255,255,255,0.16)',
                             }}
                             onClick={() => setAddress((prev) => ({ ...prev, occasion: value }))}
                           >
@@ -1722,34 +2096,6 @@ export function PublicShopPanel({
                     </div>
                   ) : null}
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
-                      Gift card or coupon code
-                    </p>
-                    <input
-                      className="foleio-shop-field"
-                      placeholder="Enter code (optional)"
-                      value={address.giftCardCode}
-                      onChange={(event) =>
-                        setAddress((prev) => ({
-                          ...prev,
-                          giftCardCode: event.target.value.toUpperCase(),
-                        }))
-                      }
-                    />
-                    {address.giftCardCode.trim() ? (
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: 12,
-                          color: 'rgba(250,250,250,0.55)',
-                        }}
-                      >
-                        Balance will be applied at checkout
-                      </p>
-                    ) : null}
-                  </div>
-
                   {cart.some((item) => isGiftCardProduct(item.product)) ? (
                     <input
                       className="foleio-shop-field"
@@ -1764,34 +2110,48 @@ export function PublicShopPanel({
                     />
                   ) : null}
 
-                  {needsDelivery &&
-                  selectedTier &&
-                  !isAddressOptionalDeliveryType(selectedTier.type) ? (
+                  {needsStreetAddress ? (
                     <>
                       <input
                         className="foleio-shop-field"
-                        placeholder="Address"
+                        placeholder="Address *"
+                        autoComplete="street-address"
+                        aria-required="true"
+                        required
                         value={address.address}
                         onChange={(event) =>
                           setAddress((prev) => ({ ...prev, address: event.target.value }))
                         }
                       />
-                      <input
-                        className="foleio-shop-field"
-                        placeholder="City"
-                        value={address.city}
-                        onChange={(event) =>
-                          setAddress((prev) => ({ ...prev, city: event.target.value }))
-                        }
-                      />
-                      <input
-                        className="foleio-shop-field"
-                        placeholder="State"
-                        value={address.state}
-                        onChange={(event) =>
-                          setAddress((prev) => ({ ...prev, state: event.target.value }))
-                        }
-                      />
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 10,
+                        }}
+                      >
+                        <ShopSearchSelect
+                          value={address.state}
+                          options={NIGERIA_STATES}
+                          placeholder="State"
+                          searchPlaceholder="Search states"
+                          onChange={(state) =>
+                            setAddress((prev) => ({
+                              ...prev,
+                              state,
+                              city: nigeriaCities(state).includes(prev.city) ? prev.city : '',
+                            }))
+                          }
+                        />
+                        <ShopSearchSelect
+                          value={address.city}
+                          options={stateCities}
+                          placeholder={address.state ? 'City' : 'Select state first'}
+                          searchPlaceholder="Search cities"
+                          disabled={!address.state}
+                          onChange={(city) => setAddress((prev) => ({ ...prev, city }))}
+                        />
+                      </div>
                     </>
                   ) : null}
 
@@ -1870,65 +2230,15 @@ export function PublicShopPanel({
                       ))}
                     </div>
                   ) : null}
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gap: 6,
-                      marginTop: 4,
-                      paddingTop: 10,
-                      borderTop: '1px solid rgba(255,255,255,0.08)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontSize: 14,
-                        color: 'rgba(250,250,250,0.72)',
-                      }}
-                    >
-                      <span>Subtotal</span>
-                      <span>{formatNaira(cartSubtotal)}</span>
-                    </div>
-                    {needsDelivery && selectedTier ? (
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          fontSize: 14,
-                          color: 'rgba(250,250,250,0.72)',
-                        }}
-                      >
-                        <span>Delivery · {selectedTier.name}</span>
-                        <span>
-                          {selectedTier.type === 'paid' ? formatNaira(deliveryFee) : 'Free'}
-                        </span>
-                      </div>
-                    ) : null}
-                    {address.giftCardCode.trim() ? (
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          fontSize: 14,
-                          color: 'rgba(250,250,250,0.72)',
-                        }}
-                      >
-                        <span>Gift card</span>
-                        <span>Applied at checkout</span>
-                      </div>
-                    ) : null}
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>
-                      Total {formatNaira(payableTotal)}
-                    </p>
-                  </div>
                 </div>
               ) : null}
 
               {error ? (
-                <p style={{ color: '#fca5a5', marginTop: 12, fontSize: 13 }}>{error}</p>
+                <p id="shop-checkout-error" style={{ color: '#fca5a5', marginTop: 12, fontSize: 13 }}>
+                  {error}
+                </p>
               ) : null}
+              </div>
             </div>
 
             <div className="foleio-shop-drawer-footer">
@@ -1990,7 +2300,7 @@ export function PublicShopPanel({
                   >
                     {isSubmitting
                       ? 'Starting payment…'
-                      : payableTotal <= 0 && address.giftCardCode.trim()
+                      : payableTotal <= 0 && promoApplied
                         ? 'Complete order'
                         : `Pay ${formatNaira(payableTotal)}`}
                   </button>

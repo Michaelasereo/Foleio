@@ -315,11 +315,9 @@ export async function POST(request: Request) {
       const { isAddressOptionalDeliveryType } = await import('@/lib/shop/delivery-fee');
       if (!isAddressOptionalDeliveryType(deliveryType)) {
         const address = String(deliveryAddress.address || '').trim();
-        const city = String(deliveryAddress.city || '').trim();
-        const state = String(deliveryAddress.state || '').trim();
-        if (!address || !city || !state) {
+        if (!address) {
           return NextResponse.json(
-            { error: 'Delivery address, city, and state are required' },
+            { error: 'Delivery address is required' },
             { status: 400 }
           );
         }

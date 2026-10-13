@@ -93,14 +93,14 @@ export default function AdminCreatorLinksPage() {
           asChild
           size="sm"
           variant="outline"
-          className="border-white/10 bg-transparent text-[#f4f4f5]"
+          className="border-[#e7e5e4] bg-transparent text-[#1c1b19]"
         >
           <Link href="/admin/creators">Back to creators</Link>
         </Button>
       </div>
 
       <div className={`${adminPanelClass} flex flex-wrap items-center justify-between gap-3`}>
-        <Badge variant="outline" className="border-white/10 text-[#adadad]">
+        <Badge variant="outline" className="border-[#e7e5e4] text-[#6b6964]">
           {filtered.length} creator{filtered.length === 1 ? '' : 's'} · {totalLinks}{' '}
           link{totalLinks === 1 ? '' : 's'}
         </Badge>
@@ -117,7 +117,7 @@ export default function AdminCreatorLinksPage() {
       ) : null}
 
       {loadError ? (
-        <div className={`${adminPanelClass} py-8 text-center text-sm text-red-300`}>
+        <div className={`${adminPanelClass} py-8 text-center text-sm text-red-700`}>
           {loadError}
         </div>
       ) : null}
@@ -134,12 +134,12 @@ export default function AdminCreatorLinksPage() {
             <div key={creator.id} className={adminPanelClass}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-[#f4f4f5]">
+                  <p className="text-sm font-semibold text-[#1c1b19]">
                     {creator.displayName}
                   </p>
                   <p className={`text-xs ${adminMutedClass}`}>@{creator.username}</p>
                 </div>
-                <Badge variant="outline" className="border-white/10 text-[#adadad]">
+                <Badge variant="outline" className="border-[#e7e5e4] text-[#6b6964]">
                   {creator.linkCount} link{creator.linkCount === 1 ? '' : 's'}
                 </Badge>
               </div>
@@ -164,7 +164,7 @@ export default function AdminCreatorLinksPage() {
                           </span>
                         </td>
                         <td className={adminTableCellClass}>
-                          <span className="block max-w-[360px] truncate text-sm text-[#adadad]">
+                          <span className="block max-w-[360px] truncate text-sm text-[#6b6964]">
                             {link.url}
                           </span>
                         </td>
@@ -173,7 +173,7 @@ export default function AdminCreatorLinksPage() {
                             asChild
                             size="sm"
                             variant="outline"
-                            className="border-white/10 bg-transparent"
+                            className="border-[#e7e5e4] bg-transparent"
                           >
                             <a
                               href={link.url}

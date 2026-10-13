@@ -96,7 +96,7 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         {!embedded ? <h2 className="foleio-admin-title">Webhooks</h2> : <span />}
-        <Button variant="outline" size="sm" className="border-white/10 bg-transparent" onClick={loadStats}>
+        <Button variant="outline" size="sm" className="border-[#e7e5e4] bg-transparent" onClick={loadStats}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
@@ -108,11 +108,11 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
           { label: 'Failed today', value: stats?.failedToday || 0, danger: true },
           { label: 'Retry queue', value: stats?.retryQueueSize || 0, warn: true },
         ].map((card) => (
-          <div key={card.label} className="rounded-[14px] border border-white/5 bg-[#212121] p-4">
+          <div key={card.label} className="rounded-[14px] border border-[#e7e5e4] bg-[#f3f2ed] p-4">
             <p className="text-xs uppercase tracking-wide text-[#828282]">{card.label}</p>
             <p
               className={`mt-2 text-2xl font-semibold ${
-                card.danger ? 'text-red-400' : card.warn ? 'text-amber-400' : 'text-[#f4f4f5]'
+                card.danger ? 'text-red-700' : card.warn ? 'text-amber-700' : 'text-[#1c1b19]'
               }`}
             >
               {card.value}
@@ -121,15 +121,15 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
         ))}
       </div>
 
-      <div className="rounded-[14px] border border-white/5 bg-[#212121] p-5">
-        <h3 className="text-base font-semibold text-[#f4f4f5]">Reconciliation</h3>
+      <div className="rounded-[14px] border border-[#e7e5e4] bg-[#f3f2ed] p-5">
+        <h3 className="text-base font-semibold text-[#1c1b19]">Reconciliation</h3>
         <p className="mt-1 text-sm text-[#828282]">Failed webhooks and manual retry controls</p>
         <div className="mt-4">
           {stats?.recentFailures?.length ? (
             <div className="max-h-[70vh] overflow-auto">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-[#1a1816]">
-                  <TableRow className="border-white/5 hover:bg-transparent">
+                <TableHeader className="sticky top-0 z-10 bg-[#f3f2ed]">
+                  <TableRow className="border-[#e7e5e4] hover:bg-transparent">
                     <TableHead className="text-[#828282]">Event</TableHead>
                     <TableHead className="text-[#828282]">Reference</TableHead>
                     <TableHead className="text-[#828282]">Amount</TableHead>
@@ -141,9 +141,9 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
                 </TableHeader>
                 <TableBody>
                   {stats.recentFailures.map((webhook) => (
-                    <TableRow key={webhook.id} className="border-white/5">
+                    <TableRow key={webhook.id} className="border-[#e7e5e4]">
                       <TableCell>
-                        <Badge variant="outline" className="border-white/10">
+                        <Badge variant="outline" className="border-[#e7e5e4]">
                           {webhook.event}
                         </Badge>
                       </TableCell>
@@ -164,7 +164,7 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-white/10 bg-transparent"
+                          className="border-[#e7e5e4] bg-transparent"
                           onClick={() => retryWebhook(webhook.id)}
                           disabled={processing === webhook.id}
                         >
@@ -182,7 +182,7 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
               </Table>
             </div>
           ) : (
-            <Alert className="border-white/10 bg-white/[0.03] text-[#adadad]">
+            <Alert className="border-[#e7e5e4] bg-[#f6f5f1] text-[#6b6964]">
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>No failed webhooks found.</AlertDescription>
             </Alert>
@@ -190,15 +190,15 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
         </div>
       </div>
 
-      <div className="rounded-[14px] border border-white/5 bg-[#212121] p-5">
-        <h3 className="text-base font-semibold text-[#f4f4f5]">Latest events</h3>
+      <div className="rounded-[14px] border border-[#e7e5e4] bg-[#f3f2ed] p-5">
+        <h3 className="text-base font-semibold text-[#1c1b19]">Latest events</h3>
         <p className="mt-1 text-sm text-[#828282]">Last 20 webhook events received</p>
         <div className="mt-4">
           {stats?.webhookLoggingAvailable ? (
             <div className="space-y-2">
               {stats.webhookEvents.map((event) => (
-                <div key={event.id} className="rounded-md border border-white/5 p-2 text-sm">
-                  <p className="font-medium text-[#f4f4f5]">{event.event}</p>
+                <div key={event.id} className="rounded-md border border-[#e7e5e4] p-2 text-sm">
+                  <p className="font-medium text-[#1c1b19]">{event.event}</p>
                   <p className="text-xs text-[#828282]">
                     {new Date(event.createdAt).toLocaleString()}
                   </p>
@@ -206,7 +206,7 @@ export default function AdminWebhooksPage({ embedded = false }: { embedded?: boo
               ))}
             </div>
           ) : (
-            <Alert className="border-white/10 bg-white/[0.03] text-[#adadad]">
+            <Alert className="border-[#e7e5e4] bg-[#f6f5f1] text-[#6b6964]">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>Webhook logging coming soon.</AlertDescription>
             </Alert>

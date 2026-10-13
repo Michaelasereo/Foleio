@@ -3,7 +3,7 @@ import { Italic, frame } from './ui';
 
 export function Gap() {
   return (
-    <div className={`${frame} pt-[88px]`}>
+    <div className={`${frame} pt-14 min-[761px]:pt-[88px]`}>
       <div className="flex flex-wrap items-center gap-x-16 gap-y-12 rounded-[36px] bg-[#131210] px-[clamp(28px,6vw,88px)] py-[clamp(40px,5vw,72px)] text-white">
         <div className="min-w-0 flex-[1_1_460px]">
           <div className="text-[15px] text-[#d6d4cd]">The gap</div>

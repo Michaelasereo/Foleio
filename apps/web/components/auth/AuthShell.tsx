@@ -20,8 +20,7 @@ export function AuthShell({ children, title, subtitle }: AuthShellProps) {
           <Image
             src={foleioLogo}
             alt="Foleio"
-            className="h-8 w-auto"
-            style={{ filter: 'brightness(0) invert(1)' }}
+            className="h-8 w-8 rounded-full object-cover"
             priority
           />
         </Link>

@@ -1,5 +1,6 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
+import { e2eCreatorIds, withoutE2eCreator } from '@/lib/admin/delete-creator';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,10 +12,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || '';
+  const excluded = await e2eCreatorIds();
 
   const orders = await prisma.order.findMany({
     where: {
       ...(status ? { status } : {}),
+      ...withoutE2eCreator(excluded),
     },
     include: {
       creator: { select: { displayName: true, username: true } },

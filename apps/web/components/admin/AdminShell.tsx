@@ -54,9 +54,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarMotion, setSidebarMotion] = useState(false);
   const [pendingPayoutCount, setPendingPayoutCount] = useState(0);
   const [pendingInviteCount, setPendingInviteCount] = useState(0);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSidebarMotion(true);
+  }, []);
 
   useEffect(() => {
     async function loadMeta() {
@@ -95,75 +100,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="foleio-admin-shell min-h-screen bg-[#1a1816] text-[#f4f4f5]">
-      <style jsx global>{`
-        body:has(.foleio-admin-shell) {
-          background: #1a1816 !important;
-          color: #f4f4f5 !important;
-        }
-        body:has(.foleio-admin-shell) footer:not(.foleio-auth-legal) {
-          display: none !important;
-        }
-        .foleio-admin-shell a { color: inherit; text-decoration: none; }
-        .foleio-admin-shell {
-          --border: 20 6% 12%;
-        }
-        .foleio-admin-shell .border,
-        .foleio-admin-shell .border-b,
-        .foleio-admin-shell .border-t,
-        .foleio-admin-shell .border-r,
-        .foleio-admin-shell .border-l,
-        .foleio-admin-shell [class*="border-white"],
-        .foleio-admin-shell [class*="border-[#"] {
-          border-color: #201e1c !important;
-        }
-        .foleio-admin-shell header {
-          border-bottom: 1px solid #201e1c !important;
-        }
-        .foleio-admin-shell aside {
-          border-right: 1px solid #201e1c !important;
-        }
-        .foleio-admin-nav-link {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 12px;
-          border-radius: 10px;
-          color: #adadad;
-          font-size: 13px;
-          font-weight: 500;
-        }
-        .foleio-admin-nav-link:hover { background: #2a2a2a; color: #f4f4f5; }
-        .foleio-admin-nav-link.is-active {
-          background: #2a2a2a;
-          color: #fff;
-        }
-        .foleio-admin-panel {
-          background: #212121;
-          border: none !important;
-          box-shadow: none !important;
-          outline: none !important;
-          border-radius: 14px;
-          padding: 18px;
-        }
-        .foleio-admin-title {
-          margin: 0;
-          font-size: 22px;
-          font-weight: 600;
-          letter-spacing: -0.02em;
-        }
-        .foleio-admin-meta {
-          margin: 6px 0 0;
-          color: #828282;
-          font-size: 13px;
-          font-weight: 500;
-        }
-      `}</style>
-
+    <div className="foleio-admin-shell min-h-screen bg-[#f6f5f1] text-[#1c1b19]">
       <div className="flex min-h-screen">
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-50 w-64 border-r border-[#201e1c] bg-[#141210] transition-transform lg:static lg:translate-x-0',
+            'fixed inset-y-0 left-0 z-50 w-64 shrink-0 border-r border-[#e7e5e4] bg-[#f3f2ed] lg:static lg:translate-x-0',
+            sidebarMotion && 'transition-transform duration-200',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
@@ -172,14 +114,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <Image
                 src={foleioLogo}
                 alt="Foleio"
-                width={120}
+                width={32}
                 height={32}
-                className="h-8 w-auto object-contain"
+                className="h-8 w-8 rounded-full object-cover"
                 priority
               />
               <button
                 type="button"
-                className="rounded-lg p-2 text-[#adadad] lg:hidden"
+                className="rounded-lg p-2 text-[#55544f] lg:hidden"
                 onClick={() => setSidebarOpen(false)}
                 aria-label="Close menu"
               >
@@ -211,12 +153,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     <Icon className="h-4 w-4" strokeWidth={1.75} />
                     <span className="flex-1">{item.label}</span>
                     {item.href === '/admin/payouts' && pendingPayoutCount > 0 ? (
-                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                         {pendingPayoutCount}
                       </span>
                     ) : null}
                     {item.href === '/admin/access' && pendingInviteCount > 0 ? (
-                      <span className="rounded-full bg-teal-500/20 px-2 py-0.5 text-[11px] font-semibold text-teal-300">
+                      <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[11px] font-semibold text-teal-800">
                         {pendingInviteCount}
                       </span>
                     ) : null}
@@ -225,9 +167,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               })}
             </nav>
 
-            <div className="mt-4 border-t border-[#201e1c] pt-4">
+            <div className="mt-4 border-t border-[#e7e5e4] pt-4">
               {adminEmail ? (
-                <p className="mb-2 truncate px-2 text-[11px] text-[#828282]">{adminEmail}</p>
+                <p className="mb-2 truncate px-2 text-[11px] text-[#6b6964]">{adminEmail}</p>
               ) : null}
               <button
                 type="button"
@@ -240,7 +182,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               {process.env.NODE_ENV !== 'production' ? (
                 <Link
                   href="/admin/payout-test"
-                  className="mt-2 block px-2 text-[11px] text-[#666] hover:text-[#adadad]"
+                  className="mt-2 block px-2 text-[11px] text-[#8a8882] hover:text-[#1c1b19]"
                   onClick={() => setSidebarOpen(false)}
                 >
                   Payout test (dev)
@@ -260,18 +202,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center gap-3 border-b border-[#201e1c] px-4 py-3 lg:px-6">
+          <header className="flex items-center gap-3 border-b border-[#e7e5e4] px-4 py-3 lg:px-6">
             <button
               type="button"
-              className="rounded-lg p-2 text-[#adadad] lg:hidden"
+              className="rounded-lg p-2 text-[#55544f] lg:hidden"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
             >
               <Menu className="h-4 w-4" />
             </button>
             <div>
-              <p className="text-sm font-medium text-[#f4f4f5]">Admin</p>
-              <p className="text-xs text-[#828282]">Operator console</p>
+              <p className="text-sm font-medium text-[#1c1b19]">Admin</p>
+              <p className="text-xs text-[#6b6964]">Operator console</p>
             </div>
           </header>
           <main className="flex-1 px-4 py-5 lg:px-6">{children}</main>

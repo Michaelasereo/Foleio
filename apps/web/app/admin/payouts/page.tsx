@@ -123,7 +123,7 @@ export default function AdminPayoutsPage() {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className={adminPanelClass}>
           <p className={`text-sm ${adminMutedClass}`}>Pending requests</p>
-          <p className="mt-1 text-2xl font-bold text-[#f4f4f5]">{payload.pendingCount}</p>
+          <p className="mt-1 text-2xl font-bold text-[#1c1b19]">{payload.pendingCount}</p>
         </div>
         <div className={adminPanelClass}>
           <p className={`text-sm ${adminMutedClass}`}>Total to pay out</p>
@@ -133,7 +133,7 @@ export default function AdminPayoutsPage() {
         </div>
         <div className={adminPanelClass}>
           <p className={`text-sm ${adminMutedClass}`}>Next payout day</p>
-          <p className="mt-1 text-2xl font-bold text-[#f4f4f5]">{nextPayoutDay}</p>
+          <p className="mt-1 text-2xl font-bold text-[#1c1b19]">{nextPayoutDay}</p>
         </div>
       </div>
 
@@ -146,7 +146,7 @@ export default function AdminPayoutsPage() {
             <div key={payout.id} className={`${adminPanelClass} space-y-4`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-[#f4f4f5]">{payout.creator.displayName}</p>
+                  <p className="font-semibold text-[#1c1b19]">{payout.creator.displayName}</p>
                   <p className={`text-sm ${adminMutedClass}`}>{payout.creator.user.email}</p>
                   <p className={`mt-1 text-xs ${adminMutedClass}`}>
                     Requested {new Date(payout.createdAt).toLocaleString()}
@@ -164,7 +164,7 @@ export default function AdminPayoutsPage() {
               </div>
 
               {payout.creator.bankAccount ? (
-                <div className="rounded-xl border border-white/5 bg-[#1a1816] p-4">
+                <div className="rounded-xl border border-[#e7e5e4] bg-[#f3f2ed] p-4">
                   <p className={`mb-2 text-xs font-semibold uppercase tracking-wide ${adminMutedClass}`}>
                     Bank details
                   </p>
@@ -207,7 +207,7 @@ export default function AdminPayoutsPage() {
                 onChange={(event) =>
                   setNotes((prev) => ({ ...prev, [payout.id]: event.target.value }))
                 }
-                className="w-full rounded-lg border border-white/10 bg-[#1a1816] px-3 py-2 text-sm text-[#f4f4f5]"
+                className="w-full rounded-lg border border-[#e7e5e4] bg-[#f3f2ed] px-3 py-2 text-sm text-[#1c1b19]"
               />
 
               <div className="flex gap-2">
@@ -221,7 +221,7 @@ export default function AdminPayoutsPage() {
                 <Button
                   variant="outline"
                   onClick={() => void handleReject(payout)}
-                  className="border-red-500/30 text-red-300 hover:bg-red-500/10"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
                   disabled={actionLoading === `reject-${payout.id}`}
                 >
                   Reject

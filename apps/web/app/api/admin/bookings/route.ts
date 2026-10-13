@@ -1,5 +1,6 @@
 import { prisma } from '@foleio/database';
 import { isAdminAuthed } from '@/lib/admin/auth';
+import { e2eCreatorIds, withoutE2eCreator } from '@/lib/admin/delete-creator';
 import { bookingAmountForAdmin } from '@/lib/admin/stats-helpers';
 
 export async function GET(request: Request) {
@@ -9,10 +10,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || '';
+  const excluded = await e2eCreatorIds();
 
   const bookings = await prisma.booking.findMany({
     where: {
       ...(status ? { status } : {}),
+      ...withoutE2eCreator(excluded),
     },
     include: {
       creator: { select: { displayName: true, username: true } },
