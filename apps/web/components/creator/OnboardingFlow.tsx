@@ -14,6 +14,7 @@ import { UpgradeModal } from '@/components/creator/UpgradeModal';
 import { useUpgradeModal } from '@/lib/hooks/useUpgradeModal';
 import { getCreatorPlan, type PlatformPlan } from '@/lib/utils/plan-limits';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
+import { BIO_MAX_CHARS, trimBioToMaxChars } from '@/lib/creator/bio';
 
 interface OnboardingFlowProps {
   onComplete?: () => void;
@@ -252,12 +253,15 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
               <Textarea
                 id="bio"
                 value={formData.bio}
-                onChange={(e) => handleInputChange('bio', e.target.value)}
+                onChange={(e) =>
+                  handleInputChange('bio', trimBioToMaxChars(e.target.value))
+                }
                 placeholder="Tell fans about yourself..."
                 rows={3}
+                maxLength={BIO_MAX_CHARS}
               />
               <p className="text-sm text-gray-500 mt-1">
-                {formData.bio.length}/160 characters
+                {formData.bio.length}/{BIO_MAX_CHARS} characters
               </p>
             </div>
 

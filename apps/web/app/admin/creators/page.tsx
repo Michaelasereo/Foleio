@@ -185,6 +185,14 @@ export default function AdminCreatorsPage() {
   const [e2eCount, setE2eCount] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingE2e, setDeletingE2e] = useState(false);
+  const [usernameRequests, setUsernameRequests] = useState<
+    Array<{
+      id: string;
+      requestedUsername: string;
+      creator: { id: string; username: string; displayName: string };
+    }>
+  >([]);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const loadCreators = useCallback(async () => {
     type CreatorHealthApiRow = Omit<CreatorHealthRow, 'createdAt' | 'lastContentDate'> & {
@@ -192,9 +200,10 @@ export default function AdminCreatorsPage() {
       lastContentDate: string | null;
     };
 
-    const [creatorsRes, e2eRes] = await Promise.all([
+    const [creatorsRes, e2eRes, usernameRes] = await Promise.all([
       fetch('/api/admin/creators', { cache: 'no-store' }),
       fetch('/api/admin/creators/delete-e2e', { cache: 'no-store' }),
+      fetch('/api/admin/username-requests', { cache: 'no-store' }),
     ]);
 
     if (creatorsRes.ok) {
@@ -215,12 +224,51 @@ export default function AdminCreatorsPage() {
       setE2eCount(Number(data.count || 0));
     }
 
+    if (usernameRes.ok) {
+      const data = (await usernameRes.json()) as {
+        requests: Array<{
+          id: string;
+          requestedUsername: string;
+          creator: { id: string; username: string; displayName: string };
+        }>;
+      };
+      setUsernameRequests(data.requests || []);
+    }
+
     setLoading(false);
   }, []);
 
   useEffect(() => {
     void loadCreators();
   }, [loadCreators]);
+
+  async function approveUsername(id: string) {
+    setApprovingId(id);
+    try {
+      const response = await fetch(`/api/admin/username-requests/${id}/approve`, {
+        method: 'POST',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast({
+          title: 'Could not approve username',
+          description: data.error || 'Try again',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({ title: `Username updated to @${data.username}` });
+      await loadCreators();
+    } catch {
+      toast({
+        title: 'Could not approve username',
+        description: 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setApprovingId(null);
+    }
+  }
 
   const filtered = useMemo(() => filterCreators(creators, activeFilter), [creators, activeFilter]);
 
@@ -363,6 +411,28 @@ export default function AdminCreatorsPage() {
 
   return (
     <div className="space-y-6">
+      {usernameRequests.length > 0 ? (
+        <div className={`${adminPanelClass} space-y-3`}>
+          <h2 className="text-sm font-medium">Username change requests</h2>
+          {usernameRequests.map((request) => (
+            <div key={request.id} className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm">
+                {request.creator.displayName}{' '}
+                <span className={adminMutedClass}>
+                  @{request.creator.username} → @{request.requestedUsername}
+                </span>
+              </p>
+              <Button
+                size="sm"
+                disabled={approvingId === request.id}
+                onClick={() => void approveUsername(request.id)}
+              >
+                {approvingId === request.id ? 'Approving…' : 'Approve'}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="foleio-admin-title">Creators</h1>

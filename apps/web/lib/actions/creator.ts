@@ -38,7 +38,7 @@ const onboardingStep1Schema = z.object({
       'Username can only contain lowercase letters, numbers, hyphens, and underscores'
     )
     .optional(),
-  bio: z.string().optional(),
+  bio: z.string().max(150, 'Bio must be 150 characters or fewer').optional(),
   category: z.string().default('makeup'),
   useCases: z.array(z.string()).optional(),
   instagramHandle: z.string().optional(),
@@ -58,7 +58,7 @@ const profileUpdateSchema = z.object({
     .regex(/^[a-z0-9_-]+$/, 'Username can only contain lowercase letters, numbers, hyphens, and underscores')
     .optional(),
   displayName: z.string().min(2, 'Display name must be at least 2 characters').optional(),
-  bio: z.string().optional(),
+  bio: z.string().max(150, 'Bio must be 150 characters or fewer').optional(),
   instagramHandle: z.string().optional(),
   tiktokHandle: z.string().optional(),
   avatarUrl: z.string().optional(),
