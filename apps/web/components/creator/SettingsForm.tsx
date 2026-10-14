@@ -33,7 +33,7 @@ const profileSchema = z.object({
     .max(30, 'Username must be less than 30 characters')
     .regex(/^[a-z0-9_-]+$/, 'Username can only contain lowercase letters, numbers, hyphens, and underscores'),
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
-  bio: z.string().optional(),
+  bio: z.string().max(150, 'Bio must be 150 characters or fewer').optional(),
   instagramHandle: z.string().optional(),
   tiktokHandle: z.string().optional(),
   avatarUrl: z.string().optional(),

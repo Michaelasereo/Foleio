@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Camera, Copy, ExternalLink, Globe, Loader2, BadgeCheck } from 'lucide-react';
+import { ArrowRight, Camera, Copy, ExternalLink, Globe, Loader2, BadgeCheck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { broadcastAvatarUpdated } from '@/lib/creator/profile-live';
 import { BusinessCoverCard } from '@/components/creator/BusinessCoverCard';
@@ -17,7 +17,7 @@ import { SupportChatSettings } from '@/components/creator/SupportChatSettings';
 import { BookingPolicySettings } from '@/components/booking/BookingPolicySettings';
 import { OfferingsSettings } from '@/components/creator/OfferingsSettings';
 import { RightSideDrawer } from '@/components/creator/RightSideDrawer';
-import { BIO_MAX_WORDS, countBioWords, trimBioToMaxWords } from '@/lib/creator/bio';
+import { BIO_MAX_CHARS, trimBioToMaxChars } from '@/lib/creator/bio';
 import { INDUSTRY_OPTIONS } from '@/lib/constants/industries';
 import { parseSocialUrl } from '@/lib/creator/social-urls';
 
@@ -33,8 +33,6 @@ type SettingsTab =
   | 'offerings'
   | 'developer-support';
 
-type SettingsSegment = 'general' | 'admin' | 'developer-support';
-
 const GENERAL_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'profile', label: 'Profile' },
   { id: 'portfolio', label: 'Portfolio' },
@@ -42,23 +40,19 @@ const GENERAL_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'billing', label: 'Billing' },
 ];
 
-const ADMIN_TABS: Array<{ id: SettingsTab; label: string }> = [
+const ACCOUNT_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'offerings', label: 'Modules' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'policy', label: 'Deposits & policy' },
   { id: 'support', label: 'Chat with us' },
   { id: 'security', label: 'Security' },
-];
-
-const DEVELOPER_SUPPORT_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'developer-support', label: 'Developer support' },
 ];
 
-const ALL_SETTINGS_TABS = [...GENERAL_TABS, ...ADMIN_TABS, ...DEVELOPER_SUPPORT_TABS];
+const ALL_SETTINGS_TABS = [...GENERAL_TABS, ...ACCOUNT_TABS];
 
-function segmentForTab(tab: SettingsTab): SettingsSegment {
-  if (tab === 'developer-support') return 'developer-support';
-  return GENERAL_TABS.some((t) => t.id === tab) ? 'general' : 'admin';
+function isAccountTab(tab: SettingsTab) {
+  return ACCOUNT_TABS.some((item) => item.id === tab);
 }
 
 function isSettingsTab(value: string | null): value is SettingsTab {
@@ -131,7 +125,6 @@ export function AccountSettingsTabs({
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
-  const [segment, setSegment] = useState<SettingsSegment>('general');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(creator.avatarUrl || null);
@@ -175,27 +168,21 @@ export function AccountSettingsTabs({
     if (isSettingsTab(tab)) {
       if (supportMode && (tab === 'security' || tab === 'billing')) {
         setActiveTab('profile');
-        setSegment('general');
         router.replace('/settings?tab=profile');
         return;
       }
       setActiveTab(tab);
-      setSegment(segmentForTab(tab));
     }
   }, [searchParams, supportMode, router]);
 
-  const adminTabs = supportMode
-    ? ADMIN_TABS.filter((tab) => tab.id !== 'security')
-    : ADMIN_TABS;
-
-  const visibleTabs =
-    segment === 'general'
-      ? supportMode
-        ? GENERAL_TABS.filter((tab) => tab.id !== 'billing')
-        : GENERAL_TABS
-      : segment === 'admin'
-        ? adminTabs
-        : DEVELOPER_SUPPORT_TABS;
+  const onAccountPage = isAccountTab(activeTab);
+  const visibleTabs = onAccountPage
+    ? supportMode
+      ? ACCOUNT_TABS.filter((tab) => tab.id !== 'security')
+      : ACCOUNT_TABS
+    : supportMode
+      ? GENERAL_TABS.filter((tab) => tab.id !== 'billing')
+      : GENERAL_TABS;
 
   useEffect(() => {
     let mounted = true;
@@ -475,7 +462,6 @@ export function AccountSettingsTabs({
       return;
     }
     setActiveTab(tab);
-    setSegment(segmentForTab(tab));
     const params = new URLSearchParams(searchParams.toString());
     if (tab === 'profile') {
       params.delete('tab');
@@ -484,20 +470,6 @@ export function AccountSettingsTabs({
     }
     const query = params.toString();
     router.replace(query ? `/settings?${query}` : '/settings', { scroll: false });
-  }
-
-  function selectSegment(next: SettingsSegment) {
-    if (next === segment) return;
-    setSegment(next);
-    const tabsForSegment =
-      next === 'general'
-        ? supportMode
-          ? GENERAL_TABS.filter((tab) => tab.id !== 'billing')
-          : GENERAL_TABS
-        : next === 'admin'
-          ? adminTabs
-          : DEVELOPER_SUPPORT_TABS;
-    selectTab(tabsForSegment[0]!.id);
   }
 
   async function handleChangePassword() {
@@ -753,11 +725,13 @@ export function AccountSettingsTabs({
       <div className="foleio-dash-header">
         <div>
           <h1 className="foleio-auth-title">
-            {activeTab === 'security' ? 'Account settings' : activeTab === 'profile' ? 'Profile settings' : 'Settings'}
+            {onAccountPage ? 'Account settings' : 'Profile settings'}
           </h1>
           <p className="foleio-dash-panel-meta" style={{ marginTop: 6, marginBottom: 0 }}>
-            {activeTab === 'security'
-              ? 'Email, password, and sign-in. Nothing here changes how you get paid.'
+            {onAccountPage
+              ? activeTab === 'security'
+                ? 'Email, password, and sign-in. Nothing here changes how you get paid.'
+                : 'Modules, notifications, policy, and support.'
               : activeTab === 'profile'
                 ? 'What clients see on your public page.'
                 : 'Manage your profile, privacy and account preferences'}
@@ -765,44 +739,36 @@ export function AccountSettingsTabs({
         </div>
       </div>
 
-      <div className="foleio-dash-underline-tabs" role="tablist" aria-label="Settings groups">
-        {(
-          [
-            { id: 'general' as const, label: 'General' },
-            { id: 'admin' as const, label: 'Admin' },
-            { id: 'developer-support' as const, label: 'Developer support' },
-          ] as const
-        ).map((item) => (
+      <div className="foleio-dash-tabs-row">
+        <div className="foleio-dash-tabs" role="tablist" aria-label="Settings sections">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`foleio-dash-tab${activeTab === tab.id ? ' is-active' : ''}`}
+              onClick={() => selectTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {onAccountPage ? null : (
           <button
-            key={item.id}
             type="button"
-            role="tab"
-            aria-selected={segment === item.id}
-            className={`foleio-dash-underline-tab${segment === item.id ? ' is-active' : ''}`}
-            onClick={() => selectSegment(item.id)}
+            className="foleio-dash-btn-primary"
+            onClick={() => router.push('/profile/preview')}
           >
-            {item.label}
+            Preview public page
+            <ArrowRight size={16} aria-hidden />
           </button>
-        ))}
-      </div>
-
-      <div className="foleio-dash-tabs" role="tablist" aria-label="Settings sections">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            className={`foleio-dash-tab${activeTab === tab.id ? ' is-active' : ''}`}
-            onClick={() => selectTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+        )}
       </div>
 
       {activeTab === 'profile' ? (
-        <div className="foleio-dash-settings">
+        <div className="foleio-dash-settings is-split">
+          <div className="foleio-dash-settings-col">
           <div className="foleio-dash-panel">
             <h2 className="foleio-dash-panel-title">Cover image</h2>
             <p className="foleio-dash-panel-meta" style={{ marginBottom: 14 }}>
@@ -918,6 +884,10 @@ export function AccountSettingsTabs({
             </div>
           </div>
 
+          <CreatorLinksManager />
+          </div>
+
+          <div className="foleio-dash-settings-col">
           <div className="foleio-dash-panel">
             <h2 className="foleio-dash-panel-title">Profile details</h2>
             <p className="foleio-dash-panel-meta">How clients find and recognise you</p>
@@ -959,13 +929,12 @@ export function AccountSettingsTabs({
                 Bio
                 <span style={{ fontWeight: 400, color: '#828282' }}>
                   {' '}
-                  {countBioWords(bio)}/{BIO_MAX_WORDS} words
+                  {bio.length}/{BIO_MAX_CHARS} characters
                 </span>
                 <textarea
                   value={bio}
-                  onChange={(e) =>
-                    setBio(trimBioToMaxWords(e.target.value, BIO_MAX_WORDS))
-                  }
+                  maxLength={BIO_MAX_CHARS}
+                  onChange={(e) => setBio(trimBioToMaxChars(e.target.value))}
                   rows={5}
                   placeholder="Tell your audience who you are..."
                   className="foleio-dash-textarea"
@@ -1133,8 +1102,7 @@ export function AccountSettingsTabs({
               </div>
             </div>
           </div>
-
-          <CreatorLinksManager />
+          </div>
         </div>
       ) : null}
 

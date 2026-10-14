@@ -3,8 +3,14 @@ import { createRouteHandlerClient } from '@/lib/supabase/server';
 import { prisma } from '@foleio/database';
 import { getPlanLimits } from '@/lib/utils/plan-limits';
 import { cleanSocialUrl, parseSocialUrl } from '@/lib/creator/social-urls';
-import { trimBioToMaxWords } from '@/lib/creator/bio';
+import { trimBioToMaxChars } from '@/lib/creator/bio';
 import { revalidatePublicCreator } from '@/lib/creator/revalidate-public';
+import {
+  isValidUsername,
+  normalizeUsername,
+  usernameChangeAllowed,
+  usernameChangeEligibleAt,
+} from '@/lib/creator/username-change';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +85,14 @@ export async function GET() {
         category: true,
         instagramHandle: true,
         tiktokHandle: true,
+        usernameChangedAt: true,
+        user: { select: { createdAt: true } },
+        usernameChangeRequests: {
+          where: { status: 'pending' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { requestedUsername: true },
+        },
         creatorLinks: {
           where: {
             linkType: { in: ['twitter', 'portfolio'] },
@@ -103,6 +117,11 @@ export async function GET() {
     const portfolioUrl =
       creator.creatorLinks.find((link) => link.linkType === 'portfolio')?.url || '';
 
+    const eligibleAt = usernameChangeEligibleAt(
+      creator.usernameChangedAt,
+      creator.user.createdAt
+    );
+
     return NextResponse.json({
       creator: {
         displayName: creator.displayName,
@@ -118,6 +137,11 @@ export async function GET() {
         tiktokUrl: creator.tiktokHandle || '',
         twitterUrl,
         portfolioUrl,
+        usernameChange: {
+          eligible: usernameChangeAllowed(creator.usernameChangedAt, creator.user.createdAt),
+          eligibleAt: eligibleAt.toISOString(),
+          pendingUsername: creator.usernameChangeRequests[0]?.requestedUsername ?? null,
+        },
       },
     });
   } catch (error: any) {
@@ -143,6 +167,7 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const data: {
       username?: string;
+      usernameChangedAt?: Date;
       displayName?: string;
       bio?: string | null;
       avatarUrl?: string | null;
@@ -153,11 +178,8 @@ export async function PATCH(request: Request) {
     } = {};
 
     if (typeof body.username === 'string') {
-      const username = body.username
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '-');
-      if (!/^[a-z0-9_-]{3,30}$/.test(username)) {
+      const username = normalizeUsername(body.username);
+      if (!isValidUsername(username)) {
         return NextResponse.json(
           {
             error:
@@ -167,17 +189,47 @@ export async function PATCH(request: Request) {
         );
       }
 
-      const existing = await prisma.creator.findFirst({
-        where: {
-          username,
-          userId: { not: user.id },
+      const current = await prisma.creator.findUnique({
+        where: { userId: user.id },
+        select: {
+          username: true,
+          usernameChangedAt: true,
+          user: { select: { createdAt: true } },
         },
-        select: { id: true },
       });
-      if (existing) {
-        return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
+      if (!current) {
+        return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
       }
-      data.username = username;
+
+      if (username !== current.username) {
+        if (!usernameChangeAllowed(current.usernameChangedAt, current.user.createdAt)) {
+          const eligibleAt = usernameChangeEligibleAt(
+            current.usernameChangedAt,
+            current.user.createdAt
+          );
+          return NextResponse.json(
+            {
+              error: 'Username cannot be changed until the cooldown ends.',
+              code: 'username_cooldown',
+              eligibleAt: eligibleAt.toISOString(),
+            },
+            { status: 403 }
+          );
+        }
+
+        const existing = await prisma.creator.findFirst({
+          where: {
+            username,
+            userId: { not: user.id },
+          },
+          select: { id: true },
+        });
+        if (existing) {
+          return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
+        }
+        data.username = username;
+        data.usernameChangedAt = new Date();
+      }
     }
 
     if (typeof body.displayName === 'string') {
@@ -192,7 +244,7 @@ export async function PATCH(request: Request) {
     }
 
     if (typeof body.bio === 'string') {
-      data.bio = trimBioToMaxWords(body.bio.trim());
+      data.bio = trimBioToMaxChars(body.bio.trim());
     } else if (body.bio === null) {
       data.bio = null;
     }
@@ -428,13 +480,46 @@ export async function PUT(request: Request) {
       );
     }
 
+    const currentCreator = await prisma.creator.findUnique({
+      where: { userId: user.id },
+      select: {
+        username: true,
+        usernameChangedAt: true,
+        user: { select: { createdAt: true } },
+      },
+    });
+    if (!currentCreator) {
+      return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    }
+
+    const nextUsername = normalizeUsername(String(username));
+    const usernameIsChanging = nextUsername !== currentCreator.username;
+    if (
+      usernameIsChanging &&
+      !usernameChangeAllowed(currentCreator.usernameChangedAt, currentCreator.user.createdAt)
+    ) {
+      const eligibleAt = usernameChangeEligibleAt(
+        currentCreator.usernameChangedAt,
+        currentCreator.user.createdAt
+      );
+      return NextResponse.json(
+        {
+          error: 'Username cannot be changed until the cooldown ends.',
+          code: 'username_cooldown',
+          eligibleAt: eligibleAt.toISOString(),
+        },
+        { status: 403 }
+      );
+    }
+
     // 5. Update creator profile
     const updatedCreator = await prisma.creator.update({
       where: { userId: user.id },
       data: {
-        username,
+        username: nextUsername,
+        ...(usernameIsChanging ? { usernameChangedAt: new Date() } : {}),
         displayName,
-        bio,
+        bio: typeof bio === 'string' ? trimBioToMaxChars(bio.trim()) : bio,
         category,
         instagramHandle,
         tiktokHandle,
