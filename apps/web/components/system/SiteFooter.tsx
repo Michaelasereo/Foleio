@@ -22,7 +22,9 @@ export function SiteFooter() {
     pathname === '/pricing' ||
     pathname?.startsWith('/demo') ||
     pathname?.startsWith('/product/') ||
-    pathname?.startsWith('/legal')
+    pathname?.startsWith('/legal') ||
+    pathname?.startsWith('/profile/preview') ||
+    pathname?.startsWith('/creator/')
   ) {
     return null;
   }

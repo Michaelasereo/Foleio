@@ -720,8 +720,27 @@ export function AvailabilitySetupForm({
   };
 
   const handleSave = async () => {
-    const available = Array.from(selectedDates).filter((key) => !isPast(key));
-    const unavailable = Array.from(offDates).filter((key) => !isPast(key));
+    const nextSelected = new Set(selectedDates);
+    const nextOff = new Set(offDates);
+    const nextSchedules = { ...dateSchedules };
+    let openedSchedule: DaySchedule | null = null;
+
+    if (activeDate && !isPast(activeDate)) {
+      openedSchedule = {
+        ...activeSchedule,
+        timeMode: 'hours',
+        startTime: activeSchedule.startTime || DEFAULT_HOURS_WINDOW.startTime,
+        endTime: activeSchedule.endTime || DEFAULT_HOURS_WINDOW.endTime,
+        customSlots: [...activeSchedule.customSlots],
+        disabledGeneratedStarts: [...activeSchedule.disabledGeneratedStarts],
+      };
+      nextSelected.add(activeDate);
+      nextOff.delete(activeDate);
+      nextSchedules[activeDate] = openedSchedule;
+    }
+
+    const available = Array.from(nextSelected).filter((key) => !isPast(key));
+    const unavailable = Array.from(nextOff).filter((key) => !isPast(key));
 
     if (available.length === 0 && unavailable.length === 0) {
       setMessageTone('err');
@@ -730,7 +749,7 @@ export function AvailabilitySetupForm({
     }
 
     for (const key of available) {
-      const schedule = dateSchedules[key] || DEFAULT_AVAILABLE;
+      const schedule = nextSchedules[key] || DEFAULT_AVAILABLE;
       if (schedule.timeMode !== 'hours') continue;
 
       const hasWindow = Boolean(schedule.startTime && schedule.endTime);
@@ -759,7 +778,7 @@ export function AvailabilitySetupForm({
       // Group available dates by identical schedule payload for fewer bulk calls.
       const groups = new Map<string, string[]>();
       for (const key of available) {
-        const schedule = dateSchedules[key] || DEFAULT_AVAILABLE;
+        const schedule = nextSchedules[key] || DEFAULT_AVAILABLE;
         const groupKey = JSON.stringify({
           mode: schedule.timeMode,
           startTime: schedule.startTime,
@@ -820,6 +839,12 @@ export function AvailabilitySetupForm({
         if (!response.ok) {
           throw new Error(result.error || 'Failed to save availability');
         }
+      }
+
+      if (activeDate && openedSchedule) {
+        setIsAvailableMode(true);
+        setAvailableSchedule(openedSchedule);
+        applyStatusToDate(activeDate, true, openedSchedule);
       }
 
       setMessageTone('ok');

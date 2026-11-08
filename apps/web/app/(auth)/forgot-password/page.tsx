@@ -47,10 +47,16 @@ export default function ForgotPasswordPage() {
   async function onSubmit(data: ForgotPasswordFormValues) {
     setIsLoading(true);
     try {
+      // Prefer the canonical prod URL so reset emails never embed localhost
+      // when Site URL / redirect allowlist fall back. Callback exchanges the
+      // recovery code, then sends the user to /reset-password.
+      const appUrl = (
+        process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+      ).replace(/\/+$/, '');
       const { error } = await supabase.auth.resetPasswordForEmail(
         data.email,
         {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${appUrl}/auth/callback?next=/reset-password`,
         }
       );
 

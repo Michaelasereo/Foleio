@@ -77,6 +77,7 @@ model Creator {
   id       String @id @default(uuid())
   userId   String @unique @map("user_id")
   username String @unique
+  usernameChangedAt DateTime? @map("username_changed_at")
   displayName String @map("display_name")
   bio      String?
   category String  @default("makeup")
@@ -211,10 +212,27 @@ model Creator {
   giftCards         GiftCard[]
   coupons           Coupon[]
   developerSupportGrants DeveloperSupportGrant[]
+  usernameChangeRequests UsernameChangeRequest[]
 
   @@map("creators")
   @@index([userId])
   @@index([username])
+}
+
+/** Creator asked to change username before the 14-day cooldown ends. */
+model UsernameChangeRequest {
+  id                String    @id @default(uuid())
+  creatorId         String    @map("creator_id")
+  requestedUsername String    @map("requested_username")
+  status            String    @default("pending") // pending | approved | rejected
+  createdAt         DateTime  @default(now()) @map("created_at")
+  reviewedAt        DateTime? @map("reviewed_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, status])
+  @@index([status])
+  @@map("username_change_requests")
 }
 
 model JournalEntry {

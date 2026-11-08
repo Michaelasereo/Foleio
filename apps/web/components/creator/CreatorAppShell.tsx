@@ -971,10 +971,18 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
 }
 .foleio-creator-root .foleio-creator-content-surface .foleio-avail-time-field input[type='time'],
 .foleio-creator-root .foleio-creator-content-surface .foleio-avail-capacity-input input,
-.foleio-creator-root .foleio-creator-content-surface .foleio-dash-select,
 .foleio-creator-root .foleio-creator-content-surface .foleio-dash-url-strip,
 .foleio-creator-root .foleio-creator-content-surface .foleio-dash-link-row {
   background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  color-scheme: light;
+}
+.foleio-creator-root .foleio-creator-content-surface .foleio-dash-select {
+  background-color: #ffffff !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
   color: #111827 !important;
   border: 1px solid rgba(17, 24, 39, 0.12);
   color-scheme: light;
@@ -1339,9 +1347,24 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   background: transparent;
 }
 .foleio-dash-header + .foleio-dash-tabs,
-.foleio-dash-header + .foleio-dash-underline-tabs {
+.foleio-dash-header + .foleio-dash-underline-tabs,
+.foleio-dash-header + .foleio-dash-tabs-row {
   margin-top: 0;
   margin-bottom: 16px;
+}
+.foleio-dash-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.foleio-dash-tabs-row .foleio-dash-tabs {
+  margin: 0;
+}
+.foleio-dash-tabs-row > .foleio-dash-btn-outline {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .foleio-dash-tabs + .foleio-dash-stats {
   margin-top: 0;
@@ -2185,6 +2208,23 @@ body:has(.foleio-creator-root) footer:not(.foleio-auth-legal) {
   flex-direction: column;
   gap: 14px;
   max-width: 560px;
+}
+.foleio-dash-settings.is-split {
+  max-width: none;
+}
+.foleio-dash-settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .foleio-dash-settings.is-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+  }
 }
 .foleio-dash-settings-stack {
   display: flex;
